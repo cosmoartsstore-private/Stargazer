@@ -1,0 +1,46 @@
+{
+  "casts": [
+    {
+      "name": "Noa",
+      "is_attend": true,
+      "urls": ["https://x.com/noa_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Rin",
+      "is_attend": true,
+      "urls": ["https://x.com/rin_cast"],
+      "ng_username": ["霧崎 縁"],
+      "ng_userid": ["@en_k"]
+    },
+    {
+      "name": "Mio",
+      "is_attend": true,
+      "urls": ["https://x.com/mio_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Sora",
+      "is_attend": true,
+      "urls": ["https://x.com/sora_cast"],
+      "ng_username": ["八雲 凪"],
+      "ng_userid": ["@nagi_y"]
+    },
+    {
+      "name": "Yuki",
+      "is_attend": false,
+      "urls": ["https://x.com/yuki_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Haru",
+      "is_attend": true,
+      "urls": ["https://x.com/haru_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    }
+  ]
+}

@@ -1,0 +1,782 @@
+/* ========================================
+   マッチング用バッジ
+   ======================================== */
+
+.rank-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.rank-badge--out {
+  background-color: var(--discord-bg-secondary);
+  color: var(--discord-text-muted);
+}
+
+.rank-badge--1 {
+  font-weight: bold;
+  background-color: #f5c400;
+  color: #000;
+}
+
+.rank-badge--2 {
+  font-weight: bold;
+  background-color: #a8a8a8;
+  color: #000;
+}
+
+.rank-badge--3 {
+  font-weight: bold;
+  background-color: #ad6f2d;
+  color: #fff;
+}
+
+.rank-badge--other {
+  background-color: var(--discord-bg-secondary);
+  color: var(--discord-text-muted);
+}
+
+/* マッチング結果：再割り当て時のチェック違反・NG警告はオレンジで表示 */
+.matching-cell-ng-warning {
+  background-color: rgba(230, 126, 34, 0.25);
+  border-left: 3px solid #e67e22;
+}
+
+.matching-ng-icon {
+  color: #e67e22;
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+.db-view-remove-caution-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.db-view-remove-caution-btn:hover {
+  background: rgba(237, 66, 69, 0.2);
+}
+
+/* ========================================
+   構成・レイアウト（分かりやすい区分）
+   ======================================== */
+
+.page-header-tight {
+  margin-bottom: 16px;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 768px) {
+  .action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.section-block {
+  background-color: var(--discord-bg-main);
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.section-block-with-mb {
+  background-color: var(--discord-bg-main);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 32px;
+}
+
+.section-title-inline {
+  margin-bottom: 4px;
+  font-size: 18px;
+}
+
+.section-subtitle-inline {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* レイアウト用ユーティリティ（インライン代替・モック参考用） */
+.page-header-subtitle--tight {
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+
+.btn-toggle-group--mb {
+  margin-bottom: 18px;
+}
+
+.form-group--mb-sm {
+  margin-bottom: 16px;
+}
+
+.form-group--mb-md {
+  margin-bottom: 20px;
+}
+
+.form-group--mb-lg {
+  margin-bottom: 26px;
+}
+
+.btn-primary--full {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.table-cell-table-index {
+  margin-bottom: 4px;
+}
+
+.modal-content--narrow {
+  max-width: 520px;
+}
+
+.modal-title {
+  color: var(--discord-text-header);
+  font-size: 18px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.modal-message--block {
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.sidebar-block {
+  margin-top: 16px;
+  padding: 8px;
+}
+
+.sidebar-block--push {
+  margin-top: auto;
+  padding: 10px;
+}
+
+.sidebar-theme-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--discord-text-muted);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.sidebar-theme-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+/* ========== チェックテーマ（ストライプ青・スプライト構造を青系で再現） ========== */
+.app-container[data-theme="skyblue"] {
+  --cast-present-bg: #2e9d6e;
+  --cast-absent-bg: #8db4c9;
+  --discord-accent-gold: #c5a000;
+  /* 水色テーマでは少し濃いめの金 */
+  --discord-bg-dark: rgba(255, 255, 255, 0.96);
+  --discord-bg-main: transparent;
+  --discord-bg-secondary: rgba(255, 255, 255, 0.92);
+  --discord-bg-hover: rgba(70, 140, 210, 0.08);
+  --discord-bg-selected: rgba(70, 140, 210, 0.14);
+  --discord-bg-alt: rgba(70, 140, 210, 0.06);
+  --discord-bg-sidebar: rgba(255, 255, 255, 0.94);
+  --discord-text-normal: #1e3a5f;
+  --discord-text-muted: rgba(30, 58, 95, 0.65);
+  --discord-text-link: #2d7cc4;
+  --discord-text-header: #152942;
+  --discord-border: rgba(70, 140, 210, 0.25);
+  --discord-divider: rgba(70, 140, 210, 0.18);
+  --discord-button-primary: #4a8ec8;
+  --discord-button-primary-hover: #3a7eb8;
+  --discord-button-secondary: rgba(70, 140, 210, 0.12);
+  --discord-button-secondary-hover: rgba(70, 140, 210, 0.2);
+
+  /* sticky elements */
+  --db-sticky-bg: #f6faff;
+  --db-sticky-bg-alt: #f6faff;
+  --db-sticky-bg-caution: #ffe6e8;
+  --db-sticky-shadow-right: 4px 0 12px rgba(30, 58, 95, 0.12);
+  --db-sticky-shadow-bottom: 0 4px 12px rgba(30, 58, 95, 0.12);
+}
+
+/* チェックテーマでは表をしましまにしない（白で統一） */
+.app-container[data-theme="skyblue"] tbody tr:nth-child(even) {
+  background-color: transparent;
+}
+
+.app-container[data-theme="skyblue"] .sidebar-theme-pills {
+  background: rgba(70, 140, 210, 0.1);
+}
+
+.app-container[data-theme="skyblue"] .sidebar {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-right: 1px solid rgba(70, 140, 210, 0.2);
+}
+
+.app-container[data-theme="skyblue"] .sidebar-button {
+  color: #3a6a9a;
+}
+
+.app-container[data-theme="skyblue"] .sidebar-button.active {
+  background: rgba(255, 255, 255, 0.95);
+  color: #152942;
+  box-shadow: inset 4px 0 0 #4a8ec8;
+}
+
+.app-container[data-theme="skyblue"] .sidebar-button.logout {
+  color: var(--discord-accent-red);
+}
+
+.app-container[data-theme="skyblue"] .mobile-header {
+  background: rgba(240, 248, 255, 0.98);
+  border-bottom: 1px solid rgba(70, 140, 210, 0.2);
+}
+
+.app-container[data-theme="skyblue"] .menu-toggle {
+  background: #4a8ec8;
+  color: #ffffff;
+}
+
+.app-container[data-theme="skyblue"] .header-logo__title {
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .header-logo__tagline {
+  color: rgba(30, 58, 95, 0.6);
+}
+
+.app-container[data-theme="skyblue"] .page-card-narrow {
+  background-color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(70, 140, 210, 0.22);
+}
+
+.app-container[data-theme="skyblue"] .page-card {
+  background-color: rgba(255, 255, 255, 0.94);
+  border-color: rgba(70, 140, 210, 0.22);
+}
+
+/* キャストカード出欠 */
+.app-container[data-theme="skyblue"] .cast-card__status-dot--present {
+  background-color: var(--cast-present-bg);
+}
+
+.app-container[data-theme="skyblue"] .cast-card__status-dot--absent {
+  background-color: var(--cast-absent-bg);
+}
+
+.app-container[data-theme="skyblue"] .cast-card__presence-button--present {
+  background-color: var(--cast-present-bg);
+  color: #fff;
+}
+
+.app-container[data-theme="skyblue"] .cast-card__presence-button--absent {
+  background-color: var(--cast-absent-bg);
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .cast-presence-summary__col--present .cast-presence-summary__label {
+  color: var(--cast-present-bg);
+}
+
+.app-container[data-theme="skyblue"] .cast-presence-summary__chip--present {
+  background-color: var(--cast-present-bg);
+  color: #fff;
+}
+
+.app-container[data-theme="skyblue"] .cast-presence-summary__col--absent .cast-presence-summary__label {
+  color: #4a6a80;
+}
+
+.app-container[data-theme="skyblue"] .cast-presence-summary__chip--absent {
+  background-color: #8db4c9;
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .ng-page__exception-chip {
+  background-color: #b8d0e0;
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .caution-candidate-name-chip {
+  background-color: #b8d0e0;
+  color: #152942;
+}
+
+/* モーダル */
+.app-container[data-theme="skyblue"] .modal-overlay {
+  background-color: rgba(30, 58, 95, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.app-container[data-theme="skyblue"] .modal-content {
+  background-color: var(--discord-bg-dark);
+  border-color: var(--discord-border);
+  box-shadow: 0 20px 60px rgba(30, 58, 95, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.app-container[data-theme="skyblue"] .modal-title {
+  color: var(--discord-text-header);
+}
+
+.app-container[data-theme="skyblue"] .modal-message {
+  color: var(--discord-text-normal);
+}
+
+.app-container[data-theme="skyblue"] .modal-btn-cancel {
+  background-color: var(--discord-button-secondary);
+  color: var(--discord-text-normal);
+  border-color: var(--discord-border);
+}
+
+.app-container[data-theme="skyblue"] .modal-btn-cancel:hover {
+  background-color: var(--discord-button-secondary-hover);
+}
+
+.app-container[data-theme="skyblue"] .btn-primary.modal-btn-confirm {
+  background-color: var(--discord-button-primary);
+  color: #fff;
+}
+
+.app-container[data-theme="skyblue"] .btn-primary.modal-btn-confirm:hover {
+  background-color: var(--discord-button-primary-hover);
+}
+
+/* テーマプレビュー */
+.app-container[data-theme="skyblue"] .theme-preview__layout {
+  border-color: rgba(70, 140, 210, 0.25);
+}
+
+.app-container[data-theme="skyblue"] .theme-preview:hover .theme-preview__layout {
+  border-color: rgba(70, 140, 210, 0.4);
+}
+
+.app-container[data-theme="skyblue"] .theme-preview.active .theme-preview__layout {
+  border-color: #4a8ec8;
+  box-shadow: 0 0 0 2px rgba(74, 142, 200, 0.25);
+}
+
+.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle-group {
+  background: rgba(70, 140, 210, 0.12);
+  border-color: rgba(70, 140, 210, 0.25);
+}
+
+.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle {
+  color: #1e3a5f;
+}
+
+.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle.active {
+  background: #4a8ec8;
+  color: #fff;
+}
+
+/* フォーム入力 */
+.app-container[data-theme="skyblue"] .form-input,
+.app-container[data-theme="skyblue"] input[type="text"],
+.app-container[data-theme="skyblue"] input[type="number"],
+.app-container[data-theme="skyblue"] select {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(70, 140, 210, 0.25);
+  color: #1e3a5f;
+}
+
+/* チェック系テーマ（skyblue）: 白背景＋青系文字で視認性確保 */
+.app-container[data-theme="skyblue"] .app-select__trigger {
+  background: #ffffff;
+  border: 2px solid rgba(70, 140, 210, 0.5);
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .app-select__trigger:hover:not(:disabled) {
+  border-color: #4a8ec8;
+  background: #f8fbff;
+}
+
+.app-container[data-theme="skyblue"] .app-select__content {
+  background: #ffffff;
+  border: 2px solid rgba(70, 140, 210, 0.4);
+}
+
+.app-container[data-theme="skyblue"] .app-select__item {
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .app-select__item:hover,
+.app-container[data-theme="skyblue"] .app-select__item[data-highlighted] {
+  background: rgba(74, 142, 200, 0.12);
+}
+
+.app-container[data-theme="skyblue"] .import-column-mapping__select {
+  background: #ffffff;
+  border: 2px solid rgba(70, 140, 210, 0.5);
+  color: #152942;
+}
+
+.app-container[data-theme="skyblue"] .import-column-mapping__select:hover {
+  border-color: #4a8ec8;
+  background: #f8fbff;
+}
+
+.app-container[data-theme="skyblue"] .import-column-mapping__select option {
+  background: #ffffff;
+  color: #152942;
+}
+
+/* ボタントグル */
+.app-container[data-theme="skyblue"] .btn-toggle {
+  background: rgba(70, 140, 210, 0.08);
+  color: #3a6a9a;
+  border: 1px solid rgba(70, 140, 210, 0.2);
+}
+
+.app-container[data-theme="skyblue"] .btn-toggle.active {
+  background: rgba(74, 142, 200, 0.18);
+  color: #152942;
+  border-color: rgba(74, 142, 200, 0.4);
+}
+
+.sidebar-theme-pill {
+  min-width: 64px;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--discord-text-muted);
+}
+
+.sidebar-theme-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--discord-text-normal);
+}
+
+.sidebar-theme-pill.active {
+  background: var(--discord-accent-blue);
+  color: #fff;
+}
+
+.sidebar-theme-pill:focus-visible,
+.settings-theme-tile:focus-visible {
+  outline: 2px solid var(--discord-accent-blue);
+  outline-offset: 2px;
+}
+
+.sidebar-button-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* 設定ページ：テーマタイル */
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.settings-theme-tile {
+  display: block;
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--discord-border);
+  background: var(--discord-bg-secondary);
+  color: var(--discord-text-normal);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.17s ease, background 0.17s ease;
+}
+
+.settings-theme-tile:hover {
+  background: var(--discord-bg-hover);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-theme-tile.active {
+  border-color: var(--discord-accent-blue);
+  background: rgba(88, 101, 242, 0.2);
+  color: var(--discord-text-header);
+}
+
+.settings-theme-tile__name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* テーマ選択：ミニレイアウトプレビュー（設定タブ専用） */
+.theme-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.theme-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.theme-preview__layout {
+  display: flex;
+  width: 80px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid var(--discord-border);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme-preview:hover .theme-preview__layout {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.theme-preview.active .theme-preview__layout {
+  border-color: var(--discord-accent-blue);
+  box-shadow: 0 0 0 1px var(--discord-accent-blue), 0 2px 8px rgba(88, 101, 242, 0.3);
+}
+
+.theme-preview:focus-visible .theme-preview__layout {
+  outline: 2px solid var(--discord-accent-blue);
+  outline-offset: 2px;
+}
+
+/* サイドバー */
+.theme-preview__sidebar {
+  width: 22px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 3px;
+}
+
+.theme-preview__sidebar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.theme-preview__sidebar-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+/* コンテンツエリア */
+.theme-preview__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+}
+
+.theme-preview__card {
+  width: 100%;
+  border-radius: 3px;
+  padding: 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-preview__card-line {
+  height: 2px;
+  width: 100%;
+  border-radius: 1px;
+}
+
+.theme-preview__card-line--short {
+  width: 60%;
+}
+
+.theme-preview__accent {
+  width: 70%;
+  height: 5px;
+  border-radius: 2px;
+}
+
+/* ラベル */
+.theme-preview__label {
+  font-size: 10px;
+  color: var(--discord-text-muted, #888);
+  line-height: 1;
+}
+
+.theme-preview.active .theme-preview__label {
+  color: var(--discord-accent-blue);
+  font-weight: 600;
+}
+
+/* データ読取：カスタム形式の列マッピング */
+.import-column-mapping {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-column-mapping__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.import-column-mapping__label {
+  flex: 0 0 140px;
+  font-size: 14px;
+  color: var(--discord-text-normal);
+}
+
+.import-column-mapping__select-wrap {
+  flex: 1;
+  max-width: 320px;
+}
+
+.import-column-mapping__select,
+select.app-select-native {
+  flex: 1;
+  max-width: 120px;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--discord-bg-dark);
+  border: 2px solid var(--discord-border);
+  border-radius: 6px;
+  color: var(--discord-text-header);
+  cursor: pointer;
+}
+
+.import-column-mapping__select:hover,
+select.app-select-native:hover {
+  border-color: var(--discord-text-muted);
+  background: var(--discord-bg-secondary);
+}
+
+.import-column-mapping__select option,
+select.app-select-native option {
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-header);
+}
+
+.import-weight-option__card {
+  padding: 14px 16px;
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 10px;
+}
+
+.import-weight-option__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.import-weight-option__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--discord-text-header);
+}
+
+.import-weight-option__toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.import-weight-option__toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.import-weight-option__switch {
+  position: absolute;
+  inset: 0;
+  background: var(--discord-bg-dark);
+  border: 2px solid var(--discord-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.import-weight-option__switch::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 2px;
+  top: 1px;
+  background: var(--discord-text-muted);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.import-weight-option__toggle input:checked+.import-weight-option__switch {
+  background: var(--discord-accent-blue);
+  border-color: var(--discord-accent-blue);
+}
+
+.import-weight-option__toggle input:checked+.import-weight-option__switch::before {
+  transform: translateX(20px);
+  background: #fff;
+}
+
+.import-weight-option__desc {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--discord-text-muted);
+  line-height: 1.5;
+}
+
+.sidebar-button.logout {
+  color: #ff4444;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.table-cell-padding {
+  padding: 12px;
+}
+
+.table-empty-cell {
+  padding: 40px;
+  text-align: center;
+  color: var(--discord-text-muted);
+}
+

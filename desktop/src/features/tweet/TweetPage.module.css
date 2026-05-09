@@ -1,0 +1,96 @@
+/* ========================================
+   投稿テンプレートページ
+   ======================================== */
+
+.tweet-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tweet-layout { grid-template-columns: 1fr; }
+}
+
+.tweet-layout__editor,
+.tweet-layout__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tweet-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tweet-template-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  color: var(--discord-text-normal);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.tweet-template-textarea:focus {
+  border-color: var(--discord-accent-blue);
+}
+
+.tweet-placeholder-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tweet-placeholder-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--discord-accent-blue);
+  color: #fff;
+  font-size: 12px;
+  font-family: monospace;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.tweet-placeholder-chip:hover {
+  opacity: 0.8;
+}
+
+.tweet-preview-box {
+  padding: 12px 14px;
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--discord-text-normal);
+  white-space: pre-wrap;
+  min-height: 120px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.tweet-char-count {
+  font-size: 12px;
+  text-align: right;
+}
+
+.tweet-actions {
+  display: flex;
+  gap: 10px;
+}
+

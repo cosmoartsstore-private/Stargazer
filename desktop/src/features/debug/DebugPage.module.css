@@ -1,0 +1,71 @@
+/* =====================================================
+   DebugPage CSS Module
+   ===================================================== */
+
+/* デバッグタブ用（Oracle 風テーブル・フォルダツリー） */
+.debug-section {
+  margin-bottom: 32px;
+}
+
+.debug-section__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--discord-text-header);
+  margin-bottom: 12px;
+}
+
+.debug-tree {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+}
+
+.debug-error {
+  color: var(--discord-accent-red);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.debug-empty {
+  color: var(--discord-text-muted);
+  font-size: 13px;
+  padding: 12px;
+}
+
+.debug-db-table-wrapper {
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--discord-border);
+  border-radius: 4px;
+}
+
+.debug-db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+}
+
+.debug-db-table__th {
+  background-color: var(--discord-bg-alt);
+  color: var(--discord-text-header);
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--discord-border);
+  font-weight: 600;
+}
+
+.debug-db-table__td {
+  padding: 8px 12px;
+  border: 1px solid var(--discord-border);
+  color: var(--discord-text-normal);
+  background-color: var(--discord-bg-dark);
+}
+
+.debug-db-table tbody tr:nth-child(even) .debug-db-table__td {
+  background-color: var(--discord-bg-secondary);
+}

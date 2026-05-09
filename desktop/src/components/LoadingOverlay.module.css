@@ -1,0 +1,62 @@
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 11, 30, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  animation: loading-overlay-in 0.2s ease-out both;
+}
+
+.loading-overlay--fullscreen {
+  position: fixed;
+  z-index: 9999;
+}
+
+@keyframes loading-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.loading-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.loading-overlay__message {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.02em;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(88, 101, 242, 0.2);
+  border-top-color: var(--discord-accent-blue, #5865f2);
+  border-radius: 50%;
+  animation: loading-spin 0.7s linear infinite;
+}
+
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+:global([data-theme="skyblue"]) .loading-overlay {
+  background: rgba(248, 252, 255, 0.65);
+}
+
+:global([data-theme="skyblue"]) .loading-overlay__message {
+  color: rgba(30, 58, 95, 0.85);
+}
+
+:global([data-theme="skyblue"]) .loading-spinner {
+  border-color: rgba(2, 132, 199, 0.2);
+  border-top-color: #0284c7;
+}

@@ -1,0 +1,141 @@
+/* ========================================
+   MatchingPage – feature-specific styles
+   ======================================== */
+
+.matching-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.matching-table-card {
+  padding: 16px;
+  border: 1px solid var(--discord-border);
+  border-radius: 10px;
+  background: var(--discord-bg-dark);
+}
+
+.matching-table-card__title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.matching-table-card__list {
+  display: grid;
+  gap: 12px;
+}
+
+.matching-table-card__item {
+  padding-top: 12px;
+  border-top: 1px solid var(--discord-border);
+}
+
+.matching-table-card__guest {
+  font-weight: 700;
+}
+
+.matching-table-card__id {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--discord-text-muted);
+}
+
+.matching-table-card__casts {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ========================================
+   Matching screen & workflow layout
+   ======================================== */
+
+.matching-screen {
+  padding: 0;
+  max-width: none;
+  animation: pageFadeIn 0.35s ease-out both;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.workflow-two-pane {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.workflow-two-pane__main {
+  min-width: 0;
+}
+
+.workflow-two-pane__side {
+  position: sticky;
+  top: 16px;
+}
+
+@media (max-width: 900px) {
+  .workflow-two-pane {
+    grid-template-columns: 1fr;
+  }
+  .workflow-two-pane__side {
+    position: static;
+  }
+}
+
+.workflow-section-header {
+  margin-bottom: 16px;
+}
+
+.workflow-section-header--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflow-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.workflow-meta-card {
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workflow-meta-card__label {
+  font-size: 11px;
+  color: var(--discord-text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.workflow-result-section {
+  /* marker class for PNG export targeting */
+}
+
+.workflow-result-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workflow-result-toolbar__filename {
+  flex: 1;
+  min-width: 180px;
+  max-width: 320px;
+}

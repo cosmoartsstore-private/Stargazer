@@ -1,0 +1,511 @@
+/* ========================================
+   NGユーザー管理ページ：リデザイン
+   ======================================== */
+
+.ng-page {
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ng-page__header {
+  margin-bottom: 4px;
+}
+
+.ng-page__section {
+  background-color: var(--discord-bg-dark);
+  border: 1px solid var(--discord-border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.ng-page__section-header {
+  margin-bottom: 20px;
+}
+
+.ng-page__section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--discord-text-header);
+  margin: 0 0 4px 0;
+}
+
+.ng-page__section-desc {
+  font-size: 13px;
+  color: var(--discord-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ng-page__empty-note {
+  font-size: 14px;
+  color: var(--discord-text-muted);
+  text-align: center;
+  padding: 16px 0;
+}
+
+.ng-page__field-hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.ng-page__add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ng-page__add-input--name {
+  flex: 1 1 120px;
+  min-width: 100px;
+}
+
+.ng-page__add-input--id {
+  flex: 2 1 220px;
+  min-width: 180px;
+}
+
+/* 判定設定の2カラムグリッド */
+.ng-page__settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .ng-page__settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 要注意人物：閾値＋ボタン */
+.ng-page__caution-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.ng-page__threshold-group {
+  margin-bottom: 0;
+}
+
+.ng-page__threshold-input {
+  max-width: 80px;
+}
+
+/* 種別バッジ */
+.ng-page__badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+
+.ng-page__badge--manual {
+  background-color: var(--discord-accent-blue);
+  color: #fff;
+}
+
+.ng-page__badge--auto {
+  background-color: var(--discord-accent-green);
+  color: #fff;
+}
+
+/* テーブル内削除ボタン */
+.ng-page__remove-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(237, 66, 69, 0.3);
+  color: var(--discord-accent-red);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ng-page__remove-btn:hover {
+  background-color: rgba(237, 66, 69, 0.15);
+  border-color: rgba(237, 66, 69, 0.5);
+}
+
+/* NG例外コントロール */
+.ng-page__exception-controls {
+  margin-bottom: 16px;
+}
+
+/* NG例外チップリスト */
+.ng-page__exception-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ng-page__exception-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  background-color: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background-color 0.12s;
+}
+
+.ng-page__exception-chip:hover {
+  background-color: var(--discord-bg-hover);
+}
+
+.ng-page__exception-chip-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ng-page__exception-chip-id {
+  font-size: 11px;
+  color: var(--discord-text-muted);
+}
+
+.ng-page__exception-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--discord-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ng-page__exception-chip-remove:hover {
+  color: var(--discord-accent-red);
+  background-color: rgba(237, 66, 69, 0.15);
+}
+
+/* ========================================
+   要注意人物 候補
+   ======================================== */
+
+.caution-threshold-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.caution-threshold-label {
+  font-size: 13px;
+  color: var(--discord-text-muted);
+  white-space: nowrap;
+}
+
+.caution-threshold-input {
+  width: 64px;
+  text-align: center;
+}
+
+.caution-candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.caution-candidate-card {
+  display: grid;
+  grid-template-columns: 160px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--discord-bg-main);
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  transition: border-color 0.12s;
+}
+
+.caution-candidate-card:hover {
+  border-color: var(--discord-accent-blue);
+}
+
+.caution-candidate-id {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--discord-text-header);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caution-candidate-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.caution-candidate-name-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  font-size: 12px;
+}
+
+.caution-candidate-noname {
+  font-size: 12px;
+  color: var(--discord-text-muted);
+  font-style: italic;
+}
+
+.caution-candidate-casts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.caution-candidate-count-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--discord-accent-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.caution-candidate-cast-names {
+  font-size: 12px;
+  color: var(--discord-text-muted);
+  white-space: nowrap;
+}
+
+.caution-candidate-add-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+/* ========================================
+   NG管理 マスター詳細レイアウト
+   ======================================== */
+
+/* NG管理は inner tabs が追加で乗るためパネル高さをCSS変数で上書き */
+.ng-page {
+  --panel-height: calc(100vh - 308px);
+  --panel-min-height: 400px;
+}
+
+/* 左パネルのNGカウントバッジ */
+.ng-cast-list__count {
+  flex-shrink: 0;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--discord-accent-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 右パネル：ヘッダー */
+.ng-detail-header {
+  margin-bottom: 14px;
+}
+
+/* 右パネル：空状態 */
+.ng-detail-empty {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--discord-text-muted);
+}
+
+/* 右パネル：エントリー一覧 */
+.ng-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ng-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--discord-bg-dark);
+  transition: background 0.1s;
+}
+
+.ng-detail-item:hover {
+  background: var(--discord-bg-hover);
+}
+
+/* ========================================
+   キャスト別 NG 一覧：リデザイン（旧グリッド用、後方互換）
+   ======================================== */
+
+.ng-cast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.ng-cast-grid__card {
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ng-cast-grid__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--discord-bg-dark);
+  border-bottom: 1px solid var(--discord-border);
+}
+
+.ng-cast-grid__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--discord-text-header);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ng-cast-grid__count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--discord-bg-hover);
+  color: var(--discord-text-muted);
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.ng-cast-grid__count--has {
+  background: var(--discord-accent-red);
+  color: #fff;
+}
+
+.ng-cast-grid__list {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ng-cast-grid__empty {
+  padding: 14px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--discord-text-muted);
+}
+
+.ng-cast-grid__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.ng-cast-grid__item:hover {
+  background: var(--discord-bg-hover);
+}
+
+.ng-cast-grid__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.ng-cast-grid__text-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--discord-text-header);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ng-cast-grid__text-id {
+  font-size: 11px;
+  color: var(--discord-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ng-cast-grid__remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--discord-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+}
+
+.ng-cast-grid__remove:hover {
+  color: var(--discord-accent-red);
+  background: var(--discord-bg-hover);
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .ng-page__section {
+    padding: 18px 16px;
+  }
+
+  .ng-page__add-row {
+    flex-direction: column;
+  }
+
+  .ng-page__add-input--name,
+  .ng-page__add-input--id {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ng-page__caution-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ========================================
+   Skyblue テーマオーバーライド
+   ======================================== */
+
+:global([data-theme="skyblue"]) .ng-page__exception-chip {
+  background-color: #b8d0e0;
+  color: #152942;
+}
+
+:global([data-theme="skyblue"]) .caution-candidate-name-chip {
+  background-color: #b8d0e0;
+  color: #152942;
+}

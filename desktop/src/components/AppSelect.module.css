@@ -1,0 +1,133 @@
+/* =====================================================
+   AppSelect CSS Module
+   ===================================================== */
+
+/* デフォルトテーマ: プルダウン背景を濃くして視認性確保 */
+:global([data-theme="dark"]) .app-select__trigger {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #f2f3f5;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:global([data-theme="dark"]) .app-select__content {
+  background-color: #0a050e;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:global([data-theme="dark"]) .app-select__item {
+  color: #f2f3f5;
+}
+
+.app-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--discord-text-header);
+  background-color: var(--discord-bg-dark);
+  border: 2px solid var(--discord-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.17s ease, box-shadow 0.17s ease;
+}
+
+.app-select__trigger:hover:not(:disabled) {
+  border-color: var(--discord-text-muted);
+  background-color: var(--discord-bg-secondary);
+}
+
+.app-select__trigger:focus {
+  outline: none;
+  border-color: var(--discord-accent-blue);
+  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.25);
+}
+
+.app-select__trigger[data-placeholder] {
+  color: var(--discord-text-muted);
+}
+
+.app-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.app-select__icon {
+  flex-shrink: 0;
+  color: var(--discord-text-muted);
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.app-select__trigger[data-state="open"] .app-select__icon {
+  transform: rotate(180deg);
+}
+
+.app-select__content {
+  overflow: hidden;
+  background-color: var(--discord-bg-dark);
+  border: 2px solid var(--discord-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+}
+
+.app-select__viewport {
+  padding: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.app-select__item {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--discord-text-header);
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.app-select__item:hover,
+.app-select__item[data-highlighted] {
+  background-color: var(--discord-bg-hover);
+  color: var(--discord-text-header);
+}
+
+.app-select__item[data-state="checked"] {
+  background-color: var(--discord-bg-selected);
+  color: var(--discord-text-header);
+}
+
+/* =====================================================
+   Skyblue Theme Overrides
+   ===================================================== */
+
+:global([data-theme="skyblue"]) .app-select__trigger {
+  background: #ffffff;
+  border: 2px solid rgba(70, 140, 210, 0.5);
+  color: #152942;
+}
+
+:global([data-theme="skyblue"]) .app-select__trigger:hover:not(:disabled) {
+  border-color: #4a8ec8;
+  background: #f8fbff;
+}
+
+:global([data-theme="skyblue"]) .app-select__content {
+  background: #ffffff;
+  border: 2px solid rgba(70, 140, 210, 0.4);
+}
+
+:global([data-theme="skyblue"]) .app-select__item {
+  color: #152942;
+}
+
+:global([data-theme="skyblue"]) .app-select__item:hover,
+:global([data-theme="skyblue"]) .app-select__item[data-highlighted] {
+  background: rgba(74, 142, 200, 0.12);
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stargazer",
+  "version": "0.1.0",
+  "identifier": "com.cosmoartsstore.stargazer",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "Stargazer", "width": 800, "height": 600, "maximized": true }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "icons/icon.png": "icons/icon.png",
+      "icons/128x128.png": "icons/128x128.png"
+    },
+    "publisher": "CosmoArtsStore",
+    "copyright": "Copyright (c) CosmoArtsStore",
+    "shortDescription": "イベント抽選・キャストマッチング用デスクトップアプリ",
+    "longDescription": "応募データの取り込み、抽選、マッチング結果の確認・エクスポートまで一通り行えるアプリです。キャストの出席管理やNGユーザー設定にも対応しています。",
+    "windows": {
+      "nsis": {
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/hooks.nsi",
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": ["Japanese"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

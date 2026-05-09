@@ -1,0 +1,63 @@
+/* Dark theme global styles & shared components */
+
+/* ========================================
+   Dark theme tokens
+   ======================================== */
+
+:root {
+  /* base colors */
+  --text-main: #dbdee1;
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --line-color: rgba(255, 255, 255, 0.1);
+
+  /* sticky elements */
+  --db-sticky-bg: #0a050e;
+  --db-sticky-bg-alt: #0a050e;
+  --db-sticky-bg-caution: #2a0808;
+  --db-sticky-shadow-right: 4px 0 12px rgba(0, 0, 0, 0.4);
+  --db-sticky-shadow-bottom: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+
+  /* discord-like tokens */
+  --discord-bg-dark: rgba(0, 0, 0, 0.25);
+  --discord-bg-main: transparent;
+  --discord-bg-secondary: rgba(255, 255, 255, 0.05);
+  --discord-bg-hover: rgba(255, 255, 255, 0.08);
+  --discord-bg-selected: rgba(255, 255, 255, 0.08);
+  --discord-bg-alt: rgba(0, 0, 0, 0.15);
+  --discord-bg-sidebar: rgba(0, 0, 0, 0.2);
+
+  --discord-text-normal: #dbdee1;
+  --discord-text-muted: rgba(255, 255, 255, 0.4);
+  --discord-text-link: #00a8fc;
+  --discord-text-header: #f2f3f5;
+  --discord-text-success: #23a559;
+  --discord-text-warning: #f0b232;
+  --discord-text-danger: #ed4245;
+
+  --discord-accent-blue: #5865f2;
+  --discord-accent-green: #23a559;
+  --discord-accent-yellow: #f0b232;
+  --discord-accent-gold: #ffd700;
+  --discord-accent-red: #ed4245;
+
+  /* 切り替えボタン色：dark=紫 / light=水色（テーマ別上書き） */
+  --color-switch: #7c3aed;
+
+  --discord-border: rgba(255, 255, 255, 0.1);
+  --discord-divider: rgba(255, 255, 255, 0.1);
+
+  --discord-button-primary: #5865f2;
+  --discord-button-primary-hover: #4752c4;
+  --discord-button-secondary: rgba(255, 255, 255, 0.1);
+  --discord-button-secondary-hover: rgba(255, 255, 255, 0.15);
+  --discord-button-success: #23a559;
+  --discord-button-success-hover: #2d7d46;
+  --discord-button-danger: #ed4245;
+
+  /* モーダル・ポップアップ（UI統一） */
+  --discord-modal-overlay: rgba(0, 0, 0, 0.65);
+  --discord-modal-content-bg: var(--discord-bg-dark);
+  --discord-modal-content-border: var(--discord-border);
+  --discord-modal-content-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}

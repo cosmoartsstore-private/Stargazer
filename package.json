@@ -1,0 +1,9 @@
+{
+  "name": "stargazer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run tauri dev --prefix desktop",
+    "build": "npm run tauri build --prefix desktop"
+  }
+}

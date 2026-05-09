@@ -1,0 +1,206 @@
+/* ========================================
+   イベント管理 マスター詳細レイアウト
+   ======================================== */
+
+.event-detail-layout {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── Left panel height override (top-level page, less overhead than internal tabs) ── */
+.event-detail-layout {
+  --panel-height: calc(100vh - 220px);
+  --panel-min-height: 400px;
+}
+
+/* ── Right panel ── */
+.event-char-panel {
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
+  border-radius: 10px;
+  padding: 24px 28px;
+  overflow-y: auto;
+  height: calc(100vh - 220px);
+  min-height: 400px;
+  max-height: 780px;
+}
+
+/* 縦フロー・中央寄せ */
+.event-char-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/* ── Name input ── */
+.event-char-name-input {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--discord-text-header);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 100%;
+  padding: 2px 8px;
+  outline: none;
+  font-family: inherit;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.event-char-name-input:hover {
+  border-color: var(--discord-border);
+}
+
+.event-char-name-input:focus {
+  border-color: var(--discord-accent-blue);
+  background: var(--discord-bg-dark);
+}
+
+/* ── Photo frame 16:9 (big) ── */
+.event-char-photo-frame {
+  position: relative;
+  width: 80%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: var(--discord-bg-dark);
+  border: 1px solid var(--discord-border);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.event-char-photo-frame:hover {
+  border-color: var(--discord-accent-blue);
+}
+
+.event-char-photo-frame__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.event-char-photo-frame__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--discord-text-muted);
+  padding: 20px;
+  text-align: center;
+}
+
+.event-char-photo-frame__placeholder-icon {
+  opacity: 0.3;
+}
+
+.event-char-photo-frame__placeholder-text {
+  font-size: 13px;
+}
+
+.event-char-photo-frame__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.event-char-photo-frame:hover .event-char-photo-frame__overlay {
+  opacity: 1;
+}
+
+/* ── Event-specific memo sizing via CSS variable ── */
+.event-char-content {
+  --memo-min-height: 76px;
+}
+
+/* ── Bottom action row ── */
+.event-char-action-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Switch button ── */
+.event-char-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 48px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-switch);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  letter-spacing: 0.03em;
+}
+
+.event-char-switch-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.event-char-switch-btn--current,
+.event-char-switch-btn:disabled {
+  background: var(--discord-accent-green);
+  color: #fff;
+  cursor: default;
+  opacity: 1;
+}
+
+/* ── Delete button ── */
+.event-char-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 48px;
+  border-radius: 999px;
+  border: none;
+  background: var(--discord-accent-red);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  letter-spacing: 0.03em;
+}
+
+.event-char-delete-btn:hover {
+  opacity: 0.85;
+}
+
+@media (max-width: 800px) {
+  .event-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .event-char-panel {
+    height: auto;
+    max-height: 700px;
+    min-height: unset;
+  }
+}

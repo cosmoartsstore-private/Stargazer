@@ -1,0 +1,1201 @@
+import React, { useState, useCallback } from 'react';
+import {
+  FileText, Database, Users, Settings, CheckCircle, BarChart3,
+  Sheet, Download, Calendar, UserX, HelpCircle,
+} from '@/common/icons';
+import { invoke, isTauri } from '@/tauri';
+import styles from './GuidePage.module.css';
+import shared from '@/styles/shared.module.css';
+
+
+type Tab = 'flow' | 'features';
+
+type FeatureId =
+  | 'applicant-data'
+  | 'import'
+  | 'lottery'
+  | 'matching'
+  | 'cast'
+  | 'ng'
+  | 'attendance'
+  | 'tweet';
+
+interface NavItem { id: FeatureId; label: string; icon: React.ReactNode }
+interface NavGroup { label: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: '応募管理',
+    items: [
+      { id: 'applicant-data', label: '応募データ',   icon: <Database size={15} /> },
+      { id: 'import',         label: 'データ読取',   icon: <FileText  size={15} /> },
+      { id: 'lottery',        label: '抽選',         icon: <CheckCircle size={15} /> },
+      { id: 'matching',       label: 'マッチング',   icon: <BarChart3 size={15} /> },
+    ],
+  },
+  {
+    label: '内部管理',
+    items: [
+      { id: 'cast',       label: 'キャスト名簿', icon: <Users   size={15} /> },
+      { id: 'ng',         label: 'NG管理',       icon: <UserX   size={15} /> },
+      { id: 'attendance', label: '出席管理',     icon: <Calendar size={15} /> },
+      { id: 'tweet',      label: '投稿テンプレ', icon: <Settings size={15} /> },
+    ],
+  },
+];
+
+/* ── 補助コンポーネント ── */
+
+const FeatureHeader: React.FC<{ icon: React.ReactNode; title: string; description: string; color: string }> = ({ icon, title, description, color }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 16,
+    padding: '20px 22px',
+    marginBottom: 24,
+    marginLeft: -24, marginRight: -24, marginTop: -20,
+    background: `linear-gradient(135deg, ${color} 0%, ${color}aa 100%)`,
+    borderRadius: '10px 10px 0 0',
+  }}>
+    <div style={{
+      width: 52, height: 52, flexShrink: 0,
+      background: 'rgba(255,255,255,0.22)',
+      borderRadius: 14,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+    }}>
+      {icon}
+    </div>
+    <div>
+      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>{title}</h2>
+      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '5px 0 0', lineHeight: 1.5 }}>{description}</p>
+    </div>
+  </div>
+);
+
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div style={{ marginBottom: 12 }}>
+    <div style={{ border: '1px solid var(--discord-border)', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--discord-bg-hover)', borderBottom: '1px solid var(--discord-border)' }}>
+        <div style={{ width: 3, height: 12, background: 'var(--discord-accent-blue)', borderRadius: 2, flexShrink: 0 }} />
+        <h3 style={{ fontSize: 11, fontWeight: 700, color: 'var(--discord-text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          {title}
+        </h3>
+      </div>
+      <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--discord-text-normal)', lineHeight: 1.8, background: 'var(--discord-bg-secondary)' }}>
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+const FeatureList: React.FC<{ items: string[] }> = ({ items }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    {items.map((item, i) => (
+      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 10px', borderRadius: 6, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)' }}>
+        <span style={{ color: 'var(--discord-accent-blue)', flexShrink: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>›</span>
+        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.5 }}>{item}</span>
+      </div>
+    ))}
+  </div>
+);
+
+const StepList: React.FC<{ items: string[] }> = ({ items }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    {items.map((item, i) => (
+      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--discord-accent-blue)', color: '#fff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+          {i + 1}
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--discord-text-normal)', lineHeight: 1.6, paddingTop: 4 }}>{item}</div>
+      </div>
+    ))}
+  </div>
+);
+
+const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
+  <div style={{ background: 'rgba(240, 178, 50, 0.15)', border: '1px solid rgba(240, 178, 50, 0.5)', borderRadius: 8, padding: '12px 16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8, color: '#c8890e', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      ⚠ 注意事項
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {items.map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>
+          <span style={{ color: '#c8890e', flexShrink: 0, fontWeight: 700 }}>•</span>
+          {item}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const ScreenSample: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div style={{ border: '1px solid var(--discord-border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+    <div style={{ background: 'var(--discord-bg-hover)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--discord-border)' }}>
+      <div style={{ display: 'flex', gap: 5 }}>
+        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5f57' }} />
+        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#febc2e' }} />
+        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#28c840' }} />
+      </div>
+      <span style={{ fontSize: 11, color: 'var(--discord-text-muted)', fontWeight: 600 }}>{title}</span>
+    </div>
+    <div style={{ padding: '12px 14px', background: 'var(--discord-bg-dark)', fontSize: 12 }}>
+      {children}
+    </div>
+  </div>
+);
+
+/* ── 各機能の詳細コンテンツ ── */
+
+const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
+
+  'applicant-data': (
+    <div>
+      <FeatureHeader icon={<Database size={26} />} title="応募データ" description="取り込んだ応募者一覧の確認・管理を行う画面です。" color="#5865f2" />
+
+      <ScreenSample title="応募データ">
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--discord-border)', marginBottom: 8 }}>
+          {['全件 (23)', '要注意 (1)'].map((t, i) => (
+            <span key={t} style={{ padding: '4px 12px', fontSize: 11, borderBottom: i === 0 ? '2px solid var(--discord-accent-blue)' : '2px solid transparent', color: i === 0 ? 'var(--discord-accent-blue)' : 'var(--discord-text-muted)', fontWeight: i === 0 ? 700 : 400 }}>{t}</span>
+          ))}
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>
+            {['ユーザー名', 'X ID', '希望1', '希望2', '希望3'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { name: 'テストユーザー', xid: '@test_vrc', c: ['キャストA', 'キャストB', 'キャストC'], caution: false },
+              { name: '⚠ 問題ユーザー', xid: '@problem_123', c: ['キャストA', '', ''], caution: true },
+              { name: 'サンプル太郎',   xid: '@sample_vrc', c: ['キャストC', 'キャストA', ''], caution: false },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)', background: r.caution ? 'rgba(237,66,69,0.08)' : 'transparent' }}>
+                <td style={{ padding: '5px 8px', color: r.caution ? '#ed4245' : 'var(--discord-text-normal)', fontWeight: r.caution ? 600 : 400 }}>{r.name}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--discord-text-link, #00b0f4)' }}>{r.xid}</td>
+                {r.c.map((c, j) => <td key={j} style={{ padding: '5px 8px', color: 'var(--discord-text-normal)' }}>{c}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScreenSample>
+
+      <Section title="概要">
+        <p>TSVで取り込んだ応募データを一覧表示します。データがない状態ではインポート画面が表示され、取り込み後に一覧が表示されます。</p>
+      </Section>
+
+      <Section title="主な機能">
+        <FeatureList items={[
+          '応募者一覧の表示（ユーザー名・X ID・希望キャスト 1〜3）',
+          '行をクリックすると詳細行が展開（VRC URL・カスタムカラム等）',
+          'X ID をクリックすると X（Twitter）のユーザーページをブラウザで開く',
+          '要注意ユーザーフィルター：「全件」「要注意」タブで絞り込み',
+          '要注意ユーザー行にはどのキャストのNGかを表示',
+          '「再取り込み」でTSVを再選択して上書き取り込み',
+          '「元ログ削除」で応募データを全削除',
+          '個別の応募者を削除',
+        ]} />
+      </Section>
+
+      <Section title="要注意ユーザーとは">
+        <p>NG管理で設定した「要注意人物」として登録されているユーザーが自動的にマークされます。<br/>
+        一覧内でアイコンとともにどのキャストのNGに登録されているかも表示されます。</p>
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          'X ID は必須カラムです。取り込み時に X ID 列が指定されていないと取り込み不可です',
+          'イベント単位でデータを管理します。イベントを切り替えると別のデータセットが表示されます',
+          '「元ログ削除」は取り消しできません。削除前に確認ダイアログが出ます',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'import': (
+    <div>
+      <FeatureHeader icon={<FileText size={26} />} title="データ読取" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="#8b5cf6" />
+
+      <ScreenSample title="データ読取 — 列マッピング">
+        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 6, fontSize: 11, color: 'var(--discord-text-muted)' }}>
+          📄 responses.tsv &nbsp;|&nbsp; 42行 検出 &nbsp;|&nbsp; 有効: 41件
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[
+            { label: 'ユーザー名', value: '名前' },
+            { label: 'X ID', value: 'X/Twitter ID', required: true },
+            { label: '希望キャスト 1', value: '第一希望' },
+            { label: '希望キャスト 2', value: '第二希望' },
+          ].map(row => (
+            <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 110, fontSize: 11, color: 'var(--discord-text-normal)', flexShrink: 0 }}>
+                {row.label}{row.required && <span style={{ color: '#ed4245', marginLeft: 2 }}>*</span>}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--discord-text-muted)' }}>→</span>
+              <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 11, color: 'var(--discord-accent-blue)' }}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, textAlign: 'right' }}>
+          <span style={{ padding: '5px 14px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>この割り当てで取り込む</span>
+        </div>
+      </ScreenSample>
+
+      <Section title="取り込み手順">
+        <StepList items={[
+          '「TSVファイルを選択」をクリックしてファイルを選ぶ',
+          'ファイル読み込み後、自動でヘッダーを解析・列マッピングを自動入力',
+          'マッピングが正しいか確認し、必要に応じて各ドロップダウンで修正',
+          '希望キャストの形式（別列 or カンマ区切り1列）を選択',
+          'プレビューで取り込み結果を確認',
+          '「この割り当てで取り込む」をクリックして確定',
+        ]} />
+      </Section>
+
+      <Section title="列マッピング">
+        <FeatureList items={[
+          'ユーザー名：応募者の表示名',
+          'X ID：@から始まるアカウント識別子（必須）',
+          'VRC URL：VRChat のユーザーページURL（任意）',
+          '希望キャスト：1列ずつ複数指定 or カンマ区切り1列を選択',
+        ]} />
+        <p style={{ marginTop: 8 }}>列の自動解析は日本語キーワード（「名前」「ユーザー名」「X ID」等）に対応しています。同じヘッダー形式のTSVは次回から自動で同じマッピングが復元されます。</p>
+      </Section>
+
+      <Section title="プレビュー">
+        <p>取り込み前に先頭5行のデータを確認できます。有効件数（X IDがある行数）と、X IDが空の件数も表示されます。</p>
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          'ファイルは .tsv 形式のみ対応しています',
+          'X ID 列が特定できない場合は入力欄がアニメーションして警告します',
+          'テンプレートは インストール先\\Data\\template に保存されます',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'lottery': (
+    <div>
+      <FeatureHeader icon={<CheckCircle size={26} />} title="抽選" description="当選者を決定する抽選の設定・実行を行う画面です。" color="#10b981" />
+
+      <ScreenSample title="抽選設定">
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { label: '形式', value: 'M001 ランダム' },
+              { label: '当選人数', value: '20 人' },
+              { label: 'ローテーション', value: '3 回' },
+              { label: '総テーブル数', value: '4' },
+            ].map(r => (
+              <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 80, fontSize: 11, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{r.label}</span>
+                <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 11, color: 'var(--discord-text-header)', fontWeight: 600 }}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ width: 130, padding: '10px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6 }}>
+            <div style={{ fontSize: 10, color: '#10b981', fontWeight: 700, marginBottom: 4 }}>✓ 検証OK</div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>枠数: 12</div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>出席キャスト: 4</div>
+            <div style={{ marginTop: 8, padding: '4px 0', background: '#10b981', color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, textAlign: 'center' }}>抽選実行</div>
+          </div>
+        </div>
+      </ScreenSample>
+
+      <Section title="マッチング形式">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          {([
+            { id: 'M000', color: '#6b7280', title: 'マッチングなし', desc: '抽選のみ。キャスト割り当てを行いません' },
+            { id: 'M001', color: '#3b82f6', title: 'ランダム',       desc: '希望キャストを優先しつつランダム割り当て。総テーブル数で枠指定' },
+            { id: 'M002', color: '#10b981', title: 'ローテーション', desc: '公平に循環させる。総テーブル数で枠指定' },
+            { id: 'M003', color: '#f59e0b', title: '複数名',         desc: 'テーブルあたりゲスト数・ローテキャスト数を細かく設定。空席許容あり' },
+          ] as const).map(m => (
+            <div key={m.id} style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--discord-bg-dark)', border: `1px solid ${m.color}44`, borderLeft: `3px solid ${m.color}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: '#fff', background: m.color, padding: '2px 7px', borderRadius: 4 }}>{m.id}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--discord-text-header)' }}>{m.title}</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--discord-text-muted)', lineHeight: 1.5 }}>{m.desc}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="設定項目">
+        <FeatureList items={[
+          '当選人数：抽選で選ぶ総人数',
+          'ローテーション回数：何ローテーション分を割り当てるか',
+          '総テーブル数（M001/M002）：テーブル数 × ローテーション回数 = 枠数',
+          'テーブルあたりゲスト数（M003）：1テーブルの最大人数',
+          'ローテあたりキャスト数（M003）：1ローテーションで担当するキャスト数',
+          '空席許容（M003）：枠が余った場合に空席を許可するか',
+          '確定当選者：抽選に関わらず必ず当選とするユーザーを事前指定',
+        ]} />
+      </Section>
+
+      <Section title="検証パネル">
+        <p>設定した条件に問題がないか自動チェックします。キャスト出席状況・枠数・人数のバランスが合わない場合は警告が表示されます。</p>
+      </Section>
+
+      <Section title="抽選実行後">
+        <FeatureList items={[
+          '当選者一覧がテーブル表示されます（ユーザー名・X ID・確定/抽選の区分・希望キャスト）',
+          '「抽選結果をTSVで保存」でファイル出力できます',
+          '「マッチングへ」でマッチングタブに遷移します',
+          '再実行すると上書き確認ダイアログが表示されます',
+        ]} />
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          '抽選実行前にキャスト管理で出席状態を設定しておいてください',
+          '確定当選者は当選人数にカウントされます',
+          '検証エラーがある場合、実行ボタンが無効になります',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'matching': (
+    <div>
+      <FeatureHeader icon={<BarChart3 size={26} />} title="マッチング" description="抽選結果を元に、当選者とキャストの割り当てを行い結果を確認・出力する画面です。" color="#f59e0b" />
+
+      <ScreenSample title="マッチング結果（ユーザー別）">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>
+            {['ユーザー名', 'X ID', 'R1', 'R2', 'R3'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              { name: 'テストユーザー', xid: '@test_vrc',   casts: ['キャストA', 'キャストC', 'キャストB'], ranks: [1, 3, 2] },
+              { name: 'サンプル太郎',   xid: '@sample_vrc', casts: ['キャストB', 'キャストA', '---'],       ranks: [2, 1, 0] },
+              { name: 'ゲスト花子',     xid: '@guest_h',    casts: ['キャストC', '---', '---'],            ranks: [0, 0, 0] },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
+                <td style={{ padding: '5px 8px', color: 'var(--discord-text-normal)' }}>{r.name}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--discord-text-muted)' }}>{r.xid}</td>
+                {r.casts.map((c, j) => (
+                  <td key={j} style={{ padding: '5px 8px' }}>
+                    <span style={{ fontSize: 10, color: 'var(--discord-text-normal)' }}>{c}</span>
+                    {r.ranks[j] > 0 && <span style={{ marginLeft: 4, padding: '1px 5px', borderRadius: 3, background: r.ranks[j] === 1 ? '#f5c400' : r.ranks[j] === 2 ? '#a8a8a8' : '#ad6f2d', color: r.ranks[j] === 2 ? '#000' : '#fff', fontSize: 9, fontWeight: 700 }}>{r.ranks[j]}希</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScreenSample>
+
+      <Section title="画面構成">
+        <FeatureList items={[
+          '【設定セクション】マッチング方式・NG条件・マッチング動作の確認と設定',
+          '【ユーザー別結果】当選者ごとの割り当てキャストを表形式で表示',
+          '【テーブル別結果】テーブルごとにカード形式で表示',
+          '【エクスポートセクション】TSVファイル出力',
+        ]} />
+      </Section>
+
+      <Section title="NG条件設定">
+        <p>マッチング実行前にNG判定の方法を設定します。</p>
+        <FeatureList items={[
+          'NG判定タイプ：X ID のみ / ユーザー名のみ / 両方',
+          'マッチング動作：NG違反時に別キャストへ再割り当てするかどうか',
+        ]} />
+      </Section>
+
+      <Section title="マッチング実行">
+        <p>「マッチングを実行」ボタンで実行します。実行後は結果がロックされ、NG設定の変更ができなくなります。「解除」ボタンで再度編集可能になります。</p>
+      </Section>
+
+      <Section title="結果の出力">
+        <FeatureList items={[
+          '「PNGで保存（当選者別）」：ユーザー別テーブルを画像で保存',
+          '「PNGで保存（テーブル別）」：テーブル別カードを画像で保存',
+          '「マッチング結果をTSVで保存」：テキスト形式で全結果を出力',
+        ]} />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          {([
+            { label: '第1希望', bg: '#f5c400', text: '#000' },
+            { label: '第2希望', bg: '#a8a8a8', text: '#000' },
+            { label: '第3希望', bg: '#ad6f2d', text: '#fff' },
+            { label: 'それ以降', bg: '#4a4a4a', text: '#bbb' },
+          ] as const).map(b => (
+            <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: b.bg, color: b.text, fontSize: 12, fontWeight: 700 }}>
+              {b.label}
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          'マッチング結果のロック中はNG設定変更不可です',
+          'エラーが発生した場合は詳細なエラーメッセージモーダルが表示されます',
+          'PNG出力は高解像度（2倍）で生成されます',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'cast': (
+    <div>
+      <FeatureHeader icon={<Users size={26} />} title="キャスト名簿" description="キャストの登録・編集・削除と出席状態の管理を行う画面です。" color="#06b6d4" />
+
+      <ScreenSample title="キャスト名簿">
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ width: 130, borderRight: '1px solid var(--discord-border)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[
+              { name: 'キャストA', group: 'グループ1', selected: true },
+              { name: 'キャストB', group: 'グループ1', selected: false },
+              { name: 'キャストC', group: 'グループ2', selected: false },
+              { name: 'キャストD', group: 'グループ2', selected: false },
+            ].map(c => (
+              <div key={c.name} style={{ padding: '5px 8px', borderRadius: 5, background: c.selected ? 'var(--discord-bg-selected)' : 'transparent', fontSize: 11 }}>
+                <div style={{ color: c.selected ? 'var(--discord-text-header)' : 'var(--discord-text-normal)', fontWeight: c.selected ? 600 : 400 }}>{c.name}</div>
+                <div style={{ color: 'var(--discord-text-muted)', fontSize: 10 }}>{c.group}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--discord-text-muted)' }}>👤</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--discord-text-header)' }}>キャストA</div>
+                <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>グループ1</div>
+              </div>
+            </div>
+            {[['連絡先', 'https://vrchat.com/...'], ['プロフィール', 'よろしくお願いします']].map(([k, v]) => (
+              <div key={k} style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 2 }}>{k}</div>
+                <div style={{ fontSize: 11, color: 'var(--discord-text-normal)', padding: '3px 6px', background: 'var(--discord-bg-secondary)', borderRadius: 4, border: '1px solid var(--discord-border)' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </ScreenSample>
+
+      <Section title="画面構成">
+        <p>左ペインにキャスト一覧、右ペインに選択したキャストの詳細が表示されます。</p>
+      </Section>
+
+      <Section title="キャスト一覧（左ペイン）">
+        <FeatureList items={[
+          'キャスト名とグループ名を表示',
+          '検索バーで名前絞り込み',
+          '一覧下部の入力欄でキャストを新規追加',
+          '選択中のキャストはハイライト表示',
+        ]} />
+      </Section>
+
+      <Section title="キャスト詳細（右ペイン）">
+        <FeatureList items={[
+          '写真：クリックで画像ファイルを選択してアップロード',
+          'キャスト名：直接編集可能',
+          'グループ名：グループを設定できます（マッチング結果でグループ分けに使用）',
+          'プロフィール：自由テキストのメモ欄',
+          '連絡先URL：VRChat・X・Discord 等のURLを複数登録可能（外部ブラウザで開くリンクボタン付き）',
+          '削除ボタン：確認ダイアログ後にキャストを削除',
+        ]} />
+      </Section>
+
+      <Section title="出席状態について">
+        <p>キャスト名簿では出席状態は表示のみです。出席の切り替えは「出席管理」タブで行います。</p>
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          'キャスト名の重複は登録できません',
+          '写真はアプリのデータベースに保存されます（外部ファイル参照ではない）',
+          '削除したキャストのNGデータ・出席記録も同時に削除されます',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'ng': (
+    <div>
+      <FeatureHeader icon={<UserX size={26} />} title="NG管理" description="キャストごとのNGユーザー登録と、要注意人物の管理を行う画面です。" color="#ef4444" />
+
+      <ScreenSample title="NG管理 — キャストNG">
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ width: 120, borderRight: '1px solid var(--discord-border)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {[{ name: 'キャストA', ng: 2, sel: true }, { name: 'キャストB', ng: 0, sel: false }, { name: 'キャストC', ng: 1, sel: false }].map(c => (
+              <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 7px', borderRadius: 5, background: c.sel ? 'var(--discord-bg-selected)' : 'transparent', fontSize: 11 }}>
+                <span style={{ color: c.sel ? 'var(--discord-text-header)' : 'var(--discord-text-normal)', fontWeight: c.sel ? 600 : 400 }}>{c.name}</span>
+                {c.ng > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: 10, padding: '0 5px', fontSize: 10, fontWeight: 700 }}>{c.ng}</span>}
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: 'var(--discord-text-muted)', marginBottom: 6 }}>キャストA のNG一覧</div>
+            {[{ name: '問題ユーザー', xid: '@problem_123' }, { name: '', xid: '@bad_user' }].map((u, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 5, background: 'rgba(237,66,69,0.08)', border: '1px solid rgba(237,66,69,0.2)', marginBottom: 4, fontSize: 11 }}>
+                <span style={{ flex: 1, color: 'var(--discord-text-normal)' }}>{u.name || '—'}</span>
+                <span style={{ color: 'var(--discord-text-muted)' }}>{u.xid}</span>
+                <span style={{ color: '#ef4444', fontSize: 12, cursor: 'pointer' }}>✕</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </ScreenSample>
+
+      <Section title="タブ構成">
+        <FeatureList items={[
+          '【キャストNG】キャストごとにNGユーザーを登録・削除',
+          '【要注意人物】複数キャストからNGを受けているユーザーを管理',
+        ]} />
+      </Section>
+
+      <Section title="キャストNG タブ">
+        <p>左にキャスト一覧（NG数バッジ付き）、右に選択キャストのNG一覧を表示します。</p>
+        <FeatureList items={[
+          'ユーザー名（任意）と X ID を入力して「追加」',
+          'X IDは @ 付きに自動正規化されます（例：@example → @example）',
+          '登録済みNGユーザーはリスト表示。削除ボタンで削除',
+          'NGを受けているキャストが多いユーザーは「要注意人物」タブの候補に自動表示',
+        ]} />
+      </Section>
+
+      <Section title="要注意人物 タブ">
+        <p>「キャストNG」に登録されたデータを元に、複数のキャストからNGを受けているユーザーを自動で候補表示します。</p>
+
+        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>候補セクション</h4>
+        <FeatureList items={[
+          '「○人以上のキャストがNGを出したら候補表示」の閾値を設定',
+          '条件を満たすユーザーをカードで一覧表示',
+          'カードには X ID・ユーザー名（複数の場合は全て表示）・NGを出しているキャスト数・キャスト名を表示',
+          '「要注意に追加」ボタンで登録済みセクションに移動',
+        ]} />
+
+        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>登録済みセクション</h4>
+        <FeatureList items={[
+          '手動でユーザー名・X IDを入力して追加することもできます',
+          '登録種別バッジ：「手動」（青）または「自動＋NG数」（緑）で表示',
+          '削除ボタンで登録解除',
+        ]} />
+      </Section>
+
+      <Section title="NG例外">
+        <p>要注意人物に登録されているユーザーでも、特定のキャストへのNGを解除できます。
+        「NG例外を追加」からユーザー名とX IDを入力して設定します。マッチング時にこの例外設定が考慮されます。</p>
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          'X IDが同じで名前が違うユーザーは同一人物として扱います（候補の名前チップに全ユーザー名を表示）',
+          '要注意人物に登録されたユーザーは応募データ一覧で「要注意」フラグが立ちます',
+          'NGはマッチング実行時に自動的に考慮されます',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'attendance': (
+    <div>
+      <FeatureHeader icon={<Calendar size={26} />} title="出席管理" description="イベント当日のキャスト出席状態の設定と、出席記録の管理を行う画面です。" color="#6366f1" />
+
+      <ScreenSample title="出席設定">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {([
+            { label: '出席中', color: '#3ba55d', casts: ['キャストA', 'キャストB', 'キャストC'] },
+            { label: '待機中', color: '#747f8d', casts: ['キャストD'] },
+          ] as const).map(col => (
+            <div key={col.label}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: col.color, marginBottom: 6 }}>{col.label} ({col.casts.length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {col.casts.map(c => (
+                  <span key={c} style={{ padding: '3px 9px', borderRadius: 12, background: col.color, color: '#fff', fontSize: 11, fontWeight: 600 }}>{c}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+          {['全員待機', '全員出席'].map(t => <span key={t} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--discord-border)', fontSize: 10, color: 'var(--discord-text-muted)' }}>{t}</span>)}
+          <span style={{ padding: '4px 10px', borderRadius: 4, background: 'var(--discord-accent-blue)', color: '#fff', fontSize: 10, fontWeight: 700 }}>保存</span>
+        </div>
+      </ScreenSample>
+
+      <Section title="タブ構成">
+        <FeatureList items={[
+          '【出席設定】当日の出席/待機状態を設定し記録する',
+          '【出席記録】記録済みデータの確認・累積出席回数の確認',
+        ]} />
+      </Section>
+
+      <Section title="出席設定 タブ">
+        <p>キャストを「出席中」「待機中」に振り分けます。チップをクリックすると左右のリスト間を移動します。</p>
+        <FeatureList items={[
+          '「全員出席」ボタン：全キャストを出席中に移動',
+          '「全員待機」ボタン：全キャストを待機中に移動',
+          'キャストはグループごとに区切って表示',
+          '「保存」ボタン：出席記録モーダルを開く',
+        ]} />
+
+        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>保存モーダル</h4>
+        <FeatureList items={[
+          '左：記録日を手動入力（YYYY-MM-DD形式、デフォルトは今日）',
+          '中央：出席キャスト数を大きく表示',
+          '右：出席キャスト名の一覧',
+          '同じ日付に記録済みの場合は「上書きします」警告を表示',
+          '「保存」ボタンで確定',
+        ]} />
+      </Section>
+
+      <Section title="出席記録 タブ">
+        <FeatureList items={[
+          'このイベントの最新出席記録のキャスト名をチップで表示',
+          '「出席履歴（N件）」ボタン：全出席記録の一覧をモーダルで表示（日付・イベント名・出席数・キャスト名チップ）',
+          'キャスト別累積出席回数テーブル：キャスト名・出席回数・最終記録日を一覧表示',
+        ]} />
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          '出席状態（出席中/待機中）はキャスト管理の出欠とは独立した設定です',
+          '同一イベント・同一日付で保存すると上書きになります（削除＋再INSERT）',
+          'イベントを切り替えると、そのイベントの出席記録が表示されます',
+          '抽選やマッチングとは独立した機能です（抽選条件には影響しません）',
+        ]} />
+      </Section>
+    </div>
+  ),
+
+  'tweet': (
+    <div>
+      <FeatureHeader icon={<Settings size={26} />} title="投稿テンプレ" description="X（Twitter）への投稿文テンプレートを作成・管理する画面です。" color="#0ea5e9" />
+
+      <ScreenSample title="投稿テンプレ">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>テンプレート編集</div>
+            <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
+              {'【{event_name}】\nキャスト出演情報\n{casts}\n\n日程：{date}'}
+            </div>
+            <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+              {['{casts}', '{event_name}', '{date}'].map(p => (
+                <span key={p} style={{ padding: '2px 6px', background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.3)', borderRadius: 4, fontSize: 10, color: 'var(--discord-accent-blue)', fontFamily: 'monospace' }}>{p}</span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>プレビュー <span style={{ color: 'var(--discord-accent-blue)' }}>68字</span></div>
+            <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
+              {'【サンプルイベント】\nキャスト出演情報\nキャストA\nキャストB\nキャストC\n\n日程：2026/05/03'}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 5, marginTop: 5 }}>
+              <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 10, color: 'var(--discord-text-muted)' }}>Xを開く</span>
+              <span style={{ padding: '3px 8px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>コピー</span>
+            </div>
+          </div>
+        </div>
+      </ScreenSample>
+
+      <Section title="画面構成">
+        <FeatureList items={[
+          '【左ペイン】テンプレート編集エリア',
+          '【右ペイン】プレビューエリア',
+        ]} />
+      </Section>
+
+      <Section title="テンプレート編集">
+        <p>テキストエリアに投稿文のひな型を入力します。プレースホルダーを使うと、実際の値に自動置換されます。</p>
+
+        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>プレースホルダー一覧</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {([
+            { ph: '{casts}',      desc: '出席中のキャスト名（改行区切り）' },
+            { ph: '{event_name}', desc: '現在選択中のイベント名' },
+            { ph: '{date}',       desc: '今日の日付（YYYY/MM/DD形式）' },
+          ] as const).map(({ ph, desc }) => (
+            <div key={ph} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 7, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)' }}>
+              <code style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--discord-accent-blue)', background: 'rgba(88,101,242,0.12)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{ph}</code>
+              <span style={{ fontSize: 13, color: 'var(--discord-text-normal)' }}>→ {desc}</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 10, fontSize: 13, color: 'var(--discord-text-muted)' }}>ボタンをクリックするとカーソル位置に自動挿入。テンプレートは自動保存されます。</p>
+      </Section>
+
+      <Section title="プレビュー">
+        <FeatureList items={[
+          'プレースホルダーが実際の値に置換された状態でリアルタイムプレビュー表示',
+          '文字数カウント表示（280字超過時は赤色で警告）',
+          '「クリップボードにコピー」ボタンで投稿文をコピー',
+          '「Xを開く」ボタンでブラウザのXを開く',
+        ]} />
+      </Section>
+
+      <Section title="注意事項">
+        <NoteList items={[
+          '出席中のキャストが0人の場合、警告メッセージが表示されます',
+          '{casts} は「出席管理」タブの出席状態とは別に、キャスト名簿の出席フラグを参照します',
+          'Xの文字数カウントはURLを含まない本文のみのカウントです',
+        ]} />
+      </Section>
+    </div>
+  ),
+};
+
+/* ════════════════════════════════════════
+   メインコンポーネント
+════════════════════════════════════════ */
+
+export const GuidePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<Tab>('flow');
+  const [selectedFeature, setSelectedFeature] = useState<FeatureId>('applicant-data');
+  const [stellaStatus, setStellaStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'unavailable'>('idle');
+  const [stellaMessage, setStellaMessage] = useState('');
+
+  const handleStellaRegister = useCallback(async () => {
+    if (!isTauri()) return;
+    setStellaStatus('loading');
+    try {
+      const available = await invoke<boolean>('check_stellarecord_available');
+      if (!available) {
+        setStellaStatus('unavailable');
+        setStellaMessage('StellaRecord がインストールされていません');
+        return;
+      }
+      const msg = await invoke<string>('register_to_stellarecord');
+      setStellaStatus('success');
+      setStellaMessage(msg);
+    } catch (e) {
+      setStellaStatus('error');
+      setStellaMessage(String(e));
+    }
+  }, []);
+
+  return (
+    <div className={shared.pageWrapper} style={{ maxWidth: 1400, paddingBottom: 60 }}>
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* デバッグ通知 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', marginBottom: 20, borderRadius: 8, background: 'rgba(240, 178, 50, 0.18)', border: '1px solid rgba(240, 178, 50, 0.55)', fontSize: 12, color: 'var(--discord-accent-yellow, #f0b232)', fontWeight: 600 }}>
+        🔧 デバッグ中です。更新は最新化を命令されたときに更新します
+      </div>
+
+      {/* タブ */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--discord-border)' }}>
+        {([
+          { id: 'flow' as Tab,     label: '基本的な流れ' },
+          { id: 'features' as Tab, label: '各機能について' },
+        ] as const).map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '8px 20px', border: 'none', borderBottom: activeTab === tab.id ? '2px solid var(--discord-accent-blue)' : '2px solid transparent', background: 'none', color: activeTab === tab.id ? 'var(--discord-accent-blue)' : 'var(--discord-text-muted)', fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 14, cursor: 'pointer', borderRadius: '4px 4px 0 0', transition: 'color 0.15s, border-color 0.15s' }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB 1: 基本的な流れ ── */}
+      {activeTab === 'flow' && (
+        <div style={{ animation: 'fade-in 0.2s ease' }}>
+
+          {/* 概要グリッド */}
+          <section className={styles.guideSection} style={{ marginBottom: 32 }}>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+              <BarChart3 size={22} /> 基本的な流れ
+            </h2>
+            <div className={styles.guideFlowBox}>
+              <div className={styles.guideFlowGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                {[
+                  { icon: FileText,    text: 'データ読取',     desc: 'TSVで応募データを取り込む' },
+                  { icon: Database,    text: '応募データ確認', desc: '取り込んだデータを確認' },
+                  { icon: Users,       text: 'キャスト出席設定', desc: '当日の出席状態を設定' },
+                  { icon: Settings,    text: '抽選設定・実行', desc: '条件を設定して当選者を決定' },
+                  { icon: CheckCircle, text: 'マッチング実行', desc: 'NGを考慮して割り当て' },
+                  { icon: BarChart3,   text: '結果を出力',     desc: 'PNG・TSVで保存' },
+                ].map((item, idx) => (
+                  <div key={idx} className={styles.guideFlowItem}>
+                    <item.icon size={24} className={styles.guideFlowItemIcon} />
+                    <div className={styles.guideFlowItemTitle}>{idx + 1}. {item.text}</div>
+                    <div className={styles.guideFlowItemDesc}>{item.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* 各ステップの詳細 */}
+          <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+              <FileText size={22} /> 各ステップの詳細
+            </h2>
+            <div className={styles.guideStackVertical}>
+
+              {/* Step 1 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #8b5cf6 0%, #8b5cf6bb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>1</div>
+                  <FileText size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>データ読取</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', 'プレビューで確認し「この割り当てで取り込む」をクリック'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#8b5cf622', border: '1px solid #8b5cf666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#8b5cf6', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="列マッピング">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {[['ユーザー名', '名前'], ['X ID *', 'X/Twitter ID'], ['希望キャスト 1', '第一希望'], ['希望キャスト 2', '第二希望']].map(([l, v]) => (
+                        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 90, fontSize: 10, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{l}</span>
+                          <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-accent-blue)' }}>{v}</span>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 4, textAlign: 'right' }}><span style={{ padding: '3px 10px', background: '#8b5cf6', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>取り込む</span></div>
+                    </div>
+                  </ScreenSample>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #5865f2 0%, #5865f2bb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>2</div>
+                  <Database size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>応募データ確認</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['「応募データ」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', '要注意ユーザー（NG管理に登録済み）は自動でフラグ表示される', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#5865f222', border: '1px solid #5865f266', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#5865f2', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="応募データ">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['名前', 'X ID', '希望1'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid var(--discord-border)' }}><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>テストさん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-link, #00b0f4)' }}>@test</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストA</td></tr>
+                        <tr style={{ borderBottom: '1px solid var(--discord-border)', background: 'rgba(237,66,69,0.08)' }}><td style={{ padding: '4px 6px', color: '#ed4245', fontWeight: 600 }}>⚠ 問題さん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-muted)' }}>@bad</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストB</td></tr>
+                        <tr><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>花子さん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-link, #00b0f4)' }}>@hanako</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストA</td></tr>
+                      </tbody>
+                    </table>
+                  </ScreenSample>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #06b6d4 0%, #06b6d4bb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>3</div>
+                  <Users size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>キャスト出席設定</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['「出席管理」タブを開き「出席設定」タブを選択する', '当日参加できないキャストのチップをクリックして「待機中」に移動する', '「全員出席」ボタンで一括設定も可能', '設定完了後「保存」をクリックして出席記録を保存する'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#06b6d422', border: '1px solid #06b6d466', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#06b6d4', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="出席設定">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      {[{ label: '出席中', color: '#3ba55d', casts: ['キャストA', 'キャストB', 'キャストC'] }, { label: '待機中', color: '#747f8d', casts: ['キャストD'] }].map(col => (
+                        <div key={col.label}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: col.color, marginBottom: 4 }}>{col.label}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{col.casts.map(c => <span key={c} style={{ padding: '2px 7px', borderRadius: 10, background: col.color, color: '#fff', fontSize: 10 }}>{c}</span>)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 8, textAlign: 'right' }}><span style={{ padding: '3px 10px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>保存</span></div>
+                  </ScreenSample>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #10b981 0%, #10b981bb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>4</div>
+                  <Settings size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>抽選設定・実行</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['「抽選」タブでマッチング形式を選ぶ（M000〜M003）', '当選人数・ローテーション回数・テーブル数などを設定する', '検証パネルでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#10b98122', border: '1px solid #10b98166', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#10b981', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="抽選設定">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {[['形式', 'M001 ランダム'], ['当選人数', '20 人'], ['ローテーション', '3 回'], ['テーブル数', '4']].map(([l, v]) => (
+                        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 70, fontSize: 10, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{l}</span>
+                          <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-text-header)', fontWeight: 600 }}>{v}</span>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 4, padding: '5px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 5, fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓ 検証OK — 枠数: 12</div>
+                      <div style={{ textAlign: 'right' }}><span style={{ padding: '3px 10px', background: '#10b981', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選実行</span></div>
+                    </div>
+                  </ScreenSample>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #f59e0b 0%, #f59e0bbb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>5</div>
+                  <CheckCircle size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>マッチング実行</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['「マッチング」タブでNG判定タイプを設定する', 'NG違反時の動作（再割り当てするか）を設定する', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をユーザー別・テーブル別で確認する'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#f59e0b22', border: '1px solid #f59e0b66', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#f59e0b', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="マッチング結果">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['名前', 'R1', 'R2'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {[['テストさん', 'キャストA', 'キャストC', 1, 3], ['花子さん', 'キャストB', 'キャストA', 2, 1], ['太郎さん', 'キャストC', '---', 0, 0]].map(([n, c1, c2, r1, r2], i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
+                            <td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>{n}</td>
+                            {[[c1, r1], [c2, r2]].map(([c, r], j) => (
+                              <td key={j} style={{ padding: '4px 6px' }}>
+                                <span style={{ fontSize: 10, color: 'var(--discord-text-normal)' }}>{c as string}</span>
+                                {(r as number) > 0 && <span style={{ marginLeft: 3, padding: '1px 4px', borderRadius: 3, background: (r as number) === 1 ? '#f5c400' : (r as number) === 2 ? '#a8a8a8' : '#ad6f2d', color: (r as number) === 2 ? '#000' : '#fff', fontSize: 9, fontWeight: 700 }}>{r as number}希</span>}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ScreenSample>
+                </div>
+              </div>
+
+              {/* Step 6 */}
+              <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #ef4444 0%, #ef4444bb 100%)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>6</div>
+                  <BarChart3 size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>結果の出力</span>
+                </div>
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {['「PNGで保存（当選者別）」または「PNGで保存（テーブル別）」で画像保存する', '「マッチング結果をTSVで保存」でテキスト形式で出力する', 'X投稿には「投稿テンプレ」タブでテンプレートを編集してコピーする'].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#ef444422', border: '1px solid #ef444466', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#ef4444', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <ScreenSample title="出力ボタン">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[['PNGで保存（当選者別）', '#5865f2'], ['PNGで保存（テーブル別）', '#5865f2'], ['マッチング結果をTSVで保存', '#3ba55d']].map(([label, color]) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, background: `${color}18`, border: `1px solid ${color}44`, fontSize: 11, color: 'var(--discord-text-normal)', fontWeight: 600 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  </ScreenSample>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          {/* よくある質問 */}
+          <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+              <HelpCircle size={22} /> よくある質問
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {([
+                { q: '抽選をやり直したい',           a: '抽選タブで再度「抽選実行」をクリックします。上書き確認ダイアログが表示されます。マッチングも再実行が必要です。' },
+                { q: 'NGを追加したい',               a: 'NG管理タブでキャストのNGユーザーを追加します。追加後はマッチングタブで「解除」→再実行してください。' },
+                { q: 'キャストの出席状態を変えたい', a: '出席管理タブで変更し「保存」します。抽選・マッチングはすでに実行済みの場合、再実行が必要です。' },
+                { q: '前回と同じキャストデータを使いたい', a: 'キャスト名簿はイベントをまたいで共有されます。イベントを切り替えてもキャストデータはそのまま引き継がれます。' },
+                { q: '応募データを複数イベント分管理したい', a: 'アプリ上部のイベントセレクターで切り替えます。イベントごとに応募データ・抽選結果・マッチング結果が分離して管理されます。' },
+                { q: '結果ファイルはどこに保存される？',    a: '保存ダイアログが表示されて任意の場所を選択できます。デフォルトはダウンロードフォルダです。' },
+              ] as const).map(({ q, a }) => (
+                <div key={q} className={styles.guideCard} style={{ padding: '14px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                    <span style={{ background: 'var(--discord-accent-blue)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>Q</span>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--discord-text-header)' }}>{q}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ background: 'var(--discord-accent-green, #3ba55d)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>A</span>
+                    <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.7 }}>{a}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+              <Sheet size={22} /> TSVを用意する（事前準備）
+            </h2>
+            <p className={shared.pageHeaderSubtitle} style={{ marginBottom: 20, color: 'var(--discord-text-muted)' }}>
+              応募データがGoogleフォームで集まっている場合の、スプレッドシート化〜TSV出力までの手順です。
+            </p>
+            <div className={styles.guideStackVertical}>
+              <div className={styles.guideCard}>
+                <div className={styles.guideSectionGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div>
+                    <h3 style={{ color: 'var(--discord-text-header)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Sheet size={18} /> Step A. Googleフォームの回答をスプレッドシートに連携する
+                    </h3>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--discord-text-normal)', fontSize: 14, lineHeight: 1.9 }}>
+                      <li>① フォームを開き「回答」タブをクリック</li>
+                      <li>② 緑色ボタン「スプレッドシートにリンク」をクリック</li>
+                      <li>③「新しいスプレッドシートを作成」→「作成」をクリック</li>
+                    </ul>
+                  </div>
+                  <div className={styles.guideSamplePreview} style={{ backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8, border: '1px solid #dadce0', transform: 'scale(0.95)', transformOrigin: 'top right' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: 8, border: '1px solid #dadce0', padding: 16 }}>
+                      <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', backgroundColor: '#34a853', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13 }}>
+                        ＋ スプレッドシートにリンク
+                      </button>
+                      <div style={{ fontSize: 10, color: '#5f6368', marginTop: 8 }}>← ② ここをクリック</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className={styles.guideCard}>
+                <div className={styles.guideSectionGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div>
+                    <h3 style={{ color: 'var(--discord-text-header)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Download size={18} /> Step B. スプレッドシートからTSVをダウンロードする
+                    </h3>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--discord-text-normal)', fontSize: 14, lineHeight: 1.9 }}>
+                      <li>① 画面上部「ファイル」をクリック</li>
+                      <li>②「ダウンロード」にマウスを乗せる</li>
+                      <li>③「タブ区切り形式 (.tsv)」をクリック</li>
+                    </ul>
+                  </div>
+                  <div className={styles.guideSamplePreview} style={{ backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8, border: '1px solid #dadce0', transform: 'scale(0.95)', transformOrigin: 'top right' }}>
+                    <div style={{ backgroundColor: '#fff', border: '1px solid #dadce0', borderRadius: 4, padding: '6px 0', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <div style={{ padding: '6px 16px 8px', backgroundColor: '#f8f9fa' }}>
+                        <div style={{ fontSize: 10, color: '#5f6368', marginBottom: 4 }}>② ダウンロード</div>
+                        <div style={{ paddingLeft: 8, borderLeft: '2px solid #1a73e8' }}>
+                          {['Microsoft Excel (.xlsx)', 'カンマ区切り形式 (.csv)'].map(f => (
+                            <div key={f} style={{ fontSize: 11, color: '#5f6368', padding: '3px 0' }}>{f}</div>
+                          ))}
+                          <div style={{ fontSize: 11, color: '#1a73e8', fontWeight: 600, padding: '3px 0', backgroundColor: 'rgba(26,115,232,0.08)', margin: '2px -8px', paddingLeft: 8 }}>③ タブ区切り形式 (.tsv)</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* STELLA RECORD 連携 */}
+          {isTauri() && (
+            <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+                <Settings size={22} /> STELLA RECORD 連携
+              </h2>
+              <div className={styles.guideCard} style={{ padding: '18px 22px' }}>
+                <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>
+                  StellaRecord のランチャーに Stargazer を登録します。登録すると StellaRecord から直接起動できるようになります。
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button
+                    onClick={handleStellaRegister}
+                    disabled={stellaStatus === 'loading' || stellaStatus === 'success'}
+                    style={{
+                      padding: '8px 20px',
+                      border: 'none',
+                      borderRadius: 6,
+                      background: stellaStatus === 'success' ? 'var(--discord-accent-green, #3ba55d)' : 'var(--discord-accent-blue)',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: stellaStatus === 'loading' || stellaStatus === 'success' ? 'default' : 'pointer',
+                      opacity: stellaStatus === 'loading' ? 0.6 : 1,
+                      transition: 'background 0.15s, opacity 0.15s',
+                    }}
+                  >
+                    {stellaStatus === 'loading' ? '登録中...'
+                      : stellaStatus === 'success' ? '✓ 登録済み'
+                      : 'StellaRecord に登録'}
+                  </button>
+                  {stellaMessage && (
+                    <span style={{
+                      fontSize: 12,
+                      color: stellaStatus === 'success' ? 'var(--discord-accent-green, #3ba55d)'
+                        : stellaStatus === 'error' || stellaStatus === 'unavailable' ? '#ed4245'
+                        : 'var(--discord-text-muted)',
+                    }}>
+                      {stellaMessage}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+        </div>
+      )}
+
+      {/* ── TAB 2: 各機能について ── */}
+      {activeTab === 'features' && (
+        <div style={{ display: 'flex', gap: 0, animation: 'fade-in 0.2s ease', minHeight: 500 }}>
+
+          {/* 左ナビ */}
+          <nav style={{ width: 200, flexShrink: 0, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)', borderRadius: 10, padding: '12px 8px', marginRight: 16, alignSelf: 'flex-start' }}>
+            {NAV_GROUPS.map(group => (
+              <div key={group.label} style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--discord-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 10px 6px' }}>
+                  {group.label}
+                </div>
+                {group.items.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedFeature(item.id)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '7px 10px',
+                      border: 'none',
+                      borderRadius: 6,
+                      background: selectedFeature === item.id ? 'var(--discord-bg-selected)' : 'transparent',
+                      color: selectedFeature === item.id ? 'var(--discord-text-header)' : 'var(--discord-text-normal)',
+                      fontSize: 13,
+                      fontWeight: selectedFeature === item.id ? 600 : 400,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.12s, color 0.12s',
+                      marginBottom: 2,
+                    }}
+                  >
+                    <span style={{ opacity: 0.7, flexShrink: 0 }}>{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+
+          {/* 右コンテンツ */}
+          <main style={{ flex: 1, minWidth: 0, background: 'var(--discord-bg-dark)', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--discord-border)' }}>
+            {FEATURE_CONTENT[selectedFeature]}
+          </main>
+
+        </div>
+      )}
+    </div>
+  );
+};

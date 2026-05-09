@@ -1,0 +1,85 @@
+タイムスタンプ	お名前	X ID	VRChatプロフURL	第1希望	第2希望	第3希望	備考
+2026-03-20 10:00	基準ユーザー	@normal_user	https://vrchat.com/home/user/usr_normal	Noa	Rin	Mio	正常データ（比較用）
+2026-03-20 10:01	藤堂 蒼	https://x.com/xurl_user		Rin	Noa	Mio	X IDがhttps://x.com/形式
+2026-03-20 10:02	桜庭 凛	https://twitter.com/twitter_user		Mio	Sora	Noa	X IDがhttps://twitter.com/形式
+2026-03-20 10:03	水瀬 光	raw_no_at		Noa	Mio	Haru	X IDが@なしの生テキスト
+2026-03-20 10:04	黒沢 詩	@with_at_user		Sora	Noa	Rin	X IDが@つきの正常形
+2026-03-20 10:05	音羽 雫	@UPPERCASE_ID		Rin	Mio	Sora	X IDが大文字混じり
+2026-03-20 10:06		@no_name_user		Noa	Rin	Mio	名前なし・X IDのみ
+2026-03-20 10:07	名前だけユーザー			Mio	Sora	Noa	X IDなし・名前のみ
+2026-03-20 10:08				Noa	Mio	Rin	名前・X ID両方なし（取込時スキップ対象）
+2026-03-20 10:09	希望ゼロ君	@no_cast_pref					全希望なし
+2026-03-20 10:10	第1希望だけ	@only_first		Noa			第1希望のみ
+2026-03-20 10:11	第1-2希望	@first_two		Rin	Mio		第1・第2のみ
+2026-03-20 10:12	幻のキャスト希望	@phantom_cast		ZZZ_NotExist	Noa	Rin	存在しないキャスト名が第1希望
+2026-03-20 10:13	全部存在しない	@all_phantom		AAA	BBB	CCC	全希望が未登録キャスト名
+2026-03-20 10:14	重複応募1回目	@duplicate_id		Noa	Rin	Mio	同一X IDの1回目
+2026-03-20 10:15	重複応募2回目	@duplicate_id		Mio	Sora	Haru	同一X IDの2回目（重複）
+2026-03-20 10:16	重複応募3回目	@duplicate_id		Sora	Noa	Rin	同一X IDの3回目（重複）
+2026-03-20 10:17	名前に　スペース　入り	@space_name		Noa	Mio	Rin	名前に全角スペース
+2026-03-20 10:18	【公式】テストユーザー★	@bracket_name		Rin	Sora	Noa	記号・括弧入り名前
+2026-03-20 10:19	ABCdefgh1234567890ABCdefgh	@long_ascii_name		Mio	Noa	Sora	英数字長名前
+2026-03-20 10:20	非常に長い名前を持つユーザーさんです	@very_long_name		Sora	Rin	Mio	長い日本語名前（20文字超）
+2026-03-20 10:21	VRC URL形式1	@vrc_url1	https://vrchat.com/home/user/usr_abc123	Noa	Rin	Mio	正規VRC URL
+2026-03-20 10:22	VRC URL形式2	@vrc_url2	https://vrc.game/users/usr_def456	Noa	Rin	Mio	vrc.game短縮形式
+2026-03-20 10:23	無効VRC URL	@invalid_vrc	https://example.com/random	Rin	Mio	Noa	無効なVRC URL
+2026-03-20 10:24	同名ユーザー	@same_name_1		Noa	Rin	Mio	同名1人目
+2026-03-20 10:25	同名ユーザー	@same_name_2		Mio	Noa	Sora	同名2人目（X IDは別）
+2026-03-20 10:26	希望重複ユーザー	@dup_cast_pref		Noa	Noa	Noa	同じキャストを3回希望
+2026-03-20 10:27	希望一部重複	@partial_dup_cast		Rin	Rin	Mio	第1・第2希望が同じ
+2026-03-20 10:28	確定当選者A	@guaranteed_a		Noa	Mio	Rin	確定
+2026-03-20 10:29	確定当選者B	@guaranteed_b		Sora	Haru	Noa	確定
+	通常ユーザー（TS欠損）	@no_timestamp		Rin	Mio	Noa	タイムスタンプ欠損
+不正な日付	日付おかしい	@bad_date		Noa	Sora	Mio	不正タイムスタンプ
+2026-03-20 10:32	全角Ｘ　ＩＤ	＠fullwidth_id		Noa	Rin	Mio	全角@記号（パース失敗ケース）
+2026-03-20 10:33	備考長文ユーザー	@long_note		Noa	Rin	Mio	とても長い備考テキストが入っています。これはテスト用のデータで特別な意味はありませんが取り込み時の動作確認に使います
+2026-03-20 11:00	テストユーザー 01	@testuser_001		Sora	Yuki	Rin	
+2026-03-20 11:01	テストユーザー 02	@testuser_002		Haru	Rin	Yuki	
+2026-03-20 11:02	テストユーザー 03	@testuser_003		Rin	Yuki	Noa	
+2026-03-20 11:03	テストユーザー 04	@testuser_004		Mio	Sora	Noa	
+2026-03-20 11:04	テストユーザー 05	@testuser_005		Haru	Sora	Rin	
+2026-03-20 11:05	テストユーザー 06	@testuser_006		Sora	Haru	Rin	
+2026-03-20 11:06	テストユーザー 07	@testuser_007		Mio	Sora	Rin	
+2026-03-20 11:07	テストユーザー 08	@testuser_008		Rin	Sora	Yuki	
+2026-03-20 11:08	テストユーザー 09	@testuser_009		Haru	Mio	Noa	
+2026-03-20 11:09	テストユーザー 10	@testuser_010		Yuki	Haru	Noa	
+2026-03-20 11:10	テストユーザー 11	@testuser_011		Sora	Mio	Yuki	
+2026-03-20 11:11	テストユーザー 12	@testuser_012		Noa	Mio	Yuki	
+2026-03-20 11:12	テストユーザー 13	@testuser_013		Sora	Rin	Mio	
+2026-03-20 11:13	テストユーザー 14	@testuser_014		Haru	Noa	Sora	
+2026-03-20 11:14	テストユーザー 15	@testuser_015		Haru	Rin	Sora	
+2026-03-20 11:15	テストユーザー 16	@testuser_016		Noa	Mio	Rin	
+2026-03-20 11:16	テストユーザー 17	@testuser_017		Rin	Yuki	Sora	
+2026-03-20 11:17	テストユーザー 18	@testuser_018		Haru	Rin	Yuki	
+2026-03-20 11:18	テストユーザー 19	@testuser_019		Noa	Yuki	Haru	
+2026-03-20 11:19	テストユーザー 20	@testuser_020		Rin	Sora	Haru	
+2026-03-20 11:20	テストユーザー 21	@testuser_021		Noa	Sora	Yuki	
+2026-03-20 11:21	テストユーザー 22	@testuser_022		Rin	Mio	Noa	
+2026-03-20 11:22	テストユーザー 23	@testuser_023		Sora	Mio	Rin	
+2026-03-20 11:23	テストユーザー 24	@testuser_024		Haru	Sora	Rin	
+2026-03-20 11:24	テストユーザー 25	@testuser_025		Noa	Rin	Sora	
+2026-03-20 11:25	テストユーザー 26	@testuser_026		Mio	Haru	Sora	
+2026-03-20 11:26	テストユーザー 27	@testuser_027		Rin	Mio	Sora	
+2026-03-20 11:27	テストユーザー 28	@testuser_028		Noa	Rin	Haru	
+2026-03-20 11:28	テストユーザー 29	@testuser_029		Haru	Sora	Noa	
+2026-03-20 11:29	テストユーザー 30	@testuser_030		Noa	Yuki	Rin	
+2026-03-20 11:30	テストユーザー 31	@testuser_031		Mio	Rin	Haru	
+2026-03-20 11:31	テストユーザー 32	@testuser_032		Sora	Rin	Haru	
+2026-03-20 11:32	テストユーザー 33	@testuser_033		Haru	Mio	Sora	
+2026-03-20 11:33	テストユーザー 34	@testuser_034		Rin	Mio	Noa	
+2026-03-20 11:34	テストユーザー 35	@testuser_035		Mio	Rin	Noa	
+2026-03-20 11:35	テストユーザー 36	@testuser_036		Haru	Mio	Noa	
+2026-03-20 11:36	テストユーザー 37	@testuser_037		Haru	Noa	Mio	
+2026-03-20 11:37	テストユーザー 38	@testuser_038		Rin	Sora	Haru	
+2026-03-20 11:38	テストユーザー 39	@testuser_039		Mio	Sora	Haru	
+2026-03-20 11:39	テストユーザー 40	@testuser_040		Sora	Mio	Noa	
+2026-03-20 11:40	テストユーザー 41	@testuser_041		Rin	Noa	Mio	
+2026-03-20 11:41	テストユーザー 42	@testuser_042		Yuki	Sora	Haru	
+2026-03-20 11:42	テストユーザー 43	@testuser_043		Rin	Mio	Yuki	
+2026-03-20 11:43	テストユーザー 44	@testuser_044		Yuki	Mio	Noa	
+2026-03-20 11:44	テストユーザー 45	@testuser_045		Yuki	Mio	Rin	
+2026-03-20 11:45	テストユーザー 46	@testuser_046		Yuki	Rin	Sora	
+2026-03-20 11:46	テストユーザー 47	@testuser_047		Mio	Sora	Noa	
+2026-03-20 11:47	テストユーザー 48	@testuser_048		Sora	Yuki	Mio	
+2026-03-20 11:48	テストユーザー 49	@testuser_049		Noa	Haru	Mio	
+2026-03-20 11:49	テストユーザー 50	@testuser_050		Yuki	Mio	Sora	
