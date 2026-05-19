@@ -14,9 +14,9 @@ import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
 import { NAV, IMPORT_OVERWRITE } from '@/common/copy';
 import { STORAGE_KEYS } from '@/common/config';
 import {
-  getAllCastsForEvent,
-  loadApplicantsForEvent,
-  persistApplicantsForEvent,
+  getAllCasts,
+  loadApplicants,
+  persistApplicants,
   getAllCautionUsers,
 } from '@/db';
 import styles from './AppContainer.module.css';
@@ -34,7 +34,7 @@ export const AppContainer: React.FC = () => {
     themeId,
     setThemeId,
     isDbReady,
-    currentEventId,
+    currentEventName,
     setMatchingSettings,
   } = useAppContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -53,21 +53,25 @@ export const AppContainer: React.FC = () => {
   /** DB初期化完了後にキャストと応募者データを読み込む */
   useEffect(() => {
     if (!isDbReady) return;
+    if (currentEventName === null) {
+      setCasts([]);
+      setApplicants([]);
+      setIsDataLoading(false);
+      return;
+    }
     setIsDataLoading(true);
     (async () => {
-      if (currentEventId !== null) {
-        try {
-          const casts = await getAllCastsForEvent(currentEventId);
-          setCasts(casts);
-        } catch (e) {
-          console.warn('キャストデータの読み込みをスキップしました:', e);
-        }
-        try {
-          const applicants = await loadApplicantsForEvent(currentEventId);
-          setApplicants(applicants);
-        } catch (e) {
-          console.warn('応募データの読み込みをスキップしました:', e);
-        }
+      try {
+        const casts = await getAllCasts();
+        setCasts(casts);
+      } catch (e) {
+        console.warn('キャストデータの読み込みをスキップしました:', e);
+      }
+      try {
+        const applicants = await loadApplicants();
+        setApplicants(applicants);
+      } catch (e) {
+        console.warn('応募データの読み込みをスキップしました:', e);
       }
       try {
         const cautionUsers = await getAllCautionUsers();
@@ -81,7 +85,7 @@ export const AppContainer: React.FC = () => {
       setIsDataLoading(false);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventId]);
+  }, [isDbReady, currentEventName]);
 
   /** ファイル選択で取り込んだ応募データ行とカラムマッピングで保存して DB 画面へ。既存の応募データ or 当選結果がある場合は上書き確認モーダルを表示。 */
   const handleImportUserRows = (
@@ -114,9 +118,8 @@ export const AppContainer: React.FC = () => {
     setApplicants(users);
     setCurrentWinners([]);
     if (typeof window !== 'undefined') window.localStorage.removeItem(STORAGE_KEYS.SESSION);
-    // SQLiteへ非同期保存
-    if (currentEventId !== null) {
-      persistApplicantsForEvent(currentEventId, users).catch((e) =>
+    if (currentEventName !== null) {
+      persistApplicants(users).catch((e) =>
         console.error('応募データのDB保存に失敗しました:', e),
       );
     }
@@ -146,6 +149,9 @@ export const AppContainer: React.FC = () => {
   ];
 
   const renderPage = () => {
+    if (currentEventName === null && activePage !== 'guide') {
+      return <EventManagementPage />;
+    }
     switch (activePage) {
       case 'dataManagement':
       case 'lottery':

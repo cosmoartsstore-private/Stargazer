@@ -24,15 +24,15 @@ async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entri
   };
 }
 
-export async function getAllCastsForEvent(eventId: number): Promise<CastBean[]> {
+export async function getAllCasts(): Promise<CastBean[]> {
   const db = await getDb();
   const rows = await db.select<CastRow[]>('SELECT * FROM casts ORDER BY id');
   const result: CastBean[] = [];
   for (const row of rows) {
     const { urls, ng_entries } = await fetchCastFull(row.id);
     const presRows = await db.select<[{ is_present: number }]>(
-      'SELECT is_present FROM event_cast_present WHERE event_id = ? AND cast_id = ?',
-      [eventId, row.id],
+      'SELECT is_present FROM event_cast_present WHERE cast_id = ?',
+      [row.id],
     );
     const is_present = presRows.length > 0 ? presRows[0].is_present === 1 : true;
     result.push({
@@ -48,14 +48,14 @@ export async function getAllCastsForEvent(eventId: number): Promise<CastBean[]> 
   return result;
 }
 
-export async function updateCastAttendForEvent(eventId: number, name: string, isPresent: boolean): Promise<void> {
+export async function updateCastAttend(name: string, isPresent: boolean): Promise<void> {
   const db = await getDb();
   const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
   const castId = rows[0]?.id;
   if (castId === undefined) return;
   await db.execute(
-    'INSERT OR REPLACE INTO event_cast_present (event_id, cast_id, is_present) VALUES (?, ?, ?)',
-    [eventId, castId, isPresent ? 1 : 0],
+    'INSERT OR REPLACE INTO event_cast_present (cast_id, is_present) VALUES (?, ?)',
+    [castId, isPresent ? 1 : 0],
   );
 }
 

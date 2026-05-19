@@ -1,6 +1,10 @@
-export { getDb } from './database';
-export { initializeDatabase } from './initializer';
-export type { DbInitResult } from './initializer';
+export { openEvent, closeEvent, getDb, getCurrentEventName } from './database';
+export {
+  initializeApp,
+  saveLastUsedEvent,
+  clearLastUsedEvent,
+} from './initializer';
+export type { InitializeResult } from './initializer';
 export * from './repositories/castRepository';
 export * from './repositories/applicantRepository';
 export * from './repositories/eventRepository';

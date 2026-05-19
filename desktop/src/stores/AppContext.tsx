@@ -10,7 +10,8 @@ import {
 import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import type { MatchedCast, TableSlot } from '@/features/matching/logics/matching-io';
-import { initializeDatabase } from '@/db/initializer';
+import { initializeApp, saveLastUsedEvent } from '@/db/initializer';
+import { openEvent, closeEvent } from '@/db/database';
 export type { UserBean, CastBean } from '@/common/types/entities';
 
 const VALID_MATCHING_CODES: readonly string[] = [...MATCHING_TYPE_CODES];
@@ -115,8 +116,11 @@ interface AppContextType {
   setIsMatchingLocked: (val: boolean) => void;
   resetMatching: () => void;
   isDbReady: boolean;
-  currentEventId: number | null;
-  setCurrentEventId: (id: number) => void;
+  currentEventName: string | null;
+  setCurrentEventName: (name: string | null) => void;
+  events: string[];
+  setEvents: React.Dispatch<React.SetStateAction<string[]>>;
+  switchEvent: (name: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,7 +147,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [globalMatchingError, setGlobalMatchingError] = useState<string | null>(null);
 
   const [isDbReady, setIsDbReady] = useState<boolean>(false);
-  const [currentEventId, setCurrentEventId] = useState<number | null>(null);
+  const [currentEventName, setCurrentEventName] = useState<string | null>(null);
+  const [events, setEvents] = useState<string[]>([]);
 
   const setApplicants = (users: UserBean[]) => {
     setApplicantsState(users);
@@ -183,10 +188,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem(STORAGE_KEYS.THEME, themeId);
   }, [themeId]);
 
+  const switchEvent = async (name: string) => {
+    await closeEvent();
+    await openEvent(name);
+    saveLastUsedEvent(name);
+    setCurrentEventName(name);
+    setCurrentWinners([]);
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEYS.SESSION);
+    resetMatching();
+  };
+
   useEffect(() => {
-    initializeDatabase()
-      .then(({ currentEventId: id }) => {
-        setCurrentEventId(id);
+    initializeApp()
+      .then(async ({ events: evList, lastUsedEvent }) => {
+        if (lastUsedEvent) {
+          await openEvent(lastUsedEvent);
+          setCurrentEventName(lastUsedEvent);
+        }
+        setEvents(evList);
         setIsDbReady(true);
       })
       .catch((e) => {
@@ -234,8 +253,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsMatchingLocked,
       resetMatching,
       isDbReady,
-      currentEventId,
-      setCurrentEventId,
+      currentEventName,
+      setCurrentEventName,
+      events,
+      setEvents,
+      switchEvent,
     }}>
       {children}
     </AppContext.Provider>
