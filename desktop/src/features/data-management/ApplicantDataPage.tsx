@@ -8,7 +8,7 @@ import {
   isCautionUser,
 } from '@/features/matching/logics/caution-user';
 import { useAppContext } from '@/stores/AppContext';
-import { persistApplicantsForEvent } from '@/db';
+import { persistApplicants } from '@/db';
 import type { UserBean } from '@/common/types/entities';
 import styles from './ApplicantDataPage.module.css';
 import shared from '@/styles/shared.module.css';
@@ -158,7 +158,7 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSel
 // ── ページ本体 ─────────────────────────────────────────────────────────────────
 
 export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUserRows }) => {
-  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentEventId } = useAppContext();
+  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentEventName } = useAppContext();
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [selectedUser, setSelectedUser] = useState<UserBean | null>(null);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
@@ -207,8 +207,8 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     if (!removeTarget) return;
     const next = applyUsers.filter((u) => u.x_id !== removeTarget);
     setApplicants(next);
-    if (currentEventId !== null) {
-      persistApplicantsForEvent(currentEventId, next).catch((e) =>
+    if (currentEventName !== null) {
+      persistApplicants(next).catch((e) =>
         console.error('応募データのDB保存に失敗しました:', e),
       );
     }
@@ -223,8 +223,8 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
 
   const handleClearAll = () => {
     setApplicants([]);
-    if (currentEventId !== null) {
-      persistApplicantsForEvent(currentEventId, []).catch((e) =>
+    if (currentEventName !== null) {
+      persistApplicants([]).catch((e) =>
         console.error('応募データのDB削除に失敗しました:', e),
       );
     }

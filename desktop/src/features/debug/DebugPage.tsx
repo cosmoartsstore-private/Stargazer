@@ -12,7 +12,7 @@ interface TableData {
 }
 
 const TABLES = [
-  'events',
+  'meta',
   'casts',
   'cast_urls',
   'cast_ng_entries',
@@ -27,12 +27,12 @@ const TABLES = [
 ];
 
 const QUICK_QUERIES: { label: string; sql: string }[] = [
-  { label: 'events',               sql: 'SELECT * FROM events ORDER BY id' },
+  { label: 'meta',                 sql: 'SELECT * FROM meta' },
   { label: 'casts',                sql: 'SELECT id, name, group_name, is_attend FROM casts ORDER BY id' },
-  { label: 'event_cast_present',   sql: 'SELECT ecp.event_id, e.name AS event_name, c.name AS cast_name, ecp.is_present FROM event_cast_present ecp JOIN events e ON e.id = ecp.event_id JOIN casts c ON c.id = ecp.cast_id ORDER BY ecp.event_id, c.name' },
-  { label: 'applicants (current)', sql: 'SELECT a.id, a.x_id, a.name, a.is_guaranteed FROM applicants a WHERE a.event_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = \'currentEventId\') ORDER BY a.id' },
-  { label: 'cast_attendance',      sql: 'SELECT ca.event_id, e.name AS event_name, c.name AS cast_name, ca.recorded_at FROM cast_attendance ca JOIN events e ON e.id = ca.event_id JOIN casts c ON c.id = ca.cast_id ORDER BY ca.recorded_at DESC LIMIT 50' },
-  { label: 'attendance',           sql: 'SELECT a.id, e.name AS event_name, ap.x_id, c.name AS cast_name, a.seat_label FROM attendance a JOIN events e ON e.id = a.event_id JOIN applicants ap ON ap.id = a.applicant_id LEFT JOIN casts c ON c.id = a.matched_cast_id ORDER BY a.id DESC LIMIT 50' },
+  { label: 'event_cast_present',   sql: 'SELECT ecp.cast_id, c.name AS cast_name, ecp.is_present FROM event_cast_present ecp JOIN casts c ON c.id = ecp.cast_id ORDER BY c.name' },
+  { label: 'applicants',           sql: 'SELECT a.id, a.x_id, a.name, a.is_guaranteed FROM applicants a ORDER BY a.id' },
+  { label: 'cast_attendance',      sql: 'SELECT c.name AS cast_name, ca.recorded_at FROM cast_attendance ca JOIN casts c ON c.id = ca.cast_id ORDER BY ca.recorded_at DESC LIMIT 50' },
+  { label: 'attendance',           sql: 'SELECT a.id, ap.x_id, c.name AS cast_name, a.seat_label FROM attendance a JOIN applicants ap ON ap.id = a.applicant_id LEFT JOIN casts c ON c.id = a.matched_cast_id ORDER BY a.id DESC LIMIT 50' },
   { label: 'caution_users',        sql: 'SELECT id, username, account_id, reason, ng_cast_count FROM caution_users ORDER BY id' },
   { label: 'settings',             sql: 'SELECT * FROM settings' },
   { label: 'PRAGMA user_version',  sql: 'PRAGMA user_version' },
@@ -175,10 +175,9 @@ export const DebugPage: React.FC = () => {
     }
   };
 
-  // DBに入っていない純粋なセッション状態のみ
   const sessionState = {
     isDbReady: ctx.isDbReady,
-    currentEventId: ctx.currentEventId,
+    currentEventName: ctx.currentEventName,
     activePage: ctx.activePage,
     themeId: ctx.themeId,
     isMatchingLocked: ctx.isMatchingLocked,

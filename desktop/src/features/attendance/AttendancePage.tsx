@@ -6,11 +6,11 @@ import styles from './AttendancePage.module.css';
 import shared from '@/styles/shared.module.css';
 import {
   recordCastAttendance,
-  getCastAttendanceForEvent,
+  getCastAttendance,
   getCastAttendanceHistory,
   getCastAttendanceSummary,
   hasCastAttendanceForDate,
-  updateCastAttendForEvent,
+  updateCastAttend,
   type CastAttendanceRecord,
   type CastAttendanceEvent,
   type CastAttendanceSummary,
@@ -37,7 +37,7 @@ function groupByGroupName(castList: CastBean[]): GroupedCasts {
 }
 
 export const AttendancePage: React.FC = () => {
-  const { currentEventId, casts, setCasts } = useAppContext();
+  const { currentEventName, casts, setCasts } = useAppContext();
   const [activeTab, setActiveTab] = useState<AttendanceTab>('setup');
   const [castRecords, setCastRecords] = useState<CastAttendanceRecord[]>([]);
   const [history, setHistory] = useState<CastAttendanceEvent[]>([]);
@@ -50,31 +50,30 @@ export const AttendancePage: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (currentEventId === null) return;
+    if (currentEventName === null) return;
     const [records, hist, sum] = await Promise.all([
-      getCastAttendanceForEvent(currentEventId),
+      getCastAttendance(),
       getCastAttendanceHistory(),
       getCastAttendanceSummary(),
     ]);
     setCastRecords(records);
     setHistory(hist);
     setSummary(sum);
-  }, [currentEventId]);
+  }, [currentEventName]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  // モーダルが開いている間、日付が変わるたびに重複チェック
   useEffect(() => {
-    if (!confirmSave || !currentEventId || !recordDate) { setDateHasRecord(false); return; }
-    void hasCastAttendanceForDate(currentEventId, recordDate).then(setDateHasRecord);
-  }, [confirmSave, currentEventId, recordDate]);
+    if (!confirmSave || !currentEventName || !recordDate) { setDateHasRecord(false); return; }
+    void hasCastAttendanceForDate(recordDate).then(setDateHasRecord);
+  }, [confirmSave, currentEventName, recordDate]);
 
   const handleSave = async () => {
-    if (!currentEventId || !recordDate) return;
+    if (!currentEventName || !recordDate) return;
     setSaving(true);
     try {
       const presentNames = casts.filter((c) => c.is_present).map((c) => c.name);
-      await recordCastAttendance(currentEventId, presentNames, recordDate);
+      await recordCastAttendance(presentNames, recordDate);
       await loadData();
       setAlertMessage('出席記録を保存しました。');
     } catch (e) {
@@ -91,16 +90,24 @@ export const AttendancePage: React.FC = () => {
   };
 
   const handleTogglePresence = async (castName: string, isPresent: boolean) => {
-    if (currentEventId === null) return;
+    if (currentEventName === null) return;
     setCasts((prev) => prev.map((c) => c.name === castName ? { ...c, is_present: isPresent } : c));
-    await updateCastAttendForEvent(currentEventId, castName, isPresent);
+    await updateCastAttend(castName, isPresent);
   };
 
   const handleSetAll = async (isPresent: boolean) => {
-    if (currentEventId === null) return;
+    if (currentEventName === null) return;
     setCasts((prev) => prev.map((c) => ({ ...c, is_present: isPresent })));
-    await Promise.all(casts.map((c) => updateCastAttendForEvent(currentEventId, c.name, isPresent)));
+    await Promise.all(casts.map((c) => updateCastAttend(c.name, isPresent)));
   };
+
+  if (currentEventName === null) {
+    return (
+      <div className={`${shared.pageWrapper} ${shared.pageWrapperInner}`}>
+        <div className={styles.attendanceEmpty}>イベントが開かれていません。</div>
+      </div>
+    );
+  }
 
   const presentCount  = casts.filter((c) => c.is_present).length;
   const groupedPresent = useMemo(() => groupByGroupName(casts.filter((c) => c.is_present)), [casts]);

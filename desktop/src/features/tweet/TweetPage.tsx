@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAppContext } from '@/stores/AppContext';
-import { getSetting, setSetting, getEventById } from '@/db';
+import { getSetting, setSetting, getEventMeta } from '@/db';
 import styles from './TweetPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -31,14 +31,13 @@ function buildPreview(template: string, casts: string[], eventName: string, tags
 }
 
 export const TweetPage: React.FC = () => {
-  const { casts: allCasts, currentEventId } = useAppContext();
+  const { casts: allCasts, currentEventName } = useAppContext();
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [copied, setCopied] = useState(false);
-  const [eventName, setEventNameState] = useState('');
   const [tags, setTags] = useState<string[]>([]);
 
   const casts = allCasts.filter((c) => c.is_present).map((c) => c.name);
-  const preview = buildPreview(template, casts, eventName, tags);
+  const preview = buildPreview(template, casts, currentEventName ?? '', tags);
 
   const loadTemplate = useCallback(async () => {
     try {
@@ -49,15 +48,14 @@ export const TweetPage: React.FC = () => {
     }
   }, []);
 
-  const loadEventName = useCallback(async () => {
-    if (currentEventId === null) return;
+  const loadEventMeta = useCallback(async () => {
+    if (currentEventName === null) return;
     try {
-      const ev = await getEventById(currentEventId);
-      if (ev) setEventNameState(ev.name);
+      await getEventMeta();
     } catch {
       // ignore
     }
-  }, [currentEventId]);
+  }, [currentEventName]);
 
   const loadTags = useCallback(async () => {
     try {
@@ -70,9 +68,9 @@ export const TweetPage: React.FC = () => {
 
   useEffect(() => {
     void loadTemplate();
-    void loadEventName();
+    void loadEventMeta();
     void loadTags();
-  }, [loadTemplate, loadEventName, loadTags, currentEventId]);
+  }, [loadTemplate, loadEventMeta, loadTags, currentEventName]);
 
   const handleTemplateChange = async (value: string) => {
     setTemplate(value);
