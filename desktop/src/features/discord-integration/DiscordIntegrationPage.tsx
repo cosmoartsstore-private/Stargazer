@@ -11,6 +11,9 @@ export const DiscordIntegrationPage: React.FC = () => {
   const [tokenSaved, setTokenSaved] = useState<boolean>(false);
   const [tokenInput, setTokenInput] = useState<string>('');
   const [editing, setEditing] = useState<boolean>(false);
+  const [botEntry, setBotEntry] = useState<string | null>(null);
+  const [botEntryInput, setBotEntryInput] = useState<string>('');
+  const [editingEntry, setEditingEntry] = useState<boolean>(false);
   const [status, setStatus] = useState<Status>('unknown');
   const [busy, setBusy] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -23,6 +26,11 @@ export const DiscordIntegrationPage: React.FC = () => {
     setTokenSaved(exists);
   }, []);
 
+  const refreshBotEntry = useCallback(async () => {
+    const entry = await invoke<string | null>('bot_entry_get');
+    setBotEntry(entry);
+  }, []);
+
   const refreshStatus = useCallback(async () => {
     const running = await invoke<boolean>('discord_bot_status');
     setStatus(running ? 'running' : 'idle');
@@ -30,8 +38,9 @@ export const DiscordIntegrationPage: React.FC = () => {
 
   useEffect(() => {
     refreshTokenState();
+    refreshBotEntry();
     refreshStatus();
-  }, [refreshTokenState, refreshStatus]);
+  }, [refreshTokenState, refreshBotEntry, refreshStatus]);
 
   useEffect(() => {
     if (status !== 'running') {
@@ -118,6 +127,40 @@ export const DiscordIntegrationPage: React.FC = () => {
       await refreshStatus();
       bumpDataReload();
       flashMessage('切断しました。データを再読み込みします');
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveBotEntry = async () => {
+    if (botEntryInput.trim() === '') {
+      setError('パスが空です');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await invoke('bot_entry_set', { path: botEntryInput.trim() });
+      setBotEntryInput('');
+      setEditingEntry(false);
+      await refreshBotEntry();
+      flashMessage('bot 実行ファイルのパスを保存しました');
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClearBotEntry = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await invoke('bot_entry_clear');
+      await refreshBotEntry();
+      flashMessage('bot のパス設定を削除しました');
     } catch (e) {
       setError(String(e));
     } finally {
@@ -235,7 +278,100 @@ export const DiscordIntegrationPage: React.FC = () => {
       </section>
 
       <section style={{ marginBottom: 24 }}>
-        <h3 style={{ marginBottom: 8 }}>2. 受信</h3>
+        <h3 style={{ marginBottom: 8 }}>2. bot 実行ファイル</h3>
+        <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+          受信中だけ動作する小さなプログラムです。Stargazer 本体には同梱されていません。
+          公開リポジトリから取得して、その実行ファイルのパスをここに設定してください。
+          ソースコードは公開されており、誰でも監査できます。
+        </p>
+
+        {!botEntry && !editingEntry && (
+          <div>
+            <p style={{ marginBottom: 8 }}>状態: <strong>未設定</strong></p>
+            <button
+              className={shared['btn-primary']}
+              onClick={() => setEditingEntry(true)}
+              disabled={busy}
+            >
+              パスを指定する
+            </button>
+          </div>
+        )}
+
+        {botEntry && !editingEntry && (
+          <div>
+            <p style={{ marginBottom: 8 }}>
+              状態: <strong style={{ color: '#43b581' }}>設定済み</strong>
+            </p>
+            <p
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 12,
+                opacity: 0.8,
+                marginBottom: 12,
+                wordBreak: 'break-all',
+              }}
+            >
+              {botEntry}
+            </p>
+            <button
+              className={shared['btn-secondary']}
+              onClick={() => setEditingEntry(true)}
+              disabled={busy || status === 'running'}
+            >
+              変更
+            </button>
+            <button
+              className={shared['btn-danger']}
+              onClick={handleClearBotEntry}
+              disabled={busy || status === 'running'}
+              style={{ marginLeft: 8 }}
+            >
+              削除
+            </button>
+          </div>
+        )}
+
+        {editingEntry && (
+          <div>
+            <input
+              type="text"
+              value={botEntryInput}
+              onChange={(e) => setBotEntryInput(e.target.value)}
+              placeholder="例: C:\Users\You\Downloads\stargazer-bot.exe"
+              style={{
+                width: '100%',
+                maxWidth: 600,
+                padding: 8,
+                marginBottom: 8,
+                fontFamily: 'monospace',
+              }}
+              autoFocus
+              disabled={busy}
+            />
+            <div>
+              <button
+                className={shared['btn-primary']}
+                onClick={handleSaveBotEntry}
+                disabled={busy || botEntryInput.trim() === ''}
+              >
+                保存
+              </button>
+              <button
+                className={shared['btn-secondary']}
+                onClick={() => { setEditingEntry(false); setBotEntryInput(''); }}
+                disabled={busy}
+                style={{ marginLeft: 8 }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h3 style={{ marginBottom: 8 }}>3. 受信</h3>
         <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
           受信ボタンを押すと、現在開いているイベントの DB に対して
           Discord からのコマンドを受け付けます。切断するまで動作します。
@@ -251,7 +387,7 @@ export const DiscordIntegrationPage: React.FC = () => {
           <button
             className={shared['btn-success']}
             onClick={handleConnect}
-            disabled={busy || !tokenSaved || currentEventName === null}
+            disabled={busy || !tokenSaved || !botEntry || currentEventName === null}
           >
             受信
           </button>
@@ -268,6 +404,11 @@ export const DiscordIntegrationPage: React.FC = () => {
         {!tokenSaved && (
           <p style={{ fontSize: 12, color: '#faa61a', marginTop: 8 }}>
             ※ 受信するには接続キーを先に登録してください。
+          </p>
+        )}
+        {!botEntry && (
+          <p style={{ fontSize: 12, color: '#faa61a', marginTop: 8 }}>
+            ※ 受信するには bot 実行ファイルのパスを先に設定してください。
           </p>
         )}
         {currentEventName === null && (

@@ -319,6 +319,35 @@ fn discord_token_clear() -> Result<(), String> {
     }
 }
 
+fn read_bot_entry_registry() -> Option<String> {
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\Stargazer").ok()?;
+    let value: String = key.get_value("BotEntry").ok()?;
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn write_bot_entry_registry(path: Option<&str>) -> Result<(), String> {
+    use winreg::enums::*;
+    let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) = hkcu
+        .create_subkey(r"Software\CosmoArtsStore\Stargazer")
+        .map_err(|e| format!("レジストリキー作成に失敗しました: {e}"))?;
+    match path {
+        Some(p) => key
+            .set_value("BotEntry", &p.to_string())
+            .map_err(|e| format!("レジストリ書き込みに失敗しました: {e}")),
+        None => {
+            // delete_value returns NotFound if absent; treat as success
+            let _ = key.delete_value("BotEntry");
+            Ok(())
+        }
+    }
+}
+
 fn resolve_bot_entry() -> Result<PathBuf, String> {
     if let Ok(p) = std::env::var("STARGAZER_BOT_ENTRY") {
         let path = PathBuf::from(p);
@@ -327,17 +356,42 @@ fn resolve_bot_entry() -> Result<PathBuf, String> {
         }
         return Err("STARGAZER_BOT_ENTRY のパスが存在しません".to_string());
     }
-    if let Ok(exe) = std::env::current_exe() {
-        let mut cur = exe.parent();
-        while let Some(p) = cur {
-            let candidate = p.join("bot").join("src").join("index.js");
-            if candidate.exists() {
-                return Ok(candidate);
-            }
-            cur = p.parent();
-        }
+    let Some(stored) = read_bot_entry_registry() else {
+        return Err(
+            "bot 実行ファイルのパスが未設定です。Discord 連携画面で設定してください。"
+                .to_string(),
+        );
+    };
+    let path = PathBuf::from(&stored);
+    if !path.exists() {
+        return Err(format!(
+            "設定された bot のパスにファイルがありません: {stored}"
+        ));
     }
-    Err("bot/src/index.js が見つかりません（STARGAZER_BOT_ENTRY で指定するか、配布版を使用してください）".to_string())
+    Ok(path)
+}
+
+#[tauri::command]
+fn bot_entry_get() -> Option<String> {
+    read_bot_entry_registry()
+}
+
+#[tauri::command]
+fn bot_entry_set(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("パスが空です".to_string());
+    }
+    let p = PathBuf::from(trimmed);
+    if !p.exists() {
+        return Err(format!("指定されたパスにファイルがありません: {trimmed}"));
+    }
+    write_bot_entry_registry(Some(trimmed))
+}
+
+#[tauri::command]
+fn bot_entry_clear() -> Result<(), String> {
+    write_bot_entry_registry(None)
 }
 
 #[tauri::command]
@@ -359,9 +413,23 @@ fn discord_bot_start(
     let db_path = ensure_event_db(&event_name)?;
     let bot_entry = resolve_bot_entry()?;
 
-    let mut command = Command::new("node");
+    // Run a .js entry via `node`; otherwise execute the file directly
+    // (built bot exe / SEA / any single-file runtime).
+    let is_script = bot_entry
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("js") || e.eq_ignore_ascii_case("mjs"))
+        .unwrap_or(false);
+
+    let mut command = if is_script {
+        let mut c = Command::new("node");
+        c.arg(&bot_entry);
+        c
+    } else {
+        Command::new(&bot_entry)
+    };
+
     command
-        .arg(&bot_entry)
         .env("STARGAZER_BOT_TOKEN", token)
         .env("STARGAZER_BOT_DB_PATH", db_path.to_string_lossy().to_string())
         .stdin(Stdio::null())
@@ -500,6 +568,9 @@ pub fn run() {
             discord_bot_start,
             discord_bot_stop,
             discord_bot_status,
+            bot_entry_get,
+            bot_entry_set,
+            bot_entry_clear,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

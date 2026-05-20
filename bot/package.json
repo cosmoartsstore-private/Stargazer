@@ -1,12 +1,16 @@
 {
   "name": "stargazer-bot",
-  "private": true,
+  "description": "Discord bridge for the Stargazer event management app — writes only to the SQLite file passed via STARGAZER_BOT_DB_PATH.",
+  "private": false,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "register": "node src/deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
