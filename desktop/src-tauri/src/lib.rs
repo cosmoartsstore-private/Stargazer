@@ -1,4 +1,19 @@
 use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
+
+const KEYRING_SERVICE: &str = "Stargazer";
+const KEYRING_USER: &str = "DiscordBot";
+
+struct BotState {
+    child: Mutex<Option<Child>>,
+}
+
+impl Default for BotState {
+    fn default() -> Self {
+        Self { child: Mutex::new(None) }
+    }
+}
 
 fn resolve_data_root() -> PathBuf {
     if let Some(install_dir) = get_install_location() {
@@ -264,6 +279,135 @@ fn rename_event(old_name: String, new_name: String) -> Result<(), String> {
     Ok(())
 }
 
+fn read_discord_token() -> Result<String, String> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+        .map_err(|e| format!("資格情報マネージャーにアクセスできません: {e}"))?;
+    entry
+        .get_password()
+        .map_err(|_| "Discord トークンが未設定です".to_string())
+}
+
+#[tauri::command]
+fn discord_token_save(token: String) -> Result<(), String> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return Err("トークンが空です".to_string());
+    }
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+        .map_err(|e| format!("資格情報マネージャーにアクセスできません: {e}"))?;
+    entry
+        .set_password(trimmed)
+        .map_err(|e| format!("トークン保存に失敗しました: {e}"))
+}
+
+#[tauri::command]
+fn discord_token_exists() -> bool {
+    let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) else {
+        return false;
+    };
+    entry.get_password().is_ok()
+}
+
+#[tauri::command]
+fn discord_token_clear() -> Result<(), String> {
+    let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) else {
+        return Ok(());
+    };
+    match entry.delete_password() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("トークン削除に失敗しました: {e}")),
+    }
+}
+
+fn resolve_bot_entry() -> Result<PathBuf, String> {
+    if let Ok(p) = std::env::var("STARGAZER_BOT_ENTRY") {
+        let path = PathBuf::from(p);
+        if path.exists() {
+            return Ok(path);
+        }
+        return Err("STARGAZER_BOT_ENTRY のパスが存在しません".to_string());
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let mut cur = exe.parent();
+        while let Some(p) = cur {
+            let candidate = p.join("bot").join("src").join("index.js");
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+            cur = p.parent();
+        }
+    }
+    Err("bot/src/index.js が見つかりません（STARGAZER_BOT_ENTRY で指定するか、配布版を使用してください）".to_string())
+}
+
+#[tauri::command]
+fn discord_bot_start(
+    state: tauri::State<BotState>,
+    event_name: String,
+) -> Result<(), String> {
+    validate_event_name(&event_name)?;
+
+    let mut guard = state.child.lock().unwrap();
+    if let Some(child) = guard.as_mut() {
+        if matches!(child.try_wait(), Ok(None)) {
+            return Err("bot は既に起動しています".to_string());
+        }
+        *guard = None;
+    }
+
+    let token = read_discord_token()?;
+    let db_path = ensure_event_db(&event_name)?;
+    let bot_entry = resolve_bot_entry()?;
+
+    let mut command = Command::new("node");
+    command
+        .arg(&bot_entry)
+        .env("STARGAZER_BOT_TOKEN", token)
+        .env("STARGAZER_BOT_DB_PATH", db_path.to_string_lossy().to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: prevents a console window from flashing on spawn
+        command.creation_flags(0x0800_0000);
+    }
+
+    let child = command
+        .spawn()
+        .map_err(|e| format!("bot を起動できませんでした（Node.js が必要です）: {e}"))?;
+
+    *guard = Some(child);
+    Ok(())
+}
+
+#[tauri::command]
+fn discord_bot_stop(state: tauri::State<BotState>) -> Result<(), String> {
+    let mut guard = state.child.lock().unwrap();
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn discord_bot_status(state: tauri::State<BotState>) -> bool {
+    let mut guard = state.child.lock().unwrap();
+    let Some(child) = guard.as_mut() else {
+        return false;
+    };
+    match child.try_wait() {
+        Ok(None) => true,
+        _ => {
+            *guard = None;
+            false
+        }
+    }
+}
+
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let key = hkcu.open_subkey(r"Software\CosmoArtsStore\StellaRecord").ok()?;
@@ -340,6 +484,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .manage(BotState::default())
         .invoke_handler(tauri::generate_handler![
             register_to_stellarecord,
             unregister_from_stellarecord,
@@ -349,7 +494,25 @@ pub fn run() {
             create_event,
             delete_event,
             rename_event,
+            discord_token_save,
+            discord_token_exists,
+            discord_token_clear,
+            discord_bot_start,
+            discord_bot_stop,
+            discord_bot_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            use tauri::Manager;
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app_handle.try_state::<BotState>() {
+                    let mut guard = state.child.lock().unwrap();
+                    if let Some(mut child) = guard.take() {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                }
+            }
+        });
 }

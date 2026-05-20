@@ -121,6 +121,8 @@ interface AppContextType {
   events: string[];
   setEvents: React.Dispatch<React.SetStateAction<string[]>>;
   switchEvent: (name: string) => Promise<void>;
+  dataReloadCounter: number;
+  bumpDataReload: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -149,6 +151,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDbReady, setIsDbReady] = useState<boolean>(false);
   const [currentEventName, setCurrentEventName] = useState<string | null>(null);
   const [events, setEvents] = useState<string[]>([]);
+  const [dataReloadCounter, setDataReloadCounter] = useState<number>(0);
+  const bumpDataReload = () => setDataReloadCounter((n) => n + 1);
 
   const setApplicants = (users: UserBean[]) => {
     setApplicantsState(users);
@@ -258,6 +262,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       events,
       setEvents,
       switchEvent,
+      dataReloadCounter,
+      bumpDataReload,
     }}>
       {children}
     </AppContext.Provider>

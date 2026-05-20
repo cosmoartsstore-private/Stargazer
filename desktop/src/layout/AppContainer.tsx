@@ -36,6 +36,7 @@ export const AppContainer: React.FC = () => {
     isDbReady,
     currentEventName,
     setMatchingSettings,
+    dataReloadCounter,
   } = useAppContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
@@ -85,7 +86,7 @@ export const AppContainer: React.FC = () => {
       setIsDataLoading(false);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventName]);
+  }, [isDbReady, currentEventName, dataReloadCounter]);
 
   /** ファイル選択で取り込んだ応募データ行とカラムマッピングで保存して DB 画面へ。既存の応募データ or 当選結果がある場合は上書き確認モーダルを表示。 */
   const handleImportUserRows = (
