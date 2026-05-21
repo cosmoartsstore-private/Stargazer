@@ -1,4 +1,6 @@
-import { getDb } from '../database';
+// Caution users (event-level NG/watchlist) belong to the event-shared DB so
+// the list survives across CSV import sessions for the same event.
+import { getSharedDb } from '../database';
 import type { CautionUser } from '@/features/matching/types/matching-system-types';
 
 interface CautionRow {
@@ -25,7 +27,7 @@ function rowToBean(row: CautionRow): CautionUser {
 }
 
 export async function getAllCautionUsers(): Promise<CautionUser[]> {
-  const db = await getDb();
+  const db = getSharedDb();
   const rows = await db.select<CautionRow[]>(
     'SELECT * FROM caution_users ORDER BY registered_at DESC',
   );
@@ -33,7 +35,7 @@ export async function getAllCautionUsers(): Promise<CautionUser[]> {
 }
 
 export async function upsertCautionUser(user: CautionUser): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute(
     `INSERT INTO caution_users (username, account_id, registration_type, reason, notes, ng_cast_count, registered_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -56,12 +58,12 @@ export async function upsertCautionUser(user: CautionUser): Promise<void> {
 }
 
 export async function deleteCautionUserByAccountId(accountId: string): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute('DELETE FROM caution_users WHERE account_id = ?', [accountId]);
 }
 
 export async function persistAllCautionUsers(users: CautionUser[]): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute('DELETE FROM caution_users');
   for (const u of users) {
     await upsertCautionUser(u);

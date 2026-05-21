@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { ImportPage } from '@/features/import/ImportPage';
 import {
   computeAutoCautionUsers,
   getCautionNGCastNames,
@@ -12,14 +11,6 @@ import { persistApplicants } from '@/db';
 import type { UserBean } from '@/common/types/entities';
 import styles from './ApplicantDataPage.module.css';
 import shared from '@/styles/shared.module.css';
-
-interface ApplicantDataPageProps {
-  onImportUserRows: (
-    rows: string[][],
-    mapping: import('@/common/importFormat').ColumnMapping,
-    options?: import('@/common/sheetParsers').MapRowOptions
-  ) => void;
-}
 
 type FilterMode = 'all' | 'caution';
 
@@ -157,12 +148,14 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSel
 
 // ── ページ本体 ─────────────────────────────────────────────────────────────────
 
-export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUserRows }) => {
-  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentEventName } = useAppContext();
+export const ApplicantDataPage: React.FC = () => {
+  // CSV/TSV import has been removed from this page. Imports now exclusively
+  // create a new session DB through SessionPickerPage so that every applicant
+  // set lives in its own session and we never overwrite history.
+  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentSessionTimestamp, setActivePage } = useAppContext();
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [selectedUser, setSelectedUser] = useState<UserBean | null>(null);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
-  const [showReimport, setShowReimport] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const cautionUsers = useMemo(() => {
@@ -207,7 +200,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     if (!removeTarget) return;
     const next = applyUsers.filter((u) => u.x_id !== removeTarget);
     setApplicants(next);
-    if (currentEventName !== null) {
+    if (currentSessionTimestamp !== null) {
       persistApplicants(next).catch((e) =>
         console.error('応募データのDB保存に失敗しました:', e),
       );
@@ -215,15 +208,9 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     setRemoveTarget(null);
   };
 
-  const handleReimport: ApplicantDataPageProps['onImportUserRows'] = (rows, mapping, options) => {
-    onImportUserRows(rows, mapping, options);
-    setShowReimport(false);
-    setSelectedUser(null);
-  };
-
   const handleClearAll = () => {
     setApplicants([]);
-    if (currentEventName !== null) {
+    if (currentSessionTimestamp !== null) {
       persistApplicants([]).catch((e) =>
         console.error('応募データのDB削除に失敗しました:', e),
       );
@@ -237,10 +224,21 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
       <div className={shared.pageWrapper}>
         <div className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
           <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>応募データ</h1>
-          <p className={shared.pageHeaderSubtitle}>TSV ファイルを読み込んで応募者リストを作成します。</p>
+          <p className={shared.pageHeaderSubtitle}>
+            このセッションにはまだ応募者が登録されていません。
+          </p>
         </div>
         <section className={shared.sectionBlock}>
-          <ImportPage onImportUserRows={onImportUserRows} />
+          <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
+            応募 CSV/TSV はセッション選択画面から取り込みます。
+          </p>
+          <button
+            type="button"
+            className={shared.btnPrimary}
+            onClick={() => setActivePage('sessionPicker')}
+          >
+            新しいセッションを作る
+          </button>
         </section>
       </div>
     );
@@ -286,9 +284,9 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
             type="button"
             className={shared.btnSecondary}
             style={{ fontSize: 12, padding: '6px 12px' }}
-            onClick={() => setShowReimport((v) => !v)}
+            onClick={() => setActivePage('sessionPicker')}
           >
-            {showReimport ? '閉じる' : '再取り込み（上書き）'}
+            新しいセッションを作る
           </button>
           <button
             type="button"
@@ -300,12 +298,6 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
           </button>
         </div>
       </div>
-
-      {showReimport && (
-        <section className={shared.sectionBlock} style={{ marginBottom: 16 }}>
-          <ImportPage onImportUserRows={handleReimport} />
-        </section>
-      )}
 
       <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ maxHeight: 'calc(100vh - 180px)' }}>
         <table>

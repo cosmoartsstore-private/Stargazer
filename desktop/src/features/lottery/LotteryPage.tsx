@@ -1,10 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { downloadTsv } from '@/common/downloadCsv';
 import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
 import { LotteryValidationPanel } from './components/LotteryValidationPanel';
 import { useLotteryValidation } from './hooks/useLotteryValidation';
 import { useAppContext } from '@/stores/AppContext';
+import {
+  getLotteryResults,
+  replaceLotteryResults,
+} from '@/db/repositories/lotteryRepository';
+import { getSessionDb } from '@/db/database';
+import type { UserBean } from '@/common/types/entities';
 import styles from './LotteryPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -41,7 +47,50 @@ export const LotteryPage: React.FC = () => {
     setCastsPerRotation,
     allowM003EmptySeats,
     setAllowM003EmptySeats,
+    currentSessionTimestamp,
   } = useAppContext();
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Why we persist lottery results but NOT matching results:
+  //   Lottery is stochastic — re-running produces a different winner set, and
+  //   the user re-running is a deliberate destructive action they should opt
+  //   into (the existing "上書き" modal handles that). To survive a session
+  //   re-open we therefore round-trip winners through `lottery_results`.
+  //   Matching, by contrast, is deterministic from (winners, casts,
+  //   matching settings) so we just recompute it whenever the user lands on
+  //   the matching page — no need to store, no risk of stale results.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentSessionTimestamp) return;
+    if (currentWinners.length > 0) return; // local state already populated
+    (async () => {
+      try {
+        const rows = await getLotteryResults();
+        if (rows.length === 0) return;
+        const db = getSessionDb();
+        interface ApplicantRow { id: number; x_id: string; }
+        const applicantRows = await db.select<ApplicantRow[]>(
+          'SELECT id, x_id FROM applicants',
+        );
+        const idToXId = new Map(applicantRows.map((r) => [r.id, r.x_id]));
+        const xIdToUser = new Map(applicants.map((u) => [u.x_id, u]));
+        const restored: UserBean[] = [];
+        for (const row of rows) {
+          const xId = idToXId.get(row.applicant_id);
+          if (!xId) continue;
+          const user = xIdToUser.get(xId);
+          if (!user) continue;
+          restored.push({ ...user, is_guaranteed: row.is_guaranteed === 1 });
+        }
+        if (restored.length > 0) {
+          setCurrentWinners(restored);
+        }
+      } catch (e) {
+        console.warn('抽選結果の読み込みに失敗しました:', e);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionTimestamp, applicants.length]);
 
   const allUsers = applicants;
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
@@ -81,6 +130,31 @@ export const LotteryPage: React.FC = () => {
     setGlobalTableSlots(undefined);
     setGlobalMatchingError(null);
     setConfirmReplace(false);
+
+    // Persist to the session DB. Re-running the lottery is intentionally a
+    // destructive replace; matching has nothing to persist because it is
+    // recomputed every time from this winner set + casts + settings.
+    if (currentSessionTimestamp) {
+      (async () => {
+        try {
+          const db = getSessionDb();
+          interface ApplicantRow { id: number; x_id: string; }
+          const applicantRows = await db.select<ApplicantRow[]>(
+            'SELECT id, x_id FROM applicants',
+          );
+          const xIdToId = new Map(applicantRows.map((r) => [r.x_id, r.id]));
+          const rows = nextWinners
+            .map((w) => {
+              const id = xIdToId.get(w.x_id);
+              return id == null ? null : { applicant_id: id, is_guaranteed: !!w.is_guaranteed };
+            })
+            .filter((r): r is { applicant_id: number; is_guaranteed: boolean } => r !== null);
+          await replaceLotteryResults(rows);
+        } catch (e) {
+          console.error('抽選結果の保存に失敗しました:', e);
+        }
+      })();
+    }
   };
 
   const resultRows = currentWinners.map((winner) => ({

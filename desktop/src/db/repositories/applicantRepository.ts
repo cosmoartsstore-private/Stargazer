@@ -1,4 +1,7 @@
-import { getDb } from '../database';
+// Applicants and their per-row data (cast preferences, raw extra fields) are
+// volatile import-session state, so this repository targets the session DB
+// only. Re-importing a CSV creates a new session DB and starts from scratch.
+import { getSessionDb } from '../database';
 import type { UserBean } from '@/common/types/entities';
 
 interface ApplicantRow {
@@ -20,7 +23,7 @@ interface ExtraRow {
 }
 
 export async function loadApplicants(): Promise<UserBean[]> {
-  const db = await getDb();
+  const db = getSessionDb();
   const rows = await db.select<ApplicantRow[]>(
     'SELECT * FROM applicants ORDER BY id',
   );
@@ -51,7 +54,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
 }
 
 export async function persistApplicants(users: UserBean[]): Promise<void> {
-  const db = await getDb();
+  const db = getSessionDb();
   await db.execute('DELETE FROM applicants');
   for (const user of users) {
     const r = await db.execute(

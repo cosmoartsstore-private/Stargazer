@@ -1,4 +1,8 @@
-import { getDb, getCurrentEventName } from '../database';
+// Cast attendance history lives in the event-shared DB: each event accumulates
+// its own attendance log across all import sessions. Aggregations no longer
+// span events (one DB per event), so the "last event" field always equals the
+// currently-open event.
+import { getSharedDb, getCurrentEventName } from '../database';
 
 export interface CastAttendanceRecord {
   cast_name: string;
@@ -9,7 +13,7 @@ export interface CastAttendanceEvent {
   event_name: string;
   cast_count: number;
   recorded_at: string;
-  cast_names: string; // カンマ区切り
+  cast_names: string;
 }
 
 export interface CastAttendanceSummary {
@@ -20,7 +24,7 @@ export interface CastAttendanceSummary {
 
 /** 現在イベントの最新日付の出席キャスト一覧 */
 export async function getCastAttendance(): Promise<CastAttendanceRecord[]> {
-  const db = await getDb();
+  const db = getSharedDb();
   return db.select<CastAttendanceRecord[]>(
     `SELECT c.name AS cast_name
      FROM cast_attendance ca
@@ -34,7 +38,7 @@ export async function getCastAttendance(): Promise<CastAttendanceRecord[]> {
 
 /** 現在イベントの記録履歴（日付単位、新しい順） */
 export async function getCastAttendanceHistory(): Promise<CastAttendanceEvent[]> {
-  const db = await getDb();
+  const db = getSharedDb();
   const eventName = getCurrentEventName() ?? '';
   interface Row {
     cast_count: number;
@@ -61,7 +65,7 @@ export async function getCastAttendanceHistory(): Promise<CastAttendanceEvent[]>
 
 /** 現在イベントのキャスト別累積出席回数 */
 export async function getCastAttendanceSummary(): Promise<CastAttendanceSummary[]> {
-  const db = await getDb();
+  const db = getSharedDb();
   const eventName = getCurrentEventName();
   interface Row {
     cast_name: string;
@@ -86,7 +90,7 @@ export async function recordCastAttendance(
   presentCastNames: string[],
   recordedAt: string,
 ): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute(
     `DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?)`,
     [recordedAt],
@@ -107,7 +111,7 @@ export async function recordCastAttendance(
 
 /** 指定日付のキャスト出席記録が存在するか */
 export async function hasCastAttendanceForDate(date: string): Promise<boolean> {
-  const db = await getDb();
+  const db = getSharedDb();
   const rows = await db.select<[{ n: number }]>(
     `SELECT COUNT(*) AS n FROM cast_attendance WHERE DATE(recorded_at) = DATE(?)`,
     [date],
