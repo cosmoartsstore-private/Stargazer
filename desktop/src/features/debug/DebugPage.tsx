@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAppContext } from '@/stores/AppContext';
-import { getDb } from '@/db';
+import { getSharedDb, getSessionDb } from '@/db/database';
 import shared from '@/styles/shared.module.css';
 
 type DebugTab = 'db' | 'sql' | 'schema';
+type DbScope = 'shared' | 'session';
 
 interface TableData {
   name: string;
@@ -11,32 +12,42 @@ interface TableData {
   error?: string;
 }
 
-const TABLES = [
-  'events',
+// Tables grouped by which DB they live in. The legacy `attendance`
+// (applicant×cast post-matching) table is no longer part of the schema —
+// matching results are computed on demand and not persisted.
+const SHARED_TABLES = [
+  'meta',
   'casts',
   'cast_urls',
   'cast_ng_entries',
   'event_cast_present',
-  'applicants',
-  'applicant_casts',
-  'applicant_extra',
-  'attendance',
   'cast_attendance',
   'caution_users',
   'settings',
+  'header_templates',
 ];
 
-const QUICK_QUERIES: { label: string; sql: string }[] = [
-  { label: 'events',               sql: 'SELECT * FROM events ORDER BY id' },
-  { label: 'casts',                sql: 'SELECT id, name, group_name, is_attend FROM casts ORDER BY id' },
-  { label: 'event_cast_present',   sql: 'SELECT ecp.event_id, e.name AS event_name, c.name AS cast_name, ecp.is_present FROM event_cast_present ecp JOIN events e ON e.id = ecp.event_id JOIN casts c ON c.id = ecp.cast_id ORDER BY ecp.event_id, c.name' },
-  { label: 'applicants (current)', sql: 'SELECT a.id, a.x_id, a.name, a.is_guaranteed FROM applicants a WHERE a.event_id = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = \'currentEventId\') ORDER BY a.id' },
-  { label: 'cast_attendance',      sql: 'SELECT ca.event_id, e.name AS event_name, c.name AS cast_name, ca.recorded_at FROM cast_attendance ca JOIN events e ON e.id = ca.event_id JOIN casts c ON c.id = ca.cast_id ORDER BY ca.recorded_at DESC LIMIT 50' },
-  { label: 'attendance',           sql: 'SELECT a.id, e.name AS event_name, ap.x_id, c.name AS cast_name, a.seat_label FROM attendance a JOIN events e ON e.id = a.event_id JOIN applicants ap ON ap.id = a.applicant_id LEFT JOIN casts c ON c.id = a.matched_cast_id ORDER BY a.id DESC LIMIT 50' },
-  { label: 'caution_users',        sql: 'SELECT id, username, account_id, reason, ng_cast_count FROM caution_users ORDER BY id' },
-  { label: 'settings',             sql: 'SELECT * FROM settings' },
-  { label: 'PRAGMA user_version',  sql: 'PRAGMA user_version' },
-  { label: 'sqlite_master',        sql: 'SELECT type, name, sql FROM sqlite_master ORDER BY type, name' },
+const SESSION_TABLES = [
+  'meta',
+  'applicants',
+  'applicant_casts',
+  'applicant_extra',
+  'lottery_results',
+];
+
+const QUICK_QUERIES: { label: string; sql: string; scope: DbScope }[] = [
+  { label: 'shared:meta',               scope: 'shared',  sql: 'SELECT * FROM meta' },
+  { label: 'shared:casts',              scope: 'shared',  sql: 'SELECT id, name, group_name, is_attend FROM casts ORDER BY id' },
+  { label: 'shared:event_cast_present', scope: 'shared',  sql: 'SELECT ecp.cast_id, c.name AS cast_name, ecp.is_present FROM event_cast_present ecp JOIN casts c ON c.id = ecp.cast_id ORDER BY c.name' },
+  { label: 'shared:cast_attendance',    scope: 'shared',  sql: 'SELECT c.name AS cast_name, ca.recorded_at FROM cast_attendance ca JOIN casts c ON c.id = ca.cast_id ORDER BY ca.recorded_at DESC LIMIT 50' },
+  { label: 'shared:caution_users',      scope: 'shared',  sql: 'SELECT id, username, account_id, reason, ng_cast_count FROM caution_users ORDER BY id' },
+  { label: 'shared:settings',           scope: 'shared',  sql: 'SELECT * FROM settings' },
+  { label: 'shared:header_templates',   scope: 'shared',  sql: 'SELECT id, signature, label, created_at FROM header_templates ORDER BY id DESC' },
+  { label: 'session:meta',              scope: 'session', sql: 'SELECT * FROM meta' },
+  { label: 'session:applicants',        scope: 'session', sql: 'SELECT a.id, a.x_id, a.name, a.is_guaranteed FROM applicants a ORDER BY a.id' },
+  { label: 'session:lottery_results',   scope: 'session', sql: 'SELECT lr.id, lr.applicant_id, a.x_id, lr.is_guaranteed FROM lottery_results lr JOIN applicants a ON a.id = lr.applicant_id ORDER BY lr.id' },
+  { label: 'PRAGMA user_version',       scope: 'shared',  sql: 'PRAGMA user_version' },
+  { label: 'sqlite_master',             scope: 'shared',  sql: 'SELECT type, name, sql FROM sqlite_master ORDER BY type, name' },
 ];
 
 // ── Table renderer ────────────────────────────────────────────────────────────
@@ -113,6 +124,10 @@ function TableCard({ data }: { data: TableData }) {
   );
 }
 
+function pickDb(scope: DbScope) {
+  return scope === 'shared' ? getSharedDb() : getSessionDb();
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export const DebugPage: React.FC = () => {
   const ctx = useAppContext();
@@ -120,6 +135,7 @@ export const DebugPage: React.FC = () => {
   const [tableData, setTableData] = useState<TableData[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
 
+  const [sqlScope, setSqlScope] = useState<DbScope>('shared');
   const [sql, setSql] = useState(QUICK_QUERIES[0].sql);
   const [sqlResults, setSqlResults] = useState<Record<string, unknown>[] | null>(null);
   const [sqlError, setSqlError] = useState<string | null>(null);
@@ -129,14 +145,28 @@ export const DebugPage: React.FC = () => {
 
   const loadAllTables = useCallback(async () => {
     setDbLoading(true);
-    const db = await getDb();
     const results: TableData[] = [];
-    for (const t of TABLES) {
+    const scopes: { scope: DbScope; tables: string[] }[] = [
+      { scope: 'shared', tables: SHARED_TABLES },
+      { scope: 'session', tables: SESSION_TABLES },
+    ];
+    for (const { scope, tables } of scopes) {
+      let db;
       try {
-        const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
-        results.push({ name: t, rows });
+        db = pickDb(scope);
       } catch (e) {
-        results.push({ name: t, rows: [], error: String(e) });
+        for (const t of tables) {
+          results.push({ name: `${scope}:${t}`, rows: [], error: String(e) });
+        }
+        continue;
+      }
+      for (const t of tables) {
+        try {
+          const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+          results.push({ name: `${scope}:${t}`, rows });
+        } catch (e) {
+          results.push({ name: `${scope}:${t}`, rows: [], error: String(e) });
+        }
       }
     }
     setTableData(results);
@@ -146,11 +176,14 @@ export const DebugPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'db' && tableData.length === 0) void loadAllTables();
     if (activeTab === 'schema' && schemaRows === null) {
-      getDb().then((db) =>
+      try {
+        const db = getSharedDb();
         db.select<Record<string, unknown>[]>('SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name')
           .then(setSchemaRows)
-          .catch(() => setSchemaRows([]))
-      );
+          .catch(() => setSchemaRows([]));
+      } catch {
+        setSchemaRows([]);
+      }
     }
   }, [activeTab, tableData.length, schemaRows, loadAllTables]);
 
@@ -159,7 +192,7 @@ export const DebugPage: React.FC = () => {
     setSqlError(null);
     setSqlResults(null);
     try {
-      const db = await getDb();
+      const db = pickDb(sqlScope);
       const upper = sql.trim().toUpperCase();
       if (upper.startsWith('SELECT') || upper.startsWith('PRAGMA') || upper.startsWith('WITH')) {
         const rows = await db.select<Record<string, unknown>[]>(sql);
@@ -175,10 +208,11 @@ export const DebugPage: React.FC = () => {
     }
   };
 
-  // DBに入っていない純粋なセッション状態のみ
   const sessionState = {
     isDbReady: ctx.isDbReady,
-    currentEventId: ctx.currentEventId,
+    currentEventName: ctx.currentEventName,
+    currentSessionTimestamp: ctx.currentSessionTimestamp,
+    sessionsCount: ctx.sessions.length,
     activePage: ctx.activePage,
     themeId: ctx.themeId,
     isMatchingLocked: ctx.isMatchingLocked,
@@ -273,6 +307,20 @@ export const DebugPage: React.FC = () => {
         {/* ── SQL Runner ── */}
         {activeTab === 'sql' && (
           <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+              <span style={{ color: 'var(--discord-text-muted)' }}>対象 DB:</span>
+              {(['shared', 'session'] as DbScope[]).map((s) => (
+                <label key={s} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input
+                    type="radio"
+                    name="sql-scope"
+                    checked={sqlScope === s}
+                    onChange={() => setSqlScope(s)}
+                  />
+                  {s}
+                </label>
+              ))}
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {QUICK_QUERIES.map((q) => (
                 <button
@@ -280,7 +328,7 @@ export const DebugPage: React.FC = () => {
                   type="button"
                   className={shared.btnSecondary}
                   style={{ fontSize: 11, padding: '3px 8px' }}
-                  onClick={() => setSql(q.sql)}
+                  onClick={() => { setSqlScope(q.scope); setSql(q.sql); }}
                 >
                   {q.label}
                 </button>

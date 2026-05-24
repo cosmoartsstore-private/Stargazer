@@ -1,9 +1,11 @@
-import { getDb } from '../database';
+// Applicants and their per-row data (cast preferences, raw extra fields) are
+// volatile import-session state, so this repository targets the session DB
+// only. Re-importing a CSV creates a new session DB and starts from scratch.
+import { getSessionDb } from '../database';
 import type { UserBean } from '@/common/types/entities';
 
 interface ApplicantRow {
   id: number;
-  event_id: number;
   x_id: string;
   name: string | null;
   vrc_url: string | null;
@@ -20,11 +22,10 @@ interface ExtraRow {
   field_value: string | null;
 }
 
-export async function loadApplicantsForEvent(eventId: number): Promise<UserBean[]> {
-  const db = await getDb();
+export async function loadApplicants(): Promise<UserBean[]> {
+  const db = getSessionDb();
   const rows = await db.select<ApplicantRow[]>(
-    'SELECT * FROM applicants WHERE event_id = ? ORDER BY id',
-    [eventId],
+    'SELECT * FROM applicants ORDER BY id',
   );
   const users: UserBean[] = [];
   for (const row of rows) {
@@ -52,13 +53,13 @@ export async function loadApplicantsForEvent(eventId: number): Promise<UserBean[
   return users;
 }
 
-export async function persistApplicantsForEvent(eventId: number, users: UserBean[]): Promise<void> {
-  const db = await getDb();
-  await db.execute('DELETE FROM applicants WHERE event_id = ?', [eventId]);
+export async function persistApplicants(users: UserBean[]): Promise<void> {
+  const db = getSessionDb();
+  await db.execute('DELETE FROM applicants');
   for (const user of users) {
     const r = await db.execute(
-      'INSERT INTO applicants (event_id, x_id, name, vrc_url, is_guaranteed) VALUES (?, ?, ?, ?, ?)',
-      [eventId, user.x_id, user.name || null, user.vrc_url ?? null, user.is_guaranteed ? 1 : 0],
+      'INSERT INTO applicants (x_id, name, vrc_url, is_guaranteed) VALUES (?, ?, ?, ?)',
+      [user.x_id, user.name || null, user.vrc_url ?? null, user.is_guaranteed ? 1 : 0],
     );
     const applicantId = r.lastInsertId as number;
     for (let i = 0; i < user.casts.length; i++) {

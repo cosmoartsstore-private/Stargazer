@@ -1,0 +1,6 @@
+node_modules/
+.env
+bot-config.json
+
+# Override root-level ignore for .env.example
+!.env.example

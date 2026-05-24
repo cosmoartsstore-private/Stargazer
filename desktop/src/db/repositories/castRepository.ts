@@ -1,4 +1,7 @@
-import { getDb } from '../database';
+// Cast data (roster, NG entries, contact URLs, per-event present flag) lives
+// in the event-shared DB so it persists across all import sessions for one
+// event. This repository only touches the shared DB.
+import { getSharedDb } from '../database';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
 
 interface CastRow {
@@ -13,7 +16,7 @@ interface UrlRow { url: string; }
 interface NgRow  { username: string | null; userid: string | null; }
 
 async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entries: NGUserEntry[] }> {
-  const db = await getDb();
+  const db = getSharedDb();
   const urls = await db.select<UrlRow[]>('SELECT url FROM cast_urls WHERE cast_id = ?', [castId]);
   const ngs  = await db.select<NgRow[]>('SELECT username, userid FROM cast_ng_entries WHERE cast_id = ?', [castId]);
   return {
@@ -24,15 +27,15 @@ async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entri
   };
 }
 
-export async function getAllCastsForEvent(eventId: number): Promise<CastBean[]> {
-  const db = await getDb();
+export async function getAllCasts(): Promise<CastBean[]> {
+  const db = getSharedDb();
   const rows = await db.select<CastRow[]>('SELECT * FROM casts ORDER BY id');
   const result: CastBean[] = [];
   for (const row of rows) {
     const { urls, ng_entries } = await fetchCastFull(row.id);
     const presRows = await db.select<[{ is_present: number }]>(
-      'SELECT is_present FROM event_cast_present WHERE event_id = ? AND cast_id = ?',
-      [eventId, row.id],
+      'SELECT is_present FROM event_cast_present WHERE cast_id = ?',
+      [row.id],
     );
     const is_present = presRows.length > 0 ? presRows[0].is_present === 1 : true;
     result.push({
@@ -48,25 +51,25 @@ export async function getAllCastsForEvent(eventId: number): Promise<CastBean[]> 
   return result;
 }
 
-export async function updateCastAttendForEvent(eventId: number, name: string, isPresent: boolean): Promise<void> {
-  const db = await getDb();
+export async function updateCastAttend(name: string, isPresent: boolean): Promise<void> {
+  const db = getSharedDb();
   const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
   const castId = rows[0]?.id;
   if (castId === undefined) return;
   await db.execute(
-    'INSERT OR REPLACE INTO event_cast_present (event_id, cast_id, is_present) VALUES (?, ?, ?)',
-    [eventId, castId, isPresent ? 1 : 0],
+    'INSERT OR REPLACE INTO event_cast_present (cast_id, is_present) VALUES (?, ?)',
+    [castId, isPresent ? 1 : 0],
   );
 }
 
 export async function getCastCount(): Promise<number> {
-  const db = await getDb();
+  const db = getSharedDb();
   const rows = await db.select<[{ n: number }]>('SELECT COUNT(*) AS n FROM casts');
   return rows[0]?.n ?? 0;
 }
 
 export async function persistAllCasts(casts: CastBean[]): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute('DELETE FROM casts');
   for (const cast of casts) {
     const r = await db.execute(
@@ -88,7 +91,7 @@ export async function persistAllCasts(casts: CastBean[]): Promise<void> {
 }
 
 export async function insertCast(cast: CastBean): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   const r = await db.execute(
     'INSERT INTO casts (name, group_name, is_attend, photo_data_url, memo) VALUES (?, ?, ?, ?, ?)',
     [cast.name, cast.group_name ?? null, cast.is_present ? 1 : 0,
@@ -107,7 +110,7 @@ export async function insertCast(cast: CastBean): Promise<void> {
 }
 
 export async function updateCastFields(name: string, patch: Partial<Omit<CastBean, 'name'>>): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   const colUpdates: string[] = [];
   const colValues: unknown[] = [];
 
@@ -145,12 +148,12 @@ export async function updateCastFields(name: string, patch: Partial<Omit<CastBea
 }
 
 export async function renameCast(oldName: string, newName: string): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   await db.execute('UPDATE casts SET name = ? WHERE name = ?', [newName, oldName]);
 }
 
 export async function deleteCast(name: string): Promise<void> {
-  const db = await getDb();
+  const db = getSharedDb();
   const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
   const castId = rows[0]?.id;
   if (castId !== undefined) {

@@ -10,7 +10,19 @@ import {
 import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import type { MatchedCast, TableSlot } from '@/features/matching/logics/matching-io';
-import { initializeDatabase } from '@/db/initializer';
+import {
+  initializeApp,
+  saveLastUsedEvent,
+  saveLastUsedSession,
+  clearLastUsedSession,
+} from '@/db/initializer';
+import {
+  openEvent,
+  closeEvent,
+  openSession,
+  closeSession,
+} from '@/db/database';
+import { listSessions, type SessionInfo } from '@/db/repositories/eventRepository';
 export type { UserBean, CastBean } from '@/common/types/entities';
 
 const VALID_MATCHING_CODES: readonly string[] = [...MATCHING_TYPE_CODES];
@@ -62,7 +74,7 @@ function getInitialSession(): PersistedSession | null {
   }
 }
 
-export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
+export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'sessionPicker' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
 export type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 export type { ThemeId } from '@/common/themes';
 
@@ -115,8 +127,35 @@ interface AppContextType {
   setIsMatchingLocked: (val: boolean) => void;
   resetMatching: () => void;
   isDbReady: boolean;
-  currentEventId: number | null;
-  setCurrentEventId: (id: number) => void;
+  // ──────────────────────────────────────────────────────────────────────────
+  // Two-tier DB state (event + session). The UI is driven by a three-state
+  // matrix:
+  //   1. currentEventName === null
+  //        → no event selected; force EventManagementPage
+  //   2. currentEventName !== null && currentSessionTimestamp === null
+  //        → event opened, but no applicant import selected yet;
+  //          force SessionPickerPage (lottery / matching / applicant pages
+  //          have nothing to operate on because applicants live in the
+  //          session DB)
+  //   3. currentEventName !== null && currentSessionTimestamp !== null
+  //        → fully open; normal feature pages render
+  // currentEventName drives the shared DB connection; currentSessionTimestamp
+  // drives the session DB connection — they are intentionally independent so
+  // event-scoped pages (cast roster, attendance, NG, Discord) can still work
+  // before a CSV is imported.
+  // ──────────────────────────────────────────────────────────────────────────
+  currentEventName: string | null;
+  setCurrentEventName: (name: string | null) => void;
+  currentSessionTimestamp: string | null;
+  setCurrentSessionTimestamp: (ts: string | null) => void;
+  events: string[];
+  setEvents: React.Dispatch<React.SetStateAction<string[]>>;
+  sessions: SessionInfo[];
+  setSessions: React.Dispatch<React.SetStateAction<SessionInfo[]>>;
+  switchEvent: (name: string) => Promise<void>;
+  switchSession: (timestamp: string) => Promise<void>;
+  dataReloadCounter: number;
+  bumpDataReload: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,7 +182,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [globalMatchingError, setGlobalMatchingError] = useState<string | null>(null);
 
   const [isDbReady, setIsDbReady] = useState<boolean>(false);
-  const [currentEventId, setCurrentEventId] = useState<number | null>(null);
+  const [currentEventName, setCurrentEventName] = useState<string | null>(null);
+  const [currentSessionTimestamp, setCurrentSessionTimestamp] = useState<string | null>(null);
+  const [events, setEvents] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [dataReloadCounter, setDataReloadCounter] = useState<number>(0);
+  const bumpDataReload = () => setDataReloadCounter((n) => n + 1);
 
   const setApplicants = (users: UserBean[]) => {
     setApplicantsState(users);
@@ -183,10 +227,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem(STORAGE_KEYS.THEME, themeId);
   }, [themeId]);
 
+  const switchEvent = async (name: string) => {
+    // closeEvent() internally closes any open session, but we still need to
+    // clear the React-side session pointers and localStorage marker so the
+    // app falls back into "session picker" mode after the switch.
+    await closeSession();
+    await closeEvent();
+    await openEvent(name);
+    saveLastUsedEvent(name);
+    clearLastUsedSession();
+    setCurrentEventName(name);
+    setCurrentSessionTimestamp(null);
+    setSessions([]);
+    setApplicantsState([]);
+    setCurrentWinners([]);
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEYS.SESSION);
+    resetMatching();
+    try {
+      const list = await listSessions(name);
+      setSessions(list);
+    } catch (e) {
+      console.warn('[AppContext] セッション一覧の取得に失敗しました:', e);
+    }
+  };
+
+  const switchSession = async (timestamp: string) => {
+    // Re-opening the session DB blows away the volatile applicant/lottery
+    // local state — those are re-fetched by AppContainer's data-load effect
+    // when dataReloadCounter bumps.
+    await closeSession();
+    await openSession(timestamp);
+    saveLastUsedSession(timestamp);
+    setCurrentSessionTimestamp(timestamp);
+    setCurrentWinners([]);
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEYS.SESSION);
+    resetMatching();
+    bumpDataReload();
+  };
+
   useEffect(() => {
-    initializeDatabase()
-      .then(({ currentEventId: id }) => {
-        setCurrentEventId(id);
+    initializeApp()
+      .then(async ({ events: evList, lastUsedEvent, lastUsedSession }) => {
+        if (lastUsedEvent) {
+          await openEvent(lastUsedEvent);
+          setCurrentEventName(lastUsedEvent);
+          try {
+            const list = await listSessions(lastUsedEvent);
+            setSessions(list);
+            if (lastUsedSession && list.some((s) => s.timestamp === lastUsedSession)) {
+              await openSession(lastUsedSession);
+              setCurrentSessionTimestamp(lastUsedSession);
+            }
+          } catch (e) {
+            console.warn('[AppContext] セッション一覧の取得に失敗しました:', e);
+          }
+        }
+        setEvents(evList);
         setIsDbReady(true);
       })
       .catch((e) => {
@@ -234,8 +330,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsMatchingLocked,
       resetMatching,
       isDbReady,
-      currentEventId,
-      setCurrentEventId,
+      currentEventName,
+      setCurrentEventName,
+      currentSessionTimestamp,
+      setCurrentSessionTimestamp,
+      events,
+      setEvents,
+      sessions,
+      setSessions,
+      switchEvent,
+      switchSession,
+      dataReloadCounter,
+      bumpDataReload,
     }}>
       {children}
     </AppContext.Provider>

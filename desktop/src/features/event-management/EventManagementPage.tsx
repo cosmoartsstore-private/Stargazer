@@ -1,67 +1,58 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Database, Plus, Camera, FileText, Search, RefreshCw } from '@/common/icons';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useAppContext } from '@/stores/AppContext';
-import { STORAGE_KEYS } from '@/common/config';
 import {
-  getAllEvents,
+  listEvents,
   createEvent,
-  updateEvent,
   deleteEvent,
-  getCurrentEventId,
-  setCurrentEventId as setCurrentEventIdDb,
-  type EventRow,
+  renameEvent,
+  getEventMeta,
+  setEventMeta,
+  type EventMeta,
 } from '@/db/repositories/eventRepository';
+import { clearLastUsedEvent } from '@/db/initializer';
 import styles from './EventManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 export const EventManagementPage: React.FC = () => {
   const {
-    setCurrentEventId: setCurrentEventIdCtx,
-    resetMatching,
-    setCurrentWinners,
+    events,
+    setEvents,
+    currentEventName,
+    switchEvent,
+    setCurrentEventName,
   } = useAppContext();
 
-  const [events, setEvents]         = useState<EventRow[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [currentId, setCurrentId_]  = useState<number | null>(null);
-  const [search, setSearch]         = useState('');
-  const [addName, setAddName]       = useState('');
-  const [isLoading, setIsLoading]   = useState(true);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [addName, setAddName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [editName, setEditName]         = useState('');
-  const [editNotes, setEditNotes]       = useState('');
+  const [meta, setMeta] = useState<EventMeta | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNotes, setEditNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
 
-  const [switchTarget, setSwitchTarget] = useState<EventRow | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<EventRow | null>(null);
+  const [switchTarget, setSwitchTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedEvent   = events.find(e => e.id === selectedId) ?? null;
-  const filteredEvents  = events.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase())
+  const filteredEvents = events.filter((name) =>
+    name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  useEffect(() => { load(); }, []);
-
-  useEffect(() => {
-    if (!selectedEvent) return;
-    setEditName(selectedEvent.name);
-    setEditNotes(selectedEvent.notes ?? '');
-    setEditingNotes(false);
-  }, [selectedId]);
-
-  const load = async () => {
+  const refreshList = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [evList, curId] = await Promise.all([getAllEvents(), getCurrentEventId()]);
+      const evList = await listEvents();
       setEvents(evList);
-      setCurrentId_(curId);
-      setSelectedId(prev => {
-        if (prev !== null && evList.some(e => e.id === prev)) return prev;
-        return evList.find(e => e.id === curId)?.id ?? evList[0]?.id ?? null;
+      setSelectedName((prev) => {
+        if (prev !== null && evList.includes(prev)) return prev;
+        if (currentEventName && evList.includes(currentEventName)) return currentEventName;
+        return evList[0] ?? null;
       });
     } catch (e) {
       console.error(e);
@@ -69,7 +60,38 @@ export const EventManagementPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [setEvents, currentEventName]);
+
+  useEffect(() => {
+    void refreshList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (selectedName === null) {
+      setMeta(null);
+      setEditName('');
+      setEditNotes('');
+      setEditingNotes(false);
+      return;
+    }
+    setEditName(selectedName);
+    setEditingNotes(false);
+    if (selectedName === currentEventName) {
+      getEventMeta()
+        .then((m) => {
+          setMeta(m);
+          setEditNotes(m.notes ?? '');
+        })
+        .catch(() => {
+          setMeta(null);
+          setEditNotes('');
+        });
+    } else {
+      setMeta(null);
+      setEditNotes('');
+    }
+  }, [selectedName, currentEventName]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,67 +101,86 @@ export const EventManagementPage: React.FC = () => {
       setAlertMessage('イベント名は半角英数字、ハイフン、アンダースコアのみ使用可能です。');
       return;
     }
-    if (events.some(ev => ev.name === name)) {
+    if (events.includes(name)) {
       setAlertMessage('すでに同じ名前のイベントが存在します。');
       return;
     }
     try {
-      const id = await createEvent(name);
+      await createEvent(name);
       setAddName('');
-      const evList = await getAllEvents();
+      const evList = await listEvents();
       setEvents(evList);
-      setSelectedId(id);
+      setSelectedName(name);
+      if (currentEventName === null) {
+        await switchEvent(name);
+      }
     } catch (err) {
       setAlertMessage(`作成に失敗しました: ${err}`);
     }
   };
 
-  const saveField = async (patch: Parameters<typeof updateEvent>[1]) => {
-    if (!selectedEvent) return;
-    try {
-      await updateEvent(selectedEvent.id, patch);
-      setEvents(prev => prev.map(ev => ev.id === selectedEvent.id ? { ...ev, ...patch } : ev));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleNameBlur = async () => {
     const name = editName.trim();
-    if (!name || name === selectedEvent?.name) return;
+    if (!name || name === selectedName) return;
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      setEditName(selectedEvent?.name ?? '');
+      setEditName(selectedName ?? '');
       setAlertMessage('イベント名は半角英数字、ハイフン、アンダースコアのみ使用可能です。');
       return;
     }
-    if (events.some(ev => ev.name === name && ev.id !== selectedEvent?.id)) {
-      setEditName(selectedEvent?.name ?? '');
+    if (events.includes(name)) {
+      setEditName(selectedName ?? '');
       setAlertMessage('すでに同じ名前のイベントが存在します。');
       return;
     }
-    await saveField({ name });
+    if (!selectedName) return;
+    try {
+      const wasCurrent = selectedName === currentEventName;
+      await renameEvent(selectedName, name);
+      const evList = await listEvents();
+      setEvents(evList);
+      setSelectedName(name);
+      if (wasCurrent) {
+        await switchEvent(name);
+      }
+    } catch (err) {
+      setEditName(selectedName);
+      setAlertMessage(`名前の変更に失敗しました: ${err}`);
+    }
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedEvent) return;
+    if (!file || !selectedName || selectedName !== currentEventName) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      await saveField({ photo_data_url: reader.result as string });
+      try {
+        await setEventMeta({ photo_data_url: reader.result as string });
+        const m = await getEventMeta();
+        setMeta(m);
+      } catch (err) {
+        setAlertMessage(`画像の保存に失敗しました: ${err}`);
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
+  const handleNotesBlur = async () => {
+    setEditingNotes(false);
+    if (!selectedName || selectedName !== currentEventName) return;
+    try {
+      await setEventMeta({ notes: editNotes || null });
+      const m = await getEventMeta();
+      setMeta(m);
+    } catch (err) {
+      setAlertMessage(`メモの保存に失敗しました: ${err}`);
+    }
+  };
+
   const handleSwitch = async () => {
     if (!switchTarget) return;
     try {
-      await setCurrentEventIdDb(switchTarget.id);
-      resetMatching();
-      setCurrentWinners([]);
-      localStorage.removeItem(STORAGE_KEYS.SESSION);
-      setCurrentId_(switchTarget.id);
-      setCurrentEventIdCtx(switchTarget.id);
+      await switchEvent(switchTarget);
       setSwitchTarget(null);
     } catch (err) {
       setAlertMessage(`切り替えに失敗しました: ${err}`);
@@ -150,24 +191,32 @@ export const EventManagementPage: React.FC = () => {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await deleteEvent(deleteTarget.id);
-      const evList = await getAllEvents();
+      await deleteEvent(deleteTarget);
+      if (currentEventName === deleteTarget) {
+        setCurrentEventName(null);
+        clearLastUsedEvent();
+      }
+      const evList = await listEvents();
       setEvents(evList);
       setDeleteTarget(null);
-      setSelectedId(prev =>
-        prev === deleteTarget.id ? (evList[0]?.id ?? null) : prev
-      );
+      setSelectedName((prev) => (prev === deleteTarget ? (evList[0] ?? null) : prev));
     } catch (err) {
       setAlertMessage(`削除に失敗しました: ${err}`);
       setDeleteTarget(null);
     }
   };
 
+  const isCurrent = selectedName !== null && selectedName === currentEventName;
+
   return (
     <div className={shared.pageWrapper}>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
         <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>イベント管理</h1>
-        <p className={shared.pageHeaderSubtitle}>複数のイベントデータを切り替えて管理します。</p>
+        <p className={shared.pageHeaderSubtitle}>
+          {currentEventName === null
+            ? 'イベントを作成、または既存イベントを開いてください。'
+            : '複数のイベントデータを切り替えて管理します。'}
+        </p>
       </header>
 
       {alertMessage && (
@@ -177,7 +226,7 @@ export const EventManagementPage: React.FC = () => {
         <ConfirmModal
           type="confirm"
           title="イベント切り替え"
-          message={`「${switchTarget.name}」に切り替えますか？\nアプリケーションが再起動されます。`}
+          message={`「${switchTarget}」に切り替えますか？`}
           confirmLabel="切り替える"
           cancelLabel="キャンセル"
           onConfirm={handleSwitch}
@@ -188,7 +237,7 @@ export const EventManagementPage: React.FC = () => {
         <ConfirmModal
           type="confirm"
           title="イベントの削除"
-          message={`「${deleteTarget.name}」を削除しますか？\nこのイベントのデータはすべて削除されます。`}
+          message={`「${deleteTarget}」を削除しますか？\nこのイベントのデータはすべて削除されます。`}
           confirmLabel="削除する"
           cancelLabel="キャンセル"
           onConfirm={handleDelete}
@@ -197,7 +246,6 @@ export const EventManagementPage: React.FC = () => {
       )}
 
       <div className={styles.eventDetailLayout}>
-        {/* ── Left: event list ── */}
         <div className={shared.castListPanel}>
           <div className={shared.castListPanel__search}>
             <Search size={14} className={shared.castListPanel__searchIcon} />
@@ -205,7 +253,7 @@ export const EventManagementPage: React.FC = () => {
               className={shared.castListPanel__searchInput}
               placeholder="検索..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className={shared.castListPanel__items}>
@@ -214,16 +262,16 @@ export const EventManagementPage: React.FC = () => {
             ) : filteredEvents.length === 0 ? (
               <div className={shared.castListPanel__empty}>イベントなし</div>
             ) : (
-              filteredEvents.map(ev => (
+              filteredEvents.map((name) => (
                 <button
-                  key={ev.id}
+                  key={name}
                   type="button"
-                  className={`${shared.castListItem} ${ev.id === selectedId ? shared.castListItemSelected : ''}`}
-                  onClick={() => setSelectedId(ev.id)}
+                  className={`${shared.castListItem} ${name === selectedName ? shared.castListItemSelected : ''}`}
+                  onClick={() => setSelectedName(name)}
                 >
-                  <div className={`${shared.castListItem__dot} ${ev.id === currentId ? shared.castListItem__dotPresent : shared.castListItem__dotAbsent}`} />
+                  <div className={`${shared.castListItem__dot} ${name === currentEventName ? shared.castListItem__dotPresent : shared.castListItem__dotAbsent}`} />
                   <div className={shared.castListItem__info}>
-                    <div className={shared.castListItem__name}>{ev.name}</div>
+                    <div className={shared.castListItem__name}>{name}</div>
                   </div>
                 </button>
               ))
@@ -235,7 +283,7 @@ export const EventManagementPage: React.FC = () => {
                 className={shared.castListPanel__addInput}
                 placeholder="新規イベント名"
                 value={addName}
-                onChange={e => setAddName(e.target.value)}
+                onChange={(e) => setAddName(e.target.value)}
               />
               <button type="submit" className={`${shared.btnPrimary} ${shared.castListPanel__addBtn}`} disabled={!addName.trim()} title="作成">
                 <Plus size={14} />
@@ -244,8 +292,7 @@ export const EventManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Right: event detail ── */}
-        {!selectedEvent ? (
+        {!selectedName ? (
           <div className={shared.castDetailEmpty}>
             <Database size={40} className={shared.castDetailEmpty__icon} />
             <span>イベントを選択してください</span>
@@ -253,36 +300,40 @@ export const EventManagementPage: React.FC = () => {
         ) : (
           <div className={styles.eventCharPanel}>
             <div className={styles.eventCharContent}>
-              {/* Name */}
               <input
                 className={styles.eventCharNameInput}
                 value={editName}
-                onChange={e => setEditName(e.target.value)}
+                onChange={(e) => setEditName(e.target.value)}
                 onBlur={handleNameBlur}
               />
 
-              {/* Photo 16:9 */}
               <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
-              <div className={styles.eventCharPhotoFrame} onClick={() => photoInputRef.current?.click()}>
-                {selectedEvent.photo_data_url ? (
+              <div
+                className={styles.eventCharPhotoFrame}
+                onClick={() => { if (isCurrent) photoInputRef.current?.click(); }}
+              >
+                {meta?.photo_data_url ? (
                   <>
-                    <img src={selectedEvent.photo_data_url} className={styles.eventCharPhotoFrame__img} alt="" />
-                    <div className={styles.eventCharPhotoFrame__overlay}>
-                      <Camera size={20} />
-                      <span>変更</span>
-                    </div>
+                    <img src={meta.photo_data_url} className={styles.eventCharPhotoFrame__img} alt="" />
+                    {isCurrent && (
+                      <div className={styles.eventCharPhotoFrame__overlay}>
+                        <Camera size={20} />
+                        <span>変更</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className={styles.eventCharPhotoFrame__placeholder}>
                     <Camera size={36} className={styles.eventCharPhotoFrame__placeholderIcon} />
-                    <span className={styles.eventCharPhotoFrame__placeholderText}>クリックして画像を追加</span>
+                    <span className={styles.eventCharPhotoFrame__placeholderText}>
+                      {isCurrent ? 'クリックして画像を追加' : '使用中のイベントのみ編集可'}
+                    </span>
                   </div>
                 )}
               </div>
 
               <div className={shared.castCharDivider} />
 
-              {/* Notes */}
               <div className={shared.castCharMemoSection}>
                 <div className={shared.castCharMemoHeader}>
                   <span className={shared.castDetailLabel}>
@@ -295,43 +346,39 @@ export const EventManagementPage: React.FC = () => {
                     className={shared.castCharMemo__textarea}
                     rows={6}
                     value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    onBlur={async () => {
-                      setEditingNotes(false);
-                      await saveField({ notes: editNotes || null });
-                    }}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    onBlur={handleNotesBlur}
                     autoFocus
                   />
                 ) : (
                   <div
                     className={`${shared.castCharMemo__text} ${!editNotes ? shared.castCharMemo__textEmpty : ''}`}
-                    onClick={() => setEditingNotes(true)}
+                    onClick={() => { if (isCurrent) setEditingNotes(true); }}
                   >
-                    {editNotes || 'クリックして編集...'}
+                    {editNotes || (isCurrent ? 'クリックして編集...' : '使用中のイベントのみ編集可')}
                   </div>
                 )}
               </div>
 
               <div className={shared.castCharDivider} />
 
-              {/* Bottom action row */}
               <div className={styles.eventCharActionRow}>
                 <button
                   type="button"
-                  className={`${styles.eventCharSwitchBtn} ${selectedEvent.id === currentId ? styles.eventCharSwitchBtnCurrent : ''}`}
-                  disabled={selectedEvent.id === currentId}
-                  onClick={() => setSwitchTarget(selectedEvent)}
+                  className={`${styles.eventCharSwitchBtn} ${isCurrent ? styles.eventCharSwitchBtnCurrent : ''}`}
+                  disabled={isCurrent}
+                  onClick={() => setSwitchTarget(selectedName)}
                 >
-                  {selectedEvent.id === currentId
+                  {isCurrent
                     ? <><Database size={13} /> 使用中</>
                     : <><RefreshCw size={13} /> 切り替える</>
                   }
                 </button>
-                {selectedEvent.id !== currentId && (
+                {!isCurrent && (
                   <button
                     type="button"
                     className={styles.eventCharDeleteBtn}
-                    onClick={() => setDeleteTarget(selectedEvent)}
+                    onClick={() => setDeleteTarget(selectedName)}
                   >
                     削除
                   </button>

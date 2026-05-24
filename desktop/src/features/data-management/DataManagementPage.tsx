@@ -9,14 +9,6 @@ import styles from './DataManagementPage.module.css';
 
 type DataManagementTab = 'import' | 'lottery' | 'matching';
 
-interface DataManagementPageProps {
-  onImportUserRows: (
-    rows: string[][],
-    mapping: import('@/common/importFormat').ColumnMapping,
-    options?: import('@/common/sheetParsers').MapRowOptions
-  ) => void;
-}
-
 type CheckLevel = 'ok' | 'warning' | 'error';
 
 interface CheckItem {
@@ -35,9 +27,7 @@ function formatCastNames(names: string[]): string {
   return `${names.slice(0, 3).join(', ')} … 他${names.length - 3}名`;
 }
 
-export const DataManagementPage: React.FC<DataManagementPageProps> = ({
-  onImportUserRows,
-}) => {
+export const DataManagementPage: React.FC = () => {
   const {
     activePage,
     setActivePage,
@@ -121,7 +111,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
       </div>
 
       <div className={shared.pageTabContent}>
-        {activeTab === 'import'   && <ApplicantDataPage onImportUserRows={onImportUserRows} />}
+        {activeTab === 'import'   && <ApplicantDataPage />}
         {activeTab === 'lottery'  && <LotteryPage />}
         {activeTab === 'matching' && <MatchingPage />}
       </div>
