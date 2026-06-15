@@ -126,22 +126,26 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
         </label>
 
         <label className={shared.formGroup}>
-          <span className={shared.formLabel}>NG時の動作</span>
+          <span className={shared.formLabel}>探索モード</span>
           <select
-            value={matchingSettings.ngMatchingBehavior}
+            value={matchingSettings.searchMode}
             disabled={disabled}
             onChange={(event) =>
               setMatchingSettings((prev) => ({
                 ...prev,
-                ngMatchingBehavior: event.target.value as typeof prev.ngMatchingBehavior,
+                searchMode: event.target.value as typeof prev.searchMode,
               }))
             }
             className={shared.formInput}
           >
-            <option value="exclude">除外する</option>
-            <option value="warn">警告のみ</option>
+            <option value="efficiency">効率モード（条件到達で即採用）</option>
+            <option value="quality">品質モード（時間内で最良を採用）</option>
           </select>
         </label>
+
+        <p className={shared.pageHeaderSubtitle} style={{ margin: 0 }}>
+          キャストごとのNG対象はマッチング時に自動除外します。
+        </p>
       </div>
     </section>
   );

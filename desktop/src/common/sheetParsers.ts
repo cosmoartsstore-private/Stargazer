@@ -20,6 +20,7 @@ export function mapRowToUserBeanWithMapping(
   options?: MapRowOptions
 ): UserBean {
   let casts: string[];
+  let preferenceMode: UserBean['preference_mode'] = 'ranked';
   const splitCol = options?.splitCommaColumnIndex;
   const useSplitComma =
     splitCol !== undefined && splitCol >= 0 && mapping.cast1 === splitCol;
@@ -30,6 +31,7 @@ export function mapRowToUserBeanWithMapping(
   /** 複数指定可（カンマ区切り）のときの最大希望数。DB確認で希望キャスト1〜Nとして表示 */
   const MAX_CAST_COMMA = 20;
   if (useSplitComma) {
+    preferenceMode = 'flat';
     const cast1Val = getCell(row, mapping.cast1);
     if (!cast1Val) {
       casts = [];
@@ -41,6 +43,7 @@ export function mapRowToUserBeanWithMapping(
         .slice(0, MAX_CAST_COMMA);
     }
   } else if (useSingleCastColumn) {
+    preferenceMode = 'flat';
     const cast1Val = getCell(row, mapping.cast1);
     if (!cast1Val || mapping.cast1 < 0) {
       casts = [];
@@ -81,6 +84,7 @@ export function mapRowToUserBeanWithMapping(
     x_id: normalizedXId,
     vrc_url: vrcUrl,
     casts,
+    preference_mode: preferenceMode,
     raw_extra: rawExtra,
   };
 }

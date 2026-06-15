@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '@/common/config';
 import type {
   NGJudgmentType,
   NGMatchingBehavior,
+  MatchingSearchMode,
   CautionUser,
   CautionUserSettings,
   NGException,
@@ -16,10 +17,12 @@ import type {
 const DEFAULT_JUDGMENT: NGJudgmentType = 'accountId';
 const DEFAULT_BEHAVIOR: NGMatchingBehavior = 'exclude';
 const DEFAULT_CAUTION_THRESHOLD = 2;
+const DEFAULT_SEARCH_MODE: MatchingSearchMode = 'efficiency';
 
 export interface MatchingSettingsState {
   ngJudgmentType: NGJudgmentType;
   ngMatchingBehavior: NGMatchingBehavior;
+  searchMode: MatchingSearchMode;
   caution: CautionUserSettings;
   ngExceptions: NGExceptionSettings;
 }
@@ -34,6 +37,7 @@ function loadFromStorage(): MatchingSettingsState | null {
     const o = d as Record<string, unknown>;
     const judgment = o.ngJudgmentType;
     const behavior = o.ngMatchingBehavior;
+    const searchMode = o.searchMode;
     const caution = o.caution as CautionUserSettings | undefined;
     const ngExceptions = o.ngExceptions as NGExceptionSettings | undefined;
     return {
@@ -42,6 +46,7 @@ function loadFromStorage(): MatchingSettingsState | null {
           ? judgment
           : DEFAULT_JUDGMENT,
       ngMatchingBehavior: behavior === 'warn' || behavior === 'exclude' ? behavior : DEFAULT_BEHAVIOR,
+      searchMode: searchMode === 'quality' || searchMode === 'efficiency' ? searchMode : DEFAULT_SEARCH_MODE,
       caution: normalizeCautionSettings(caution),
       ngExceptions: normalizeNGExceptionSettings(ngExceptions),
     };
@@ -94,6 +99,7 @@ export function getInitialMatchingSettings(): MatchingSettingsState {
   return {
     ngJudgmentType: DEFAULT_JUDGMENT,
     ngMatchingBehavior: DEFAULT_BEHAVIOR,
+    searchMode: DEFAULT_SEARCH_MODE,
     caution: { autoRegisterThreshold: DEFAULT_CAUTION_THRESHOLD, cautionUsers: [] },
     ngExceptions: { exceptions: [] },
   };
