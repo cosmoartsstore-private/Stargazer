@@ -15,6 +15,9 @@ export type NGJudgmentType = 'username' | 'accountId' | 'either';
 /** マッチング時の挙動 */
 export type NGMatchingBehavior = 'warn' | 'exclude';
 
+/** 探索モード */
+export type MatchingSearchMode = 'efficiency' | 'quality';
+
 /** 要注意人物（ユーザー名 AND アカウントID の両方で厳密一致） */
 export interface CautionUser {
   username: string;

@@ -6,7 +6,7 @@ import { downloadTsv } from '@/common/downloadCsv';
 import { LotteryValidationPanel } from '@/features/lottery/components/LotteryValidationPanel';
 import { useLotteryValidation } from '@/features/lottery/hooks/useLotteryValidation';
 import { MatchingConditionPanel } from '@/features/matching/components/MatchingConditionPanel';
-import { MatchingService, type MatchedCast, type TableSlot } from '@/features/matching/logics/matching-io';
+import type { MatchedCast, MatchingFailureReason, MatchingScoreSummary, TableSlot } from '@/features/matching/logics/matching-io';
 import { MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
 import { useAppContext, type UserBean } from '@/stores/AppContext';
 import styles from './MatchingPage.module.css';
@@ -17,6 +17,21 @@ interface ResultRow {
   matches: MatchedCast[];
 }
 
+interface MatchingWorkerResult {
+  userMapEntries: Array<[string, MatchedCast[]]>;
+  tableSlots?: TableSlot[];
+  ngConflict?: boolean;
+  failureReason?: MatchingFailureReason;
+  scoreSummary?: MatchingScoreSummary;
+}
+
+type MatchingWorkerMessage =
+  | { type: 'complete'; id: string; result: MatchingWorkerResult }
+  | { type: 'error'; id: string; message: string };
+
+const MATCHING_SEARCH_TIME_LIMIT_MS = 30_000;
+const MATCHING_RELAXED_AFTER_MS = 10_000;
+
 function buildResultRows(winners: UserBean[], resultMap: Map<string, MatchedCast[]> | null): ResultRow[] {
   if (!resultMap) {
     return [];
@@ -25,6 +40,26 @@ function buildResultRows(winners: UserBean[], resultMap: Map<string, MatchedCast
     user: winner,
     matches: resultMap.get(winner.x_id) ?? [],
   }));
+}
+
+function formatFailureMessage(reason: MatchingFailureReason | undefined): string {
+  switch (reason) {
+    case 'time-limit':
+      return 'マッチングが見つかりませんでした。30秒以内に、NGなしで成立する組み合わせを作成できませんでした。';
+    case 'insufficient-capacity':
+      return '出勤キャスト数またはテーブル数が不足しているため、有効な割り当てを作れませんでした。';
+    case 'invalid-settings':
+      return 'マッチング設定に不整合があるため、有効な割り当てを作れませんでした。';
+    case 'ng-conflict':
+    default:
+      return 'NG 条件により有効な割り当てを作れませんでした。設定か対象データを見直してください。';
+  }
+}
+
+function formatMatch(match: MatchedCast): string {
+  const rankLabel = match.rank > 0 ? `${match.rank}位` : (typeof match.score === 'number' && match.score > 0 ? '希望' : '希望外');
+  const scoreLabel = typeof match.score === 'number' ? ` / ${match.score}点` : '';
+  return `${match.cast.name}（${rankLabel}${scoreLabel}${match.isNGWarning ? ' / NG' : ''}）`;
 }
 
 function groupTableSlots(tableSlots: TableSlot[] | undefined): Array<{ tableIndex: number; slots: TableSlot[] }> {
@@ -79,9 +114,12 @@ export const MatchingPage: React.FC = () => {
   } = useAppContext();
 
   const [alertMessage, setAlertMessage] = useState<string | null>(globalMatchingError);
+  const [scoreSummary, setScoreSummary] = useState<MatchingScoreSummary | null>(null);
   const [backupFileName, setBackupFileName] = useState('matching-result');
   const resultRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const workerRequestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setAlertMessage(globalMatchingError);
@@ -99,39 +137,92 @@ export const MatchingPage: React.FC = () => {
 
   const [isComputing, setIsComputing] = useState(false);
 
-  const handleRun = useCallback(() => {
-    setIsComputing(true);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const result = MatchingService.runMatching(
-          winners,
-          casts,
-          matchingTypeCode,
-          {
-            rotationCount,
-            totalTables,
-            usersPerTable: matchingTypeCode === 'M003' ? usersPerTable : undefined,
-            castsPerRotation: matchingTypeCode === 'M003' ? castsPerRotation : undefined,
-          },
-          matchingSettings.ngJudgmentType,
-          matchingSettings.ngMatchingBehavior,
-        );
+  const stopWorker = useCallback(() => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    workerRequestIdRef.current = null;
+  }, []);
 
-        if (result.ngConflict) {
-          setGlobalMatchingResult(null);
-          setGlobalTableSlots(undefined);
-          setGlobalMatchingError('NG 条件により有効な割り当てを作れませんでした。設定か対象データを見直してください。');
-          setIsMatchingLocked(false);
-        } else {
-          setGlobalMatchingResult(result.userMap);
-          setGlobalTableSlots(result.tableSlots);
-          setGlobalMatchingError(null);
-          setIsMatchingLocked(true);
-        }
-        setIsComputing(false);
-      }, 50);
+  const handleCancelMatching = useCallback(() => {
+    stopWorker();
+    setIsComputing(false);
+    setGlobalMatchingError('マッチングをキャンセルしました。');
+    setIsMatchingLocked(false);
+  }, [setGlobalMatchingError, setIsMatchingLocked, stopWorker]);
+
+  useEffect(() => () => stopWorker(), [stopWorker]);
+
+  const handleRun = useCallback(() => {
+    stopWorker();
+    setIsComputing(true);
+    setGlobalMatchingError(null);
+
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    workerRequestIdRef.current = requestId;
+    const worker = new Worker(new URL('./matching.worker.ts', import.meta.url), { type: 'module' });
+    workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<MatchingWorkerMessage>) => {
+      const message = event.data;
+      if (message.id !== workerRequestIdRef.current) return;
+
+      stopWorker();
+      setIsComputing(false);
+
+      if (message.type === 'error') {
+        setGlobalMatchingResult(null);
+        setGlobalTableSlots(undefined);
+        setScoreSummary(null);
+        setGlobalMatchingError(message.message);
+        setIsMatchingLocked(false);
+        return;
+      }
+
+      const result = message.result;
+      if (result.ngConflict) {
+        setGlobalMatchingResult(null);
+        setGlobalTableSlots(undefined);
+        setScoreSummary(null);
+        setGlobalMatchingError(formatFailureMessage(result.failureReason));
+        setIsMatchingLocked(false);
+      } else {
+        setGlobalMatchingResult(new Map(result.userMapEntries));
+        setGlobalTableSlots(result.tableSlots);
+        setScoreSummary(result.scoreSummary ?? null);
+        setGlobalMatchingError(null);
+        setIsMatchingLocked(true);
+      }
+    };
+
+    worker.onerror = () => {
+      if (requestId !== workerRequestIdRef.current) return;
+      stopWorker();
+      setIsComputing(false);
+      setGlobalMatchingResult(null);
+      setGlobalTableSlots(undefined);
+      setScoreSummary(null);
+      setGlobalMatchingError('マッチング中に予期しないエラーが発生しました。');
+      setIsMatchingLocked(false);
+    };
+
+    worker.postMessage({
+      id: requestId,
+      winners,
+      casts,
+      matchingTypeCode,
+      options: {
+        rotationCount,
+        totalTables,
+        usersPerTable: matchingTypeCode === 'M003' ? usersPerTable : undefined,
+        castsPerRotation: matchingTypeCode === 'M003' ? castsPerRotation : undefined,
+        searchTimeLimitMs: MATCHING_SEARCH_TIME_LIMIT_MS,
+        relaxedAfterMs: MATCHING_RELAXED_AFTER_MS,
+        searchMode: matchingSettings.searchMode,
+      },
+      ngJudgmentType: matchingSettings.ngJudgmentType,
+      ngMatchingBehavior: 'exclude',
     });
-  }, [winners, casts, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, matchingSettings]);
+  }, [winners, casts, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, matchingSettings, setGlobalMatchingError, setGlobalMatchingResult, setGlobalTableSlots, setIsMatchingLocked, stopWorker]);
 
   const resultRows = useMemo(
     () => buildResultRows(winners, globalMatchingResult),
@@ -145,7 +236,7 @@ export const MatchingPage: React.FC = () => {
 
   return (
     <div className={styles.matchingScreen} style={{ paddingBottom: 80, position: 'relative' }}>
-      {isComputing && <LoadingOverlay message="マッチング計算中…" />}
+      {isComputing && <LoadingOverlay message="マッチング計算中…（最大30秒）" onCancel={handleCancelMatching} />}
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
         <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>マッチング</h1>
         <p className={shared.pageHeaderSubtitle}>
@@ -184,6 +275,20 @@ export const MatchingPage: React.FC = () => {
 
             <MatchingConditionPanel disabled={isMatchingLocked} />
           </section>
+
+          {scoreSummary && (
+            <section className={shared.sectionBlock} style={{ marginTop: 16 }}>
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>スコアサマリー</h2>
+              <p className={shared.pageHeaderSubtitle}>
+                総スコア {scoreSummary.totalScore} 点 / 平均 {scoreSummary.averageScore.toFixed(1)} 点 / 1位 {scoreSummary.firstChoiceCount} 件 / 2位 {scoreSummary.secondChoiceCount} 件 / 3位 {scoreSummary.thirdChoiceCount} 件 / 希望外 {scoreSummary.unpreferredCount} 件
+              </p>
+              {scoreSummary.ngWarningCount > 0 && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(237, 66, 69, 0.14)', color: 'var(--discord-danger)' }}>
+                  ※NGのマッチングがあります。可能な限り修正してください。
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
         <aside className={styles.workflowTwoPane__side}>
@@ -232,7 +337,13 @@ export const MatchingPage: React.FC = () => {
                   <td className={shared.tableCell}>{user.name}</td>
                   <td className={shared.tableCell}>{user.x_id}</td>
                   <td className={shared.tableCell}>{user.is_guaranteed ? '確定当選' : '抽選当選'}</td>
-                  <td className={shared.tableCell}>{matches.map((match) => match.cast.name).join(', ') || '未割り当て'}</td>
+                  <td className={shared.tableCell}>
+                    {matches.length === 0 ? '未割り当て' : matches.map((match) => (
+                      <span key={`${user.x_id}-${match.cast.name}`} style={match.isNGWarning ? { color: 'var(--discord-danger)', fontWeight: 700 } : undefined} title={match.ngReason}>
+                        {formatMatch(match)}{' '}
+                      </span>
+                    ))}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -268,7 +379,11 @@ export const MatchingPage: React.FC = () => {
                       <div className={styles.matchingTableCard__guest}>{slot.user?.name ?? `空席 ${index + 1}`}</div>
                       <div className={styles.matchingTableCard__id}>{slot.user?.x_id ?? '未割り当て'}</div>
                       <div className={styles.matchingTableCard__casts}>
-                        {slot.matches.map((match) => match.cast.name).join(', ') || 'キャスト未割り当て'}
+                        {slot.matches.length === 0 ? 'キャスト未割り当て' : slot.matches.map((match) => (
+                          <span key={`${tableIndex}-${index}-${match.cast.name}`} style={match.isNGWarning ? { color: 'var(--discord-danger)', fontWeight: 700 } : undefined} title={match.ngReason}>
+                            {formatMatch(match)}{' '}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -297,12 +412,13 @@ export const MatchingPage: React.FC = () => {
             onClick={() =>
               downloadTsv(
                 [
-                  ['ユーザー', 'X ID', '区分', '割り当てキャスト'],
+                  ['ユーザー', 'X ID', '区分', '割り当てキャスト', 'NG警告'],
                   ...resultRows.map(({ user, matches }) => [
                     user.name,
                     user.x_id,
                     user.is_guaranteed ? '確定当選' : '抽選当選',
-                    matches.map((match) => match.cast.name).join(', '),
+                    matches.map(formatMatch).join(', '),
+                    matches.filter((match) => match.isNGWarning).map((match) => match.ngReason ?? `${match.cast.name} はNG対象です`).join(', '),
                   ]),
                 ],
                 `${backupFileName || 'matching-result'}.tsv`,

@@ -41,13 +41,17 @@ export async function loadApplicants(): Promise<UserBean[]> {
     for (const p of castPrefs) {
       casts[p.preference_order] = p.cast_name;
     }
+    const preferenceMode = extras.find((e) => e.field_key === '__preference_mode')?.field_value;
     users.push({
       name: row.name ?? '',
       x_id: row.x_id,
       vrc_url: row.vrc_url ?? undefined,
       is_guaranteed: row.is_guaranteed === 1,
       casts: casts.filter(Boolean),
-      raw_extra: extras.map((e) => ({ key: e.field_key, value: e.field_value ?? '' })),
+      preference_mode: preferenceMode === 'flat' ? 'flat' : 'ranked',
+      raw_extra: extras
+        .filter((e) => e.field_key !== '__preference_mode')
+        .map((e) => ({ key: e.field_key, value: e.field_value ?? '' })),
     });
   }
   return users;
@@ -70,6 +74,10 @@ export async function persistApplicants(users: UserBean[]): Promise<void> {
         );
       }
     }
+    await db.execute(
+      'INSERT INTO applicant_extra (applicant_id, field_key, field_value) VALUES (?, ?, ?)',
+      [applicantId, '__preference_mode', user.preference_mode ?? 'ranked'],
+    );
     const raw = user.raw_extra as { key: string; value: string }[];
     for (const e of raw ?? []) {
       await db.execute(

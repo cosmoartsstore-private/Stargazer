@@ -9,7 +9,14 @@ export interface MultipleMatchingParams {
   castsPerRotation: number;
   rotationCount: number;
   totalTables?: number;
+  searchTimeLimitMs?: number;
+  relaxedAfterMs?: number;
+  searchMode?: 'efficiency' | 'quality';
 }
+
+const DEFAULT_SEARCH_TIME_LIMIT_MS = 30_000;
+const DEFAULT_RELAXED_AFTER_MS = 10_000;
+const STRICT_MIN_AVERAGE_SCORE = 50;
 
 function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): CastBean[][] {
   if (activeCasts.length % castsPerRotation !== 0) {
@@ -24,7 +31,7 @@ function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): Cast
 
 function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[][] {
   if (usersPerTable <= 1) {
-    return winners.map((winner) => [winner]);
+    return shuffleArray(winners).map((winner) => [winner]);
   }
 
   const shuffled = shuffleArray(winners);
@@ -33,34 +40,25 @@ function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[
   );
 }
 
-export function runMultipleMatching(
+function runSingleAttempt(
   winners: UserBean[],
-  allCasts: CastBean[],
-  params: MultipleMatchingParams,
+  activeCasts: CastBean[],
+  params: Required<Pick<MultipleMatchingParams, 'usersPerTable' | 'castsPerRotation' | 'rotationCount'>> & Pick<MultipleMatchingParams, 'totalTables'>,
   ngJudgmentType: NGJudgmentType,
   ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
-  const activeCasts = allCasts.filter((cast) => cast.is_present);
   const userMap = new Map<string, MatchedCast[]>();
-  if (winners.length === 0 || activeCasts.length === 0) {
-    return { userMap };
-  }
-
-  const usersPerTable = Math.max(1, params.usersPerTable);
-  const castsPerRotation = Math.max(1, params.castsPerRotation);
-  const castUnits = buildCastUnits(activeCasts, castsPerRotation);
+  const castUnits = buildCastUnits(activeCasts, params.castsPerRotation);
   if (castUnits.length === 0) {
-    return { userMap, ngConflict: true };
+    return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
 
-  const guestGroups = buildGuestGroups(winners, usersPerTable);
-  const requiredTableCount = Math.max(guestGroups.length, params.totalTables ?? 0);
-  if (castUnits.length < requiredTableCount) {
-    return { userMap, ngConflict: true };
+  const guestGroups = buildGuestGroups(winners, params.usersPerTable);
+  if (params.totalTables !== undefined && params.totalTables !== guestGroups.length) {
+    return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
-
-  while (guestGroups.length < requiredTableCount) {
-    guestGroups.push([]);
+  if (castUnits.length < guestGroups.length) {
+    return { userMap, ngConflict: true, failureReason: 'insufficient-capacity' };
   }
 
   const rotation = buildRotation(castUnits, params.rotationCount);
@@ -90,7 +88,7 @@ export function runMultipleMatching(
   );
 
   if (hasInfeasible) {
-    return { userMap, ngConflict: true };
+    return { userMap, ngConflict: true, failureReason: 'ng-conflict' };
   }
 
   const tableSlots: TableSlot[] = [];
@@ -104,7 +102,8 @@ export function runMultipleMatching(
         const rankIndex = winner.casts.indexOf(cast.name);
         return {
           cast,
-          rank: rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
+          rank: rankIndex >= 0 && rankIndex < 3 && winner.preference_mode !== 'flat' ? rankIndex + 1 : 0,
+          score: getPreferenceScore(winner, cast.name),
         };
       });
       userMap.set(winner.x_id, matches);
@@ -115,7 +114,7 @@ export function runMultipleMatching(
       });
     });
 
-    for (let seatIndex = group.length; seatIndex < usersPerTable; seatIndex += 1) {
+    for (let seatIndex = group.length; seatIndex < params.usersPerTable; seatIndex += 1) {
       tableSlots.push({
         user: null,
         matches: roundCasts.map((cast) => ({ cast, rank: 0 })),
@@ -125,4 +124,84 @@ export function runMultipleMatching(
   });
 
   return { userMap, tableSlots };
+}
+
+function calculateAverageScore(result: MatchingResult): number {
+  let totalScore = 0;
+  let matchCount = 0;
+
+  result.userMap.forEach((matches) => {
+    matches.forEach((match) => {
+      totalScore += match.score ?? 0;
+      matchCount += 1;
+    });
+  });
+
+  return matchCount > 0 ? totalScore / matchCount : 0;
+}
+
+export function runMultipleMatching(
+  winners: UserBean[],
+  allCasts: CastBean[],
+  params: MultipleMatchingParams,
+  ngJudgmentType: NGJudgmentType,
+  ngMatchingBehavior: NGMatchingBehavior,
+): MatchingResult {
+  const activeCasts = allCasts.filter((cast) => cast.is_present);
+  const userMap = new Map<string, MatchedCast[]>();
+  if (winners.length === 0 || activeCasts.length === 0) {
+    return { userMap };
+  }
+
+  const normalizedParams = {
+    usersPerTable: Math.max(1, params.usersPerTable),
+    castsPerRotation: Math.max(1, params.castsPerRotation),
+    rotationCount: Math.max(1, params.rotationCount),
+    totalTables: params.totalTables,
+  };
+  const timeLimitMs = Math.max(1, params.searchTimeLimitMs ?? DEFAULT_SEARCH_TIME_LIMIT_MS);
+  const relaxedAfterMs = Math.max(0, Math.min(params.relaxedAfterMs ?? DEFAULT_RELAXED_AFTER_MS, timeLimitMs));
+  const searchMode = params.searchMode ?? 'efficiency';
+  const startedAt = Date.now();
+  let lastFailure: MatchingResult = { userMap, ngConflict: true, failureReason: 'time-limit' };
+  let bestResult: MatchingResult | null = null;
+  let bestAverageScore = Number.NEGATIVE_INFINITY;
+
+  do {
+    const elapsedMs = Date.now() - startedAt;
+    const result = runSingleAttempt(
+      winners,
+      activeCasts,
+      normalizedParams,
+      ngJudgmentType,
+      ngMatchingBehavior,
+    );
+
+    if (!result.ngConflict) {
+      const scoredResult = result;
+      const averageScore = calculateAverageScore(scoredResult);
+      if (averageScore > bestAverageScore) {
+        bestResult = scoredResult;
+        bestAverageScore = averageScore;
+      }
+
+      if (searchMode === 'efficiency') {
+        const isRelaxed = elapsedMs >= relaxedAfterMs;
+        if (isRelaxed || averageScore >= STRICT_MIN_AVERAGE_SCORE) {
+          return scoredResult;
+        }
+      }
+    } else {
+      lastFailure = result;
+      if (result.failureReason === 'invalid-settings' || result.failureReason === 'insufficient-capacity') {
+        return result;
+      }
+    }
+  } while (Date.now() - startedAt < timeLimitMs);
+
+  if (bestResult) {
+    return bestResult;
+  }
+
+  return { userMap, ngConflict: true, failureReason: lastFailure.failureReason === 'ng-conflict' ? 'time-limit' : lastFailure.failureReason };
 }

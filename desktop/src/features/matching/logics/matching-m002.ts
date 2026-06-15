@@ -44,7 +44,7 @@ export function runRotationMatching(
   );
 
   if (hasInfeasible) {
-    return { userMap: new Map(), ngConflict: true };
+    return { userMap: new Map(), ngConflict: true, failureReason: 'ng-conflict' };
   }
 
   const tableSlots: TableSlot[] = [];

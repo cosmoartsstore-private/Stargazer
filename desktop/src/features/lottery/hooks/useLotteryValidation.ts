@@ -28,9 +28,6 @@ export function useLotteryValidation({
             const unitCount = activeCastCount / castsPerRotation;
             const userTableCount = Math.ceil(totalWinners / usersPerTable);
 
-            if (totalTables < unitCount) {
-                errors.push(`総テーブル数（${totalTables}）がキャストのユニット数（${unitCount}）より少なくなっています。すべてのキャストが常に配置できるよう、総テーブル数は${unitCount} 以上に設定してください。`);
-            }
             if (totalTables < userTableCount) {
                 errors.push(`総テーブル数（${totalTables}）が当選者配置に必要なテーブル数（${userTableCount}）より少なくなっています。`);
             }
@@ -38,13 +35,11 @@ export function useLotteryValidation({
             const hasEmptySeats = totalWinners % usersPerTable !== 0;
             const hasEmptyTables = totalTables > userTableCount;
 
-            if (!allowM003EmptySeats && (hasEmptySeats || hasEmptyTables)) {
-                if (hasEmptySeats) {
-                    errors.push(`当選者数（${totalWinners} 名）が「1テーブルのユーザー数（${usersPerTable}）」で割り切れないため端数の空席が発生します。「空席・手動指定による空きテーブルを許可する」にチェックを入れてください。`);
-                }
-                if (hasEmptyTables) {
-                    errors.push(`指定された条件（総テーブル数${totalTables}）では誰も座らない完全な空きテーブルが発生します。「空席・手動指定による空きテーブルを許可する」にチェックを入れてください。`);
-                }
+            if (!allowM003EmptySeats && hasEmptySeats) {
+                errors.push(`当選者数（${totalWinners} 名）が「1テーブルのユーザー数（${usersPerTable}）」で割り切れないため端数の空席が発生します。「空席を許容する」にチェックを入れてください。`);
+            }
+            if (hasEmptyTables) {
+                errors.push(`指定された条件（総テーブル数${totalTables}）では誰も座らない空きテーブルが発生します。総テーブル数は当選者配置に必要な${userTableCount}に合わせてください。`);
             }
 
             if (activeCastCount % castsPerRotation !== 0) {
@@ -55,9 +50,9 @@ export function useLotteryValidation({
                 warnings.push(`最後のテーブルに${usersPerTable - (totalWinners % usersPerTable)} 名分の空席が発生します。`);
             }
 
-            const expectedCapacity = castsPerRotation * usersPerTable;
+            const expectedCapacity = Math.min(unitCount, totalTables) * usersPerTable;
             if (totalWinners > expectedCapacity) {
-                warnings.push(`当選者数（${totalWinners}名）が1ローテの接客枠（${castsPerRotation}キャスト × ${usersPerTable}人 = ${expectedCapacity}名）を上回っています。キャストが配置されないテーブルが発生する可能性があります。`);
+                errors.push(`当選者数（${totalWinners}名）が1ローテの接客枠（${Math.min(unitCount, totalTables)}テーブル × ${usersPerTable}人 = ${expectedCapacity}名）を上回っています。出勤キャスト数またはテーブル設定を見直してください。`);
             } else if (totalWinners < expectedCapacity) {
                 warnings.push(`当選者数（${totalWinners}名）が1ローテの接客枠（${expectedCapacity}名）を下回っています。空席や待機状態のキャストが発生する可能性があります。`);
             }
@@ -69,7 +64,7 @@ export function useLotteryValidation({
             }
 
             if (totalWinners > activeCastCount) {
-                warnings.push(`当選者数（${totalWinners}名）が出勤キャスト数（${activeCastCount}名）を上回っています。接客を受けられないユーザーが発生する可能性があります。`);
+                errors.push(`当選者数（${totalWinners}名）が出勤キャスト数（${activeCastCount}名）を上回っています。現在のマッチング方式では全員に同時割り当てできません。`);
             } else if (totalWinners < activeCastCount) {
                 warnings.push(`出勤キャスト数（${activeCastCount}名）が当選者数（${totalWinners}名）を上回っています。待機状態となるキャストが発生する可能性があります。`);
             }

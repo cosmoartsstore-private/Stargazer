@@ -3,6 +3,8 @@ export interface UserBean {
   x_id: string;
   vrc_url?: string; // VRCアカウントURL(オプション)
   casts: string[];
+  /** 希望の扱い: ranked=第1〜3希望、flat=順不同の複数希望（全て50点） */
+  preference_mode?: 'ranked' | 'flat';
   is_guaranteed?: boolean; // 確定枠フラグ
   raw_extra: unknown[];
 }

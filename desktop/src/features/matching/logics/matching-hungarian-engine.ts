@@ -33,7 +33,11 @@ export function getPreferenceScore(user: UserBean, castName: string): number {
     return 0;
   }
 
-  return PREFERENCE_WEIGHTS[prefIndex + 1] ?? 50;
+  if (user.preference_mode === 'flat') {
+    return 50;
+  }
+
+  return PREFERENCE_WEIGHTS[prefIndex + 1] ?? 0;
 }
 
 export function shuffleArray<T>(items: readonly T[]): T[] {
