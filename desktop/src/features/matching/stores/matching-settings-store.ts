@@ -1,20 +1,21 @@
 /**
  * マッチング関連設定の永続化（localStorage）。
- * NG判定基準・挙動・要注意人物・NG例外を保持。他画面に影響しない。
+ * NG判定は X ID 固定。探索モード・要注意人物・NG例外を保持する。
  */
 
 import { STORAGE_KEYS } from '@/common/config';
-import type {
-  NGJudgmentType,
-  NGMatchingBehavior,
-  MatchingSearchMode,
-  CautionUser,
-  CautionUserSettings,
-  NGException,
-  NGExceptionSettings,
+import {
+  FIXED_NG_JUDGMENT_TYPE,
+  type NGJudgmentType,
+  type NGMatchingBehavior,
+  type MatchingSearchMode,
+  type CautionUser,
+  type CautionUserSettings,
+  type NGException,
+  type NGExceptionSettings,
 } from '@/features/matching/types/matching-system-types';
 
-const DEFAULT_JUDGMENT: NGJudgmentType = 'accountId';
+const DEFAULT_JUDGMENT: NGJudgmentType = FIXED_NG_JUDGMENT_TYPE;
 const DEFAULT_BEHAVIOR: NGMatchingBehavior = 'exclude';
 const DEFAULT_CAUTION_THRESHOLD = 2;
 const DEFAULT_SEARCH_MODE: MatchingSearchMode = 'efficiency';
@@ -35,16 +36,12 @@ function loadFromStorage(): MatchingSettingsState | null {
     const d = JSON.parse(raw) as unknown;
     if (!d || typeof d !== 'object') return null;
     const o = d as Record<string, unknown>;
-    const judgment = o.ngJudgmentType;
     const behavior = o.ngMatchingBehavior;
     const searchMode = o.searchMode;
     const caution = o.caution as CautionUserSettings | undefined;
     const ngExceptions = o.ngExceptions as NGExceptionSettings | undefined;
     return {
-      ngJudgmentType:
-        judgment === 'username' || judgment === 'accountId' || judgment === 'either'
-          ? judgment
-          : DEFAULT_JUDGMENT,
+      ngJudgmentType: DEFAULT_JUDGMENT,
       ngMatchingBehavior: behavior === 'warn' || behavior === 'exclude' ? behavior : DEFAULT_BEHAVIOR,
       searchMode: searchMode === 'quality' || searchMode === 'efficiency' ? searchMode : DEFAULT_SEARCH_MODE,
       caution: normalizeCautionSettings(caution),
@@ -95,20 +92,27 @@ function normalizeNGExceptionSettings(
 
 export function getInitialMatchingSettings(): MatchingSettingsState {
   const loaded = loadFromStorage();
-  if (loaded) return loaded;
-  return {
+  if (loaded) return normalizeMatchingSettingsState(loaded);
+  return normalizeMatchingSettingsState({
     ngJudgmentType: DEFAULT_JUDGMENT,
     ngMatchingBehavior: DEFAULT_BEHAVIOR,
     searchMode: DEFAULT_SEARCH_MODE,
     caution: { autoRegisterThreshold: DEFAULT_CAUTION_THRESHOLD, cautionUsers: [] },
     ngExceptions: { exceptions: [] },
+  });
+}
+
+export function normalizeMatchingSettingsState(state: MatchingSettingsState): MatchingSettingsState {
+  return {
+    ...state,
+    ngJudgmentType: DEFAULT_JUDGMENT,
   };
 }
 
 export function persistMatchingSettings(state: MatchingSettingsState): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEYS.MATCHING_SETTINGS, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEYS.MATCHING_SETTINGS, JSON.stringify(normalizeMatchingSettingsState(state)));
   } catch (e) {
     console.warn('マッチング設定の保存に失敗しました', e);
   }

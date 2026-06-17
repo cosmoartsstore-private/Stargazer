@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '@/common/config';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
 import {
   getInitialMatchingSettings,
+  normalizeMatchingSettingsState,
   persistMatchingSettings,
   type MatchingSettingsState,
 } from '@/features/matching/stores/matching-settings-store';
@@ -196,7 +197,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setMatchingSettings = (stateOrUpdater: MatchingSettingsState | ((prev: MatchingSettingsState) => MatchingSettingsState)) => {
     setMatchingSettingsState((prev) => {
-      const next = typeof stateOrUpdater === 'function' ? stateOrUpdater(prev) : stateOrUpdater;
+      const rawNext = typeof stateOrUpdater === 'function' ? stateOrUpdater(prev) : stateOrUpdater;
+      const next = normalizeMatchingSettingsState(rawNext);
       persistMatchingSettings(next);
       return next;
     });

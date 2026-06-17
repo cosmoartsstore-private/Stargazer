@@ -11,10 +11,6 @@ import { invoke, isTauri } from '@/tauri';
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-const CONTACT_QUICK_INPUTS = [
-  { key: 'discord', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
-] as const;
-
 const CONTACT_SITE_LINKS = [
   { key: 'discord', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
   { key: 'x', label: 'X', marker: 'X', url: 'https://x.com/i/chat' },
@@ -44,7 +40,7 @@ function getOpenableContactUrl(url: string): string | null {
 function getContactMarker(url: string): { label: string; kind: ContactMarkerKind } {
   const trimmed = url.trim();
   const lowerUrl = trimmed.toLowerCase();
-  const matched = CONTACT_QUICK_INPUTS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
+  const matched = CONTACT_SITE_LINKS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
   if (matched) return { label: matched.marker, kind: matched.key };
   if (!trimmed) return { label: 'URL', kind: 'empty' };
   if (lowerUrl.startsWith('https://vrchat.com/')) return { label: 'VRC', kind: 'vrchat' };
@@ -140,14 +136,6 @@ export const CastManagementPage: React.FC = () => {
     const cast = casts.find((c) => c.name === castName);
     if (!cast) return;
     const contact_urls = [...(cast.contact_urls ?? []), ''];
-    setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, contact_urls } : c)));
-    await updateCastFields(castName, { contact_urls });
-  };
-
-  const handleAddQuickContactUrl = async (castName: string, value: string) => {
-    const cast = casts.find((c) => c.name === castName);
-    if (!cast) return;
-    const contact_urls = [...(cast.contact_urls ?? []), value];
     setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, contact_urls } : c)));
     await updateCastFields(castName, { contact_urls });
   };
@@ -288,6 +276,13 @@ export const CastManagementPage: React.FC = () => {
                   style={{ display: 'none' }}
                   onChange={(e) => handlePhotoUpload(selectedCast.name, e)}
                 />
+                <button
+                  type="button"
+                  className={styles.castCharDeleteBtn}
+                  onClick={() => handleDeleteCast(selectedCast.name)}
+                >
+                  キャストを削除
+                </button>
               </div>
 
               {/* RIGHT: プロフィール情報 */}
@@ -363,28 +358,6 @@ export const CastManagementPage: React.FC = () => {
                 {/* 連絡先 */}
                 <div className={styles.castDetailSection}>
                   <label className={styles.castDetailLabel}>連絡先</label>
-                  <div className={styles.castContactQuickPanel}>
-                    <div className={styles.castContactQuickHeader}>
-                      <span>クイック入力</span>
-                      <small>Discord DM URLの先頭を追加します</small>
-                    </div>
-                    <div className={styles.castContactQuickInput}>
-                      {CONTACT_QUICK_INPUTS.map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          className={styles.castContactQuickBtn}
-                          onClick={() => { void handleAddQuickContactUrl(selectedCast.name, item.url); }}
-                        >
-                          <span className={styles.castContactQuickIcon}><Plus size={12} /></span>
-                          <span className={styles.castContactQuickText}>
-                            <strong>{item.label}</strong>
-                            <small>{item.url}</small>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                   <div className={styles.castContactSiteLinks}>
                     <span className={styles.castContactSiteLabel}>外部サイト</span>
                     <div className={styles.castContactSiteActions}>
@@ -448,15 +421,6 @@ export const CastManagementPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className={styles.castCharDeleteBtn}
-                  onClick={() => handleDeleteCast(selectedCast.name)}
-                >
-                  キャストを削除
-                </button>
-
               </div>
             </div>
           </div>

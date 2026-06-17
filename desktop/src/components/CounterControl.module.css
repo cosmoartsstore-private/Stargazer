@@ -1,0 +1,66 @@
+.counter-control {
+  display: inline-grid;
+  grid-template-columns: 38px minmax(58px, 1fr) 38px;
+  align-items: stretch;
+  width: min(180px, 100%);
+  min-height: 38px;
+  border: 1px solid var(--discord-border);
+  border-radius: 6px;
+  background: var(--discord-bg-dark);
+  overflow: hidden;
+}
+
+.counter-control--disabled {
+  opacity: 0.55;
+}
+
+.counter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: var(--discord-bg-secondary);
+  color: var(--discord-text-header);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
+}
+
+.counter-button:first-child {
+  border-right: 1px solid var(--discord-border);
+}
+
+.counter-button:last-child {
+  border-left: 1px solid var(--discord-border);
+}
+
+.counter-button:hover:not(:disabled) {
+  background: var(--discord-bg-hover);
+  color: var(--discord-accent-blue);
+}
+
+.counter-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.counter-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 10px;
+  color: var(--discord-text-header);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  user-select: none;
+  outline: none;
+}
+
+.counter-value:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--discord-accent-blue);
+}

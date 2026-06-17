@@ -228,7 +228,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                     className={`${styles.importCastOption}${castInputType === 'separate' ? ` ${styles.importCastOptionSelected}` : ''}`}
                     onClick={() => setCastInputType('separate')}
                   >
-                    第1/2/3希望
+                    希望順位あり
                     <span>別々の列</span>
                   </button>
                   <button
@@ -236,7 +236,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                     className={`${styles.importCastOption}${castInputType === 'comma' ? ` ${styles.importCastOptionSelected}` : ''}`}
                     onClick={() => setCastInputType('comma')}
                   >
-                    1列
+                    希望順位なし
                     <span>カンマ区切り</span>
                   </button>
                 </div>
@@ -344,7 +344,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                 disabled={!canImport}
                 onClick={() => handleImport('lottery')}
               >
-                抽選だけ行う
+                抽選へ進む
               </button>
               <button
                 type="button"

@@ -430,12 +430,13 @@
 }
 
 .attendance-matrix {
-  width: 100%;
-  min-width: 720px;
+  width: max-content;
+  min-width: 0;
   border-collapse: separate;
   border-spacing: 0;
   background: var(--attendance-grid);
   font-size: 12px;
+  table-layout: fixed;
 }
 
 .attendance-matrix th,
@@ -516,11 +517,15 @@
 }
 
 .attendance-matrix-date-head {
+  width: 104px;
   min-width: 104px;
+  max-width: 104px;
 }
 
 .attendance-matrix-cell {
-  min-width: 72px;
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
   text-align: center;
   color: var(--attendance-muted);
   background: var(--attendance-empty-bg);
@@ -688,6 +693,121 @@
 
 .record-date-field .record-date-input {
   padding-left: 34px;
+  padding-right: 42px;
+}
+
+.record-date-calendar-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--discord-border);
+  border-radius: 6px;
+  background: var(--discord-bg-secondary);
+  color: var(--discord-text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.record-date-calendar-button:hover {
+  border-color: var(--discord-accent-blue);
+  color: var(--discord-text-header);
+  background: var(--discord-bg-hover);
+}
+
+.record-date-calendar-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(300px, calc(100vw - 48px));
+  padding: 12px;
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  background: var(--discord-bg-secondary);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+}
+
+.record-date-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.record-date-calendar-header strong {
+  color: var(--discord-text-header);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.record-date-calendar-header button {
+  width: 30px;
+  height: 28px;
+  border: 1px solid var(--discord-border);
+  border-radius: 6px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.record-date-calendar-header button:hover {
+  border-color: var(--discord-accent-blue);
+}
+
+.record-date-calendar-weekdays,
+.record-date-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.record-date-calendar-weekdays {
+  margin-bottom: 6px;
+}
+
+.record-date-calendar-weekdays span {
+  color: var(--discord-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.record-date-calendar-day {
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.record-date-calendar-day:hover {
+  border-color: var(--discord-accent-blue);
+  background: var(--discord-bg-hover);
+}
+
+.record-date-calendar-day-muted {
+  color: var(--discord-text-muted);
+  opacity: 0.48;
+}
+
+.record-date-calendar-day-selected {
+  border-color: var(--discord-accent-blue);
+  background: var(--discord-accent-blue);
+  color: #fff;
 }
 
 .save-count-row {
@@ -716,8 +836,8 @@
 .save-cast-list {
   flex: 1;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  display: flex;
+  flex-direction: column;
   align-content: start;
   gap: 6px;
 }
@@ -780,19 +900,6 @@
   --attendance-empty-bg: #f8fbff;
   --attendance-empty-bg-alt: #eef5fb;
   --attendance-empty-icon: #7fa4c2;
-}
-
-:global([data-theme="skyblue"]) .attendance-matrix {
-  width: max-content;
-  min-width: 0;
-  table-layout: fixed;
-}
-
-:global([data-theme="skyblue"]) .attendance-matrix-date-head,
-:global([data-theme="skyblue"]) .attendance-matrix-cell {
-  width: 104px;
-  min-width: 104px;
-  max-width: 104px;
 }
 
 :global([data-theme="skyblue"]) .setup-chip-wait {

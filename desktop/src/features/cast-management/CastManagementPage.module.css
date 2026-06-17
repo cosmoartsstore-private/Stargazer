@@ -1415,6 +1415,8 @@
 /* 7. 削除ボタン */
 .cast-char-delete-btn {
   margin-top: 14px;
+  width: 100%;
+  min-height: 38px;
   padding: 8px 24px;
   border-radius: 6px;
   border: none;
@@ -1424,7 +1426,7 @@
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
-  align-self: flex-start;
+  align-self: stretch;
 }
 
 .cast-char-delete-btn:hover {
@@ -1433,9 +1435,6 @@
 
 @media (max-width: 800px) {
   .cast-detail-layout {
-    grid-template-columns: 1fr;
-  }
-  .cast-contact-quick-input {
     grid-template-columns: 1fr;
   }
   .cast-contact-site-links {

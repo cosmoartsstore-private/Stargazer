@@ -6,7 +6,11 @@
 import type { UserBean, CastBean } from '@/common/types/entities';
 import type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { isUserNGForCast, getNGReasonForCast } from './ng-judgment';
-import type { NGJudgmentType, NGMatchingBehavior } from '@/features/matching/types/matching-system-types';
+import {
+    FIXED_NG_JUDGMENT_TYPE,
+    type NGJudgmentType,
+    type NGMatchingBehavior,
+} from '@/features/matching/types/matching-system-types';
 import { runRandomMatching } from './matching-m001';
 import { runRotationMatching } from './matching-m002';
 import { runMultipleMatching } from './matching-m003';
@@ -72,7 +76,7 @@ export class MatchingService {
         allCasts: CastBean[],
         matchingTypeCode: MatchingTypeCode,
         options: MatchingRunOptions,
-        ngJudgmentType: NGJudgmentType = 'either',
+        ngJudgmentType: NGJudgmentType = FIXED_NG_JUDGMENT_TYPE,
         ngMatchingBehavior: NGMatchingBehavior = 'exclude',
     ): MatchingResult {
         const activeCasts = allCasts.filter((c) => c.is_present);

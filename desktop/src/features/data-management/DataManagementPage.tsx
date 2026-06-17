@@ -43,6 +43,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     applicants,
     casts,
     currentWinners,
+    matchingTypeCode,
   } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<DataManagementTab>(() => toTab(activePage));
@@ -56,13 +57,20 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
   const attendingCasts = casts.filter((c) => c.is_present);
   const hasApplyUsers = applicants.length > 0;
   const hasWinners = currentWinners.length > 0;
+  const isLotteryOnly = matchingTypeCode === 'M000';
 
   const disabledTabs = new Set<DataManagementTab>();
   if (!hasApplyUsers) disabledTabs.add('lottery');
-  if (!hasWinners)    disabledTabs.add('matching');
+  if (!hasWinners || isLotteryOnly) disabledTabs.add('matching');
+
+  useEffect(() => {
+    if (activeTab !== 'matching' || !isLotteryOnly) return;
+    setActiveTab('lottery');
+    setActivePage('lottery');
+  }, [activeTab, isLotteryOnly, setActivePage]);
 
   const tabs: Array<{ id: DataManagementTab; label: string }> = [
-    { id: 'import',   label: '一覧' },
+    { id: 'import',   label: 'データ取込' },
     { id: 'lottery',  label: '抽選' },
     { id: 'matching', label: 'マッチング' },
   ];
@@ -122,7 +130,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
       <div className={shared.pageTabContent}>
         {activeTab === 'import'   && <ApplicantDataPage onImportUserRows={onImportUserRows} />}
         {activeTab === 'lottery'  && <LotteryPage />}
-        {activeTab === 'matching' && <MatchingPage />}
+        {activeTab === 'matching' && !isLotteryOnly && <MatchingPage />}
       </div>
 
       {showCastConfirm && (
@@ -149,7 +157,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
             {preLotteryChecks.map((item, i) => (
               <div key={i} className={styles.terminalLine}>
                 <span className={`${styles.terminalBadge} ${item.level === 'ok' ? styles.terminalBadgeOk : item.level === 'warning' ? styles.terminalBadgeWarning : styles.terminalBadgeError}`}>
-                  {item.level === 'ok' ? '[-]' : item.level === 'warning' ? '[WARN]' : '[ERR]'}
+                  {item.level === 'ok' ? 'INFO' : item.level === 'warning' ? 'WARN' : 'ERROR'}
                 </span>
                 <span className={styles.terminalItemLabel}>{item.label}</span>
                 <span className={`${styles.terminalItemDetail} ${item.level === 'ok' ? styles.terminalItemDetailOk : item.level === 'warning' ? styles.terminalItemDetailWarning : styles.terminalItemDetailError}`}>{item.detail}</span>

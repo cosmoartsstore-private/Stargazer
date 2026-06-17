@@ -11,6 +11,7 @@ export type { NGUserEntry } from '@/common/types/entities';
 
 /** NG判定基準 */
 export type NGJudgmentType = 'username' | 'accountId' | 'either';
+export const FIXED_NG_JUDGMENT_TYPE: NGJudgmentType = 'accountId';
 
 /** マッチング時の挙動 */
 export type NGMatchingBehavior = 'warn' | 'exclude';
@@ -45,4 +46,3 @@ export interface NGException {
 export interface NGExceptionSettings {
   exceptions: NGException[];
 }
-

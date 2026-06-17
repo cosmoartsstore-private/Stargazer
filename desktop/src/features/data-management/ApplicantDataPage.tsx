@@ -7,6 +7,7 @@ import {
   getCautionNGCastNames,
   isCautionUser,
 } from '@/features/matching/logics/caution-user';
+import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from '@/stores/AppContext';
 import { persistApplicants } from '@/db';
@@ -174,7 +175,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
   const cautionUsers = useMemo(() => {
     const auto = computeAutoCautionUsers(
       casts, applyUsers,
-      matchingSettings.ngJudgmentType,
+      FIXED_NG_JUDGMENT_TYPE,
       matchingSettings.caution.autoRegisterThreshold,
     );
     const manual = matchingSettings.caution.cautionUsers.filter((u) => u.registrationType === 'manual');
@@ -197,7 +198,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     const map = new Map<string, { isCaution: boolean; ngCastNames: string[]; extraMap: Map<string, string> }>();
     for (const user of filteredUsers) {
       const caution = isCautionUser(user, cautionUsers);
-      const ngCastNames = getCautionNGCastNames(user, casts, matchingSettings.ngJudgmentType);
+      const ngCastNames = getCautionNGCastNames(user, casts, FIXED_NG_JUDGMENT_TYPE);
       map.set(user.x_id, {
         isCaution: caution,
         ngCastNames,
@@ -205,7 +206,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
       });
     }
     return map;
-  }, [filteredUsers, cautionUsers, casts, matchingSettings.ngJudgmentType]);
+  }, [filteredUsers, cautionUsers, casts]);
 
   const handleSelect = useCallback((user: UserBean) => setSelectedUser(user), []);
   const handleRemoveClick = useCallback((xId: string) => setRemoveTarget(xId), []);
@@ -238,7 +239,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     return (
       <div className={shared.pageWrapper}>
         <div className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>一覧</h1>
+          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>データ取込</h1>
           <p className={shared.pageHeaderSubtitle}>
             応募者TSVを取り込むと、ここに一覧が表示されます。
           </p>

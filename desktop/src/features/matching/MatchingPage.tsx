@@ -7,7 +7,7 @@ import { LotteryValidationPanel } from '@/features/lottery/components/LotteryVal
 import { useLotteryValidation } from '@/features/lottery/hooks/useLotteryValidation';
 import { MatchingConditionPanel } from '@/features/matching/components/MatchingConditionPanel';
 import type { MatchedCast, MatchingFailureReason, MatchingScoreSummary, TableSlot } from '@/features/matching/logics/matching-io';
-import { MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
+import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
 import { useAppContext, type CastBean, type UserBean } from '@/stores/AppContext';
 import styles from './MatchingPage.module.css';
 import shared from '@/styles/shared.module.css';
@@ -449,7 +449,7 @@ export const MatchingPage: React.FC = () => {
         relaxedAfterMs: MATCHING_RELAXED_AFTER_MS,
         searchMode: matchingSettings.searchMode,
       },
-      ngJudgmentType: matchingSettings.ngJudgmentType,
+      ngJudgmentType: FIXED_NG_JUDGMENT_TYPE,
       ngMatchingBehavior: 'exclude',
     });
   }, [winners, casts, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount, effectiveMatchingTableCount, matchingSettings, setGlobalMatchingError, setGlobalMatchingResult, setGlobalTableSlots, setIsMatchingLocked, stopWorker]);
@@ -489,29 +489,10 @@ export const MatchingPage: React.FC = () => {
         <div className={styles.workflowTwoPane__main}>
           <section className={shared.sectionBlock}>
             <div className={styles.workflowSectionHeader}>
-              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>マッチング設定</h2>
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>マッチング実行</h2>
               <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-                必要な設定だけを上段に集約し、実行後の確認領域とは分離しています。
+                抽選設定で確定した条件を確認し、探索モードだけを選択して実行します。
               </p>
-            </div>
-
-            <div className={styles.workflowMetaGrid}>
-              <div className={styles.workflowMetaCard}>
-                <span className={styles.workflowMetaCard__label}>方式</span>
-                <strong>{MATCHING_TYPE_LABELS[matchingTypeCode]}</strong>
-              </div>
-              <div className={styles.workflowMetaCard}>
-                <span className={styles.workflowMetaCard__label}>当選者数</span>
-                <strong>{winners.length} 名</strong>
-              </div>
-              <div className={styles.workflowMetaCard}>
-                <span className={styles.workflowMetaCard__label}>ラウンド数</span>
-                <strong>{rotationCount}</strong>
-              </div>
-              <div className={styles.workflowMetaCard}>
-                <span className={styles.workflowMetaCard__label}>{matchingTypeCode === 'M003' ? '合計席数' : '総テーブル数'}</span>
-                <strong>{matchingTypeCode === 'M003' ? `${totalSeatCount} 席` : totalTables}</strong>
-              </div>
             </div>
 
             <MatchingConditionPanel disabled={isMatchingLocked} />
@@ -536,6 +517,8 @@ export const MatchingPage: React.FC = () => {
           <LotteryValidationPanel
             validation={validation}
             onRunClick={handleRun}
+            title="マッチングステータス"
+            description="読み取り専用条件と出席状態をもとに実行可否を確認します。"
             readySubtext="マッチングを行う準備が完了しています"
             runLabel="マッチング開始"
           />

@@ -1,26 +1,43 @@
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-// Reserved subdirectory name: any folder literally called "shared" under an
-// event holds the event-shared DB and therefore cannot be a session timestamp
-// or an event name.
 const SHARED_DIR: &str = "shared";
+const CACHE_DIR: &str = "Cache";
+const WEBVIEW_DATA_DIR: &str = "EBWebView";
 
-fn resolve_data_root() -> PathBuf {
+fn resolve_app_root() -> PathBuf {
     if let Some(install_dir) = get_install_location() {
-        return PathBuf::from(install_dir).join("Data");
+        return PathBuf::from(install_dir);
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            return parent.join("Data");
+            return parent.to_path_buf();
         }
     }
     let local = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\ProgramData".to_string());
     PathBuf::from(local)
         .join("CosmoArtsStore")
         .join("Stargazer")
-        .join("Data")
+}
+
+fn resolve_data_root() -> PathBuf {
+    resolve_app_root().join("Data")
+}
+
+fn resolve_webview_data_root() -> PathBuf {
+    resolve_app_root().join(CACHE_DIR).join(WEBVIEW_DATA_DIR)
+}
+
+fn cleanup_legacy_webview_data_root() {
+    let legacy_path = resolve_data_root().join(WEBVIEW_DATA_DIR);
+    if looks_like_webview_data_root(&legacy_path) {
+        let _ = std::fs::remove_dir_all(legacy_path);
+    }
+}
+
+fn looks_like_webview_data_root(path: &Path) -> bool {
+    path.is_dir() && (path.join(WEBVIEW_DATA_DIR).is_dir() || path.join("Default").is_dir())
 }
 
 fn get_install_location() -> Option<String> {
@@ -214,10 +231,8 @@ fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("イベント名が空です".to_string());
     }
-    // The literal "shared" is reserved for the event-shared subdirectory;
-    // allowing it as an event name would collide with Data/<event>/shared/.
-    if name == SHARED_DIR {
-        return Err("イベント名 'shared' は予約されています".to_string());
+    if is_reserved_event_name(name) {
+        return Err(format!("イベント名 '{name}' は予約されています"));
     }
     if name.len() > 64 {
         return Err("イベント名は64文字以下にしてください".to_string());
@@ -240,6 +255,16 @@ fn validate_event_name(name: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn is_reserved_event_name(name: &str) -> bool {
+    [SHARED_DIR, WEBVIEW_DATA_DIR]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
+}
+
+fn is_event_directory_name(name: &str) -> bool {
+    !name.starts_with('.') && validate_event_name(name).is_ok()
 }
 
 // Strict 14-digit ASCII check (yyyymmddhhmmss). We never let unverified
@@ -364,7 +389,7 @@ fn list_events() -> Vec<String> {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| !n.starts_with('.') && validate_event_name(n).is_ok())
+        .filter(|n| is_event_directory_name(n))
         .collect();
 
     names.sort();
@@ -598,7 +623,8 @@ fn open_url_with_system(url: &str) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let webview_data_dir = resolve_data_root().join("EBWebView");
+    cleanup_legacy_webview_data_root();
+    let webview_data_dir = resolve_webview_data_root();
     std::fs::create_dir_all(&webview_data_dir).ok();
     std::env::set_var(
         "WEBVIEW2_USER_DATA_FOLDER",
@@ -671,6 +697,41 @@ mod tests {
         let mut conn = Connection::open(path)?;
         run_session_migrations(&mut conn)?;
         Ok(conn)
+    }
+
+    #[test]
+    fn reserved_system_directory_names_are_rejected_as_event_names() {
+        for name in [SHARED_DIR, "SHARED", WEBVIEW_DATA_DIR, "ebwebview"] {
+            assert!(
+                validate_event_name(name).is_err(),
+                "{name} は予約名として拒否される必要があります"
+            );
+            assert!(
+                !is_event_directory_name(name),
+                "{name} はイベント一覧に表示されない必要があります"
+            );
+        }
+    }
+
+    #[test]
+    fn event_directory_filter_accepts_visible_event_names_only() {
+        assert!(is_event_directory_name("Manual Test Event"));
+        assert!(is_event_directory_name("Event_2026-06"));
+        assert!(!is_event_directory_name(".system"));
+        assert!(!is_event_directory_name("Event.Name"));
+        assert!(!is_event_directory_name(" Event"));
+    }
+
+    #[test]
+    fn legacy_webview_cleanup_guard_requires_profile_shape() {
+        let dir = TestDir::new("legacy-webview-cleanup");
+        let plain_dir = dir.0.join(WEBVIEW_DATA_DIR);
+        std::fs::create_dir_all(&plain_dir).expect("空のEBWebViewディレクトリを作成できません");
+        assert!(!looks_like_webview_data_root(&plain_dir));
+
+        std::fs::create_dir_all(plain_dir.join(WEBVIEW_DATA_DIR).join("Default"))
+            .expect("WebView2プロファイル相当のディレクトリを作成できません");
+        assert!(looks_like_webview_data_root(&plain_dir));
     }
 
     #[test]

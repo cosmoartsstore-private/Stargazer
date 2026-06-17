@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Search } from '@/common/icons';
+import { ExternalLink, Search } from '@/common/icons';
 import type { NGUserEntry } from '@/common/types/entities';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { parseXUsername } from '@/common/xIdUtils';
 import { useAppContext } from '@/stores/AppContext';
 import { upsertCautionUser, deleteCautionUserByAccountId, updateCastFields } from '@/db';
+import { invoke, isTauri } from '@/tauri';
 import styles from './NGUserManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -14,6 +15,13 @@ function normalizeAccountId(raw: string): string | null {
   const parsed = parseXUsername(raw.trim());
   if (!parsed) return null;
   return parsed.startsWith('@') ? parsed : `@${parsed}`;
+}
+
+function buildXProfileUrl(accountId: string | undefined): string | null {
+  if (!accountId) return null;
+  const username = normalizeAccountId(accountId)?.replace(/^@+/, '');
+  if (!username) return null;
+  return `https://x.com/${username}`;
 }
 
 interface NgCandidate {
@@ -36,6 +44,7 @@ export const NGUserManagementPage: React.FC = () => {
   const [alertMessage, setAlertMessage]     = useState<string | null>(null);
   const [pendingDeleteNg, setPendingDeleteNg] = useState<{ castName: string; entry: NGUserEntry } | null>(null);
   const [pendingDeleteCaution, setPendingDeleteCaution] = useState<string | null>(null);
+  const [pendingOpenNgLink, setPendingOpenNgLink] = useState<{ label: string; url: string } | null>(null);
 
   const cautionUsers = matchingSettings.caution.cautionUsers;
   const threshold    = matchingSettings.caution.autoRegisterThreshold;
@@ -176,6 +185,22 @@ export const NGUserManagementPage: React.FC = () => {
     setPendingDeleteCaution(null);
   };
 
+  const handleOpenNgLink = async () => {
+    if (!pendingOpenNgLink) return;
+    const { url } = pendingOpenNgLink;
+    setPendingOpenNgLink(null);
+    if (isTauri()) {
+      try {
+        await invoke<void>('open_external_url', { url });
+        return;
+      } catch (error) {
+        setAlertMessage(`リンクを開けませんでした: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner} ${styles.ngPage}`}>
       <div className={styles.ngSubTabs}>
@@ -270,6 +295,20 @@ export const NGUserManagementPage: React.FC = () => {
                           <span className={styles.ngCastGrid__textName}>{entry.username ?? '名前なし'}</span>
                           <span className={styles.ngCastGrid__textId}>{entry.accountId ?? 'IDなし'}</span>
                         </div>
+                        {buildXProfileUrl(entry.accountId) && (
+                          <button
+                            type="button"
+                            className={styles.ngLinkButton}
+                            title="Xアカウントを開く"
+                            aria-label={`${entry.accountId} のXアカウントを開く`}
+                            onClick={() => {
+                              const url = buildXProfileUrl(entry.accountId);
+                              if (url) setPendingOpenNgLink({ label: entry.accountId ?? entry.username ?? 'NGユーザー', url });
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={styles.ngCastGrid__remove}
@@ -294,7 +333,7 @@ export const NGUserManagementPage: React.FC = () => {
 
         {/* ── 要注意人物 タブ ── */}
         {ngTab === 'caution' && (
-          <div className={styles.ngPage} style={{ maxWidth: 720 }}>
+          <div className={styles.ngPage}>
 
             {/* 候補セクション */}
             <div className={styles.ngPage__section}>
@@ -388,6 +427,20 @@ export const NGUserManagementPage: React.FC = () => {
                         <span className={styles.ngCastGrid__textName}>{user.username}</span>
                         <span className={styles.ngCastGrid__textId}>{user.accountId}</span>
                       </div>
+                      {buildXProfileUrl(user.accountId) && (
+                        <button
+                          type="button"
+                          className={styles.ngLinkButton}
+                          title="Xアカウントを開く"
+                          aria-label={`${user.accountId} のXアカウントを開く`}
+                          onClick={() => {
+                            const url = buildXProfileUrl(user.accountId);
+                            if (url) setPendingOpenNgLink({ label: user.accountId, url });
+                          }}
+                        >
+                          <ExternalLink size={14} />
+                        </button>
+                      )}
                       {user.registrationType === 'auto' && user.ngCastCount != null && (
                         <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeAuto}`}>{user.ngCastCount}人NG</span>
                       )}
@@ -435,6 +488,17 @@ export const NGUserManagementPage: React.FC = () => {
           cancelLabel="キャンセル"
           onConfirm={() => { void handleDeleteCaution(); }}
           onCancel={() => setPendingDeleteCaution(null)}
+        />
+      )}
+      {pendingOpenNgLink && (
+        <ConfirmModal
+          type="confirm"
+          title="リンクを開く"
+          message={`${pendingOpenNgLink.label} のTwitter（X）ユーザーアカウントを開きます。`}
+          confirmLabel="リンクを開く"
+          cancelLabel="キャンセル"
+          onConfirm={() => { void handleOpenNgLink(); }}
+          onCancel={() => setPendingOpenNgLink(null)}
         />
       )}
     </div>

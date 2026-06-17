@@ -145,6 +145,435 @@ const ScreenSample: React.FC<{ title: string; children: React.ReactNode }> = ({ 
   </div>
 );
 
+type AnnotationPoint = {
+  number: number;
+  title: string;
+  description: string;
+  x: number;
+  y: number;
+};
+
+type FeatureSampleMeta = {
+  title: string;
+  summary: string;
+  activeNav: string;
+  points: AnnotationPoint[];
+};
+
+const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
+  'applicant-data': {
+    title: '応募データの確認画面',
+    summary: '取り込んだ応募者を一覧で確認し、要注意・NGキャスト・詳細・削除の入口を同じ画面で扱います。',
+    activeNav: '応募データ',
+    points: [
+      { number: 1, title: 'データ状態と操作', description: '読み込んだファイル名、件数、再取り込み、元ログ削除を確認します。', x: 70, y: 17 },
+      { number: 2, title: '表示切り替え', description: '全件と要注意を切り替えて、確認対象を絞り込みます。', x: 20, y: 31 },
+      { number: 3, title: '応募者一覧', description: 'ユーザー名、X ID、希望キャスト、NGキャストを行単位で確認します。', x: 48, y: 56 },
+      { number: 4, title: 'NGキャスト欄', description: '1件なら名前、複数なら件数表示にして、詳細は応募者詳細で確認します。', x: 77, y: 61 },
+      { number: 5, title: '個別操作', description: '行クリックで詳細を開き、右端の赤い×で応募者を削除します。', x: 91, y: 61 },
+    ],
+  },
+  import: {
+    title: 'TSV読取と列マッピング',
+    summary: 'ファイル選択、列の対応付け、プレビュー、取り込み先の選択を一連の流れで確認します。',
+    activeNav: 'データ読取',
+    points: [
+      { number: 1, title: 'ファイル選択', description: 'TSVファイルを選択し、検出行数と有効件数を確認します。', x: 26, y: 22 },
+      { number: 2, title: '列マッピング', description: 'ユーザー名、X ID、希望キャストなどを読み込んだ列に対応付けます。', x: 36, y: 47 },
+      { number: 3, title: '読取プレビュー', description: '取り込み前に先頭行を確認し、列ずれや空のX IDを見つけます。', x: 73, y: 49 },
+      { number: 4, title: '抽選へ進む', description: '読み込んだ内容を使って、すぐ抽選画面へ進みます。', x: 68, y: 85 },
+      { number: 5, title: '取り込み確定', description: 'マッピング内容を保存し、応募データ一覧に反映します。', x: 88, y: 85 },
+    ],
+  },
+  lottery: {
+    title: '抽選設定と結果保存',
+    summary: '当選人数、マッチング方式、席数、確定当選者、設定ステータス、保存済み抽選結果を確認します。',
+    activeNav: '抽選',
+    points: [
+      { number: 1, title: '当選人数', description: '抽選で選ぶ人数と確定当選者を合わせた合計当選者数を確認します。', x: 24, y: 28 },
+      { number: 2, title: 'マッチング方式', description: '抽選のみ、ランダム、ローテーション、グループ制マッチングから選びます。', x: 40, y: 44 },
+      { number: 3, title: '当日枠を含める', description: 'グループ制マッチングでは当日枠分の席数を追加し、合計席数を確認します。', x: 35, y: 65 },
+      { number: 4, title: '設定ステータス', description: '条件設定の一部として、ERROR、WARN、INFO、OKで妥当性と合計席数を表示します。', x: 73, y: 36 },
+      { number: 5, title: '抽選結果保存', description: '実行後の結果をDBに保存し、後から選択し直せるようにします。', x: 75, y: 73 },
+    ],
+  },
+  matching: {
+    title: 'マッチング設定と結果確認',
+    summary: '抽選結果をもとに、条件確認、実行、キャスト別結果、テーブル別結果、出力を扱います。',
+    activeNav: 'マッチング',
+    points: [
+      { number: 1, title: '状態サマリー', description: '方式、当選者数、合計席数、出席キャスト数を確認します。', x: 31, y: 22 },
+      { number: 2, title: '条件確認と探索モード', description: '抽選設定で確定した条件を読み取り専用で確認し、探索モードだけを選びます。', x: 25, y: 48 },
+      { number: 3, title: '検証と実行', description: '問題がないことを確認してから、マッチングを開始します。', x: 73, y: 43 },
+      { number: 4, title: 'キャスト別結果', description: 'キャストごとのローテーション割り当てと希望順位を確認します。', x: 38, y: 76 },
+      { number: 5, title: '出力操作', description: 'PNG出力とTSV保存で共有用データを作成します。', x: 84, y: 76 },
+    ],
+  },
+  cast: {
+    title: 'キャスト名簿の管理画面',
+    summary: 'キャスト一覧、追加、プロフィール、連絡先、外部リンク、削除を同じ画面で管理します。',
+    activeNav: 'キャスト名簿',
+    points: [
+      { number: 1, title: 'キャスト一覧', description: '登録済みキャストをグループ付きで表示し、検索と選択を行います。', x: 20, y: 37 },
+      { number: 2, title: 'キャスト追加', description: '一覧下部の入力欄からキャストを1名ずつ追加します。', x: 20, y: 77 },
+      { number: 3, title: 'プロフィール', description: '写真、名前、グループ、メモを編集します。', x: 56, y: 35 },
+      { number: 4, title: '外部サイトリンク', description: 'Discord、X、VRChatの固定リンクを開ける入口です。', x: 76, y: 55 },
+      { number: 5, title: '削除', description: 'プロフィール画像の下にある単色赤背景のボタンから、確認後にキャストを削除します。', x: 24, y: 79 },
+    ],
+  },
+  ng: {
+    title: 'NG管理と要注意人物',
+    summary: 'キャストごとのNG登録と、複数キャストからNGを受けた要注意人物候補を管理します。',
+    activeNav: 'NG管理',
+    points: [
+      { number: 1, title: '管理タブ', description: 'キャストNGと要注意人物を切り替えます。', x: 25, y: 25 },
+      { number: 2, title: 'キャスト別NG件数', description: 'キャスト一覧にNG件数をバッチ型で表示します。', x: 22, y: 48 },
+      { number: 3, title: 'NGユーザー一覧', description: '選択中キャストのNGユーザーをX ID付きで確認・削除します。', x: 58, y: 48 },
+      { number: 4, title: '要注意候補', description: '閾値以上のキャストからNGを受けたユーザーを候補として表示します。', x: 55, y: 77 },
+      { number: 5, title: '登録済み管理', description: '手動登録と自動登録を分けて確認し、必要に応じて解除します。', x: 83, y: 77 },
+    ],
+  },
+  attendance: {
+    title: '出席設定と出席履歴',
+    summary: '出席中・待機の切り替え、記録モーダル、履歴のチェック表を確認します。',
+    activeNav: '出席管理',
+    points: [
+      { number: 1, title: 'タブ切り替え', description: '出席設定と出席履歴を切り替えます。', x: 23, y: 24 },
+      { number: 2, title: '出席中BOX', description: '出席中のキャストを1名ずつ縦に並べます。', x: 33, y: 48 },
+      { number: 3, title: '待機BOX', description: '待機側も同じ幅で並べ、選択済みの行は色を立てます。', x: 62, y: 48 },
+      { number: 4, title: '出席を記録', description: '記録日と出席人数を横並びにし、その下にキャスト一覧を表示します。', x: 82, y: 39 },
+      { number: 5, title: '出席履歴', description: '固定幅の列で、キャスト別・日付別の履歴を確認します。', x: 60, y: 79 },
+    ],
+  },
+  tweet: {
+    title: '投稿テンプレの編集画面',
+    summary: '投稿文のひな型、プレースホルダー、プレビュー、コピー操作を確認します。',
+    activeNav: '投稿テンプレ',
+    points: [
+      { number: 1, title: 'テンプレート編集', description: '投稿文のひな型を編集します。内容は自動保存されます。', x: 28, y: 42 },
+      { number: 2, title: 'プレースホルダー', description: '{casts} や {event_name} を挿入して実データへ置換します。', x: 32, y: 73 },
+      { number: 3, title: 'プレビュー', description: '置換後の投稿文を右側で確認します。', x: 70, y: 42 },
+      { number: 4, title: '文字数', description: 'X投稿向けに文字数を確認します。', x: 67, y: 72 },
+      { number: 5, title: 'コピー', description: '生成した投稿文をクリップボードへコピーします。', x: 86, y: 73 },
+    ],
+  },
+};
+
+const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
+  const meta = FEATURE_SAMPLE_META[feature];
+
+  return (
+    <section className={styles.featureGuideSample}>
+      <div className={styles.featureGuideSampleHeader}>
+        <div>
+          <span className={styles.featureGuideSampleEyebrow}>画面サンプル</span>
+          <h3>{meta.title}</h3>
+        </div>
+        <p>{meta.summary}</p>
+      </div>
+
+      <div className={styles.featureGuideSampleLayout}>
+        <div className={styles.mockAppFrame}>
+          <div className={styles.mockAppTopbar}>
+            <div>
+              <strong>Manual Test Event</strong>
+              <span>Stargazer</span>
+            </div>
+            <div className={styles.mockTopbarStatus}>DB接続中</div>
+          </div>
+          <div className={styles.mockAppWorkspace}>
+            <aside className={styles.mockAppSidebar} aria-label="サンプル画面ナビゲーション">
+              {['応募データ', 'データ読取', '抽選', 'マッチング', 'キャスト名簿', 'NG管理', '出席管理', '投稿テンプレ'].map(label => (
+                <span
+                  key={label}
+                  className={`${styles.mockAppSidebarItem}${meta.activeNav === label ? ` ${styles.mockAppSidebarItemActive}` : ''}`}
+                >
+                  {label}
+                </span>
+              ))}
+            </aside>
+            <div className={styles.mockAppContent}>
+              {renderFeatureSampleScreen(feature)}
+              {meta.points.map(point => (
+                <span
+                  key={point.number}
+                  className={styles.featureGuideMarker}
+                  style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                  aria-label={`${point.number}. ${point.title}`}
+                >
+                  {point.number}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <ol className={styles.featureGuideLegend}>
+          {meta.points.map(point => (
+            <li key={point.number} className={styles.featureGuideLegendItem}>
+              <span>{point.number}</span>
+              <div>
+                <strong>{point.title}</strong>
+                <p>{point.description}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+};
+
+function renderFeatureSampleScreen(feature: FeatureId): React.ReactNode {
+  switch (feature) {
+    case 'applicant-data':
+      return <ApplicantDataSampleScreen />;
+    case 'import':
+      return <ImportSampleScreen />;
+    case 'lottery':
+      return <LotterySampleScreen />;
+    case 'matching':
+      return <MatchingSampleScreen />;
+    case 'cast':
+      return <CastSampleScreen />;
+    case 'ng':
+      return <NgSampleScreen />;
+    case 'attendance':
+      return <AttendanceSampleScreen />;
+    case 'tweet':
+      return <TweetSampleScreen />;
+  }
+}
+
+const MockHeader: React.FC<{ title: string; description?: string; actions?: React.ReactNode }> = ({ title, description, actions }) => (
+  <div className={styles.mockHeader}>
+    <div>
+      <h4>{title}</h4>
+      {description && <p>{description}</p>}
+    </div>
+    {actions && <div className={styles.mockActions}>{actions}</div>}
+  </div>
+);
+
+const MockButton: React.FC<{ children: React.ReactNode; variant?: 'primary' | 'secondary' | 'danger' }> = ({ children, variant = 'secondary' }) => (
+  <span className={`${styles.mockButton} ${styles[`mockButton${variant[0].toUpperCase()}${variant.slice(1)}`]}`}>{children}</span>
+);
+
+const MockTabs: React.FC<{ tabs: string[]; activeIndex?: number }> = ({ tabs, activeIndex = 0 }) => (
+  <div className={styles.mockTabs}>
+    {tabs.map((tab, index) => (
+      <span key={tab} className={`${styles.mockTab}${activeIndex === index ? ` ${styles.mockTabActive}` : ''}`}>{tab}</span>
+    ))}
+  </div>
+);
+
+const MockBadge: React.FC<{ children: React.ReactNode; tone?: 'blue' | 'green' | 'red' | 'gray' | 'yellow' }> = ({ children, tone = 'blue' }) => (
+  <span className={`${styles.mockBadge} ${styles[`mockBadge${tone[0].toUpperCase()}${tone.slice(1)}`]}`}>{children}</span>
+);
+
+const ApplicantDataSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader
+      title="応募データ"
+      description="responses_20260617.tsv / 42件"
+      actions={<><MockButton>再取り込み</MockButton><MockButton variant="danger">元ログ削除</MockButton></>}
+    />
+    <MockTabs tabs={['全件 42', '要注意 2']} />
+    <table className={styles.mockTable}>
+      <thead>
+        <tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>NGキャスト</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>サンプル太郎</td><td>@sample_vrc</td><td><MockBadge>キャストA</MockBadge><MockBadge tone="gray">キャストB</MockBadge></td><td>なし</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
+        <tr className={styles.mockTableWarning}><td>問題ユーザー</td><td>@problem_123</td><td><MockBadge tone="green">キャストC</MockBadge></td><td>2名のキャストがNG</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
+        <tr><td>ゲスト花子</td><td>@guest_hanako</td><td><MockBadge>キャストB</MockBadge><MockBadge tone="gray">キャストD</MockBadge></td><td>キャストA</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+);
+
+const ImportSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="データ読取" description="TSVファイルを読み込み、列を対応付けます。" actions={<MockButton variant="primary">TSVファイルを選択</MockButton>} />
+    <div className={styles.mockImportGrid}>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockFileStrip}>responses_20260617.tsv / 42行 / 有効 41件</div>
+        {[
+          ['ユーザー名', '名前'],
+          ['X ID', 'X/Twitter ID'],
+          ['VRC URL', 'VRChat URL'],
+          ['希望キャスト', '第一希望, 第二希望, 第三希望'],
+        ].map(([label, value]) => (
+          <div key={label} className={styles.mockMappingRow}>
+            <span>{label}</span><b>→</b><em>{value}</em>
+          </div>
+        ))}
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>プレビュー</div>
+        <table className={styles.mockTable}>
+          <tbody>
+            <tr><td>サンプル太郎</td><td>@sample_vrc</td><td>キャストA</td></tr>
+            <tr><td>ゲスト花子</td><td>@guest_hanako</td><td>キャストB</td></tr>
+            <tr><td>問題ユーザー</td><td>@problem_123</td><td>キャストC</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div className={styles.mockFooterActions}><MockButton>抽選へ進む</MockButton><MockButton variant="primary">41件を取り込む</MockButton></div>
+  </div>
+);
+
+const LotterySampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="抽選設定" description="確定当選者と当選人数を設定し、抽選結果を保存できます。" />
+    <div className={styles.mockLotteryGrid}>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockMetricGrid}>
+          <div><span>当選人数</span><strong>20</strong></div>
+          <div><span>確定当選者</span><strong>3</strong></div>
+          <div><span>合計当選者数</span><strong>23</strong></div>
+        </div>
+        <div className={styles.mockOptionGrid}>
+          {['抽選のみ行う', 'ランダム', 'ローテーション', 'グループ制マッチング'].map((item, index) => (
+            <span key={item} className={index === 3 ? styles.mockOptionSelected : ''}>{item}</span>
+          ))}
+        </div>
+        <div className={styles.mockSettingLine}><span>当日枠を含める</span><strong>ON / 2席</strong></div>
+        <div className={styles.mockSettingLine}><span>合計席数</span><strong>26席</strong></div>
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockValidation}><MockBadge tone="green">OK</MockBadge><p>設定に問題はありません。</p><small>INFO: 合計席数 26席、合計当選者数 23名</small></div>
+        <div className={styles.mockSavedRun}><strong>保存済み抽選結果</strong><span>2026-06-17 グループ制 / 23名</span></div>
+        <div className={styles.mockFooterActions}><MockButton variant="primary">抽選実行</MockButton><MockButton>抽選結果保存</MockButton></div>
+      </div>
+    </div>
+  </div>
+);
+
+const MatchingSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="マッチング" description="抽選結果からキャスト割り当てを作成します。" actions={<MockButton variant="primary">マッチング開始</MockButton>} />
+    <div className={styles.mockMetricGrid}>
+      <div><span>方式</span><strong>グループ制</strong></div>
+      <div><span>当選者</span><strong>23名</strong></div>
+      <div><span>合計席数</span><strong>26席</strong></div>
+      <div><span>出席キャスト</span><strong>8名</strong></div>
+    </div>
+    <div className={styles.mockMatchingGrid}>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>実行条件</div>
+        <div className={styles.mockOptionGrid}><span>読み取り専用</span><span className={styles.mockOptionSelected}>品質モード</span><span>X IDでNG除外</span></div>
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockValidation}><MockBadge tone="green">OK</MockBadge><p>マッチング準備が完了しています。</p></div>
+      </div>
+    </div>
+    <table className={styles.mockTable}>
+      <thead><tr><th>キャスト</th><th>R1</th><th>R2</th><th>R3</th><th>合計</th></tr></thead>
+      <tbody>
+        <tr><td>キャストA</td><td>サンプル太郎 <MockBadge tone="yellow">1希</MockBadge></td><td>ゲスト花子</td><td>なし</td><td>2</td></tr>
+        <tr><td>キャストB</td><td>ゲスト花子 <MockBadge tone="yellow">1希</MockBadge></td><td>サンプル太郎</td><td>問題ユーザー</td><td>3</td></tr>
+      </tbody>
+    </table>
+    <div className={styles.mockFooterActions}><MockButton>PNG出力</MockButton><MockButton>マッチング結果をTSVで保存</MockButton></div>
+  </div>
+);
+
+const CastSampleScreen: React.FC = () => (
+  <div className={styles.mockTwoPane}>
+    <div className={styles.mockPanel}>
+      <div className={styles.mockPanelTitle}>キャスト一覧</div>
+      {['キャストA / グループ1', 'キャストB / グループ1', 'キャストC / グループ2'].map((cast, index) => (
+        <div key={cast} className={`${styles.mockListRow}${index === 0 ? ` ${styles.mockListRowActive}` : ''}`}>{cast}</div>
+      ))}
+      <div className={styles.mockQuickInput}>キャストD を追加</div>
+    </div>
+    <div className={styles.mockPanel}>
+      <MockHeader title="キャストA" description="グループ1 / 出席対象" />
+      <div className={styles.mockProfileGrid}>
+        <div>
+          <div className={styles.mockAvatar}>写真</div>
+          <div style={{ marginTop: 8 }}><MockButton variant="danger">キャストを削除</MockButton></div>
+        </div>
+        <div className={styles.mockFieldStack}><span>名前: キャストA</span><span>グループ: グループ1</span><span>メモ: 接客メモを入力</span></div>
+      </div>
+      <div className={styles.mockExternalLinks}><MockButton>Discord</MockButton><MockButton>X</MockButton><MockButton>VRChat</MockButton></div>
+    </div>
+  </div>
+);
+
+const NgSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="NG管理" description="キャストNGと要注意人物を管理します。" />
+    <MockTabs tabs={['キャストNG', '要注意人物']} />
+    <div className={styles.mockTwoPane}>
+      <div className={styles.mockPanel}>
+        {[
+          ['キャストA', '2'],
+          ['キャストB', '0'],
+          ['キャストC', '1'],
+        ].map(([name, count], index) => (
+          <div key={name} className={`${styles.mockListRow}${index === 0 ? ` ${styles.mockListRowActive}` : ''}`}>
+            <span>{name}</span>{count !== '0' && <MockBadge tone="red">{count}</MockBadge>}
+          </div>
+        ))}
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>キャストA のNG一覧</div>
+        <table className={styles.mockTable}><tbody><tr><td>問題ユーザー</td><td>@problem_123</td><td>リンク</td><td><span className={styles.mockDeleteMark}>×</span></td></tr><tr><td>別名ユーザー</td><td>@bad_user</td><td>リンク</td><td><span className={styles.mockDeleteMark}>×</span></td></tr></tbody></table>
+        <div className={styles.mockCautionGrid}>
+          <div><strong>要注意候補</strong><span>@problem_123 / 2名のキャストがNG</span></div>
+          <div><strong>登録済み</strong><span>@manual_user / 手動登録</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const AttendanceSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="出席管理" description="出席中・待機の切り替えと履歴を保存します。" actions={<MockButton variant="primary">出席を記録</MockButton>} />
+    <MockTabs tabs={['出席設定', '出席履歴']} />
+    <div className={styles.mockAttendanceGrid}>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>出席中 3名</div>
+        {['キャストA', 'キャストB', 'キャストC'].map(cast => <div key={cast} className={`${styles.mockAttendanceRow} ${styles.mockAttendanceRowPresent}`}>{cast}</div>)}
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>待機 2名</div>
+        {['キャストD', 'キャストE'].map(cast => <div key={cast} className={`${styles.mockAttendanceRow} ${styles.mockAttendanceRowStandby}`}>{cast}</div>)}
+      </div>
+      <div className={styles.mockModalPreview}>
+        <div><span>記録日</span><strong>2026-06-17</strong></div>
+        <div><span>出席人数</span><strong>3名</strong></div>
+        <p>キャストA / キャストB / キャストC</p>
+      </div>
+    </div>
+    <table className={styles.mockTable}>
+      <tbody><tr><th>キャスト名</th><th>出席回数</th><th>06/15</th><th>06/16</th><th>06/17</th></tr><tr><td>キャストA</td><td>3</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>キャストD</td><td>1</td><td>-</td><td>✓</td><td>-</td></tr></tbody>
+    </table>
+  </div>
+);
+
+const TweetSampleScreen: React.FC = () => (
+  <div className={styles.mockScreenStack}>
+    <MockHeader title="投稿テンプレ" description="出席キャストを使った投稿文を作成します。" />
+    <div className={styles.mockTwoPane}>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>テンプレート編集</div>
+        <div className={styles.mockTextArea}>【{'{event_name}'}】<br />本日の出演キャスト<br />{'{casts}'}</div>
+        <div className={styles.mockExternalLinks}><MockBadge>{'{casts}'}</MockBadge><MockBadge>{'{event_name}'}</MockBadge></div>
+      </div>
+      <div className={styles.mockPanel}>
+        <div className={styles.mockPanelTitle}>プレビュー</div>
+        <div className={styles.mockTextArea}>【Manual Test Event】<br />本日の出演キャスト<br />キャストA<br />キャストB<br />キャストC</div>
+        <div className={styles.mockFooterActions}><span className={styles.mockCharacterCount}>57 / 280</span><MockButton variant="primary">コピー</MockButton></div>
+      </div>
+    </div>
+  </div>
+);
+
 /* ── 各機能の詳細コンテンツ ── */
 
 const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
@@ -152,6 +581,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'applicant-data': (
     <div>
       <FeatureHeader icon={<Database size={26} />} title="応募データ" description="取り込んだ応募者一覧の確認・管理を行う画面です。" color="var(--guide-accent-primary)" colorSoft="var(--guide-accent-primary-soft)" />
+      <FeatureGuideSample feature="applicant-data" />
 
       <ScreenSample title="応募データ">
         <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--discord-border)', marginBottom: 8 }}>
@@ -214,6 +644,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'import': (
     <div>
       <FeatureHeader icon={<FileText size={26} />} title="データ読取" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="var(--guide-accent-import)" colorSoft="var(--guide-accent-import-soft)" />
+      <FeatureGuideSample feature="import" />
 
       <ScreenSample title="データ読取 — 列マッピング">
         <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', borderRadius: 6, fontSize: 11, color: 'var(--discord-text-muted)' }}>
@@ -236,7 +667,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           ))}
         </div>
         <div style={{ marginTop: 10, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-          <span style={{ padding: '5px 12px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>抽選だけ行う</span>
+          <span style={{ padding: '5px 12px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>抽選へ進む</span>
           <span style={{ padding: '5px 14px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>取り込む</span>
         </div>
       </ScreenSample>
@@ -249,7 +680,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           '希望キャストの形式（別列 or カンマ区切り1列）を選択',
           'プレビューで取り込み結果を確認',
           '一覧で確認する場合は「○件を取り込む」をクリックして確定',
-          '取り込み後すぐ抽選へ進む場合は「抽選だけ行う」を選択',
+          '取り込み後すぐ抽選へ進む場合は「抽選へ進む」を選択',
         ]} />
       </Section>
 
@@ -280,12 +711,13 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'lottery': (
     <div>
       <FeatureHeader icon={<CheckCircle size={26} />} title="抽選" description="当選者を決定する抽選の設定・実行を行う画面です。" color="var(--guide-accent-lottery)" colorSoft="var(--guide-accent-lottery-soft)" />
+      <FeatureGuideSample feature="lottery" />
 
       <ScreenSample title="抽選設定">
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
-              { label: '形式', value: 'M001 ランダム' },
+              { label: '形式', value: 'ランダム' },
               { label: '当選人数', value: '20 人' },
               { label: 'ローテーション', value: '3 回' },
               { label: '総テーブル数', value: '4' },
@@ -308,10 +740,10 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="マッチング形式">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
           {([
-            { id: 'M000', color: '#6b7280', title: 'マッチングなし', desc: '抽選のみ。キャスト割り当てを行いません' },
-            { id: 'M001', color: '#3b82f6', title: 'ランダム',       desc: '希望キャストを優先しつつランダム割り当て。総テーブル数で枠指定' },
-            { id: 'M002', color: '#10b981', title: 'ローテーション', desc: '公平に循環させる。総テーブル数で枠指定' },
-            { id: 'M003', color: '#f59e0b', title: '複数名',         desc: 'テーブルあたりゲスト数・ローテキャスト数・当日枠を細かく設定' },
+            { id: '抽選のみ', color: '#6b7280', title: '抽選のみ行う', desc: 'キャスト割り当てを行わず、当選者だけを決定します' },
+            { id: 'ランダム', color: '#3b82f6', title: 'ランダム',       desc: '希望キャストを優先しつつランダムに割り当てます' },
+            { id: 'ローテ', color: '#10b981', title: 'ローテーション', desc: '公平に循環させながら割り当てます' },
+            { id: 'グループ', color: '#f59e0b', title: 'グループ制マッチング', desc: 'テーブルあたりゲスト数・担当キャスト数・当日枠を細かく設定します' },
           ] as const).map(m => (
             <div key={m.id} style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--discord-bg-dark)', border: `1px solid ${m.color}44`, borderLeft: `3px solid ${m.color}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -328,21 +760,21 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
         <FeatureList items={[
           '当選人数：抽選で選ぶ総人数',
           'ローテーション回数：何ローテーション分を割り当てるか',
-          '総テーブル数（M001/M002）：テーブル数 × ローテーション回数 = 枠数',
-          'テーブルあたりゲスト数（M003）：1テーブルの最大人数',
-          'ローテあたりキャスト数（M003）：1ローテーションで担当するキャスト数',
-          '当日枠を含める（M003）：当日枠分の席数を合計席数に追加',
+          '総テーブル数：ランダム・ローテーション方式で使用する枠数',
+          'テーブルあたりゲスト数：グループ制マッチングで使う1テーブルの最大人数',
+          'ローテあたりキャスト数：グループ制マッチングで使う1ローテーションの担当キャスト数',
+          '当日枠を含める：グループ制マッチングで当日枠分の席数を合計席数に追加',
           '確定当選者：抽選に関わらず必ず当選とするユーザーを事前指定。抽選人数と合わせた合計当選者数を確認可能',
         ]} />
       </Section>
 
-      <Section title="検証パネル">
-        <p>設定した条件に問題がないか自動チェックします。キャスト出席状況・合計席数・合計当選者数のバランスが合わない場合は警告が表示されます。INFOには合計席数と合計当選者数を表示します。</p>
+      <Section title="設定ステータス">
+        <p>条件設定内で実行可否を自動チェックします。キャスト出席状況・合計席数・合計当選者数のバランスが合わない場合は警告が表示されます。INFOには合計席数と合計当選者数を表示します。</p>
       </Section>
 
       <Section title="抽選実行後">
         <FeatureList items={[
-          '当選者一覧がテーブル表示されます（ユーザー名・X ID・確定/抽選の区分・希望キャスト）',
+          '当選者一覧がテーブル表示されます（ユーザー名・X ID・確定/抽選の区分・希望キャスト・NGキャスト）',
           '「抽選結果保存」で現在の抽選結果をDBに保存できます',
           '保存済み抽選結果は後から選択し直せます',
           '「マッチングへ」でマッチングタブに遷移します',
@@ -363,6 +795,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'matching': (
     <div>
       <FeatureHeader icon={<BarChart3 size={26} />} title="マッチング" description="抽選結果を元に、当選者とキャストの割り当てを行い結果を確認・出力する画面です。" color="var(--guide-accent-matching)" colorSoft="var(--guide-accent-matching-soft)" />
+      <FeatureGuideSample feature="matching" />
 
       <ScreenSample title="マッチング結果（キャスト別）">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -392,23 +825,23 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <Section title="画面構成">
         <FeatureList items={[
-          '【設定セクション】マッチング方式・NG条件・マッチング動作の確認と設定',
+          '【実行セクション】抽選設定で確定した条件、設定ステータス、探索モードを確認',
           '【キャスト別結果】キャストごとに応対する応募者をローテーション別に表示',
           '【テーブル別結果】テーブルごとの座席と担当キャストを表形式で表示',
           '【エクスポートセクション】キャスト別結果をTSVファイル出力',
         ]} />
       </Section>
 
-      <Section title="NG条件設定">
-        <p>マッチング実行前にNG判定の方法を設定します。</p>
+      <Section title="NG条件">
+        <p>NG判定はX IDのみで行い、該当キャストへの割り当てから自動除外します。</p>
         <FeatureList items={[
-          'NG判定タイプ：X ID のみ / ユーザー名のみ / 両方',
-          'マッチング動作：NG違反時に別キャストへ再割り当てするかどうか',
+          '判定基準：応募者のX IDとキャストNG登録のIDが一致するか',
+          '当選者リスト：NGキャストがいる当選者は抽選画面でも確認可能',
         ]} />
       </Section>
 
       <Section title="マッチング実行">
-        <p>「マッチングを実行」ボタンで実行します。実行後は結果がロックされ、NG設定の変更ができなくなります。「解除」ボタンで再度編集可能になります。</p>
+        <p>「マッチングを実行」ボタンで実行します。実行後は結果がロックされ、探索モードは変更できなくなります。条件を変更する場合は抽選設定に戻り、マッチングを再実行します。</p>
       </Section>
 
       <Section title="結果の出力">
@@ -432,7 +865,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <Section title="注意事項">
         <NoteList items={[
-          'マッチング結果のロック中はNG設定変更不可です',
+          '抽選設定で条件を変更した場合はマッチングの再実行が必要です',
           'エラーが発生した場合は詳細なエラーメッセージモーダルが表示されます',
           'PNG出力は高解像度（2倍）で生成されます',
         ]} />
@@ -443,6 +876,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'cast': (
     <div>
       <FeatureHeader icon={<Users size={26} />} title="キャスト名簿" description="キャストの登録・プロフィール・連絡先を管理する画面です。" color="var(--guide-accent-cast)" colorSoft="var(--guide-accent-cast-soft)" />
+      <FeatureGuideSample feature="cast" />
 
       <ScreenSample title="キャスト名簿">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -497,8 +931,8 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           'グループ名：グループを設定できます（マッチング結果でグループ分けに使用）',
           'プロフィール：自由テキストのメモ欄',
           '連絡先：Discord DM URL、WebプロフィールURL、Xの @username を登録し、リンクボタンで開けます',
-          'クイック入力：Discord DM URLの先頭を追加できます。Discord、X、VRChatは外部サイトを開きます',
-          '削除ボタン：単色赤背景のボタンから確認ダイアログ後にキャストを削除',
+          '外部サイト：Discord、X、VRChat の固定リンクを開けます',
+          '削除ボタン：プロフィール画像の下にある単色赤背景のボタンから確認ダイアログ後にキャストを削除',
         ]} />
       </Section>
 
@@ -519,6 +953,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'ng': (
     <div>
       <FeatureHeader icon={<UserX size={26} />} title="NG管理" description="キャストごとのNGユーザー登録と、要注意人物の管理を行う画面です。" color="var(--guide-accent-output)" colorSoft="var(--guide-accent-output-soft)" />
+      <FeatureGuideSample feature="ng" />
 
       <ScreenSample title="NG管理 — キャストNG">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -597,6 +1032,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'attendance': (
     <div>
       <FeatureHeader icon={<Calendar size={26} />} title="出席管理" description="イベント当日の出席中・待機の切り替えと、出席履歴の保存を行う画面です。" color="var(--guide-accent-primary)" colorSoft="var(--guide-accent-primary-soft)" />
+      <FeatureGuideSample feature="attendance" />
 
       <ScreenSample title="出席設定">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -669,6 +1105,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
   'tweet': (
     <div>
       <FeatureHeader icon={<Settings size={26} />} title="投稿テンプレ" description="X（Twitter）への投稿文テンプレートを作成・管理する画面です。" color="var(--guide-accent-cast)" colorSoft="var(--guide-accent-cast-soft)" />
+      <FeatureGuideSample feature="tweet" />
 
       <ScreenSample title="投稿テンプレ">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -839,7 +1276,7 @@ export const GuidePage: React.FC = () => {
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選だけ行う」を選択'].map((s, i) => (
+                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選へ進む」を選択'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-import)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
@@ -928,7 +1365,7 @@ export const GuidePage: React.FC = () => {
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「抽選」タブでマッチング形式を選ぶ（M000〜M003）', '当選人数・ローテーション回数・テーブル数などを設定する', '検証パネルでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する', '残したい結果は「抽選結果保存」でDBに保存する'].map((s, i) => (
+                    {['「抽選」タブでマッチング方式を選ぶ', '当選人数・ローテーション回数・テーブル数などを設定する', '設定ステータスでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する', '残したい結果は「抽選結果保存」でDBに保存する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-lottery)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
@@ -937,7 +1374,7 @@ export const GuidePage: React.FC = () => {
                   </div>
                   <ScreenSample title="抽選設定">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {[['形式', 'M001 ランダム'], ['当選人数', '20 人'], ['ローテーション', '3 回'], ['テーブル数', '4']].map(([l, v]) => (
+                      {[['形式', 'ランダム'], ['当選人数', '20 人'], ['ローテーション', '3 回'], ['テーブル数', '4']].map(([l, v]) => (
                         <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 70, fontSize: 10, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{l}</span>
                           <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-text-header)', fontWeight: 600 }}>{v}</span>
@@ -958,7 +1395,7 @@ export const GuidePage: React.FC = () => {
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「マッチング」タブでNG判定タイプを設定する', 'NG違反時の動作（再割り当てするか）を設定する', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をキャスト別・テーブル別の表で確認する'].map((s, i) => (
+                    {['「マッチング」タブで条件と探索モードを確認する', 'X ID固定のNG条件に該当する割り当ては自動除外される', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をキャスト別・テーブル別の表で確認する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-matching-bg)', border: '1px solid var(--guide-accent-matching-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-matching)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>

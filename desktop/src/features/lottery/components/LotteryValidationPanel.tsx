@@ -9,6 +9,8 @@ interface LotteryValidationPanelProps {
         info: string[];
     };
     onRunClick: () => void;
+    title?: string;
+    description?: string;
     readySubtext?: string;
     runLabel?: string;
 }
@@ -16,6 +18,8 @@ interface LotteryValidationPanelProps {
 export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
     validation,
     onRunClick,
+    title,
+    description,
     readySubtext = '抽選を行う準備が完了しています',
     runLabel = '抽選開始',
 }) => {
@@ -29,10 +33,17 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
 
     return (
         <div className={styles.lotteryFormCard}>
+            {title && (
+                <div className={styles.lotteryValidationTitleBlock}>
+                    <strong>{title}</strong>
+                    {description && <span>{description}</span>}
+                </div>
+            )}
+
             <div className={`${styles.lotteryValidationPanel} ${panelMod}`}>
                 <div className={styles.lotteryValidationHeader}>
                     {hasErrors   && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeError}`}>ERROR</span>}
-                    {hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeWarning}`}>WARNING</span>}
+                    {hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeWarning}`}>WARN</span>}
                     {hasInfo     && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeInfo}`}>INFO</span>}
                     {!hasErrors && !hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeNormal}`}>OK</span>}
                 </div>
@@ -47,19 +58,19 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                         <div className={styles.lotteryValidationList}>
                             {validation.info.map((message, idx) => (
                                 <div key={`info-${idx}`} className={`${styles.lotteryValidationItem} ${styles.lotteryValidationItemInfo}`}>
-                                    <strong className={styles.lotteryValidationItemLabel}>情報</strong>
+                                    <strong className={styles.lotteryValidationItemLabel}>INFO</strong>
                                     {message}
                                 </div>
                             ))}
                             {validation.errors.map((error, idx) => (
                                 <div key={`err-${idx}`} className={`${styles.lotteryValidationItem} ${styles.lotteryValidationItemError}`}>
-                                    <strong className={styles.lotteryValidationItemLabel}>エラー</strong>
+                                    <strong className={styles.lotteryValidationItemLabel}>ERROR</strong>
                                     {error}
                                 </div>
                             ))}
                             {validation.warnings.map((warning, idx) => (
                                 <div key={`warn-${idx}`} className={`${styles.lotteryValidationItem} ${styles.lotteryValidationItemWarning}`}>
-                                    <strong className={styles.lotteryValidationItemLabel}>注意</strong>
+                                    <strong className={styles.lotteryValidationItemLabel}>WARN</strong>
                                     {warning}
                                 </div>
                             ))}

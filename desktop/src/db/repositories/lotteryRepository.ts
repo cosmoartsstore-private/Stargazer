@@ -24,6 +24,35 @@ export interface SavedLotteryResultRow {
   result_order: number;
 }
 
+async function ensureSavedLotteryRunTables(): Promise<void> {
+  const db = getSessionDb();
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS lottery_saved_runs (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      label              TEXT NOT NULL,
+      matching_type_code TEXT NOT NULL,
+      lottery_count      INTEGER NOT NULL,
+      guaranteed_count   INTEGER NOT NULL,
+      winner_count       INTEGER NOT NULL,
+      created_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS lottery_saved_run_results (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id        INTEGER NOT NULL REFERENCES lottery_saved_runs(id) ON DELETE CASCADE,
+      applicant_id  INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+      is_guaranteed INTEGER NOT NULL DEFAULT 0,
+      result_order  INTEGER NOT NULL,
+      UNIQUE(run_id, applicant_id)
+    )
+  `);
+  await db.execute(`
+    CREATE INDEX IF NOT EXISTS idx_lottery_saved_run_results_run_id
+      ON lottery_saved_run_results(run_id, result_order)
+  `);
+}
+
 export async function getLotteryResults(): Promise<LotteryResultRow[]> {
   const db = getSessionDb();
   return db.select<LotteryResultRow[]>(
@@ -59,6 +88,7 @@ export async function clearLotteryResults(): Promise<void> {
 }
 
 export async function listSavedLotteryRuns(): Promise<SavedLotteryRunRow[]> {
+  await ensureSavedLotteryRunTables();
   const db = getSessionDb();
   return db.select<SavedLotteryRunRow[]>(
     `SELECT id, label, matching_type_code, lottery_count, guaranteed_count, winner_count, created_at
@@ -68,6 +98,7 @@ export async function listSavedLotteryRuns(): Promise<SavedLotteryRunRow[]> {
 }
 
 export async function getSavedLotteryResults(runId: number): Promise<SavedLotteryResultRow[]> {
+  await ensureSavedLotteryRunTables();
   const db = getSessionDb();
   return db.select<SavedLotteryResultRow[]>(
     `SELECT applicant_id, is_guaranteed, result_order
@@ -85,13 +116,15 @@ export async function saveLotteryRun(params: {
   guaranteedCount: number;
   rows: { applicant_id: number; is_guaranteed: boolean }[];
 }): Promise<number> {
+  await ensureSavedLotteryRunTables();
   const db = getSessionDb();
   await db.execute('BEGIN');
   try {
-    await db.execute(
+    const inserted = await db.select<Array<{ id: number }>>(
       `INSERT INTO lottery_saved_runs
         (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?)
+       RETURNING id`,
       [
         params.label,
         params.matchingTypeCode,
@@ -100,7 +133,6 @@ export async function saveLotteryRun(params: {
         params.rows.length,
       ],
     );
-    const inserted = await db.select<Array<{ id: number }>>('SELECT last_insert_rowid() AS id');
     const runId = inserted[0]?.id;
     if (runId == null) {
       throw new Error('保存済み抽選結果IDを取得できませんでした。');

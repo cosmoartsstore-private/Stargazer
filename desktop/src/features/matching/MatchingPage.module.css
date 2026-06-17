@@ -288,7 +288,7 @@
 
 .workflow-two-pane {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
   gap: 20px;
   align-items: start;
   margin-bottom: 24px;
@@ -303,7 +303,7 @@
   top: 16px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1050px) {
   .workflow-two-pane {
     grid-template-columns: 1fr;
   }

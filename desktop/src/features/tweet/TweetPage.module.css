@@ -94,3 +94,30 @@
   gap: 10px;
 }
 
+.tweet-copy-button {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--discord-accent-blue);
+  border-radius: 6px;
+  background: var(--discord-accent-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.1s, opacity 0.12s;
+}
+
+.tweet-copy-button:hover {
+  opacity: 0.88;
+}
+
+.tweet-copy-button:active {
+  transform: scale(0.98);
+}
+
+.tweet-copy-button-copied {
+  border-color: var(--discord-accent-green);
+  background: var(--discord-accent-green);
+}

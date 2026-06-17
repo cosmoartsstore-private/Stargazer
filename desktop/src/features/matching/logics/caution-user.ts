@@ -1,7 +1,7 @@
 /**
  * 要注意人物の判定・自動登録（仕様書 2-1）。
  *
- * - NGカウント（自動登録）: 1-1 の判定基準 (ngJudgmentType) に従う
+ * - NGカウント（自動登録）: 現行UIでは X ID の一致で判定する
  * - 同一人物判定 (isCautionUser): ユーザー名 AND アカウントID の両方一致（厳密 AND）
  * - NG例外判定 (isNGException): ユーザー名 AND アカウントID の両方一致（厳密 AND）
  */
@@ -78,8 +78,8 @@ export function isNGException(
  * 閾値以上なら要注意リスト用のエントリを返す。
  *
  * カウントロジック:
- *   - 各キャストのNGリストとの照合は ngJudgmentType（設定画面で選択）に従う。
- *     これにより username のみのレガシー ng_entries / ng_users もカウント対象になる。
+ *   - 各キャストのNGリストとの照合は呼び出し側から渡された判定基準に従う。
+ *     現行UIからの呼び出しでは X ID 固定で判定する。
  *   - isUserNGForCast を再利用し、ng-judgment.ts と一貫した判定を行う。
  *
  * 登録される CautionUser:
@@ -102,7 +102,7 @@ export function computeAutoCautionUsers(
 
     let count = 0;
     for (const cast of casts) {
-      // NG判定は ngJudgmentType に従う（username-only エントリでも判定可能）
+      // 現行UIでは X ID 固定の判定基準が渡される。
       if (isUserNGForCast(user, cast, judgmentType)) count += 1;
     }
     if (count >= threshold) {

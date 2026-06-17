@@ -149,8 +149,7 @@ export const TweetPage: React.FC = () => {
           <div className={styles.tweetActions}>
             <button
               type="button"
-              className={shared.btnSecondary}
-              style={{ flex: 1 }}
+              className={`${styles.tweetCopyButton}${copied ? ` ${styles.tweetCopyButtonCopied}` : ''}`}
               onClick={() => { void handleCopy(); }}
             >
               {copied ? '✓ コピー完了' : 'クリップボードにコピー'}

@@ -35,7 +35,9 @@ export function useLotteryValidation({
             : 0;
         const displayedLotteryCount = lotteryCount ?? Math.max(0, totalWinners - guaranteedCount);
 
-        if (matchingTypeCode === 'M003') {
+        if (matchingTypeCode === 'M000') {
+            info.push('抽選のみ行うため、席数・ラウンド数・出席キャスト数は検証対象外です。');
+        } else if (matchingTypeCode === 'M003') {
             const unitCount = activeCastCount / castsPerRotation;
             const baseSeatCount = totalTables * usersPerTable;
             const totalSeatCount = baseSeatCount + normalizedSameDaySlotCount;

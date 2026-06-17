@@ -837,6 +837,8 @@ Section Uninstall
     RmDir /r "$INSTDIR\Data\db"
     RmDir /r "$INSTDIR\Data\logs"
     RmDir /r "$INSTDIR\Data\EBWebView"
+    RmDir /r "$INSTDIR\Cache\EBWebView"
+    RmDir "$INSTDIR\Cache"
     ; Legacy cleanup: Tauri default app_data_dir wrote to Roaming before our fix.
     ; Also remove LOCALAPPDATA\{bundle_id} in case Tauri created it there.
     RmDir /r "$APPDATA\${BUNDLEID}"

@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
+import { CounterControl } from '@/components/CounterControl';
+import { getCautionNGCastNames } from '@/features/matching/logics/caution-user';
+import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
+import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { LotteryValidationPanel } from './components/LotteryValidationPanel';
 import { useLotteryValidation } from './hooks/useLotteryValidation';
 import { useAppContext } from '@/stores/AppContext';
@@ -79,6 +82,20 @@ function formatSavedLotteryLabel(winnerCount: number): string {
   return `抽選結果 ${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}（${winnerCount}名）`;
 }
 
+const NgCastResultCell: React.FC<{ ngCastNames: string[] }> = ({ ngCastNames }) => {
+  if (ngCastNames.length === 0) {
+    return <span className={styles.workflowResultNgNone}>—</span>;
+  }
+  const label = ngCastNames.length === 1
+    ? ngCastNames[0]
+    : `${ngCastNames.length}名のキャストがNG`;
+  return (
+    <span className={styles.workflowResultNgBadge} title={ngCastNames.join('、')}>
+      {label}
+    </span>
+  );
+};
+
 export const LotteryPage: React.FC = () => {
   const {
     setActivePage,
@@ -91,6 +108,7 @@ export const LotteryPage: React.FC = () => {
     setGlobalMatchingResult,
     setGlobalTableSlots,
     setGlobalMatchingError,
+    setIsMatchingLocked,
     matchingTypeCode,
     setMatchingTypeCode,
     rotationCount,
@@ -193,6 +211,70 @@ export const LotteryPage: React.FC = () => {
     allowM003EmptySeats,
     sameDaySlotCount: m003SameDaySlotCount,
   });
+  const isLotteryOnlyMode = matchingTypeCode === 'M000';
+
+  const clearMatchingForConditionChange = useCallback(() => {
+    setGlobalMatchingResult(null);
+    setGlobalTableSlots(undefined);
+    setGlobalMatchingError(null);
+    setIsMatchingLocked(false);
+  }, [
+    setGlobalMatchingError,
+    setGlobalMatchingResult,
+    setGlobalTableSlots,
+    setIsMatchingLocked,
+  ]);
+
+  const handleMatchingTypeChange = useCallback((code: MatchingTypeCode) => {
+    if (matchingTypeCode === code) return;
+    setMatchingTypeCode(code);
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, matchingTypeCode, setMatchingTypeCode]);
+
+  const handleRotationCountChange = useCallback((value: number) => {
+    if (rotationCount === value) return;
+    setRotationCount(value);
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, rotationCount, setRotationCount]);
+
+  const handleTotalTablesChange = useCallback((value: number) => {
+    if (totalTables === value) return;
+    setTotalTables(value);
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, setTotalTables, totalTables]);
+
+  const handleUsersPerTableChange = useCallback((value: number) => {
+    if (usersPerTable === value) return;
+    setUsersPerTable(value);
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, setUsersPerTable, usersPerTable]);
+
+  const handleCastsPerRotationChange = useCallback((value: number) => {
+    if (castsPerRotation === value) return;
+    setCastsPerRotation(value);
+    clearMatchingForConditionChange();
+  }, [castsPerRotation, clearMatchingForConditionChange, setCastsPerRotation]);
+
+  const handleSameDaySlotCountChange = useCallback((value: number) => {
+    if (m003SameDaySlotCount === value) return;
+    setM003SameDaySlotCount(value);
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, m003SameDaySlotCount, setM003SameDaySlotCount]);
+
+  const handleAllowM003EmptySeatsToggle = useCallback(() => {
+    const next = !allowM003EmptySeats;
+    setAllowM003EmptySeats(next);
+    if (next && m003SameDaySlotCount < 1) {
+      setM003SameDaySlotCount(1);
+    }
+    clearMatchingForConditionChange();
+  }, [
+    allowM003EmptySeats,
+    clearMatchingForConditionChange,
+    m003SameDaySlotCount,
+    setAllowM003EmptySeats,
+    setM003SameDaySlotCount,
+  ]);
 
   const guaranteedIds = useMemo(
     () => new Set(guaranteedWinners.map((winner) => winner.x_id)),
@@ -212,6 +294,7 @@ export const LotteryPage: React.FC = () => {
     setGlobalMatchingResult(null);
     setGlobalTableSlots(undefined);
     setGlobalMatchingError(null);
+    setIsMatchingLocked(false);
     setConfirmReplace(false);
 
     // Persist to the session DB. Re-running the lottery is intentionally a
@@ -229,10 +312,15 @@ export const LotteryPage: React.FC = () => {
     }
   };
 
-  const resultRows = currentWinners.map((winner) => ({
-    ...winner,
-    lotteryType: guaranteedIds.has(winner.x_id) || winner.is_guaranteed ? '確定当選' : '抽選当選',
-  }));
+  const resultRows = useMemo(
+    () => currentWinners.map((winner) => ({
+      ...winner,
+      lotteryType: guaranteedIds.has(winner.x_id) || winner.is_guaranteed ? '確定当選' : '抽選当選',
+      ngCastNames: getCautionNGCastNames(winner, casts, FIXED_NG_JUDGMENT_TYPE),
+    })),
+    [casts, currentWinners, guaranteedIds],
+  );
+  const ngWinnerCount = resultRows.filter((row) => row.ngCastNames.length > 0).length;
 
   const handleSaveLotteryRun = useCallback(async () => {
     if (currentWinners.length === 0 || savingLotteryRun) return;
@@ -283,6 +371,7 @@ export const LotteryPage: React.FC = () => {
       setGlobalMatchingResult(null);
       setGlobalTableSlots(undefined);
       setGlobalMatchingError(null);
+      setIsMatchingLocked(false);
       await replaceLotteryResults(await buildLotteryPersistenceRows(restored));
       const selected = savedRuns.find((run) => run.id === runId);
       setLotteryMessage(`${selected?.label ?? '保存済み抽選結果'}を選択しました。`);
@@ -298,6 +387,7 @@ export const LotteryPage: React.FC = () => {
     setGlobalMatchingError,
     setGlobalMatchingResult,
     setGlobalTableSlots,
+    setIsMatchingLocked,
   ]);
 
   return (
@@ -309,158 +399,170 @@ export const LotteryPage: React.FC = () => {
         </p>
       </header>
 
-      <div className={styles.workflowTwoPane}>
-        <section className={`${shared.sectionBlock} ${styles.workflowTwoPane__main}`}>
-          <div className={styles.workflowSectionHeader}>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>抽選設定</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-              memo.md の画面フローに合わせて、抽選設定と結果確認を分離しています。
-            </p>
-          </div>
+      <section className={`${shared.sectionBlock} ${styles.workflowConditionBlock}`}>
+        <div className={styles.workflowSectionHeader}>
+          <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>抽選設定</h2>
+          <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
+            当選者数とマッチング条件をまとめて設定し、右側のステータスで実行可否を確認します。
+          </p>
+        </div>
 
-          <div className={styles.workflowFormGrid}>
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>当選人数</span>
-              <input
-                type="number"
-                min={1}
-                className={shared.formInput}
-                value={lotteryCount}
-                onChange={(event) => setLotteryCount(Math.max(1, Number(event.target.value) || 1))}
-              />
-            </label>
+        <div className={styles.workflowConditionLayout}>
+          <div className={styles.workflowConditionForm}>
+            <div className={styles.workflowColumnHeader}>
+              <strong>条件入力</strong>
+              <span>抽選人数とマッチングに使う前提条件を設定します。</span>
+            </div>
+            <div className={styles.workflowFormGrid}>
+              <label className={shared.formGroup}>
+                <span className={shared.formLabel}>当選人数</span>
+                <CounterControl
+                  label="当選人数"
+                  value={lotteryCount}
+                  min={1}
+                  onChange={setLotteryCount}
+                />
+              </label>
 
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>マッチング方式</span>
-              <div className={styles.matchingTypeOptions}>
-                {MATCHING_TYPE_CODES_SELECTABLE.map((code) => (
-                  <button
-                    key={code}
-                    type="button"
-                    className={`${styles.matchingTypeOption}${matchingTypeCode === code ? ` ${styles.matchingTypeOptionSelected}` : ''}`}
-                    onClick={() => setMatchingTypeCode(code)}
-                  >
-                    {MATCHING_TYPE_LABELS[code]}
+              <div className={styles.workflowInlineCard}>
+                <div className={styles.workflowInlineCard__header}>
+                  <strong>確定当選者</strong>
+                  <span className={styles.workflowInlineCard__meta}>合計当選者 {totalWinners} 名</span>
+                  <button type="button" className={shared.btnSecondary} onClick={() => setShowGuaranteedSelect(true)}>
+                    選択
                   </button>
-                ))}
+                </div>
+                <div className={styles.workflowInlineCard__body}>
+                  {guaranteedWinners.length > 0
+                    ? guaranteedWinners.map((winner) => winner.name || winner.x_id).join(', ')
+                    : '未設定'}
+                </div>
               </div>
-            </label>
 
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>ラウンド数</span>
-              <input
-                type="number"
-                min={1}
-                className={shared.formInput}
-                value={rotationCount}
-                onChange={(event) => setRotationCount(Math.max(1, Number(event.target.value) || 1))}
-              />
-            </label>
+              <label className={`${shared.formGroup} ${styles.workflowFormWide}`}>
+                <span className={shared.formLabel}>マッチング方式</span>
+                <div className={styles.matchingTypeOptions}>
+                  {MATCHING_TYPE_CODES_SELECTABLE.map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      className={`${styles.matchingTypeOption}${matchingTypeCode === code ? ` ${styles.matchingTypeOptionSelected}` : ''}`}
+                      onClick={() => handleMatchingTypeChange(code)}
+                    >
+                      {MATCHING_TYPE_LABELS[code]}
+                    </button>
+                  ))}
+                </div>
+              </label>
 
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>総テーブル数</span>
-              <input
-                type="number"
-                min={1}
-                className={shared.formInput}
-                value={totalTables}
-                onChange={(event) => setTotalTables(Math.max(1, Number(event.target.value) || 1))}
-              />
-            </label>
-
-            <div className={`${styles.m003SettingsSlot}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
-              {matchingTypeCode === 'M003' ? (
+              {isLotteryOnlyMode ? (
+                <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowFormWide}`}>
+                  <div className={styles.m003SettingsPlaceholder}>
+                    抽選のみ行うため、ラウンド数・テーブル数・キャスト割り当て条件は使用しません。
+                  </div>
+                </div>
+              ) : (
                 <>
                   <label className={shared.formGroup}>
-                    <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
-                    <input
-                      type="number"
+                    <span className={shared.formLabel}>ラウンド数</span>
+                    <CounterControl
+                      label="ラウンド数"
+                      value={rotationCount}
                       min={1}
-                      className={shared.formInput}
-                      value={usersPerTable}
-                      onChange={(event) => setUsersPerTable(Math.max(1, Number(event.target.value) || 1))}
+                      onChange={handleRotationCountChange}
                     />
                   </label>
 
                   <label className={shared.formGroup}>
-                    <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
-                    <input
-                      type="number"
+                    <span className={shared.formLabel}>総テーブル数</span>
+                    <CounterControl
+                      label="総テーブル数"
+                      value={totalTables}
                       min={1}
-                      className={shared.formInput}
-                      value={castsPerRotation}
-                      onChange={(event) => setCastsPerRotation(Math.max(1, Number(event.target.value) || 1))}
+                      onChange={handleTotalTablesChange}
                     />
                   </label>
 
-                  <div className={shared.formGroup}>
-                    <span className={shared.formLabel}>当日枠を含める</span>
-                    <button
-                      type="button"
-                      className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
-                      role="switch"
-                      aria-checked={allowM003EmptySeats}
-                      onClick={() => {
-                        const next = !allowM003EmptySeats;
-                        setAllowM003EmptySeats(next);
-                        if (next && m003SameDaySlotCount < 1) {
-                          setM003SameDaySlotCount(1);
-                        }
-                      }}
-                    >
-                      <span className={styles.workflowSwitch__knob} />
-                      <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
-                    </button>
-                    <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
-                      <span>当日枠数</span>
-                      <input
-                        type="number"
-                        min={1}
-                        className={shared.formInput}
-                        value={m003SameDaySlotCount}
-                        disabled={!allowM003EmptySeats}
-                        onChange={(event) => setM003SameDaySlotCount(Math.max(1, Number(event.target.value) || 1))}
-                      />
-                    </label>
+                  <div className={`${styles.m003SettingsSlot} ${styles.workflowFormWide}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
+                    {matchingTypeCode === 'M003' ? (
+                      <>
+                        <div className={styles.m003SettingsGrid}>
+                          <label className={shared.formGroup}>
+                            <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
+                            <CounterControl
+                              label="1テーブルあたりのゲスト数"
+                              value={usersPerTable}
+                              min={1}
+                              onChange={handleUsersPerTableChange}
+                            />
+                          </label>
+
+                          <label className={shared.formGroup}>
+                            <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
+                            <CounterControl
+                              label="1ローテあたりのキャスト数"
+                              value={castsPerRotation}
+                              min={1}
+                              onChange={handleCastsPerRotationChange}
+                            />
+                          </label>
+                        </div>
+
+                        <div className={styles.sameDaySlotPanel}>
+                          <div className={shared.formGroup}>
+                            <span className={shared.formLabel}>当日枠を含める</span>
+                            <button
+                              type="button"
+                              className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
+                              role="switch"
+                              aria-checked={allowM003EmptySeats}
+                              onClick={handleAllowM003EmptySeatsToggle}
+                            >
+                              <span className={styles.workflowSwitch__knob} />
+                              <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
+                            </button>
+                          </div>
+
+                          <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
+                            <span>当日枠数</span>
+                            <CounterControl
+                              label="当日枠数"
+                              value={m003SameDaySlotCount}
+                              min={allowM003EmptySeats ? 1 : 0}
+                              disabled={!allowM003EmptySeats}
+                              className={styles.sameDaySlotCounter}
+                              onChange={handleSameDaySlotCountChange}
+                            />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <div className={styles.m003SettingsPlaceholder}>
+                        グループ制マッチングを選択すると、テーブル単位の詳細条件を編集できます。
+                      </div>
+                    )}
                   </div>
                 </>
-              ) : (
-                <div className={styles.m003SettingsPlaceholder}>
-                  M003 テーブル制を選択すると、テーブル単位の詳細条件を編集できます。
-                </div>
               )}
             </div>
-
-            <div className={styles.workflowInlineCard}>
-              <div className={styles.workflowInlineCard__header}>
-                <strong>確定当選者</strong>
-                <span className={styles.workflowInlineCard__meta}>合計当選者 {totalWinners} 名</span>
-                <button type="button" className={shared.btnSecondary} onClick={() => setShowGuaranteedSelect(true)}>
-                  選択
-                </button>
-              </div>
-              <div className={styles.workflowInlineCard__body}>
-                {guaranteedWinners.length > 0
-                  ? guaranteedWinners.map((winner) => winner.name || winner.x_id).join(', ')
-                  : '未設定'}
-              </div>
-            </div>
           </div>
-        </section>
 
-        <aside className={styles.workflowTwoPane__side}>
-          <LotteryValidationPanel
-            validation={validation}
-            onRunClick={() => {
-              if (currentWinners.length > 0) {
-                setConfirmReplace(true);
-                return;
-              }
-              runLottery();
-            }}
-          />
-        </aside>
-      </div>
+          <aside className={styles.workflowConditionStatus}>
+            <LotteryValidationPanel
+              validation={validation}
+              title="設定ステータス"
+              description="この条件で抽選を実行できるかを確認します。"
+              onRunClick={() => {
+                if (currentWinners.length > 0) {
+                  setConfirmReplace(true);
+                  return;
+                }
+                runLottery();
+              }}
+            />
+          </aside>
+        </div>
+      </section>
 
       <section className={`${shared.sectionBlock} ${styles.workflowResultSection}`}>
         <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
@@ -470,6 +572,11 @@ export const LotteryPage: React.FC = () => {
               抽選結果はDBに保存できます。保存済みの結果は後から選択し直せます。
             </p>
           </div>
+          {ngWinnerCount > 0 && (
+            <span className={styles.workflowResultNgSummary}>
+              NGキャストあり {ngWinnerCount} 名
+            </span>
+          )}
         </div>
 
         <div className={styles.workflowResultToolbar}>
@@ -502,31 +609,34 @@ export const LotteryPage: React.FC = () => {
             >
               {savingLotteryRun ? '保存中...' : '抽選結果保存'}
             </button>
-            <button
-              type="button"
-              className={shared.btnPrimary}
-              disabled={resultRows.length === 0}
-              onClick={() => setActivePage('matching')}
-            >
-              マッチングへ
-            </button>
+            {!isLotteryOnlyMode && (
+              <button
+                type="button"
+                className={shared.btnPrimary}
+                disabled={resultRows.length === 0}
+                onClick={() => setActivePage('matching')}
+              >
+                マッチングへ
+              </button>
+            )}
           </div>
         </div>
 
         <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 840 }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--discord-bg-secondary)' }}>
                 <th className={shared.tableHeaderCell}>ユーザー</th>
                 <th className={shared.tableHeaderCell}>X ID</th>
                 <th className={shared.tableHeaderCell}>区分</th>
                 <th className={shared.tableHeaderCell}>希望キャスト</th>
+                <th className={shared.tableHeaderCell}>NGキャスト</th>
               </tr>
             </thead>
             <tbody>
               {resultRows.length === 0 && (
                 <tr>
-                  <td className={shared.tableCell} colSpan={4} style={{ textAlign: 'center' }}>
+                  <td className={shared.tableCell} colSpan={5} style={{ textAlign: 'center' }}>
                     抽選結果はまだありません
                   </td>
                 </tr>
@@ -537,6 +647,9 @@ export const LotteryPage: React.FC = () => {
                   <td className={shared.tableCell}>{row.x_id}</td>
                   <td className={shared.tableCell}>{row.lotteryType}</td>
                   <td className={shared.tableCell}>{row.casts.join(', ') || '未設定'}</td>
+                  <td className={shared.tableCell}>
+                    <NgCastResultCell ngCastNames={row.ngCastNames} />
+                  </td>
                 </tr>
               ))}
             </tbody>
