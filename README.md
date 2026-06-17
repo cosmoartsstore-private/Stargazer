@@ -18,13 +18,13 @@
 ## Features
 
 - **Event Management** — イベントの作成・編集・管理
-- **Cast Management** — キャスト情報の登録（写真・メモ付き）
-- **Data Import** — CSV からの応募者データ取り込み（キャスト希望対応）
+- **Cast Management** — キャスト情報の登録（写真・プロフィール・連絡先付き）
+- **Data Import** — TSV からの応募者データ取り込み（キャスト希望対応）
 - **Lottery** — バリデーション付き抽選システム
 - **Matching** — 複数戦略の最適マッチング (M001 / M002 / M003)
-- **Attendance** — イベントごとの出欠管理
+- **Attendance** — イベントごとの出席履歴と出席回数管理
 - **NG Management** — ブロックユーザー・要注意ユーザー管理
-- **Tweet Integration** — ツイートインテント連携
+- **Post Template** — 投稿文テンプレート作成・コピー
 - **STELLA RECORD 連携** — 外部アプリ登録・解除
 
 ## Project Structure
@@ -32,15 +32,22 @@
 ```
 desktop/
   ├── src/                  # React フロントエンド
-  │   ├── pages/            #   ページ (DataManagement, Lottery, Matching, Attendance, etc.)
+  │   ├── features/         #   一覧・抽選・マッチング・内部管理などの画面
   │   ├── components/       #   共通コンポーネント
-  │   └── lib/              #   ユーティリティ・型定義
+  │   ├── db/               #   SQLite リポジトリ
+  │   └── common/           #   ユーティリティ・型定義
   └── src-tauri/            # Rust バックエンド
-      ├── src/commands/     #   Tauri コマンドハンドラ
-      ├── src/db/           #   DB アクセス・マイグレーション
+      ├── src/lib.rs        #   Tauri コマンドハンドラ・マイグレーション
       └── windows/          #   NSIS インストーラスクリプト
-docs/                       # 設計ドキュメント
+sample-data/                # 手動確認用サンプルデータ
 ```
+
+## Basic Flow
+
+1. イベントを作成、または既存イベントへ切り替えます。
+2. 応募管理の **一覧** タブで応募者 TSV を取り込みます。
+3. **抽選** タブで当選者を確定します。
+4. **マッチング** タブでキャスト割り当てを実行します。
 
 ## Getting Started
 

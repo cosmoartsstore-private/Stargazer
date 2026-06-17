@@ -44,7 +44,7 @@
   /* 切り替えボタン色：dark=紫 / light=水色（テーマ別上書き） */
   --color-switch: #7c3aed;
 
-  --discord-border: rgba(255, 255, 255, 0.1);
+  --discord-border: rgba(255, 255, 255, 0.13);
   --discord-divider: rgba(255, 255, 255, 0.1);
 
   --discord-button-primary: #5865f2;

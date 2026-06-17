@@ -3,7 +3,8 @@
    ======================================== */
 
 .ng-page {
-  max-width: 800px;
+  width: 100%;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -16,8 +17,8 @@
 .ng-page__section {
   background-color: var(--discord-bg-dark);
   border: 1px solid var(--discord-border);
-  border-radius: 10px;
-  padding: 24px;
+  border-radius: 8px;
+  padding: 20px;
 }
 
 .ng-page__section-header {
@@ -36,6 +37,45 @@
   color: var(--discord-text-muted);
   margin: 0;
   line-height: 1.5;
+}
+
+.ng-sub-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  margin-bottom: 18px;
+  background: var(--discord-bg-dark);
+  border: 1px solid var(--discord-border);
+  border-radius: 999px;
+  overflow-x: auto;
+}
+
+.ng-sub-tab {
+  min-width: 112px;
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--discord-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.ng-sub-tab:hover {
+  color: var(--discord-text-normal);
+  background: var(--discord-bg-hover);
+}
+
+.ng-sub-tab-active {
+  color: var(--discord-text-header);
+  background: var(--discord-bg-secondary);
+  border-color: var(--discord-border);
 }
 
 .ng-page__empty-note {
@@ -101,9 +141,9 @@
 .ng-page__badge {
   display: inline-block;
   font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
   letter-spacing: 0.02em;
 }
 
@@ -226,11 +266,12 @@
   padding: 12px 14px;
   background: var(--discord-bg-main);
   border: 1px solid var(--discord-border);
-  border-radius: 8px;
-  transition: border-color 0.12s;
+  border-radius: 6px;
+  transition: background 0.12s, border-color 0.12s;
 }
 
 .caution-candidate-card:hover {
+  background: var(--discord-bg-hover);
   border-color: var(--discord-accent-blue);
 }
 
@@ -252,11 +293,13 @@
 
 .caution-candidate-name-chip {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: 4px 8px;
+  border-radius: 6px;
   background: var(--discord-bg-dark);
   color: var(--discord-text-normal);
-  font-size: 12px;
+  border: 1px solid var(--discord-border);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .caution-candidate-noname {
@@ -272,20 +315,16 @@
   flex-shrink: 0;
 }
 
-.caution-candidate-count-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--discord-accent-red);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.caution-candidate-cast-names {
-  font-size: 12px;
+.caution-candidate-count-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
   color: var(--discord-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -308,13 +347,13 @@
 /* 左パネルのNGカウントバッジ */
 .ng-cast-list__count {
   flex-shrink: 0;
-  min-width: 20px;
+  min-width: 24px;
   text-align: center;
-  padding: 1px 6px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: var(--discord-accent-red);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -335,15 +374,17 @@
 .ng-detail-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .ng-detail-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
-  border-radius: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--discord-border);
+  border-radius: 6px;
   background: var(--discord-bg-dark);
   transition: background 0.1s;
 }
@@ -439,8 +480,8 @@
 }
 
 .ng-cast-grid__text-name {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--discord-text-header);
   white-space: nowrap;
   overflow: hidden;
@@ -460,17 +501,18 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
-  font-size: 16px;
+  color: var(--discord-accent-red);
+  font-size: 22px;
+  font-weight: 800;
   line-height: 1;
-  padding: 2px 5px;
-  border-radius: 4px;
-  transition: color 0.12s, background 0.12s;
+  padding: 0 4px;
+  transition: color 0.12s, opacity 0.12s;
 }
 
 .ng-cast-grid__remove:hover {
-  color: var(--discord-accent-red);
-  background: var(--discord-bg-hover);
+  color: #ff5a5d;
+  background: transparent;
+  opacity: 0.86;
 }
 
 /* モバイル対応 */
@@ -501,11 +543,11 @@
    ======================================== */
 
 :global([data-theme="skyblue"]) .ng-page__exception-chip {
-  background-color: #b8d0e0;
-  color: #152942;
+  background-color: #c9e4f6;
+  color: #102b49;
 }
 
 :global([data-theme="skyblue"]) .caution-candidate-name-chip {
-  background-color: #b8d0e0;
-  color: #152942;
+  background-color: #c9e4f6;
+  color: #102b49;
 }

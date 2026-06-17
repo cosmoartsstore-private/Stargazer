@@ -1,25 +1,11 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
-
-const KEYRING_SERVICE: &str = "Stargazer";
-const KEYRING_USER: &str = "DiscordBot";
+use std::process::Command;
 
 // Reserved subdirectory name: any folder literally called "shared" under an
 // event holds the event-shared DB and therefore cannot be a session timestamp
 // or an event name.
 const SHARED_DIR: &str = "shared";
-
-struct BotState {
-    child: Mutex<Option<Child>>,
-}
-
-impl Default for BotState {
-    fn default() -> Self {
-        Self { child: Mutex::new(None) }
-    }
-}
 
 fn resolve_data_root() -> PathBuf {
     if let Some(install_dir) = get_install_location() {
@@ -30,8 +16,7 @@ fn resolve_data_root() -> PathBuf {
             return parent.join("Data");
         }
     }
-    let local = std::env::var("LOCALAPPDATA")
-        .unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\ProgramData".to_string());
     PathBuf::from(local)
         .join("CosmoArtsStore")
         .join("Stargazer")
@@ -40,7 +25,9 @@ fn resolve_data_root() -> PathBuf {
 
 fn get_install_location() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\Stargazer").ok()?;
+    let key = hkcu
+        .open_subkey(r"Software\CosmoArtsStore\Stargazer")
+        .ok()?;
     key.get_value::<String, _>("InstallLocation").ok()
 }
 
@@ -62,9 +49,8 @@ CREATE TABLE IF NOT EXISTS apps (
 // A user may re-import a CSV many times (creating new sessions), but the cast
 // roster, attendance flags, header-template auto-apply config and reservation
 // lists should not be duplicated, reset, or pinned to any one CSV import.
-// Keeping them in their own DB makes session deletion safe (it never touches
-// event-level data) and makes the Discord bot's writes (cast registration)
-// independent of whatever CSV happens to be open in the UI.
+// Keeping them in their own DB makes session deletion safe because it never
+// touches event-level data.
 const SHARED_MIGRATION_V1: &str = r#"
 PRAGMA foreign_keys = ON;
 
@@ -80,7 +66,6 @@ CREATE TABLE casts (
   is_attend       INTEGER NOT NULL DEFAULT 1,
   photo_data_url  TEXT,
   memo            TEXT,
-  discord_user_id TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -148,6 +133,7 @@ const SHARED_MIGRATIONS: &[(i32, &str)] = &[(1, SHARED_MIGRATION_V1)];
 // once committed they are read-only from the UI's perspective. lottery_results
 // is the single exception — re-running the lottery TRUNCATEs and re-INSERTs
 // it, which is fine because it is a derived selection over applicants.
+// lottery_saved_runs stores user-approved snapshots that can be selected later.
 //
 // Matching results (applicant -> cast assignment) are deliberately NOT stored
 // in either DB. They are a pure function of (lottery_results, shared casts,
@@ -195,7 +181,34 @@ CREATE TABLE lottery_results (
 );
 "#;
 
-const SESSION_MIGRATIONS: &[(i32, &str)] = &[(1, SESSION_MIGRATION_V1)];
+const SESSION_MIGRATION_V2: &str = r#"
+CREATE TABLE lottery_saved_runs (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  label              TEXT NOT NULL,
+  matching_type_code TEXT NOT NULL,
+  lottery_count      INTEGER NOT NULL,
+  guaranteed_count   INTEGER NOT NULL,
+  winner_count       INTEGER NOT NULL,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE lottery_saved_run_results (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id        INTEGER NOT NULL REFERENCES lottery_saved_runs(id) ON DELETE CASCADE,
+  applicant_id  INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+  is_guaranteed INTEGER NOT NULL DEFAULT 0,
+  result_order  INTEGER NOT NULL,
+  UNIQUE(run_id, applicant_id)
+);
+
+CREATE INDEX idx_lottery_saved_run_results_run_id
+  ON lottery_saved_run_results(run_id, result_order);
+"#;
+
+const SESSION_MIGRATIONS: &[(i32, &str)] = &[
+    (1, SESSION_MIGRATION_V1),
+    (2, SESSION_MIGRATION_V2),
+];
 
 fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
@@ -221,7 +234,9 @@ fn validate_event_name(name: &str) -> Result<(), String> {
     for ch in name.chars() {
         let ok = ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == ' ';
         if !ok {
-            return Err(format!("イベント名に使用できない文字が含まれています: '{ch}'"));
+            return Err(format!(
+                "イベント名に使用できない文字が含まれています: '{ch}'"
+            ));
         }
     }
     Ok(())
@@ -288,19 +303,21 @@ fn session_dir(event_name: &str, timestamp: &str) -> PathBuf {
 }
 
 fn session_db_path(event_name: &str, timestamp: &str) -> PathBuf {
-    session_dir(event_name, timestamp).join("db").join("stargazer.db")
+    session_dir(event_name, timestamp)
+        .join("db")
+        .join("stargazer.db")
 }
 
 fn ensure_event_shared_db(event_name: &str) -> Result<PathBuf, String> {
     let db_path = event_shared_db_path(event_name);
-    let db_dir = db_path.parent().ok_or_else(|| "DBパスが不正です".to_string())?;
-    std::fs::create_dir_all(db_dir)
-        .map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
+    let db_dir = db_path
+        .parent()
+        .ok_or_else(|| "DBパスが不正です".to_string())?;
+    std::fs::create_dir_all(db_dir).map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
 
-    let mut conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("DBを開けませんでした: {e}"))?;
-    run_shared_migrations(&mut conn)
-        .map_err(|e| format!("マイグレーションに失敗しました: {e}"))?;
+    let mut conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DBを開けませんでした: {e}"))?;
+    run_shared_migrations(&mut conn).map_err(|e| format!("マイグレーションに失敗しました: {e}"))?;
     drop(conn);
 
     Ok(db_path)
@@ -308,12 +325,13 @@ fn ensure_event_shared_db(event_name: &str) -> Result<PathBuf, String> {
 
 fn ensure_session_db(event_name: &str, timestamp: &str) -> Result<PathBuf, String> {
     let db_path = session_db_path(event_name, timestamp);
-    let db_dir = db_path.parent().ok_or_else(|| "DBパスが不正です".to_string())?;
-    std::fs::create_dir_all(db_dir)
-        .map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
+    let db_dir = db_path
+        .parent()
+        .ok_or_else(|| "DBパスが不正です".to_string())?;
+    std::fs::create_dir_all(db_dir).map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
 
-    let mut conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("DBを開けませんでした: {e}"))?;
+    let mut conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DBを開けませんでした: {e}"))?;
     run_session_migrations(&mut conn)
         .map_err(|e| format!("マイグレーションに失敗しました: {e}"))?;
     drop(conn);
@@ -422,8 +440,7 @@ fn delete_session(event_name: String, timestamp: String) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
     }
-    std::fs::remove_dir_all(&dir)
-        .map_err(|e| format!("セッション削除に失敗しました: {e}"))?;
+    std::fs::remove_dir_all(&dir).map_err(|e| format!("セッション削除に失敗しました: {e}"))?;
     Ok(())
 }
 
@@ -447,8 +464,7 @@ fn delete_event(event_name: String) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
     }
-    std::fs::remove_dir_all(&dir)
-        .map_err(|e| format!("削除に失敗しました: {e}"))?;
+    std::fs::remove_dir_all(&dir).map_err(|e| format!("削除に失敗しました: {e}"))?;
     Ok(())
 }
 
@@ -467,215 +483,15 @@ fn rename_event(old_name: String, new_name: String) -> Result<(), String> {
     if new_dir.exists() {
         return Err(format!("イベント '{new_name}' は既に存在します"));
     }
-    std::fs::rename(&old_dir, &new_dir)
-        .map_err(|e| format!("リネームに失敗しました: {e}"))?;
+    std::fs::rename(&old_dir, &new_dir).map_err(|e| format!("リネームに失敗しました: {e}"))?;
     Ok(())
-}
-
-fn read_discord_token() -> Result<String, String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
-        .map_err(|e| format!("資格情報マネージャーにアクセスできません: {e}"))?;
-    entry
-        .get_password()
-        .map_err(|_| "Discord トークンが未設定です".to_string())
-}
-
-#[tauri::command]
-fn discord_token_save(token: String) -> Result<(), String> {
-    let trimmed = token.trim();
-    if trimmed.is_empty() {
-        return Err("トークンが空です".to_string());
-    }
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
-        .map_err(|e| format!("資格情報マネージャーにアクセスできません: {e}"))?;
-    entry
-        .set_password(trimmed)
-        .map_err(|e| format!("トークン保存に失敗しました: {e}"))
-}
-
-#[tauri::command]
-fn discord_token_exists() -> bool {
-    let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) else {
-        return false;
-    };
-    entry.get_password().is_ok()
-}
-
-#[tauri::command]
-fn discord_token_clear() -> Result<(), String> {
-    let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) else {
-        return Ok(());
-    };
-    match entry.delete_password() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("トークン削除に失敗しました: {e}")),
-    }
-}
-
-fn read_bot_entry_registry() -> Option<String> {
-    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\Stargazer").ok()?;
-    let value: String = key.get_value("BotEntry").ok()?;
-    if value.trim().is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-fn write_bot_entry_registry(path: Option<&str>) -> Result<(), String> {
-    use winreg::enums::*;
-    let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
-    let (key, _) = hkcu
-        .create_subkey(r"Software\CosmoArtsStore\Stargazer")
-        .map_err(|e| format!("レジストリキー作成に失敗しました: {e}"))?;
-    match path {
-        Some(p) => key
-            .set_value("BotEntry", &p.to_string())
-            .map_err(|e| format!("レジストリ書き込みに失敗しました: {e}")),
-        None => {
-            // delete_value returns NotFound if absent; treat as success
-            let _ = key.delete_value("BotEntry");
-            Ok(())
-        }
-    }
-}
-
-fn resolve_bot_entry() -> Result<PathBuf, String> {
-    if let Ok(p) = std::env::var("STARGAZER_BOT_ENTRY") {
-        let path = PathBuf::from(p);
-        if path.exists() {
-            return Ok(path);
-        }
-        return Err("STARGAZER_BOT_ENTRY のパスが存在しません".to_string());
-    }
-    let Some(stored) = read_bot_entry_registry() else {
-        return Err(
-            "bot 実行ファイルのパスが未設定です。Discord 連携画面で設定してください。"
-                .to_string(),
-        );
-    };
-    let path = PathBuf::from(&stored);
-    if !path.exists() {
-        return Err(format!(
-            "設定された bot のパスにファイルがありません: {stored}"
-        ));
-    }
-    Ok(path)
-}
-
-#[tauri::command]
-fn bot_entry_get() -> Option<String> {
-    read_bot_entry_registry()
-}
-
-#[tauri::command]
-fn bot_entry_set(path: String) -> Result<(), String> {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return Err("パスが空です".to_string());
-    }
-    let p = PathBuf::from(trimmed);
-    if !p.exists() {
-        return Err(format!("指定されたパスにファイルがありません: {trimmed}"));
-    }
-    write_bot_entry_registry(Some(trimmed))
-}
-
-#[tauri::command]
-fn bot_entry_clear() -> Result<(), String> {
-    write_bot_entry_registry(None)
-}
-
-#[tauri::command]
-fn discord_bot_start(
-    state: tauri::State<BotState>,
-    event_name: String,
-) -> Result<(), String> {
-    validate_event_name(&event_name)?;
-
-    let mut guard = state.child.lock().unwrap();
-    if let Some(child) = guard.as_mut() {
-        if matches!(child.try_wait(), Ok(None)) {
-            return Err("bot は既に起動しています".to_string());
-        }
-        *guard = None;
-    }
-
-    let token = read_discord_token()?;
-    // The bot writes cast registrations (and reads existing casts / NG lists)
-    // which now live exclusively in the event-shared DB. Pointing the bot at
-    // any session DB would silently fail because those tables no longer
-    // exist there, and would also tie cast data to a single CSV import.
-    let db_path = ensure_event_shared_db(&event_name)?;
-    let bot_entry = resolve_bot_entry()?;
-
-    // Run a .js entry via `node`; otherwise execute the file directly
-    // (built bot exe / SEA / any single-file runtime).
-    let is_script = bot_entry
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("js") || e.eq_ignore_ascii_case("mjs"))
-        .unwrap_or(false);
-
-    let mut command = if is_script {
-        let mut c = Command::new("node");
-        c.arg(&bot_entry);
-        c
-    } else {
-        Command::new(&bot_entry)
-    };
-
-    command
-        .env("STARGAZER_BOT_TOKEN", token)
-        .env("STARGAZER_BOT_DB_PATH", db_path.to_string_lossy().to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: prevents a console window from flashing on spawn
-        command.creation_flags(0x0800_0000);
-    }
-
-    let child = command
-        .spawn()
-        .map_err(|e| format!("bot を起動できませんでした（Node.js が必要です）: {e}"))?;
-
-    *guard = Some(child);
-    Ok(())
-}
-
-#[tauri::command]
-fn discord_bot_stop(state: tauri::State<BotState>) -> Result<(), String> {
-    let mut guard = state.child.lock().unwrap();
-    if let Some(mut child) = guard.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn discord_bot_status(state: tauri::State<BotState>) -> bool {
-    let mut guard = state.child.lock().unwrap();
-    let Some(child) = guard.as_mut() else {
-        return false;
-    };
-    match child.try_wait() {
-        Ok(None) => true,
-        _ => {
-            *guard = None;
-            false
-        }
-    }
 }
 
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\StellaRecord").ok()?;
+    let key = hkcu
+        .open_subkey(r"Software\CosmoArtsStore\StellaRecord")
+        .ok()?;
     key.get_value::<String, _>("DbPath").ok()
 }
 
@@ -692,15 +508,16 @@ fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String> {
     let db_path = get_stellarecord_db_path()
         .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
-    let conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
     conn.execute_batch(APPS_SCHEMA)
         .map_err(|e| format!("テーブル作成に失敗しました: {e}"))?;
 
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path =
+        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
 
-    let icon_data: Option<Vec<u8>> = app.path()
+    let icon_data: Option<Vec<u8>> = app
+        .path()
         .resource_dir()
         .ok()
         .map(|d: std::path::PathBuf| d.join("icons").join("128x128.png"))
@@ -715,7 +532,8 @@ fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String> {
             exe_path.to_string_lossy().to_string(),
             icon_data,
         ],
-    ).map_err(|e| format!("登録に失敗しました: {e}"))?;
+    )
+    .map_err(|e| format!("登録に失敗しました: {e}"))?;
 
     Ok("StellaRecord に登録しました".to_string())
 }
@@ -729,13 +547,53 @@ fn unregister_from_stellarecord() -> Result<String, String> {
         return Ok("DB が存在しないため削除不要です".to_string());
     }
 
-    let conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
-    conn.execute("DELETE FROM apps WHERE name = ?1", rusqlite::params!["Stargazer"])
-        .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
+    conn.execute(
+        "DELETE FROM apps WHERE name = ?1",
+        rusqlite::params!["Stargazer"],
+    )
+    .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
 
     Ok("StellaRecord から登録解除しました".to_string())
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !trimmed.starts_with("https://") {
+        return Err("https:// のURLのみ開けます".to_string());
+    }
+    open_url_with_system(trimmed)
+}
+
+#[cfg(target_os = "windows")]
+fn open_url_with_system(url: &str) -> Result<(), String> {
+    Command::new("rundll32")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
+}
+
+#[cfg(target_os = "macos")]
+fn open_url_with_system(url: &str) -> Result<(), String> {
+    Command::new("open")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_url_with_system(url: &str) -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -749,7 +607,6 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .manage(BotState::default())
         .invoke_handler(tauri::generate_handler![
             register_to_stellarecord,
             unregister_from_stellarecord,
@@ -763,28 +620,113 @@ pub fn run() {
             create_event,
             delete_event,
             rename_event,
-            discord_token_save,
-            discord_token_exists,
-            discord_token_clear,
-            discord_bot_start,
-            discord_bot_stop,
-            discord_bot_status,
-            bot_entry_get,
-            bot_entry_set,
-            bot_entry_clear,
+            open_external_url,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            use tauri::Manager;
-            if let tauri::RunEvent::Exit = event {
-                if let Some(state) = app_handle.try_state::<BotState>() {
-                    let mut guard = state.child.lock().unwrap();
-                    if let Some(mut child) = guard.take() {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
-                }
-            }
-        });
+        .run(|_, _| {});
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new(name: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("システム時刻がUNIX_EPOCHより前になっています")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "stargazer-{name}-{}-{nanos}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&path).expect("テスト用ディレクトリを作成できません");
+            Self(path)
+        }
+
+        fn db_path(&self, file_name: &str) -> PathBuf {
+            self.0.join(file_name)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn open_migrated_shared_db(path: &Path) -> rusqlite::Result<Connection> {
+        let mut conn = Connection::open(path)?;
+        run_shared_migrations(&mut conn)?;
+        Ok(conn)
+    }
+
+    fn open_migrated_session_db(path: &Path) -> rusqlite::Result<Connection> {
+        let mut conn = Connection::open(path)?;
+        run_session_migrations(&mut conn)?;
+        Ok(conn)
+    }
+
+    #[test]
+    fn same_cast_name_does_not_share_attendance_between_event_dbs() -> rusqlite::Result<()> {
+        let dir = TestDir::new("event-attendance-isolation");
+        let source = open_migrated_shared_db(&dir.db_path("source.db"))?;
+        let target = open_migrated_shared_db(&dir.db_path("target.db"))?;
+        let cast_name = "同名キャスト";
+
+        source.execute("INSERT INTO casts (name) VALUES (?1)", [cast_name])?;
+        let source_cast_id = source.last_insert_rowid();
+        source.execute(
+            "INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?1, '2026-06-16')",
+            [source_cast_id],
+        )?;
+        target.execute("INSERT INTO casts (name) VALUES (?1)", [cast_name])?;
+
+        let source_attendance_count: i64 = source.query_row(
+            "SELECT COUNT(*)
+             FROM cast_attendance ca
+             JOIN casts c ON c.id = ca.cast_id
+             WHERE c.name = ?1",
+            [cast_name],
+            |row| row.get(0),
+        )?;
+        let target_attendance_count: i64 = target.query_row(
+            "SELECT COUNT(*)
+             FROM cast_attendance ca
+             JOIN casts c ON c.id = ca.cast_id
+             WHERE c.name = ?1",
+            [cast_name],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(source_attendance_count, 1);
+        assert_eq!(target_attendance_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn session_migration_creates_saved_lottery_run_tables() -> rusqlite::Result<()> {
+        let dir = TestDir::new("saved-lottery-runs");
+        let conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+
+        let user_version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        let table_count: i64 = conn.query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'table'
+               AND name IN ('lottery_saved_runs', 'lottery_saved_run_results')",
+            [],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(user_version, 2);
+        assert_eq!(table_count, 2);
+        Ok(())
+    }
 }

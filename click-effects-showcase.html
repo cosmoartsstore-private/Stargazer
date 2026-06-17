@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Click Effects Showcase</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #1e1f22;
+  color: #dbdee1;
+  padding: 32px;
+}
+h1 { font-size: 18px; margin-bottom: 6px; }
+.sub { font-size: 12px; color: #949ba4; margin-bottom: 24px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.zone {
+  position: relative;
+  height: 180px;
+  background: #2b2d31;
+  border: 1px solid #3f4147;
+  border-radius: 10px;
+    cursor: none;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+}
+.zone-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #949ba4;
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.zone-num {
+  color: #5865f2;
+  margin-right: 5px;
+}
+.fx {
+  position: absolute;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<h1>Click Effects Showcase</h1>
+<p class="sub">各エリア内をクリックするとエフェクトが表示されます</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const effects = [
+  { name: 'Ripple Ring', fn: rippleRing },
+  { name: 'Dot Burst', fn: dotBurst },
+  { name: 'Star Scatter', fn: starScatter },
+  { name: 'Cross Flash', fn: crossFlash },
+  { name: 'Smoke Puff', fn: smokePuff },
+  { name: 'Heart Pop', fn: heartPop },
+  { name: 'Diamond Shatter', fn: diamondShatter },
+  { name: 'Electric Spark', fn: electricSpark },
+  { name: 'Ink Drop', fn: inkDrop },
+  { name: 'Pixel Dissolve', fn: pixelDissolve },
+  { name: 'Spiral Out', fn: spiralOut },
+  { name: 'Firework', fn: firework },
+  { name: 'Bubble Float', fn: bubbleFloat },
+  { name: 'Slash X', fn: slashX },
+  { name: 'Wave Pulse', fn: wavePulse },
+  { name: 'Confetti Rain', fn: confettiRain },
+  { name: 'Snowflake', fn: snowflake },
+  { name: 'Lightning', fn: lightning },
+  { name: 'Orbit Rings', fn: orbitRings },
+  { name: 'Shockwave', fn: shockwave },
+];
+
+const grid = document.getElementById('grid');
+
+effects.forEach((eff, i) => {
+  const zone = document.createElement('div');
+  zone.className = 'zone';
+  zone.innerHTML = `<span class="zone-label"><span class="zone-num">${String(i+1).padStart(2,'0')}</span>${eff.name}</span>`;
+  zone.addEventListener('click', (e) => {
+    const rect = zone.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    eff.fn(zone, x, y);
+  });
+  grid.appendChild(zone);
+});
+
+function mk(parent, styles) {
+  const d = document.createElement('div');
+  d.className = 'fx';
+  Object.assign(d.style, styles);
+  parent.appendChild(d);
+  return d;
+}
+
+function rm(el, ms) { setTimeout(() => el.remove(), ms); }
+
+// 01: Ripple Ring
+function rippleRing(p, x, y) {
+  const r = mk(p, { left:x+'px', top:y+'px', width:'0', height:'0', border:'2px solid rgba(88,101,242,0.8)', borderRadius:'50%', transform:'translate(-50%,-50%)', transition:'all 0.5s ease-out', opacity:'1' });
+  requestAnimationFrame(() => { r.style.width='100px'; r.style.height='100px'; r.style.opacity='0'; });
+  rm(r, 600);
+}
+
+// 02: Dot Burst
+function dotBurst(p, x, y) {
+  for (let i = 0; i < 10; i++) {
+    const a = (360/10)*i, d = 25+Math.random()*20, s = 3+Math.random()*3;
+    const dot = mk(p, { left:x+'px', top:y+'px', width:s+'px', height:s+'px', borderRadius:'50%', background:`hsl(${235+Math.random()*40},80%,70%)`, transform:'translate(-50%,-50%)', transition:'all 0.4s ease-out', opacity:'1' });
+    requestAnimationFrame(() => { dot.style.transform=`translate(calc(-50% + ${Math.cos(a*Math.PI/180)*d}px), calc(-50% + ${Math.sin(a*Math.PI/180)*d}px)) scale(0.2)`; dot.style.opacity='0'; });
+    rm(dot, 500);
+  }
+}
+
+// 03: Star Scatter
+function starScatter(p, x, y) {
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random()*360, d = 20+Math.random()*35;
+    const s = mk(p, { left:x+'px', top:y+'px', fontSize:(10+Math.random()*8)+'px', transform:'translate(-50%,-50%)', transition:'all 0.5s ease-out', opacity:'1', color:'#fee75c' });
+    s.textContent = '\u2726';
+    requestAnimationFrame(() => { s.style.transform=`translate(calc(-50% + ${Math.cos(a*Math.PI/180)*d}px), calc(-50% + ${Math.sin(a*Math.PI/180)*d}px)) rotate(${Math.random()*180}deg) scale(0.3)`; s.style.opacity='0'; });
+    rm(s, 600);
+  }
+}
+
+// 04: Cross Flash
+function crossFlash(p, x, y) {
+  [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].forEach(({dx,dy}) => {
+    const l = mk(p, { left:x+'px', top:y+'px', width:dx?'0':'2px', height:dy?'0':'2px', background:'rgba(255,255,255,0.9)', transform:'translate(-50%,-50%)', transition:'all 0.3s ease-out', opacity:'1', borderRadius:'1px' });
+    requestAnimationFrame(() => { if(dx) l.style.width='35px'; if(dy) l.style.height='35px'; l.style.opacity='0'; });
+    rm(l, 400);
+  });
+}
+
+// 05: Smoke Puff
+function smokePuff(p, x, y) {
+  for (let i = 0; i < 5; i++) {
+    const sz = 10+Math.random()*14;
+    const pf = mk(p, { left:(x+(Math.random()-0.5)*16)+'px', top:(y+(Math.random()-0.5)*16)+'px', width:sz+'px', height:sz+'px', borderRadius:'50%', background:'rgba(180,180,180,0.35)', transform:'translate(-50%,-50%) scale(0.5)', transition:`all ${0.4+Math.random()*0.3}s ease-out`, opacity:'1' });
+    requestAnimationFrame(() => { pf.style.transform=`translate(calc(-50% + ${(Math.random()-0.5)*20}px), calc(-50% - ${15+Math.random()*20}px)) scale(1.4)`; pf.style.opacity='0'; });
+    rm(pf, 800);
+  }
+}
+
+// 06: Heart Pop
+function heartPop(p, x, y) {
+  for (let i = 0; i < 5; i++) {
+    const h = mk(p, { left:(x+(Math.random()-0.5)*8)+'px', top:y+'px', fontSize:(11+Math.random()*9)+'px', transform:'translate(-50%,-50%) scale(0)', transition:'all 0.5s cubic-bezier(0.34,1.56,0.64,1)', opacity:'1', color:`hsl(${340+Math.random()*20},80%,60%)` });
+    h.textContent = '\u2665';
+    setTimeout(() => { requestAnimationFrame(() => { h.style.transform=`translate(calc(-50% + ${(Math.random()-0.5)*25}px), calc(-50% - ${25+Math.random()*35}px)) scale(1) rotate(${(Math.random()-0.5)*25}deg)`; h.style.opacity='0'; }); }, i*50);
+    rm(h, 800);
+  }
+}
+
+// 07: Diamond Shatter
+function diamondShatter(p, x, y) {
+  for (let i = 0; i < 8; i++) {
+    const a = (360/8)*i+Math.random()*20, d = 20+Math.random()*18;
+    const sh = mk(p, { left:x+'px', top:y+'px', width:'5px', height:'9px', background:`hsl(${200+Math.random()*60},70%,70%)`, transform:'translate(-50%,-50%) rotate(45deg)', transition:'all 0.4s ease-out', opacity:'1', clipPath:'polygon(50% 0%,100% 50%,50% 100%,0% 50%)' });
+    requestAnimationFrame(() => { sh.style.transform=`translate(calc(-50% + ${Math.cos(a*Math.PI/180)*d}px), calc(-50% + ${Math.sin(a*Math.PI/180)*d}px)) rotate(${a}deg) scale(0.2)`; sh.style.opacity='0'; });
+    rm(sh, 500);
+  }
+}
+
+// 08: Electric Spark
+function electricSpark(p, x, y) {
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random()*360, len = 12+Math.random()*18;
+    const sp = mk(p, { left:x+'px', top:y+'px', width:len+'px', height:'1.5px', background:'linear-gradient(90deg,rgba(87,242,135,0.9),transparent)', transform:`translate(0,-50%) rotate(${a}deg)`, transformOrigin:'0 50%', transition:'opacity 0.2s', opacity:'1' });
+    requestAnimationFrame(() => { sp.style.opacity='0'; });
+    rm(sp, 300);
+  }
+  const fl = mk(p, { left:x+'px', top:y+'px', width:'6px', height:'6px', borderRadius:'50%', background:'#57f287', boxShadow:'0 0 10px #57f287', transform:'translate(-50%,-50%)', transition:'all 0.3s', opacity:'1' });
+  requestAnimationFrame(() => { fl.style.transform='translate(-50%,-50%) scale(2.5)'; fl.style.opacity='0'; });
+  rm(fl, 400);
+}
+
+// 09: Ink Drop
+function inkDrop(p, x, y) {
+  const dr = mk(p, { left:x+'px', top:y+'px', width:'6px', height:'6px', borderRadius:'50%', background:'rgba(88,101,242,0.5)', transform:'translate(-50%,-50%)', transition:'all 0.5s ease-out', opacity:'0.8' });
+  requestAnimationFrame(() => { dr.style.width='70px'; dr.style.height='70px'; dr.style.opacity='0'; dr.style.borderRadius='40% 60% 55% 45%'; });
+  rm(dr, 600);
+}
+
+// 10: Pixel Dissolve
+function pixelDissolve(p, x, y) {
+  const g=4, total=24, sz=total/g;
+  for (let r=0; r<g; r++) for (let c=0; c<g; c++) {
+    const px = mk(p, { left:(x-total/2+c*sz)+'px', top:(y-total/2+r*sz)+'px', width:sz+'px', height:sz+'px', background:`hsl(${235+Math.random()*30},70%,${55+Math.random()*20}%)`, transition:`all ${0.3+Math.random()*0.3}s ease-out`, opacity:'1' });
+    setTimeout(() => { requestAnimationFrame(() => { px.style.transform=`translate(${(Math.random()-0.5)*35}px,${(Math.random()-0.5)*35}px) scale(0)`; px.style.opacity='0'; }); }, (r+c)*25);
+    rm(px, 700);
+  }
+}
+
+// 11: Spiral Out
+function spiralOut(p, x, y) {
+  for (let i = 0; i < 8; i++) {
+    const dot = mk(p, { left:x+'px', top:y+'px', width:'4px', height:'4px', borderRadius:'50%', background:`hsl(${235+i*15},80%,70%)`, transform:'translate(-50%,-50%)', transition:'all 0.6s cubic-bezier(0.2,0.8,0.3,1)', opacity:'1' });
+    const sa = (360/8)*i;
+    setTimeout(() => { requestAnimationFrame(() => { const ea=sa+120, r=35; dot.style.transform=`translate(calc(-50% + ${Math.cos(ea*Math.PI/180)*r}px), calc(-50% + ${Math.sin(ea*Math.PI/180)*r}px)) scale(0.2)`; dot.style.opacity='0'; }); }, i*25);
+    rm(dot, 800);
+  }
+}
+
+// 12: Firework
+function firework(p, x, y) {
+  const colors = ['#ed4245','#fee75c','#57f287','#5865f2','#eb459e','#fff'];
+  for (let i = 0; i < 14; i++) {
+    const a = (360/14)*i, d = 30+Math.random()*18;
+    const dot = mk(p, { left:x+'px', top:y+'px', width:'3px', height:'3px', borderRadius:'50%', background:colors[i%colors.length], boxShadow:`0 0 3px ${colors[i%colors.length]}`, transform:'translate(-50%,-50%)', transition:'all 0.5s cubic-bezier(0.2,0.9,0.3,1)', opacity:'1' });
+    requestAnimationFrame(() => { dot.style.transform=`translate(calc(-50% + ${Math.cos(a*Math.PI/180)*d}px), calc(-50% + ${Math.sin(a*Math.PI/180)*d}px)) scale(0.2)`; dot.style.opacity='0'; });
+    rm(dot, 600);
+  }
+}
+
+// 13: Bubble Float
+function bubbleFloat(p, x, y) {
+  for (let i = 0; i < 6; i++) {
+    const sz = 6+Math.random()*10;
+    const b = mk(p, { left:(x+(Math.random()-0.5)*16)+'px', top:y+'px', width:sz+'px', height:sz+'px', borderRadius:'50%', border:'1.5px solid rgba(88,101,242,0.6)', background:'rgba(88,101,242,0.08)', transform:'translate(-50%,-50%) scale(0)', transition:`all ${0.4+Math.random()*0.3}s cubic-bezier(0.34,1.56,0.64,1)`, opacity:'1' });
+    setTimeout(() => { requestAnimationFrame(() => { b.style.transform=`translate(calc(-50% + ${(Math.random()-0.5)*25}px), calc(-50% - ${25+Math.random()*35}px)) scale(1)`; b.style.opacity='0'; }); }, i*40);
+    rm(b, 900);
+  }
+}
+
+// 14: Slash X
+function slashX(p, x, y) {
+  [45,-45].forEach(a => {
+    const s = mk(p, { left:x+'px', top:y+'px', width:'0', height:'2.5px', background:'rgba(255,255,255,0.85)', transform:`translate(-50%,-50%) rotate(${a}deg)`, transition:'width 0.2s ease-out, opacity 0.3s ease-out 0.12s', opacity:'1', borderRadius:'1px' });
+    requestAnimationFrame(() => { s.style.width='32px'; });
+    setTimeout(() => { s.style.opacity='0'; }, 180);
+    rm(s, 500);
+  });
+}
+
+// 15: Wave Pulse
+function wavePulse(p, x, y) {
+  for (let i = 0; i < 3; i++) {
+    const r = mk(p, { left:x+'px', top:y+'px', width:'0', height:'0', border:`${2-i*0.4}px solid rgba(88,101,242,${0.7-i*0.2})`, borderRadius:'50%', transform:'translate(-50%,-50%)', transition:`all ${0.45+i*0.1}s ease-out`, opacity:'1' });
+    setTimeout(() => { requestAnimationFrame(() => { const sz=70+i*25; r.style.width=sz+'px'; r.style.height=sz+'px'; r.style.opacity='0'; }); }, i*90);
+    rm(r, 800);
+  }
+}
+
+// 16: Confetti Rain
+function confettiRain(p, x, y) {
+  const colors = ['#5865f2','#57f287','#fee75c','#ed4245','#eb459e','#5bc0eb'];
+  for (let i = 0; i < 12; i++) {
+    const sz = 4+Math.random()*4;
+    const pc = mk(p, { left:(x+(Math.random()-0.5)*8)+'px', top:y+'px', width:sz+'px', height:(sz*0.6)+'px', background:colors[i%colors.length], transform:`translate(-50%,-50%) rotate(${Math.random()*360}deg)`, transition:'all 0.6s cubic-bezier(0.2,0.8,0.3,1)', opacity:'1', borderRadius:'1px' });
+    requestAnimationFrame(() => { pc.style.transform=`translate(calc(-50% + ${(Math.random()-0.5)*70}px), calc(-50% - ${20+Math.random()*45}px)) rotate(${Math.random()*720}deg)`; pc.style.opacity='0'; });
+    rm(pc, 700);
+  }
+}
+
+// 17: Snowflake
+function snowflake(p, x, y) {
+  const chars = ['\u2744','\u2733','\u2022'];
+  for (let i = 0; i < 7; i++) {
+    const f = mk(p, { left:(x+(Math.random()-0.5)*8)+'px', top:y+'px', fontSize:(8+Math.random()*9)+'px', color:'rgba(220,230,255,0.9)', transform:'translate(-50%,-50%) scale(0)', transition:`all ${0.5+Math.random()*0.3}s ease-out`, opacity:'1' });
+    f.textContent = chars[i%chars.length];
+    setTimeout(() => { requestAnimationFrame(() => { f.style.transform=`translate(calc(-50% + ${(Math.random()-0.5)*40}px), calc(-50% + ${15+Math.random()*25}px)) scale(1) rotate(${Math.random()*180}deg)`; f.style.opacity='0'; }); }, i*35);
+    rm(f, 900);
+  }
+}
+
+// 18: Lightning
+function lightning(p, x, y) {
+  const fl = mk(p, { left:x+'px', top:y+'px', width:'5px', height:'5px', borderRadius:'50%', background:'#fff', boxShadow:'0 0 15px #fff, 0 0 30px rgba(88,101,242,0.5)', transform:'translate(-50%,-50%)', transition:'all 0.15s', opacity:'1' });
+  requestAnimationFrame(() => { fl.style.transform='translate(-50%,-50%) scale(0.2)'; fl.style.opacity='0'; });
+  rm(fl, 300);
+  for (let i = 0; i < 4; i++) {
+    let cx=x, cy=y;
+    const baseA = Math.random()*360;
+    for (let s = 0; s < 3; s++) {
+      const len = 7+Math.random()*10;
+      const a = baseA+(Math.random()-0.5)*50;
+      const nx = cx+Math.cos(a*Math.PI/180)*len;
+      const ny = cy+Math.sin(a*Math.PI/180)*len;
+      const bolt = mk(p, { left:cx+'px', top:cy+'px', width:Math.hypot(nx-cx,ny-cy)+'px', height:'1.5px', background:'rgba(255,255,255,0.85)', boxShadow:'0 0 3px rgba(88,101,242,0.7)', transform:`rotate(${Math.atan2(ny-cy,nx-cx)}rad)`, transformOrigin:'0 50%', transition:'opacity 0.2s', opacity:'1' });
+      setTimeout(() => { bolt.style.opacity='0'; }, 80+s*40);
+      rm(bolt, 350);
+      cx=nx; cy=ny;
+    }
+  }
+}
+
+// 19: Orbit Rings
+function orbitRings(p, x, y) {
+  for (let i = 0; i < 3; i++) {
+    const sz = 25+i*18;
+    const r = mk(p, { left:x+'px', top:y+'px', width:sz+'px', height:sz+'px', border:'1.5px solid rgba(88,101,242,0.6)', borderRadius:'50%', transform:`translate(-50%,-50%) rotate(${i*30}deg) scale(0)`, transition:`all ${0.4+i*0.1}s cubic-bezier(0.2,1,0.3,1)`, opacity:'1' });
+    setTimeout(() => { requestAnimationFrame(() => { r.style.transform=`translate(-50%,-50%) rotate(${i*30+90}deg) scale(1)`; r.style.opacity='0'; }); }, i*70);
+    rm(r, 700);
+  }
+}
+
+// 20: Shockwave
+function shockwave(p, x, y) {
+  const w = mk(p, { left:x+'px', top:y+'px', width:'8px', height:'8px', borderRadius:'50%', background:'radial-gradient(circle,rgba(88,101,242,0.4),transparent 70%)', transform:'translate(-50%,-50%)', transition:'all 0.4s ease-out', opacity:'1' });
+  requestAnimationFrame(() => { w.style.transform='translate(-50%,-50%) scale(12)'; w.style.opacity='0'; });
+  rm(w, 500);
+  const c = mk(p, { left:x+'px', top:y+'px', width:'4px', height:'4px', borderRadius:'50%', background:'#fff', transform:'translate(-50%,-50%)', transition:'all 0.2s', opacity:'1' });
+  requestAnimationFrame(() => { c.style.transform='translate(-50%,-50%) scale(0)'; c.style.opacity='0'; });
+  rm(c, 300);
+}
+</script>
+</body>
+</html>

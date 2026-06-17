@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stargazer UI redesign proposal</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #181b22;
+      --panel-2: #20242d;
+      --panel-3: #252a35;
+      --line: #333946;
+      --line-soft: rgba(255, 255, 255, 0.08);
+      --text: #eef1f5;
+      --text-2: #c6ccd6;
+      --muted: #8e96a3;
+      --blue: #5865f2;
+      --blue-soft: rgba(88, 101, 242, 0.18);
+      --green: #23a559;
+      --green-soft: rgba(35, 165, 89, 0.17);
+      --red: #ed4245;
+      --red-soft: rgba(237, 66, 69, 0.16);
+      --yellow: #f0b232;
+      --yellow-soft: rgba(240, 178, 50, 0.16);
+      --radius: 8px;
+      --shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+      color-scheme: dark;
+      font-family: "Yu Gothic UI", "Meiryo", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1480px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    .proposal-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 19px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      font-size: 15px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 780px;
+      color: var(--text-2);
+    }
+
+    .design-rule {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      min-width: 520px;
+    }
+
+    .rule-chip {
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .section {
+      margin-top: 20px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.green {
+      border-color: rgba(35, 165, 89, 0.45);
+      background: var(--green-soft);
+      color: #8ee4ad;
+    }
+
+    .pill.red {
+      border-color: rgba(237, 66, 69, 0.48);
+      background: var(--red-soft);
+      color: #ff9b9d;
+    }
+
+    .pill.blue {
+      border-color: rgba(88, 101, 242, 0.46);
+      background: var(--blue-soft);
+      color: #b9c0ff;
+    }
+
+    .pill.yellow {
+      border-color: rgba(240, 178, 50, 0.48);
+      background: var(--yellow-soft);
+      color: #ffd782;
+    }
+
+    .app-frame {
+      display: grid;
+      grid-template-columns: 228px minmax(0, 1fr);
+      min-height: 760px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #11141a;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 14px 10px;
+      background: rgba(24, 27, 34, 0.96);
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .brand {
+      padding: 8px 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .nav-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-label {
+      padding: 0 10px 3px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-2);
+      text-align: left;
+      cursor: default;
+    }
+
+    .nav-item .icon {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .nav-item.active {
+      border-color: rgba(88, 101, 242, 0.34);
+      background: var(--blue-soft);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .nav-item.active .icon {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .nav-count {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .main {
+      position: relative;
+      min-width: 0;
+      padding: 22px;
+      overflow: hidden;
+      background: #12151c;
+    }
+
+    .loading-specimen {
+      position: relative;
+      min-height: 348px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .page-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .page-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .page-title strong {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .page-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-3);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: default;
+    }
+
+    .btn.primary {
+      border-color: rgba(88, 101, 242, 0.55);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .btn.red {
+      border-color: var(--red);
+      background: var(--red);
+      color: #fff;
+    }
+
+    .btn.icon {
+      width: 34px;
+      min-width: 34px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .btn.icon.red {
+      border-color: var(--red);
+      background: var(--red);
+      color: #fff;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .table th,
+    .table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .table th {
+      color: var(--muted);
+      background: #151922;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .table td {
+      color: var(--text-2);
+      font-size: 13px;
+    }
+
+    .table tbody tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.018);
+    }
+
+    .loading-progress {
+      position: absolute;
+      inset: 0 0 auto 0;
+      z-index: 5;
+      border-bottom: 1px solid rgba(88, 101, 242, 0.28);
+      background: rgba(18, 21, 28, 0.9);
+      backdrop-filter: blur(8px);
+    }
+
+    .loading-progress__bar {
+      height: 3px;
+      width: 42%;
+      background: linear-gradient(90deg, transparent, var(--blue), transparent);
+      animation: progress-slide 1.4s ease-in-out infinite;
+    }
+
+    @keyframes progress-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(238%); }
+    }
+
+    .loading-progress__body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 14px;
+    }
+
+    .loading-message {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-2);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .small-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(88, 101, 242, 0.24);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .skeleton-area {
+      padding: 70px 16px 16px;
+    }
+
+    .skeleton-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 0.8fr 0.8fr 0.7fr;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .skel {
+      height: 12px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #252a35 0%, #313745 45%, #252a35 100%);
+      background-size: 180% 100%;
+      animation: shimmer 1.2s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -80% 0; }
+    }
+
+    .mock-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .mock-panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .mock-panel__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .mock-panel__head strong {
+      font-size: 15px;
+    }
+
+    .mock-panel__body {
+      padding: 14px;
+    }
+
+    .lottery-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .lottery-config-bar {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(105px, 1fr)) auto;
+      gap: 10px;
+      align-items: end;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+
+    .mapping-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .mapping-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .mapping-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+
+    .mapping-row span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .mapping-row strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .mapping-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .mapping-footer-note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .input-like {
+      display: flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #11141a;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .validation-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(35, 165, 89, 0.42);
+      border-radius: 8px;
+      background: var(--green-soft);
+      color: #b8efc8;
+    }
+
+    .validation-strip.info {
+      border-color: rgba(88, 101, 242, 0.45);
+      background: var(--blue-soft);
+      color: #c9ceff;
+    }
+
+    .validation-strip__body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .list-window {
+      max-height: 238px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .attendance-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .attendance-column {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .attendance-column__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .attendance-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .cast-row-button {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+      font-weight: 700;
+      text-align: left;
+    }
+
+    .cast-row-button.present {
+      border-color: rgba(35, 165, 89, 0.58);
+      background: var(--green);
+      color: #fff;
+    }
+
+    .cast-row-button.waiting {
+      background: #151922;
+      color: var(--text-2);
+    }
+
+    .cast-row-button.waiting.selected {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.09);
+      color: #fff;
+      opacity: 0.76;
+    }
+
+    .cast-row-button .tag {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .unified-actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .action-sample {
+      min-height: 72px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+
+    .action-sample strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .action-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #151922;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .action-button.green {
+      border-color: rgba(35, 165, 89, 0.5);
+      background: var(--green);
+      color: #fff;
+    }
+
+    .action-button.red {
+      border-color: rgba(237, 66, 69, 0.48);
+      background: var(--red-soft);
+      color: #ffb7b8;
+    }
+
+    .action-button.blue {
+      border-color: rgba(88, 101, 242, 0.48);
+      background: var(--blue-soft);
+      color: #c9ceff;
+    }
+
+    .save-modal-mock {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .save-modal-mock__head,
+    .save-modal-mock__footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .save-modal-mock__footer {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+      justify-content: flex-end;
+    }
+
+    .save-modal-top {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .count-tile {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 6px;
+      min-height: 70px;
+      border: 1px solid rgba(35, 165, 89, 0.45);
+      border-radius: 8px;
+      background: var(--green-soft);
+    }
+
+    .count-tile strong {
+      color: #8ee4ad;
+      font-size: 44px;
+      line-height: 1;
+    }
+
+    .save-cast-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px;
+      max-height: 230px;
+      overflow-y: auto;
+    }
+
+    .record-matrix {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--line);
+    }
+
+    .record-matrix table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    .record-matrix th,
+    .record-matrix td {
+      width: 104px;
+      min-width: 104px;
+      height: 38px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: #151922;
+      text-align: center;
+    }
+
+    .record-matrix th:first-child,
+    .record-matrix td:first-child {
+      position: sticky;
+      left: 0;
+      width: 168px;
+      min-width: 168px;
+      background: #181d26;
+      text-align: left;
+      padding-left: 12px;
+      z-index: 1;
+    }
+
+    .record-matrix th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #10141c;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .record-matrix th:first-child {
+      z-index: 3;
+    }
+
+    .check {
+      color: #8ee4ad;
+      font-weight: 900;
+    }
+
+    .master-detail-demo {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .list-panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .search-row {
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .list-item {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      min-height: 42px;
+      padding: 8px 11px;
+      border: 0;
+      border-bottom: 1px solid var(--line-soft);
+      background: transparent;
+      color: var(--text-2);
+      text-align: left;
+    }
+
+    .list-item.selected {
+      background: var(--blue-soft);
+      color: var(--text);
+      outline: 1px solid rgba(88, 101, 242, 0.24);
+      outline-offset: -1px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .status-dot.muted {
+      background: var(--muted);
+    }
+
+    .detail-panel {
+      min-height: 285px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .detail-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .photo-slot {
+      height: 150px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(88, 101, 242, 0.16), transparent 40%),
+        #11141a;
+    }
+
+    .implementation-map {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .map-item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+
+    .map-item strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .map-item p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .proposal-header,
+      .mock-grid,
+      .attendance-layout,
+      .master-detail-demo {
+        grid-template-columns: 1fr;
+      }
+
+      .design-rule,
+      .implementation-map,
+      .unified-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .lottery-config-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .mapping-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .app-frame {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="proposal-header">
+      <div>
+        <p class="eyebrow">Stargazer UI proposal</p>
+        <h1>操作画面の密度を保ったまま、状態と操作の見分けをそろえる</h1>
+        <p class="lead">読み込み中、抽選、出席、NG管理、キャスト名簿、イベント一覧、左タブを同じ視覚規則で再整理する案です。既存の暗色基調とアクセント色は維持し、縦線で選択状態を示す表現を廃止します。</p>
+      </div>
+      <div class="design-rule" aria-label="設計規則">
+        <div class="rule-chip">状態はピル</div>
+        <div class="rule-chip">操作は四角ボタン</div>
+        <div class="rule-chip">一覧は行選択</div>
+        <div class="rule-chip">縦線装飾なし</div>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>1. 読み込み中のUX</h2>
+          <p>全画面を強く暗くしない。既存内容の位置を保ちながら、上部の進行表示と骨格表示で待ち時間を説明する。</p>
+        </div>
+        <div class="status-pill-row">
+          <span class="pill blue">非破壊ロード</span>
+          <span class="pill">レイアウト固定</span>
+          <span class="pill green">完了後に自然遷移</span>
+        </div>
+      </div>
+
+      <div class="app-frame">
+        <aside class="sidebar">
+          <div class="brand">
+            <strong>Stargazer</strong>
+            <span>運用ダッシュボード</span>
+          </div>
+          <div class="nav-group">
+            <div class="nav-label">Main</div>
+            <div class="nav-item active"><span class="icon">D</span><span>データ一覧</span><span class="nav-count">128</span></div>
+            <div class="nav-item"><span class="icon">L</span><span>抽選</span><span class="nav-count">0</span></div>
+            <div class="nav-item"><span class="icon">M</span><span>マッチング</span><span class="nav-count">未</span></div>
+          </div>
+          <div class="nav-group">
+            <div class="nav-label">Master</div>
+            <div class="nav-item"><span class="icon">C</span><span>キャスト名簿</span><span class="nav-count">24</span></div>
+            <div class="nav-item"><span class="icon">E</span><span>イベント一覧</span><span class="nav-count">3</span></div>
+            <div class="nav-item"><span class="icon">N</span><span>NG管理</span><span class="nav-count">8</span></div>
+          </div>
+        </aside>
+        <div class="main">
+          <div class="loading-specimen">
+            <div class="loading-progress">
+              <div class="loading-progress__bar"></div>
+              <div class="loading-progress__body">
+                <div class="loading-message"><span class="small-spinner"></span><span>データを読み込んでいます…</span></div>
+                <span class="pill blue">イベントDBを確認中</span>
+              </div>
+            </div>
+            <div class="page-toolbar">
+              <div class="page-title">
+                <strong>応募データ</strong>
+                <span>読み込み完了後も同じ位置に一覧が表示される</span>
+              </div>
+              <div class="toolbar-actions">
+                <button class="btn">TSV再取り込み</button>
+                <button class="btn icon red" aria-label="削除">×</button>
+              </div>
+            </div>
+            <div class="skeleton-area">
+              <div class="skeleton-row"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+              <div class="skeleton-row"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+              <div class="skeleton-row"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+              <div class="skeleton-row"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+              <div class="skeleton-row"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>2. マッピング設定</h2>
+          <p>応募データの保存まで行う通常取り込みと、抽選だけ行う導線を分ける。抽選だけ行う場合も同じ列マッピングを使う。</p>
+        </div>
+        <span class="pill blue">抽選だけ行う導線を追加</span>
+      </div>
+      <div class="mapping-panel">
+        <div class="mapping-grid">
+          <div class="mapping-row"><span>ユーザー名</span><strong>回答者名</strong></div>
+          <div class="mapping-row"><span>X ID</span><strong>Xアカウント</strong></div>
+          <div class="mapping-row"><span>希望キャスト 1</span><strong>第1希望</strong></div>
+          <div class="mapping-row"><span>希望キャスト 2</span><strong>第2希望</strong></div>
+          <div class="mapping-row"><span>希望キャスト 3</span><strong>第3希望</strong></div>
+          <div class="mapping-row"><span>補足列</span><strong>備考、参加回</strong></div>
+        </div>
+        <div class="mapping-footer">
+          <span class="mapping-footer-note">抽選だけ行う場合は、応募データ一覧へ保存せず、この割り当てを使って抽選設定へ進む。</span>
+          <div class="toolbar-actions">
+            <button class="btn">抽選だけ行う</button>
+            <button class="btn primary">この割り当てで取り込む</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>3. 抽選設定を応募データと同じ操作密度へ</h2>
+          <p>設定、検証、結果を縦方向に並べる。抽選設定だけ別アプリのように見えない構造にする。</p>
+        </div>
+        <span class="pill blue">上部操作 + 下部一覧 + 内部スクロール</span>
+      </div>
+      <div class="lottery-layout">
+        <div class="lottery-config-bar">
+          <label class="field"><span>抽選人数</span><div class="input-like">44</div></label>
+          <label class="field"><span>方式</span><div class="input-like">M003</div></label>
+          <label class="field"><span>ラウンド</span><div class="input-like">3</div></label>
+          <label class="field"><span>総テーブル</span><div class="input-like">16</div></label>
+          <label class="field"><span>確定当選</span><div class="input-like">4名</div></label>
+          <label class="field"><span>当日枠を含める</span><div class="input-like">ON</div></label>
+          <label class="field"><span>当日枠数</span><div class="input-like">6席</div></label>
+          <button class="btn primary">抽選開始</button>
+        </div>
+        <div class="validation-strip">
+          <strong>設定に問題はありません</strong>
+          <span>出席キャスト 12名 / 当選者 48名 / 当日枠 6席</span>
+        </div>
+        <div class="validation-strip info">
+          <strong>INFO: 合計席数</strong>
+          <div class="validation-strip__body">
+            <span>合計当選者数 48名（抽選44名 + 確定4名）</span>
+            <span>合計席数 54席（当選者48名 + 当日枠6席）</span>
+          </div>
+        </div>
+        <div class="mock-panel">
+          <div class="mock-panel__head">
+            <strong>当選者リスト</strong>
+            <div class="toolbar-actions"><button class="btn">抽選結果保存</button><button class="btn primary">マッチングへ</button></div>
+          </div>
+          <div class="list-window">
+            <table class="table">
+              <thead><tr><th>ユーザー</th><th>X ID</th><th>区分</th><th>希望キャスト</th><th>NGキャスト</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td>花園 りり</td><td>@riri_vrc</td><td><span class="pill green">抽選当選</span></td><td>Stella, Nagi</td><td><span class="pill red">2名のキャストがNG</span></td><td><button class="btn icon red" aria-label="削除">×</button></td></tr>
+                <tr><td>月代 かな</td><td>@kana_x</td><td><span class="pill blue">確定当選</span></td><td>Mio</td><td>なし</td><td><button class="btn icon red" aria-label="削除">×</button></td></tr>
+                <tr><td>凪月</td><td>@nagitsuki</td><td><span class="pill green">抽選当選</span></td><td>Yui, Sena</td><td>Sena</td><td><button class="btn icon red" aria-label="削除">×</button></td></tr>
+                <tr><td>灯里</td><td>@akari</td><td><span class="pill green">抽選当選</span></td><td>Rin</td><td>なし</td><td><button class="btn icon red" aria-label="削除">×</button></td></tr>
+                <tr><td>透</td><td>@tooru</td><td><span class="pill green">抽選当選</span></td><td>Luca</td><td>なし</td><td><button class="btn icon red" aria-label="削除">×</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>4. 出席設定と出席記録</h2>
+          <p>出席中・待機のBOX幅に合わせ、キャストは1名ずつ縦に並べる。保存モーダルは記録日と出席人数を横並び、その下にキャスト一覧を置く。</p>
+        </div>
+        <div class="status-pill-row">
+          <span class="pill green">出席中 8名</span>
+          <span class="pill">待機 4名</span>
+        </div>
+      </div>
+
+      <div class="mock-grid">
+        <div class="mock-panel">
+          <div class="mock-panel__head">
+            <strong>出席設定</strong>
+            <div class="toolbar-actions"><button class="btn">全員待機</button><button class="btn primary">保存</button></div>
+          </div>
+          <div class="mock-panel__body">
+            <div class="attendance-layout">
+              <div class="attendance-column">
+                <div class="attendance-column__head"><strong>出席中</strong><span class="pill green">8</span></div>
+                <div class="attendance-list">
+                  <button class="cast-row-button present"><span>星野 みお</span><span class="tag">クリックで待機</span></button>
+                  <button class="cast-row-button present"><span>七瀬 なぎ</span><span class="tag">クリックで待機</span></button>
+                  <button class="cast-row-button present"><span>朝比奈 セナ</span><span class="tag">クリックで待機</span></button>
+                  <button class="cast-row-button present"><span>白河 ユイ</span><span class="tag">クリックで待機</span></button>
+                </div>
+              </div>
+              <div class="attendance-column">
+                <div class="attendance-column__head"><strong>待機</strong><span class="pill">4</span></div>
+                <div class="attendance-list">
+                  <button class="cast-row-button waiting selected"><span>水瀬 ルカ</span><span class="tag">選択済み</span></button>
+                  <button class="cast-row-button waiting"><span>一ノ瀬 りん</span><span class="tag">クリックで出席</span></button>
+                  <button class="cast-row-button waiting"><span>橘 ひまり</span><span class="tag">クリックで出席</span></button>
+                  <button class="cast-row-button waiting"><span>神崎 めい</span><span class="tag">クリックで出席</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-panel">
+          <div class="mock-panel__head"><strong>出席を記録する</strong><span class="pill green">保存前確認</span></div>
+          <div class="mock-panel__body">
+            <div class="save-modal-mock">
+              <div class="save-modal-mock__head"><strong>出席を記録する</strong><span class="pill yellow">同日データあり</span></div>
+              <div class="save-modal-top">
+                <label class="field"><span>記録日</span><div class="input-like">2026-06-16</div></label>
+                <div class="count-tile"><strong>8</strong><span>名</span></div>
+              </div>
+              <div class="save-cast-list">
+                <div class="cast-row-button"><span>星野 みお</span><span class="tag">出席</span></div>
+                <div class="cast-row-button"><span>七瀬 なぎ</span><span class="tag">出席</span></div>
+                <div class="cast-row-button"><span>朝比奈 セナ</span><span class="tag">出席</span></div>
+                <div class="cast-row-button"><span>白河 ユイ</span><span class="tag">出席</span></div>
+              </div>
+              <div class="save-modal-mock__footer"><button class="btn">キャンセル</button><button class="btn primary">上書きして保存</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>5. ボタンっぽさの統一と出席履歴</h2>
+          <p>出席設定、出席履歴、キャストNG、要注意人物で同じ部品階層を使う。出席履歴は列幅を固定し、グリッドの背景を塗って透けを防ぐ。</p>
+        </div>
+        <span class="pill">最小幅固定</span>
+      </div>
+
+      <div class="mock-grid">
+        <div class="mock-panel">
+          <div class="mock-panel__head"><strong>操作部品の共通形</strong><span class="pill blue">CSS共通化対象</span></div>
+          <div class="mock-panel__body">
+            <div class="unified-actions">
+              <div class="action-sample"><strong>出席中</strong><span class="action-button green">星野 みお</span></div>
+              <div class="action-sample"><strong>待機</strong><span class="action-button">水瀬 ルカ</span></div>
+              <div class="action-sample"><strong>NGキャスト</strong><span class="action-button red">3名のキャストがNG</span></div>
+              <div class="action-sample"><strong>要注意人物</strong><span class="action-button blue">詳細を開く</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-panel">
+          <div class="mock-panel__head"><strong>出席履歴</strong><span class="pill green">24名 / 6日</span></div>
+          <div class="mock-panel__body">
+            <div class="record-matrix">
+              <table>
+                <thead><tr><th>キャスト名</th><th>出席回数</th><th>06/12</th><th>06/13</th><th>06/14</th><th>06/15</th><th>06/16</th></tr></thead>
+                <tbody>
+                  <tr><td>星野 みお</td><td>5</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+                  <tr><td>七瀬 なぎ</td><td>4</td><td class="check">✓</td><td>—</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+                  <tr><td>水瀬 ルカ</td><td>2</td><td>—</td><td>—</td><td class="check">✓</td><td>—</td><td class="check">✓</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>6. キャスト名簿、イベント一覧、左タブ</h2>
+          <p>選択中を縦線で示さない。背景、輪郭、状態ドットだけで選択状態を伝える。</p>
+        </div>
+        <span class="pill red">縦ライン廃止</span>
+      </div>
+
+      <div class="master-detail-demo">
+        <div class="list-panel">
+          <div class="search-row"><div class="input-like">検索</div></div>
+          <div class="list-item selected"><span class="status-dot"></span><span>星野 みお<br><small>Group A</small></span><span class="pill green">出席</span></div>
+          <div class="list-item"><span class="status-dot"></span><span>七瀬 なぎ<br><small>Group A</small></span><span class="pill green">出席</span></div>
+          <div class="list-item"><span class="status-dot muted"></span><span>水瀬 ルカ<br><small>Group B</small></span><span class="pill">待機</span></div>
+          <div class="list-item"><span class="status-dot"></span><span>朝比奈 セナ<br><small>Group C</small></span><span class="pill green">出席</span></div>
+        </div>
+        <div class="detail-panel">
+          <div class="detail-title">
+            <div>
+              <h3>星野 みお</h3>
+              <div class="status-pill-row"><span class="pill green">出席中</span><span class="pill blue">Group A</span><span class="pill red">NG 2件</span></div>
+            </div>
+            <button class="btn primary">保存</button>
+          </div>
+          <div class="photo-slot"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>実装時の分割</h2>
+          <p>このHTML案を実装へ移す場合の主要な変更単位です。</p>
+        </div>
+      </div>
+      <div class="implementation-map">
+        <div class="map-item"><strong>LoadingOverlay</strong><p>強い暗幕から、上部進行バー + スケルトン表示へ変更する。</p></div>
+        <div class="map-item"><strong>Import mapping</strong><p>通常取り込みと「抽選だけ行う」を分岐し、同じ列マッピングを使えるようにする。</p></div>
+        <div class="map-item"><strong>LotteryPage</strong><p>当日枠、合計当選者数、合計席数を分けて表示し、結果一覧は内部スクロールにする。</p></div>
+        <div class="map-item"><strong>AttendancePage</strong><p>出席中/待機のBOX内は1名1行。保存モーダルは上段2項目、下段キャスト一覧。</p></div>
+        <div class="map-item"><strong>NGUserManagement</strong><p>件数バッジ、詳細ボタン、要注意候補を共通ボタン形へ寄せる。</p></div>
+        <div class="map-item"><strong>Cast/Event list</strong><p>選択時の縦線を廃止し、背景と輪郭のみで現在位置を表す。</p></div>
+        <div class="map-item"><strong>Delete action</strong><p>削除は文字ボタンではなく、赤背景の × ボタンへ統一する。</p></div>
+        <div class="map-item"><strong>Shared tabs</strong><p>下線タブをピル型セグメントへ寄せ、ページ間の視覚差を減らす。</p></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

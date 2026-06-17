@@ -31,6 +31,11 @@ export const AppSelect: React.FC<AppSelectProps> = ({
   disabled = false,
   className = '',
 }) => {
+  const portalContainer =
+    typeof document !== 'undefined'
+      ? document.getElementById('modal-root') ?? document.getElementById('root') ?? undefined
+      : undefined;
+
   return (
     <SelectPrimitive.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectPrimitive.Trigger
@@ -45,7 +50,7 @@ export const AppSelect: React.FC<AppSelectProps> = ({
           </span>
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal container={typeof document !== 'undefined' ? document.querySelector('.app-container') as HTMLElement : undefined}>
+      <SelectPrimitive.Portal container={portalContainer}>
         <SelectPrimitive.Content className={styles.appSelect__content} position="popper" sideOffset={4}>
           <SelectPrimitive.Viewport className={styles.appSelect__viewport}>
             {options.map((opt) => (

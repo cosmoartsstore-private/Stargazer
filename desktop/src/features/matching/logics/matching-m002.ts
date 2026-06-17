@@ -19,6 +19,10 @@ export function runRotationMatching(
     return { userMap };
   }
 
+  if (winners.length > activeCasts.length || Math.max(1, rotationCount) > activeCasts.length) {
+    return { userMap: new Map(), ngConflict: true, failureReason: 'insufficient-capacity' };
+  }
+
   const baseSlots = activeCasts.slice(0, Math.max(winners.length, Math.min(totalTables, activeCasts.length)));
   const rotation = buildRotation(baseSlots, rotationCount);
 
@@ -28,14 +32,16 @@ export function runRotationMatching(
     (winnerIndex, _, slotIndex) => {
       const winner = winners[winnerIndex];
       let totalScore = 0;
+      const seenCastNames = new Set<string>();
 
       for (let roundIndex = 0; roundIndex < rotation.length; roundIndex += 1) {
         const cast = rotation[roundIndex][slotIndex];
         const shouldExclude =
           ngMatchingBehavior === 'exclude' && isUserNGForCast(winner, cast, ngJudgmentType);
-        if (shouldExclude) {
+        if (shouldExclude || seenCastNames.has(cast.name)) {
           return Number.NEGATIVE_INFINITY;
         }
+        seenCastNames.add(cast.name);
         totalScore += getPreferenceScore(winner, cast.name);
       }
 
@@ -51,12 +57,13 @@ export function runRotationMatching(
   for (let slotIndex = 0; slotIndex < baseSlots.length; slotIndex += 1) {
     const winnerIndex = assignment.indexOf(slotIndex);
     const winner = winnerIndex >= 0 ? winners[winnerIndex] : null;
-    const matches = rotation.map((round) => {
+    const matches = rotation.map((round, roundIndex) => {
       const cast = round[slotIndex];
       const rankIndex = winner ? winner.casts.indexOf(cast.name) : -1;
       return {
         cast,
-        rank: rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
+        rank: winner && winner.preference_mode !== 'flat' && rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
+        rotationIndex: roundIndex,
       };
     });
 

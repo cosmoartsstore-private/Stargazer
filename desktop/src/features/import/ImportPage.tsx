@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Upload } from '@/common/icons';
+import { Upload, FileText } from '@/common/icons';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { parseTSV } from '@/common/csvParse';
 import {
@@ -8,6 +8,7 @@ import {
   type ColumnMapping,
 } from '@/common/importFormat';
 import { mapRowToUserBeanWithMapping, type MapRowOptions } from '@/common/sheetParsers';
+import type { PageType } from '@/stores/AppContext';
 import styles from './ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -15,7 +16,8 @@ interface ImportPageProps {
   onImportUserRows: (
     rows: string[][],
     mapping: ColumnMapping,
-    options?: MapRowOptions
+    options?: MapRowOptions,
+    nextPage?: PageType
   ) => void;
 }
 
@@ -133,7 +135,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
     }
   };
 
-  const handleImport = () => {
+  const handleImport = (nextPage?: PageType) => {
     if (!rows?.length) return;
     if (!hasRequiredIdentityColumn(effectiveMapping)) { setError('X ID 列は必須です。'); return; }
     const used = new Set(
@@ -144,180 +146,218 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
       .map((h, i) => ({ h, i }))
       .filter(({ i }) => !used.has(i))
       .map(({ h, i }) => ({ columnIndex: i, label: h || `列${i + 1}` }));
-    onImportUserRows(rows, { ...effectiveMapping, extraColumns }, mapOptions);
+    onImportUserRows(rows, { ...effectiveMapping, extraColumns }, mapOptions, nextPage);
   };
 
   return (
-    <div className={styles.importTwoPane}>
-      {/* ── 左ペイン: 設定 ── */}
-      <div className={styles.importTwoPane__settings}>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".tsv,text/tab-separated-values"
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
-        <div
-          className={`${styles.applicantImportCard__top}${fileAreaShake ? ` ${shared.shake}` : ''}`}
-          onAnimationEnd={() => setFileAreaShake(false)}
-        >
+    <div className={styles.importFlow}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".tsv,text/tab-separated-values"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+
+      {/* ── ファイル選択セクション ── */}
+      <div
+        className={`${styles.importFileSection}${fileAreaShake ? ` ${shared.shake}` : ''}`}
+        onAnimationEnd={() => setFileAreaShake(false)}
+      >
+        <div className={styles.importFileRow}>
           <button
             type="button"
-            className={`${shared.btnPrimary} ${styles.applicantImportCard__fileButton}`}
+            className={styles.importFileBtn}
             onClick={() => inputRef.current?.click()}
           >
-            <Upload size={15} />
-            TSV を選択
+            <Upload size={14} />
+            {rows ? 'TSV を再選択する' : 'TSV を選択'}
           </button>
-          <span className={styles.applicantImportCard__fileName}>{fileName || '未選択'}</span>
+          <span className={`${styles.importFileName}${fileName ? ` ${styles.importFileNameActive}` : ''}`}>
+            {fileName ? (
+              <><FileText size={13} />{fileName}</>
+            ) : '未選択'}
+          </span>
         </div>
+        {error && (
+          <p className={styles.importError}>{error}</p>
+        )}
+      </div>
 
-        {headers.length > 0 && (
-          <>
-            <div className={styles.importSectionLabel}>列マッピング</div>
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>ユーザー名</span>
-              <AppSelect value={sv(mapping.name)} onValueChange={setCol('name')} options={columnOptions} placeholder="列を選択" />
-            </label>
-            <label
-              className={`${shared.formGroup}${xIdShake ? ` ${shared.shake}` : ''}`}
+      {/* ── マッピング設定 ── */}
+      {headers.length > 0 && (
+        <div className={styles.importMappingSection}>
+          <div className={styles.importSectionHeader}>マッピング設定</div>
+
+          <div className={styles.importMappingTable}>
+            <div className={styles.importMappingRow}>
+              <span className={styles.importMappingLabel}>ユーザー名</span>
+              <div className={styles.importMappingControl}>
+                <AppSelect value={sv(mapping.name)} onValueChange={setCol('name')} options={columnOptions} placeholder="カラムを選択" />
+              </div>
+            </div>
+
+            <div
+              className={`${styles.importMappingRow}${xIdShake ? ` ${shared.shake}` : ''}`}
               onAnimationEnd={() => setXIdShake(false)}
             >
-              <span className={shared.formLabel}>
-                X ID <span style={{ color: 'var(--discord-accent-red)' }}>*</span>
+              <span className={styles.importMappingLabel}>
+                X ID <span className={styles.importRequired}>*</span>
               </span>
-              <AppSelect value={sv(mapping.x_id)} onValueChange={setCol('x_id')} options={columnOptions} placeholder="列を選択" />
-              {rows && mapping.x_id < 0 && (
-                <span className={shared.importErrorMsg}>X ID 列が検出できませんでした。手動で選択してください。</span>
-              )}
-            </label>
-            <label className={shared.formGroup}>
-              <span className={shared.formLabel}>VRC URL</span>
-              <AppSelect value={sv(mapping.vrc_url)} onValueChange={setCol('vrc_url')} options={columnOptions} placeholder="列を選択" />
-            </label>
+              <div className={styles.importMappingControl}>
+                <AppSelect value={sv(mapping.x_id)} onValueChange={setCol('x_id')} options={columnOptions} placeholder="カラムを選択" />
+                {rows && mapping.x_id < 0 && (
+                  <span className={styles.importMappingError}>X ID 列が検出できませんでした。手動で選択してください。</span>
+                )}
+              </div>
+            </div>
 
-            <div className={styles.importSectionLabel} style={{ marginTop: 8 }}>希望キャストの形式</div>
-            <div className={styles.importCastRadios}>
-              <label>
-                <input
-                  type="radio"
-                  checked={castInputType === 'separate'}
-                  onChange={() => setCastInputType('separate')}
-                />
-                {' '}第1/2/3希望（別々の列）
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  checked={castInputType === 'comma'}
-                  onChange={() => setCastInputType('comma')}
-                />
-                {' '}1列・カンマ区切り
-              </label>
+            <div className={styles.importMappingRow}>
+              <span className={styles.importMappingLabel}>VRChat リンク</span>
+              <div className={styles.importMappingControl}>
+                <AppSelect value={sv(mapping.vrc_url)} onValueChange={setCol('vrc_url')} options={columnOptions} placeholder="カラムを選択" />
+              </div>
+            </div>
+
+            <div className={styles.importMappingRow}>
+              <span className={styles.importMappingLabel}>希望キャスト形式</span>
+              <div className={styles.importMappingControl}>
+                <div className={styles.importCastOptions}>
+                  <button
+                    type="button"
+                    className={`${styles.importCastOption}${castInputType === 'separate' ? ` ${styles.importCastOptionSelected}` : ''}`}
+                    onClick={() => setCastInputType('separate')}
+                  >
+                    第1/2/3希望
+                    <span>別々の列</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.importCastOption}${castInputType === 'comma' ? ` ${styles.importCastOptionSelected}` : ''}`}
+                    onClick={() => setCastInputType('comma')}
+                  >
+                    1列
+                    <span>カンマ区切り</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {castInputType === 'separate' ? (
               <>
-                <label className={shared.formGroup}>
-                  <span className={shared.formLabel}>希望キャスト 1</span>
-                  <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="列を選択" />
-                </label>
-                <label className={shared.formGroup}>
-                  <span className={shared.formLabel}>希望キャスト 2</span>
-                  <AppSelect value={sv(mapping.cast2)} onValueChange={setCol('cast2')} options={columnOptions} placeholder="列を選択" />
-                </label>
-                <label className={shared.formGroup}>
-                  <span className={shared.formLabel}>希望キャスト 3</span>
-                  <AppSelect value={sv(mapping.cast3)} onValueChange={setCol('cast3')} options={columnOptions} placeholder="列を選択" />
-                </label>
+                <div className={styles.importMappingRow}>
+                  <span className={styles.importMappingLabel}>希望キャスト 1</span>
+                  <div className={styles.importMappingControl}>
+                    <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="カラムを選択" />
+                  </div>
+                </div>
+                <div className={styles.importMappingRow}>
+                  <span className={styles.importMappingLabel}>希望キャスト 2</span>
+                  <div className={styles.importMappingControl}>
+                    <AppSelect value={sv(mapping.cast2)} onValueChange={setCol('cast2')} options={columnOptions} placeholder="カラムを選択" />
+                  </div>
+                </div>
+                <div className={styles.importMappingRow}>
+                  <span className={styles.importMappingLabel}>希望キャスト 3</span>
+                  <div className={styles.importMappingControl}>
+                    <AppSelect value={sv(mapping.cast3)} onValueChange={setCol('cast3')} options={columnOptions} placeholder="カラムを選択" />
+                  </div>
+                </div>
               </>
             ) : (
-              <label className={shared.formGroup}>
-                <span className={shared.formLabel}>希望キャスト列</span>
-                <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="列を選択" />
-              </label>
+              <div className={styles.importMappingRow}>
+                <span className={styles.importMappingLabel}>希望キャスト列</span>
+                <div className={styles.importMappingControl}>
+                  <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="カラムを選択" />
+                </div>
+              </div>
             )}
-          </>
-        )}
+          </div>
+        </div>
+      )}
 
-        {error && (
-          <p style={{ color: 'var(--discord-accent-red)', fontSize: 12, marginTop: 4 }}>{error}</p>
-        )}
-      </div>
+      {/* ── プレビュー ── */}
+      {!rows ? (
+        <div className={styles.importPreviewEmpty}>TSV を選択するとプレビューが表示されます</div>
+      ) : (
+        <div className={styles.importPreviewSection}>
+          <div className={styles.importSectionHeader}>
+            プレビュー
+            <span className={styles.importPreviewCount}>先頭 {Math.min(PREVIEW_MAX, rows.length)} 件</span>
+          </div>
 
-      {/* ── 右ペイン: プレビュー ── */}
-      <div className={styles.importTwoPane__preview}>
-        {!rows ? (
-          <div className={styles.importPreviewEmpty}>TSV を選択するとプレビューが表示されます</div>
-        ) : (
-          <>
-            <div className={styles.importSectionLabel} style={{ marginBottom: 8 }}>
-              プレビュー（先頭 {Math.min(PREVIEW_MAX, rows.length)} 件）
-            </div>
-            <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ maxHeight: 220 }}>
-              <table className={styles.importPreviewTable}>
-                <thead>
-                  <tr>
-                    <th>ユーザー名</th>
-                    <th>X ID</th>
+          <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ maxHeight: 220 }}>
+            <table className={styles.importPreviewTable}>
+              <thead>
+                <tr>
+                  <th>ユーザー名</th>
+                  <th>X ID</th>
+                  {castInputType === 'comma' ? (
+                    <th>希望キャスト</th>
+                  ) : (
+                    [1, 2, 3].map((n) => <th key={n}>希望 {n}</th>)
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((u, idx) => (
+                  <tr
+                    key={idx}
+                    className={!u.x_id ? styles.importPreviewRowWarn : ''}
+                  >
+                    <td title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
+                    <td>
+                      {u.x_id || (
+                        <span className={styles.importCellWarn}>空</span>
+                      )}
+                    </td>
                     {castInputType === 'comma' ? (
-                      <th>希望キャスト</th>
+                      <td title={u.casts.join(', ')}>
+                        {u.casts.join(', ') || <span className={styles.importCellEmpty}>—</span>}
+                      </td>
                     ) : (
-                      [1, 2, 3].map((n) => <th key={n}>希望 {n}</th>)
+                      [0, 1, 2].map((i) => (
+                        <td key={i}>
+                          {u.casts[i] || <span className={styles.importCellEmpty}>—</span>}
+                        </td>
+                      ))
                     )}
                   </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((u, idx) => (
-                    <tr
-                      key={idx}
-                      className={!u.x_id ? styles.importPreviewTable__rowWarn : ''}
-                    >
-                      <td title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
-                      <td>
-                        {u.x_id || (
-                          <span style={{ color: 'var(--discord-accent-yellow)' }}>空</span>
-                        )}
-                      </td>
-                      {castInputType === 'comma' ? (
-                        <td title={u.casts.join(', ')}>
-                          {u.casts.join(', ') || <span className={styles.importCellEmpty}>—</span>}
-                        </td>
-                      ) : (
-                        [0, 1, 2].map((i) => (
-                          <td key={i}>
-                            {u.casts[i] || <span className={styles.importCellEmpty}>—</span>}
-                          </td>
-                        ))
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
+          <div className={styles.importFooter}>
             <div className={styles.importValidation}>
-              <span className={styles.importValidation__ok}>✓ {validCount} 件取り込めます</span>
+              <span className={styles.importValidationOk}>✓ {validCount} 件取り込み可能</span>
               {emptyIdCount > 0 && (
-                <span className={styles.importValidation__warn}>
+                <span className={styles.importValidationWarn}>
                   ⚠ {emptyIdCount} 件 X ID が空（スキップ）
                 </span>
               )}
             </div>
-
-            <button
-              type="button"
-              className={shared.btnPrimary}
-              style={{ marginTop: 12, width: '100%' }}
-              disabled={!canImport}
-              onClick={handleImport}
-            >
-              {validCount} 件を取り込む
-            </button>
-          </>
-        )}
-      </div>
+            <div className={styles.importFooterActions}>
+              <button
+                type="button"
+                className={`${shared.btnSecondary} ${styles.importSubmitBtn}`}
+                disabled={!canImport}
+                onClick={() => handleImport('lottery')}
+              >
+                抽選だけ行う
+              </button>
+              <button
+                type="button"
+                className={`${shared.btnPrimary} ${styles.importSubmitBtn}`}
+                disabled={!canImport}
+                onClick={() => handleImport()}
+              >
+                {validCount} 件を取り込む
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

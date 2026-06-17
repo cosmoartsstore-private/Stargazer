@@ -1,5 +1,5 @@
 import React from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import { AppDialog } from '@/components/AppDialog';
 import styles from './ConfirmModal.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -14,6 +14,7 @@ interface ConfirmModalProps {
   cancelLabel?: string;
   type?: 'confirm' | 'alert';
   confirmDisabled?: boolean;
+  size?: 'default' | 'wide';
   /** message の下に追加で表示するカスタムコンテンツ */
   children?: React.ReactNode;
 }
@@ -30,6 +31,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   cancelLabel = 'キャンセル',
   type = 'confirm',
   confirmDisabled = false,
+  size = 'default',
   children,
 }) => {
   const displayTitle = title ?? (type === 'alert' ? DEFAULT_TITLE_ALERT : DEFAULT_TITLE_CONFIRM);
@@ -44,30 +46,26 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     }
   };
 
-  const modalContainer =
-    typeof document !== 'undefined' ? (document.getElementById('modal-root') ?? document.body) : undefined;
-
   return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Portal container={modalContainer}>
-        <Dialog.Overlay className={styles.modalOverlay}>
-          <Dialog.Content className={styles.modalContent}>
-            <Dialog.Title className={styles.modalTitle}>{displayTitle}</Dialog.Title>
-            <Dialog.Description className={styles.modalMessage}>{message}</Dialog.Description>
-            {children}
-            <div className={styles.modalButtons}>
-              {type === 'confirm' && onCancel && (
-                <button type="button" className={styles.modalBtnCancel} onClick={onCancel}>
-                  {cancelLabel}
-                </button>
-              )}
-              <button type="button" className={`${shared.btnPrimary} ${styles.modalBtnConfirm}`} onClick={onConfirm} disabled={confirmDisabled}>
-                {confirmLabel}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Overlay>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <AppDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={displayTitle}
+      description={message}
+      descriptionClassName={styles.modalMessage}
+      className={size === 'wide' ? styles.modalContentWide : ''}
+    >
+      {children}
+      <div className={styles.modalButtons}>
+        {type === 'confirm' && onCancel && (
+          <button type="button" className={styles.modalBtnCancel} onClick={onCancel}>
+            {cancelLabel}
+          </button>
+        )}
+        <button type="button" className={`${shared.btnPrimary} ${styles.modalBtnConfirm}`} onClick={onConfirm} disabled={confirmDisabled}>
+          {confirmLabel}
+        </button>
+      </div>
+    </AppDialog>
   );
 };

@@ -9,6 +9,15 @@ import styles from './DataManagementPage.module.css';
 
 type DataManagementTab = 'import' | 'lottery' | 'matching';
 
+interface DataManagementPageProps {
+  onImportUserRows: (
+    rows: string[][],
+    mapping: import('@/common/importFormat').ColumnMapping,
+    options?: import('@/common/sheetParsers').MapRowOptions,
+    nextPage?: PageType
+  ) => void;
+}
+
 type CheckLevel = 'ok' | 'warning' | 'error';
 
 interface CheckItem {
@@ -27,7 +36,7 @@ function formatCastNames(names: string[]): string {
   return `${names.slice(0, 3).join(', ')} … 他${names.length - 3}名`;
 }
 
-export const DataManagementPage: React.FC = () => {
+export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImportUserRows }) => {
   const {
     activePage,
     setActivePage,
@@ -53,7 +62,7 @@ export const DataManagementPage: React.FC = () => {
   if (!hasWinners)    disabledTabs.add('matching');
 
   const tabs: Array<{ id: DataManagementTab; label: string }> = [
-    { id: 'import',   label: '応募データ' },
+    { id: 'import',   label: '一覧' },
     { id: 'lottery',  label: '抽選' },
     { id: 'matching', label: 'マッチング' },
   ];
@@ -111,7 +120,7 @@ export const DataManagementPage: React.FC = () => {
       </div>
 
       <div className={shared.pageTabContent}>
-        {activeTab === 'import'   && <ApplicantDataPage />}
+        {activeTab === 'import'   && <ApplicantDataPage onImportUserRows={onImportUserRows} />}
         {activeTab === 'lottery'  && <LotteryPage />}
         {activeTab === 'matching' && <MatchingPage />}
       </div>
@@ -128,6 +137,7 @@ export const DataManagementPage: React.FC = () => {
           confirmLabel="進める"
           cancelLabel={modalHasErrors ? '閉じる' : 'キャンセル'}
           confirmDisabled={modalHasErrors}
+          size="wide"
           onConfirm={() => {
             setShowCastConfirm(false);
             setActiveTab('lottery');

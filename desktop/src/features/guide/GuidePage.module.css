@@ -2,6 +2,60 @@
    ガイドページ用
    ======================================== */
 
+.guide-page {
+  --guide-accent-primary: #5865f2;
+  --guide-accent-primary-soft: #5865f2bb;
+  --guide-accent-primary-bg: #5865f222;
+  --guide-accent-primary-border: #5865f266;
+  --guide-accent-import: #8b5cf6;
+  --guide-accent-import-soft: #8b5cf6bb;
+  --guide-accent-import-bg: #8b5cf622;
+  --guide-accent-import-border: #8b5cf666;
+  --guide-accent-cast: #06b6d4;
+  --guide-accent-cast-soft: #06b6d4bb;
+  --guide-accent-cast-bg: #06b6d422;
+  --guide-accent-cast-border: #06b6d466;
+  --guide-accent-lottery: #10b981;
+  --guide-accent-lottery-soft: #10b981bb;
+  --guide-accent-lottery-bg: rgba(16, 185, 129, 0.12);
+  --guide-accent-lottery-border: rgba(16, 185, 129, 0.3);
+  --guide-accent-matching: #f59e0b;
+  --guide-accent-matching-soft: #f59e0bbb;
+  --guide-accent-matching-bg: #f59e0b22;
+  --guide-accent-matching-border: #f59e0b66;
+  --guide-accent-output: #ef4444;
+  --guide-accent-output-soft: #ef4444bb;
+  --guide-accent-output-bg: #ef444422;
+  --guide-accent-output-border: #ef444466;
+}
+
+:global([data-theme="skyblue"]) .guide-page {
+  --guide-accent-primary: #2d8fd3;
+  --guide-accent-primary-soft: #67b7e4;
+  --guide-accent-primary-bg: rgba(45, 143, 211, 0.13);
+  --guide-accent-primary-border: rgba(45, 143, 211, 0.36);
+  --guide-accent-import: #2d8fd3;
+  --guide-accent-import-soft: #79c5e8;
+  --guide-accent-import-bg: rgba(45, 143, 211, 0.13);
+  --guide-accent-import-border: rgba(45, 143, 211, 0.36);
+  --guide-accent-cast: #39a8d3;
+  --guide-accent-cast-soft: #86d3ed;
+  --guide-accent-cast-bg: rgba(57, 168, 211, 0.13);
+  --guide-accent-cast-border: rgba(57, 168, 211, 0.34);
+  --guide-accent-lottery: #2f9f78;
+  --guide-accent-lottery-soft: #6cc9a8;
+  --guide-accent-lottery-bg: rgba(47, 159, 120, 0.13);
+  --guide-accent-lottery-border: rgba(47, 159, 120, 0.34);
+  --guide-accent-matching: #b99700;
+  --guide-accent-matching-soft: #d8bd38;
+  --guide-accent-matching-bg: rgba(185, 151, 0, 0.13);
+  --guide-accent-matching-border: rgba(185, 151, 0, 0.32);
+  --guide-accent-output: #dc5b66;
+  --guide-accent-output-soft: #ef8b93;
+  --guide-accent-output-bg: rgba(220, 91, 102, 0.13);
+  --guide-accent-output-border: rgba(220, 91, 102, 0.32);
+}
+
 .guide-section {
   margin-bottom: 48px;
 }
@@ -247,11 +301,6 @@
   background-color: var(--discord-bg-dark);
   border-radius: 8px;
   border: 1px solid var(--discord-border);
-  transition: transform 0.2s;
-}
-
-.guide-flow-item:hover {
-  transform: translateY(-2px);
 }
 
 .guide-section-grid {
@@ -283,4 +332,3 @@
     margin-top: 20px;
   }
 }
-

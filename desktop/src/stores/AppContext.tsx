@@ -35,6 +35,7 @@ export interface PersistedSession {
   usersPerTable: number;
   castsPerRotation: number;
   allowM003EmptySeats: boolean;
+  m003SameDaySlotCount: number;
 }
 
 function getInitialSession(): PersistedSession | null {
@@ -67,14 +68,17 @@ function getInitialSession(): PersistedSession | null {
     const allowM003EmptySeats = typeof (o as { allowM003EmptySeats?: boolean }).allowM003EmptySeats === 'boolean'
       ? (o as { allowM003EmptySeats: boolean }).allowM003EmptySeats
       : false;
+    const m003SameDaySlotCount = typeof (o as { m003SameDaySlotCount?: number }).m003SameDaySlotCount === 'number' && (o as { m003SameDaySlotCount: number }).m003SameDaySlotCount >= 0
+      ? Math.floor((o as { m003SameDaySlotCount: number }).m003SameDaySlotCount)
+      : 0;
 
-    return { winners: o.winners as UserBean[], matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats };
+    return { winners: o.winners as UserBean[], matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount };
   } catch {
     return null;
   }
 }
 
-export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'sessionPicker' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
+export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
 export type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 export type { ThemeId } from '@/common/themes';
 
@@ -123,27 +127,16 @@ interface AppContextType {
   setGlobalMatchingError: (err: string | null) => void;
   allowM003EmptySeats: boolean;
   setAllowM003EmptySeats: (val: boolean) => void;
+  m003SameDaySlotCount: number;
+  setM003SameDaySlotCount: (n: number) => void;
   isMatchingLocked: boolean;
   setIsMatchingLocked: (val: boolean) => void;
   resetMatching: () => void;
   isDbReady: boolean;
   // ──────────────────────────────────────────────────────────────────────────
-  // Two-tier DB state (event + session). The UI is driven by a three-state
-  // matrix:
-  //   1. currentEventName === null
-  //        → no event selected; force EventManagementPage
-  //   2. currentEventName !== null && currentSessionTimestamp === null
-  //        → event opened, but no applicant import selected yet;
-  //          force SessionPickerPage (lottery / matching / applicant pages
-  //          have nothing to operate on because applicants live in the
-  //          session DB)
-  //   3. currentEventName !== null && currentSessionTimestamp !== null
-  //        → fully open; normal feature pages render
-  // currentEventName drives the shared DB connection; currentSessionTimestamp
-  // drives the session DB connection — they are intentionally independent so
-  // event-scoped pages (cast roster, attendance, NG, Discord) can still work
-  // before a CSV is imported.
-  // ──────────────────────────────────────────────────────────────────────────
+  // currentEventName drives the event-shared DB. currentSessionTimestamp is an
+  // internal handle for the latest applicant import; the UI does not expose a
+  // session switcher.
   currentEventName: string | null;
   setCurrentEventName: (name: string | null) => void;
   currentSessionTimestamp: string | null;
@@ -175,6 +168,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [castsPerRotation, setCastsPerRotation] = useState<number>(initialSession?.castsPerRotation ?? 1);
   const [matchingSettings, setMatchingSettingsState] = useState<MatchingSettingsState>(() => getInitialMatchingSettings());
   const [allowM003EmptySeats, setAllowM003EmptySeats] = useState<boolean>(initialSession?.allowM003EmptySeats ?? false);
+  const [m003SameDaySlotCount, setM003SameDaySlotCount] = useState<number>(initialSession?.m003SameDaySlotCount ?? 0);
   const [isMatchingLocked, setIsMatchingLocked] = useState<boolean>(false);
 
   const [globalMatchingResult, setGlobalMatchingResult] = useState<Map<string, MatchedCast[]> | null>(null);
@@ -218,9 +212,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       usersPerTable,
       castsPerRotation,
       allowM003EmptySeats,
+      m003SameDaySlotCount,
     };
     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-  }, [currentWinners, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats]);
+  }, [currentWinners, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -228,14 +223,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [themeId]);
 
   const switchEvent = async (name: string) => {
-    // closeEvent() internally closes any open session, but we still need to
-    // clear the React-side session pointers and localStorage marker so the
-    // app falls back into "session picker" mode after the switch.
     await closeSession();
     await closeEvent();
     await openEvent(name);
     saveLastUsedEvent(name);
-    clearLastUsedSession();
     setCurrentEventName(name);
     setCurrentSessionTimestamp(null);
     setSessions([]);
@@ -246,8 +237,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const list = await listSessions(name);
       setSessions(list);
+      const latestSession = list[0]?.timestamp ?? null;
+      if (latestSession !== null) {
+        await openSession(latestSession);
+        saveLastUsedSession(latestSession);
+        setCurrentSessionTimestamp(latestSession);
+        bumpDataReload();
+      } else {
+        clearLastUsedSession();
+      }
     } catch (e) {
       console.warn('[AppContext] セッション一覧の取得に失敗しました:', e);
+      clearLastUsedSession();
     }
   };
 
@@ -274,9 +275,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           try {
             const list = await listSessions(lastUsedEvent);
             setSessions(list);
-            if (lastUsedSession && list.some((s) => s.timestamp === lastUsedSession)) {
-              await openSession(lastUsedSession);
-              setCurrentSessionTimestamp(lastUsedSession);
+            const sessionToOpen = lastUsedSession && list.some((s) => s.timestamp === lastUsedSession)
+              ? lastUsedSession
+              : (list[0]?.timestamp ?? null);
+            if (sessionToOpen !== null) {
+              await openSession(sessionToOpen);
+              saveLastUsedSession(sessionToOpen);
+              setCurrentSessionTimestamp(sessionToOpen);
             }
           } catch (e) {
             console.warn('[AppContext] セッション一覧の取得に失敗しました:', e);
@@ -326,6 +331,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setGlobalMatchingError,
       allowM003EmptySeats,
       setAllowM003EmptySeats,
+      m003SameDaySlotCount,
+      setM003SameDaySlotCount,
       isMatchingLocked,
       setIsMatchingLocked,
       resetMatching,

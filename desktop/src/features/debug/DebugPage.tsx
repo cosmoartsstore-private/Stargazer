@@ -33,6 +33,8 @@ const SESSION_TABLES = [
   'applicant_casts',
   'applicant_extra',
   'lottery_results',
+  'lottery_saved_runs',
+  'lottery_saved_run_results',
 ];
 
 const QUICK_QUERIES: { label: string; sql: string; scope: DbScope }[] = [
@@ -46,6 +48,7 @@ const QUICK_QUERIES: { label: string; sql: string; scope: DbScope }[] = [
   { label: 'session:meta',              scope: 'session', sql: 'SELECT * FROM meta' },
   { label: 'session:applicants',        scope: 'session', sql: 'SELECT a.id, a.x_id, a.name, a.is_guaranteed FROM applicants a ORDER BY a.id' },
   { label: 'session:lottery_results',   scope: 'session', sql: 'SELECT lr.id, lr.applicant_id, a.x_id, lr.is_guaranteed FROM lottery_results lr JOIN applicants a ON a.id = lr.applicant_id ORDER BY lr.id' },
+  { label: 'session:lottery_saved_runs', scope: 'session', sql: 'SELECT id, label, matching_type_code, lottery_count, guaranteed_count, winner_count, created_at FROM lottery_saved_runs ORDER BY id DESC' },
   { label: 'PRAGMA user_version',       scope: 'shared',  sql: 'PRAGMA user_version' },
   { label: 'sqlite_master',             scope: 'shared',  sql: 'SELECT type, name, sql FROM sqlite_master ORDER BY type, name' },
 ];
@@ -310,15 +313,16 @@ export const DebugPage: React.FC = () => {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
               <span style={{ color: 'var(--discord-text-muted)' }}>対象 DB:</span>
               {(['shared', 'session'] as DbScope[]).map((s) => (
-                <label key={s} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <input
-                    type="radio"
-                    name="sql-scope"
-                    checked={sqlScope === s}
-                    onChange={() => setSqlScope(s)}
-                  />
+                <button
+                  key={s}
+                  type="button"
+                  className={`${shared.btnToggle}${sqlScope === s ? ` ${shared.active}` : ''}`}
+                  aria-pressed={sqlScope === s}
+                  onClick={() => setSqlScope(s)}
+                  style={{ flex: '0 0 88px' }}
+                >
                   {s}
-                </label>
+                </button>
               ))}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

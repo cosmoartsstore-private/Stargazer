@@ -8,6 +8,25 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.applicant-list-page-static {
+  height: calc(100vh - 176px);
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.applicant-list-table-container {
+  flex: 1;
+  min-height: 220px;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.applicant-list-page-static .applicant-list-table-container {
+  min-height: 0;
+  max-height: none;
 }
 
 .applicant-list-header__stats {
@@ -119,6 +138,17 @@
   margin: 0;
 }
 
+.applicant-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.applicant-detail-title-badge {
+  font-size: 12px;
+}
+
 .applicant-row__detail-grid dt {
   color: var(--discord-text-muted);
   font-size: 11px;
@@ -139,6 +169,46 @@
   color: var(--discord-accent-red);
   font-size: 12px;
   font-weight: 500;
+}
+
+.ng-cast-none {
+  color: var(--discord-text-muted);
+}
+
+.ng-cast-single {
+  color: var(--discord-accent-red);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ng-cast-summary {
+  color: var(--discord-accent-red);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.applicant-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--discord-accent-red);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, opacity 0.15s;
+}
+
+.applicant-delete-button:hover {
+  color: #ff5a5d;
+  opacity: 0.86;
+  transform: none;
 }
 
 /* ========================================

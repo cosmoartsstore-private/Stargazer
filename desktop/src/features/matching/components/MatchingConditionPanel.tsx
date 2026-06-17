@@ -2,6 +2,7 @@ import React from 'react';
 import { useAppContext } from '@/stores/AppContext';
 import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
 import shared from '@/styles/shared.module.css';
+import styles from './MatchingConditionPanel.module.css';
 
 interface MatchingConditionPanelProps {
   disabled?: boolean;
@@ -10,6 +11,17 @@ interface MatchingConditionPanelProps {
 function clampPositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : fallback;
 }
+
+const NG_JUDGMENT_OPTIONS = [
+  { value: 'either', label: 'ユーザー名 + ID' },
+  { value: 'username', label: 'ユーザー名' },
+  { value: 'accountId', label: 'ID' },
+] as const;
+
+const SEARCH_MODE_OPTIONS = [
+  { value: 'efficiency', label: '効率モード', description: '条件到達で即採用' },
+  { value: 'quality', label: '品質モード', description: '時間内で最良を採用' },
+] as const;
 
 export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
   disabled = false,
@@ -25,6 +37,10 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
     setUsersPerTable,
     castsPerRotation,
     setCastsPerRotation,
+    allowM003EmptySeats,
+    setAllowM003EmptySeats,
+    m003SameDaySlotCount,
+    setM003SameDaySlotCount,
     matchingSettings,
     setMatchingSettings,
   } = useAppContext();
@@ -40,18 +56,19 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
       <div style={{ display: 'grid', gap: 16 }}>
         <label className={shared.formGroup}>
           <span className={shared.formLabel}>方式</span>
-          <select
-            value={matchingTypeCode}
-            disabled={disabled}
-            onChange={(event) => setMatchingTypeCode(event.target.value as typeof matchingTypeCode)}
-            className={shared.formInput}
-          >
+          <div className={styles.optionGrid}>
             {MATCHING_TYPE_CODES_SELECTABLE.map((code) => (
-              <option key={code} value={code}>
+              <button
+                key={code}
+                type="button"
+                className={`${styles.optionButton}${matchingTypeCode === code ? ` ${styles.optionButtonSelected}` : ''}`}
+                disabled={disabled}
+                onClick={() => setMatchingTypeCode(code)}
+              >
                 {MATCHING_TYPE_LABELS[code]}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
         </label>
 
         <label className={shared.formGroup}>
@@ -103,44 +120,87 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
                 onChange={(event) => setCastsPerRotation(clampPositive(Number(event.target.value), 1))}
               />
             </label>
+
+            <div className={shared.formGroup}>
+              <span className={shared.formLabel}>当日枠を含める</span>
+              <button
+                type="button"
+                className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
+                role="switch"
+                aria-checked={allowM003EmptySeats}
+                disabled={disabled}
+                onClick={() => {
+                  const next = !allowM003EmptySeats;
+                  setAllowM003EmptySeats(next);
+                  if (next && m003SameDaySlotCount < 1) {
+                    setM003SameDaySlotCount(1);
+                  }
+                }}
+              >
+                <span className={styles.workflowSwitchKnob} />
+                <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
+              </button>
+              <span className={styles.switchHelpText}>当日枠分の席数を合計席数に追加</span>
+              {allowM003EmptySeats && (
+                <label className={styles.sameDaySlotField}>
+                  <span>当日枠数</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className={shared.formInput}
+                    value={m003SameDaySlotCount}
+                    disabled={disabled}
+                    onChange={(event) => setM003SameDaySlotCount(clampPositive(Number(event.target.value), 1))}
+                  />
+                </label>
+              )}
+            </div>
           </>
         )}
 
         <label className={shared.formGroup}>
           <span className={shared.formLabel}>NG判定</span>
-          <select
-            value={matchingSettings.ngJudgmentType}
-            disabled={disabled}
-            onChange={(event) =>
-              setMatchingSettings((prev) => ({
-                ...prev,
-                ngJudgmentType: event.target.value as typeof prev.ngJudgmentType,
-              }))
-            }
-            className={shared.formInput}
-          >
-            <option value="either">ユーザー名 + ID</option>
-            <option value="username">ユーザー名</option>
-            <option value="accountId">ID</option>
-          </select>
+          <div className={styles.optionGrid}>
+            {NG_JUDGMENT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`${styles.optionButton}${matchingSettings.ngJudgmentType === option.value ? ` ${styles.optionButtonSelected}` : ''}`}
+                disabled={disabled}
+                onClick={() =>
+                  setMatchingSettings((prev) => ({
+                    ...prev,
+                    ngJudgmentType: option.value,
+                  }))
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </label>
 
         <label className={shared.formGroup}>
           <span className={shared.formLabel}>探索モード</span>
-          <select
-            value={matchingSettings.searchMode}
-            disabled={disabled}
-            onChange={(event) =>
-              setMatchingSettings((prev) => ({
-                ...prev,
-                searchMode: event.target.value as typeof prev.searchMode,
-              }))
-            }
-            className={shared.formInput}
-          >
-            <option value="efficiency">効率モード（条件到達で即採用）</option>
-            <option value="quality">品質モード（時間内で最良を採用）</option>
-          </select>
+          <div className={styles.optionGrid}>
+            {SEARCH_MODE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`${styles.optionButton}${matchingSettings.searchMode === option.value ? ` ${styles.optionButtonSelected}` : ''}`}
+                disabled={disabled}
+                onClick={() =>
+                  setMatchingSettings((prev) => ({
+                    ...prev,
+                    searchMode: option.value,
+                  }))
+                }
+              >
+                {option.label}
+                <span>{option.description}</span>
+              </button>
+            ))}
+          </div>
         </label>
 
         <p className={shared.pageHeaderSubtitle} style={{ margin: 0 }}>

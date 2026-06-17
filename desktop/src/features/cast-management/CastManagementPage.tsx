@@ -1,14 +1,57 @@
 import React, { useRef, useState } from 'react';
 import {
-  Camera, Link2, Pencil,
+  Camera, ExternalLink, Pencil,
   Plus, Search, Trash2, User, UserPlus,
 } from '@/common/icons';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import type { CastBean } from '@/common/types/entities';
 import { useAppContext } from '@/stores/AppContext';
 import { insertCast, updateCastFields, renameCast as renameCastDb, deleteCast } from '@/db';
+import { invoke, isTauri } from '@/tauri';
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
+
+const CONTACT_QUICK_INPUTS = [
+  { key: 'discord', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
+] as const;
+
+const CONTACT_SITE_LINKS = [
+  { key: 'discord', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
+  { key: 'x', label: 'X', marker: 'X', url: 'https://x.com/i/chat' },
+  { key: 'vrchat', label: 'VRChat', marker: 'VRC', url: 'https://vrchat.com/home' },
+] as const;
+
+type ContactMarkerKind = 'discord' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
+
+function isHttpsContactUrl(url: string): boolean {
+  return url.trim().toLowerCase().startsWith('https://');
+}
+
+function getXProfileUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('@')) return null;
+  const username = trimmed.replace(/^@+/, '');
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) return null;
+  return `https://x.com/${username}`;
+}
+
+function getOpenableContactUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (isHttpsContactUrl(trimmed)) return trimmed;
+  return getXProfileUrl(trimmed);
+}
+
+function getContactMarker(url: string): { label: string; kind: ContactMarkerKind } {
+  const trimmed = url.trim();
+  const lowerUrl = trimmed.toLowerCase();
+  const matched = CONTACT_QUICK_INPUTS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
+  if (matched) return { label: matched.marker, kind: matched.key };
+  if (!trimmed) return { label: 'URL', kind: 'empty' };
+  if (lowerUrl.startsWith('https://vrchat.com/')) return { label: 'VRC', kind: 'vrchat' };
+  if (lowerUrl.startsWith('https://x.com/') || lowerUrl.startsWith('https://twitter.com/') || getXProfileUrl(trimmed)) return { label: 'X', kind: 'x' };
+  if (isHttpsContactUrl(trimmed)) return { label: 'HTTPS', kind: 'https' };
+  return { label: 'TEXT', kind: 'text' };
+}
 
 export const CastManagementPage: React.FC = () => {
   const { casts, setCasts } = useAppContext();
@@ -101,6 +144,40 @@ export const CastManagementPage: React.FC = () => {
     await updateCastFields(castName, { contact_urls });
   };
 
+  const handleAddQuickContactUrl = async (castName: string, value: string) => {
+    const cast = casts.find((c) => c.name === castName);
+    if (!cast) return;
+    const contact_urls = [...(cast.contact_urls ?? []), value];
+    setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, contact_urls } : c)));
+    await updateCastFields(castName, { contact_urls });
+  };
+
+  const handleOpenContactUrl = async (url: string) => {
+    const openUrl = getOpenableContactUrl(url);
+    if (!openUrl) return;
+    if (isTauri()) {
+      try {
+        await invoke<void>('open_external_url', { url: openUrl });
+        return;
+      } catch (error) {
+        setAlertMessage(`外部サイトを開けませんでした: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+    }
+    window.open(openUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const getContactMarkerClassName = (kind: ContactMarkerKind) => {
+    switch (kind) {
+      case 'discord': return `${styles.castContactMarker} ${styles.castContactMarkerDiscord}`;
+      case 'vrchat':  return `${styles.castContactMarker} ${styles.castContactMarkerVrchat}`;
+      case 'x':       return `${styles.castContactMarker} ${styles.castContactMarkerX}`;
+      case 'https':   return `${styles.castContactMarker} ${styles.castContactMarkerHttps}`;
+      case 'text':    return `${styles.castContactMarker} ${styles.castContactMarkerText}`;
+      default:        return styles.castContactMarker;
+    }
+  };
+
   const filteredCasts = castSearchQuery.trim()
     ? casts.filter((c) => c.name.toLowerCase().includes(castSearchQuery.trim().toLowerCase()))
     : casts;
@@ -160,7 +237,7 @@ export const CastManagementPage: React.FC = () => {
               <input
                 type="text"
                 className={styles.castListPanel__addInput}
-                placeholder="キャスト名..."
+                placeholder="キャストを追加"
                 value={inputCastName}
                 onChange={(e) => setInputCastName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleAddCast(); }}
@@ -286,28 +363,82 @@ export const CastManagementPage: React.FC = () => {
                 {/* 連絡先 */}
                 <div className={styles.castDetailSection}>
                   <label className={styles.castDetailLabel}>連絡先</label>
-                  <div className={styles.castContactList}>
-                    {getContactUrls(selectedCast).map((url, index) => (
-                      <div key={`${selectedCast.name}-${index}`} className={styles.castContactItem}>
-                        <div className={styles.castContactInputWrap}>
-                          <Link2 size={13} className={styles.castContactIcon} />
-                          <input
-                            type="text"
-                            className={styles.castContactInput}
-                            placeholder="VRC / X / Discord URL"
-                            value={url}
-                            onChange={(e) => { void handleContactUrlChange(selectedCast.name, index, e.target.value); }}
-                          />
-                        </div>
+                  <div className={styles.castContactQuickPanel}>
+                    <div className={styles.castContactQuickHeader}>
+                      <span>クイック入力</span>
+                      <small>Discord DM URLの先頭を追加します</small>
+                    </div>
+                    <div className={styles.castContactQuickInput}>
+                      {CONTACT_QUICK_INPUTS.map((item) => (
                         <button
+                          key={item.key}
                           type="button"
-                          className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`}
-                          onClick={() => { void handleContactUrlChange(selectedCast.name, index, ''); }}
+                          className={styles.castContactQuickBtn}
+                          onClick={() => { void handleAddQuickContactUrl(selectedCast.name, item.url); }}
                         >
-                          <Trash2 size={13} />
+                          <span className={styles.castContactQuickIcon}><Plus size={12} /></span>
+                          <span className={styles.castContactQuickText}>
+                            <strong>{item.label}</strong>
+                            <small>{item.url}</small>
+                          </span>
                         </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                  <div className={styles.castContactSiteLinks}>
+                    <span className={styles.castContactSiteLabel}>外部サイト</span>
+                    <div className={styles.castContactSiteActions}>
+                      {CONTACT_SITE_LINKS.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          className={`${styles.castContactQuickBtn} ${styles.castContactSiteBtn}`}
+                          onClick={() => { void handleOpenContactUrl(item.url); }}
+                        >
+                          <span className={styles.castContactQuickIcon}><ExternalLink size={12} /></span>
+                          <span className={styles.castContactQuickText}>
+                            <strong>{item.label}</strong>
+                            <small>サイトを開く</small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={styles.castContactList}>
+                    {getContactUrls(selectedCast).map((url, index) => {
+                      const marker = getContactMarker(url);
+                      const canOpen = getOpenableContactUrl(url) !== null;
+                      return (
+                        <div key={`${selectedCast.name}-${index}`} className={styles.castContactItem}>
+                          <div className={styles.castContactInputWrap}>
+                            <span className={getContactMarkerClassName(marker.kind)}>{marker.label}</span>
+                            <input
+                              type="text"
+                              className={styles.castContactInput}
+                              placeholder="https:// から始まるURL または @username"
+                              value={url}
+                              onChange={(e) => { void handleContactUrlChange(selectedCast.name, index, e.target.value); }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className={`${styles.castContactBtn} ${styles.castContactBtnOpen}`}
+                            disabled={!canOpen}
+                            title={canOpen ? 'リンクを開く' : 'https:// から始まるURLまたは @username を開けます'}
+                            onClick={() => { void handleOpenContactUrl(url); }}
+                          >
+                            <ExternalLink size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`}
+                            onClick={() => { void handleContactUrlChange(selectedCast.name, index, ''); }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
                     <button
                       type="button"
                       className={styles.castContactAddBtn}

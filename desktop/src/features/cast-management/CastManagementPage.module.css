@@ -464,65 +464,6 @@
   cursor: default;
 }
 
-/* ── 要注意人物：NGユーザーから選択リスト ── */
-.ng-select-list {
-  max-height: 320px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.ng-select-list__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.ng-select-list__item:hover {
-  background-color: var(--discord-bg-hover, rgba(255, 255, 255, 0.06));
-}
-
-.ng-select-list__item input[type="checkbox"] {
-  margin-top: 3px;
-  flex-shrink: 0;
-  accent-color: var(--discord-accent, #5865f2);
-}
-
-.ng-select-list__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ng-select-list__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--discord-text);
-}
-
-.ng-select-list__id {
-  font-weight: 400;
-  color: var(--discord-text-muted);
-  margin-left: 4px;
-}
-
-.ng-select-list__id--missing {
-  font-style: italic;
-  opacity: 0.6;
-}
-
-.ng-select-list__casts {
-  font-size: 11px;
-  color: var(--discord-text-muted);
-}
-
 /* ========================================
    Modern Cast Management UI (cast-modern)
    ======================================== */
@@ -625,6 +566,126 @@
   gap: 8px;
 }
 
+.cast-contact-quick-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  background: var(--discord-bg-dark);
+}
+
+.cast-contact-quick-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cast-contact-quick-header span {
+  color: var(--discord-text-header);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cast-contact-quick-header small {
+  color: var(--discord-text-muted);
+  font-size: 11px;
+}
+
+.cast-contact-quick-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.cast-contact-site-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 10px;
+}
+
+.cast-contact-site-label {
+  flex-shrink: 0;
+  color: var(--discord-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cast-contact-site-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cast-contact-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--discord-border);
+  background: var(--discord-bg-secondary);
+  color: var(--discord-text-normal);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.cast-contact-quick-btn:hover {
+  background: var(--discord-bg-hover);
+  border-color: var(--discord-accent-blue);
+}
+
+.cast-contact-site-btn {
+  background: transparent;
+}
+
+.cast-contact-quick-btn:active {
+  transform: scale(0.96);
+}
+
+.cast-contact-quick-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: var(--discord-button-secondary);
+  color: var(--discord-text-muted);
+}
+
+.cast-contact-quick-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.cast-contact-quick-text strong,
+.cast-contact-quick-text small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cast-contact-quick-text small {
+  color: var(--discord-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .cast-contact-item {
   display: flex;
   align-items: center;
@@ -638,8 +699,9 @@
   background: var(--discord-bg-dark);
   border: 1px solid var(--discord-border);
   border-radius: 6px;
-  padding: 4px 8px;
-  transition: all 0.2s;
+  padding: 5px 8px;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 0;
 }
 
 .cast-contact-input-wrap:focus-within {
@@ -652,13 +714,55 @@
   margin-right: 6px;
 }
 
+.cast-contact-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: var(--discord-bg-hover);
+  color: var(--discord-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cast-contact-marker--discord {
+  background: rgba(88, 101, 242, 0.18);
+  color: #5865f2;
+}
+
+.cast-contact-marker--vrchat {
+  background: rgba(18, 117, 226, 0.16);
+  color: #1275e2;
+}
+
+.cast-contact-marker--x {
+  background: rgba(20, 20, 20, 0.18);
+  color: var(--discord-text-header);
+}
+
+.cast-contact-marker--https {
+  background: rgba(59, 165, 93, 0.14);
+  color: var(--discord-accent-green);
+}
+
+.cast-contact-marker--text {
+  background: rgba(237, 66, 69, 0.12);
+  color: var(--discord-text-danger);
+}
+
 .cast-contact-input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   color: var(--discord-text-normal);
   font-size: 12px;
   outline: none;
+  padding-left: 8px;
 }
 
 .cast-contact-btn {
@@ -682,6 +786,15 @@
   background: var(--discord-button-secondary-hover);
 }
 
+.cast-contact-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.cast-contact-btn--open:disabled:hover {
+  background: var(--discord-button-secondary);
+}
+
 .cast-contact-btn--delete {
   background: rgba(237, 66, 69, 0.1);
   color: var(--discord-text-danger);
@@ -697,7 +810,7 @@
   gap: 6px;
   justify-content: center;
   width: 100%;
-  padding: 8px;
+  padding: 9px;
   border: 1px dashed var(--discord-border);
   border-radius: 6px;
   background: transparent;
@@ -705,13 +818,13 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .cast-contact-add-btn:hover {
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-normal);
-  border-color: var(--discord-text-muted);
+  background: rgba(88, 101, 242, 0.06);
+  color: var(--discord-accent-blue);
+  border-color: var(--discord-accent-blue);
 }
 
 /* ========================================
@@ -803,9 +916,9 @@
   border: 1px solid var(--discord-border);
   border-radius: 10px;
   overflow: hidden;
-  height: calc(100vh - 240px);
-  min-height: 400px;
-  max-height: 780px;
+  height: calc(100vh - 270px);
+  min-height: 360px;
+  max-height: 740px;
 }
 
 .cast-list-panel__search {
@@ -834,7 +947,7 @@
 .cast-list-panel__items {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 4px;
 }
 
 .cast-list-panel__empty {
@@ -849,13 +962,14 @@
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 9px 10px;
   background: none;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
   text-align: left;
   color: var(--discord-text-normal);
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .cast-list-item:hover {
@@ -864,8 +978,7 @@
 
 .cast-list-item--selected {
   background: var(--discord-bg-selected);
-  border-left: 2px solid var(--discord-accent-blue);
-  padding-left: 10px;
+  color: var(--discord-text-header);
 }
 
 .cast-list-item__dot {
@@ -950,9 +1063,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 240px);
-  min-height: 400px;
-  max-height: 780px;
+  height: calc(100vh - 270px);
+  min-height: 360px;
+  max-height: 740px;
   background: var(--discord-bg-secondary);
   border: 1px solid var(--discord-border);
   border-radius: 10px;
@@ -992,15 +1105,15 @@
   border-radius: 10px;
   padding: 24px;
   overflow-y: auto;
-  height: calc(100vh - 240px);
-  min-height: 400px;
-  max-height: 780px;
+  height: calc(100vh - 270px);
+  min-height: 360px;
+  max-height: 740px;
 }
 
 /* 左写真 / 右プロフィール 2カラム */
 .cast-char-profile-layout {
   display: grid;
-  grid-template-columns: 225px 1fr;
+  grid-template-columns: minmax(260px, 32%) 1fr;
   gap: 20px;
   align-items: start;
   width: 100%;
@@ -1138,7 +1251,7 @@
 .cast-char-photo-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 9 / 16;
   border-radius: 10px;
   background: var(--discord-bg-dark);
   border: 1px solid var(--discord-border);
@@ -1148,6 +1261,7 @@
   align-items: center;
   justify-content: center;
   transition: border-color 0.15s, box-shadow 0.15s;
+  isolation: isolate;
 }
 
 .cast-char-photo-frame:hover {
@@ -1157,8 +1271,10 @@
 .cast-char-photo-frame__img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  background: var(--discord-bg-dark);
+  image-rendering: auto;
 }
 
 .cast-char-photo-frame__placeholder {
@@ -1239,14 +1355,20 @@
 
 /* 表示モード：枠なしのプレーンテキスト */
 .cast-char-memo__text {
+  box-sizing: border-box;
   font-size: 13px;
   line-height: 1.8;
   color: var(--discord-text-normal);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   cursor: text;
-  padding: 4px 6px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: 6px;
-  min-height: 28px;
+  height: 132px;
+  min-height: 132px;
+  overflow-y: auto;
   transition: background 0.12s;
   width: 100%;
 }
@@ -1263,6 +1385,8 @@
 /* 編集モード：枠ありtextarea */
 .cast-char-memo__textarea {
   width: 100%;
+  height: 132px;
+  min-height: 132px;
   box-sizing: border-box;
   background: var(--discord-bg-dark);
   border: 1px solid var(--discord-accent-blue);
@@ -1270,9 +1394,11 @@
   color: var(--discord-text-normal);
   font-size: 13px;
   line-height: 1.8;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   padding: 8px 10px;
   outline: none;
-  resize: vertical;
+  resize: none;
   font-family: inherit;
   transition: box-shadow 0.15s;
 }
@@ -1288,26 +1414,37 @@
 
 /* 7. 削除ボタン */
 .cast-char-delete-btn {
-  margin-top: 8px;
-  padding: 10px 40px;
-  border-radius: 999px;
+  margin-top: 14px;
+  padding: 8px 24px;
+  border-radius: 6px;
   border: none;
   background: var(--discord-accent-red);
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.15s;
   align-self: flex-start;
 }
 
 .cast-char-delete-btn:hover {
-  opacity: 0.85;
+  background: #c73c3f;
 }
 
 @media (max-width: 800px) {
   .cast-detail-layout {
     grid-template-columns: 1fr;
+  }
+  .cast-contact-quick-input {
+    grid-template-columns: 1fr;
+  }
+  .cast-contact-site-links {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .cast-contact-site-actions {
+    grid-template-columns: 1fr;
+    width: 100%;
   }
   .cast-list-panel,
   .cast-char-panel,
@@ -1317,7 +1454,7 @@
     min-height: unset;
   }
   .cast-char-profile-layout {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: minmax(220px, 34%) 1fr;
     gap: 14px;
   }
 }
@@ -1341,7 +1478,7 @@
 
 :global([data-theme="skyblue"]) .cast-card__presence-button--absent {
   background-color: var(--cast-absent-bg);
-  color: #152942;
+  color: #102b49;
 }
 
 :global([data-theme="skyblue"]) .cast-presence-summary__col--present .cast-presence-summary__label {
@@ -1354,10 +1491,10 @@
 }
 
 :global([data-theme="skyblue"]) .cast-presence-summary__col--absent .cast-presence-summary__label {
-  color: #4a6a80;
+  color: #47708f;
 }
 
 :global([data-theme="skyblue"]) .cast-presence-summary__chip--absent {
-  background-color: #8db4c9;
-  color: #152942;
+  background-color: #a9c9dd;
+  color: #102b49;
 }

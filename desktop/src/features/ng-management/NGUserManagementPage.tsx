@@ -178,17 +178,17 @@ export const NGUserManagementPage: React.FC = () => {
 
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner} ${styles.ngPage}`}>
-      <div className={shared.pageTabs}>
+      <div className={styles.ngSubTabs}>
         <button
           type="button"
-          className={`${shared.pageTab}${ngTab === 'cast-ng' ? ` ${shared.pageTabActive}` : ''}`}
+          className={`${styles.ngSubTab}${ngTab === 'cast-ng' ? ` ${styles.ngSubTabActive}` : ''}`}
           onClick={() => setNgTab('cast-ng')}
         >
           キャストNG
         </button>
         <button
           type="button"
-          className={`${shared.pageTab}${ngTab === 'caution' ? ` ${shared.pageTabActive}` : ''}`}
+          className={`${styles.ngSubTab}${ngTab === 'caution' ? ` ${styles.ngSubTabActive}` : ''}`}
           onClick={() => setNgTab('caution')}
         >
           要注意人物
@@ -274,6 +274,7 @@ export const NGUserManagementPage: React.FC = () => {
                           type="button"
                           className={styles.ngCastGrid__remove}
                           title="削除"
+                          aria-label={`${entry.accountId ?? entry.username ?? 'NGユーザー'} を削除`}
                           onClick={() => setPendingDeleteNg({ castName: selectedNgRow.castName, entry })}
                         >
                           ×
@@ -335,8 +336,9 @@ export const NGUserManagementPage: React.FC = () => {
                         }
                       </div>
                       <div className={styles.cautionCandidateCasts}>
-                        <span className={styles.cautionCandidateCountBadge}>{c.castCount}人がNG</span>
-                        <span className={styles.cautionCandidateCastNames}>{c.castNames.join('・')}</span>
+                        <span className={styles.cautionCandidateCountText}>
+                          {c.castCount}人がNG
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -396,6 +398,7 @@ export const NGUserManagementPage: React.FC = () => {
                         type="button"
                         className={styles.ngCastGrid__remove}
                         title="削除"
+                        aria-label={`${user.accountId} を要注意人物から削除`}
                         onClick={() => setPendingDeleteCaution(user.accountId)}
                       >
                         ×

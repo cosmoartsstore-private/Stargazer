@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Database, Plus, Camera, FileText, Search, RefreshCw } from '@/common/icons';
+import { Database, Plus, Camera, FileText, RefreshCw } from '@/common/icons';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useAppContext } from '@/stores/AppContext';
 import {
@@ -25,7 +25,6 @@ export const EventManagementPage: React.FC = () => {
   } = useAppContext();
 
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [addName, setAddName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,10 +38,6 @@ export const EventManagementPage: React.FC = () => {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
-
-  const filteredEvents = events.filter((name) =>
-    name.toLowerCase().includes(search.toLowerCase()),
-  );
 
   const refreshList = useCallback(async () => {
     setIsLoading(true);
@@ -247,22 +242,13 @@ export const EventManagementPage: React.FC = () => {
 
       <div className={styles.eventDetailLayout}>
         <div className={shared.castListPanel}>
-          <div className={shared.castListPanel__search}>
-            <Search size={14} className={shared.castListPanel__searchIcon} />
-            <input
-              className={shared.castListPanel__searchInput}
-              placeholder="検索..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
           <div className={shared.castListPanel__items}>
             {isLoading ? (
               <div className={shared.castListPanel__empty}>読込中...</div>
-            ) : filteredEvents.length === 0 ? (
+            ) : events.length === 0 ? (
               <div className={shared.castListPanel__empty}>イベントなし</div>
             ) : (
-              filteredEvents.map((name) => (
+              events.map((name) => (
                 <button
                   key={name}
                   type="button"
@@ -281,7 +267,7 @@ export const EventManagementPage: React.FC = () => {
             <form onSubmit={handleAdd} className={shared.castListPanel__addRow}>
               <input
                 className={shared.castListPanel__addInput}
-                placeholder="新規イベント名"
+                placeholder="イベントを追加"
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
               />
@@ -310,6 +296,7 @@ export const EventManagementPage: React.FC = () => {
               <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
               <div
                 className={styles.eventCharPhotoFrame}
+                style={!isCurrent ? { cursor: 'default' } : undefined}
                 onClick={() => { if (isCurrent) photoInputRef.current?.click(); }}
               >
                 {meta?.photo_data_url ? (
@@ -332,10 +319,10 @@ export const EventManagementPage: React.FC = () => {
                 )}
               </div>
 
-              <div className={shared.castCharDivider} />
+              <div className={styles.eventCharDivider} />
 
-              <div className={shared.castCharMemoSection}>
-                <div className={shared.castCharMemoHeader}>
+              <div className={styles.eventCharMemoSection}>
+                <div className={styles.eventCharMemoHeader}>
                   <span className={shared.castDetailLabel}>
                     <FileText size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                     メモ・説明
@@ -343,7 +330,7 @@ export const EventManagementPage: React.FC = () => {
                 </div>
                 {editingNotes ? (
                   <textarea
-                    className={shared.castCharMemo__textarea}
+                    className={`${styles.eventCharMemoTextarea} ${shared.customScrollbar}`}
                     rows={6}
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
@@ -352,7 +339,8 @@ export const EventManagementPage: React.FC = () => {
                   />
                 ) : (
                   <div
-                    className={`${shared.castCharMemo__text} ${!editNotes ? shared.castCharMemo__textEmpty : ''}`}
+                    className={`${styles.eventCharMemoText} ${!editNotes ? styles.eventCharMemoTextEmpty : ''}`}
+                    style={!isCurrent ? { cursor: 'default' } : undefined}
                     onClick={() => { if (isCurrent) setEditingNotes(true); }}
                   >
                     {editNotes || (isCurrent ? 'クリックして編集...' : '使用中のイベントのみ編集可')}
@@ -360,7 +348,7 @@ export const EventManagementPage: React.FC = () => {
                 )}
               </div>
 
-              <div className={shared.castCharDivider} />
+              <div className={styles.eventCharDivider} />
 
               <div className={styles.eventCharActionRow}>
                 <button

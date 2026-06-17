@@ -1,20 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Users, Settings, CalendarDays, HelpCircle, Terminal, Upload } from '@/common/icons';
+import { Menu, X, Users, Settings, CalendarDays, HelpCircle, Terminal } from '@/common/icons';
 import { DataManagementPage } from '@/features/data-management/DataManagementPage';
 import { InternalManagementPage } from '@/features/internal-management/InternalManagementPage';
 import { EventManagementPage } from '@/features/event-management/EventManagementPage';
-import { SessionPickerPage } from '@/features/session-picker/SessionPickerPage';
 import { GuidePage } from '@/features/guide/GuidePage';
 import { DebugPage } from '@/features/debug/DebugPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ClickEffect } from '@/components/ClickEffect';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { HeaderLogo } from '@/components/HeaderLogo';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAppContext, type PageType } from '@/stores/AppContext';
-import { NAV } from '@/common/copy';
+import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
+import { STORAGE_KEYS } from '@/common/config';
+import { IMPORT_OVERWRITE, NAV } from '@/common/copy';
 import {
+  createSession,
   getAllCasts,
   loadApplicants,
   getAllCautionUsers,
+  listSessions,
+  openSession,
+  persistApplicants,
+  saveLastUsedSession,
 } from '@/db';
 import styles from './AppContainer.module.css';
 import { ThemeSelector } from '@/components/ThemeSelector';
@@ -23,19 +31,39 @@ export const AppContainer: React.FC = () => {
   const {
     activePage,
     setActivePage,
+    applicants,
     setCasts,
     setApplicants,
+    currentWinners,
+    setCurrentWinners,
     themeId,
     setThemeId,
     isDbReady,
     currentEventName,
     currentSessionTimestamp,
+    setCurrentSessionTimestamp,
+    setSessions,
     setMatchingSettings,
+    resetMatching,
     dataReloadCounter,
   } = useAppContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    rows: string[][];
+    mapping: import('@/common/importFormat').ColumnMapping;
+    options?: import('@/common/sheetParsers').MapRowOptions;
+    nextPage?: PageType;
+  } | null>(null);
+
+  useEffect(() => {
+    document.body.dataset.theme = themeId;
+    return () => {
+      delete document.body.dataset.theme;
+    };
+  }, [themeId]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Data load effect.
@@ -43,8 +71,8 @@ export const AppContainer: React.FC = () => {
   //    the event changes.
   //  - Applicants live in the session DB → only reload when the session
   //    changes; if no session is open, applicants are empty.
-  // dataReloadCounter is a manual escape hatch for callers (e.g. session
-  // picker after import) to force a refresh without changing the keys.
+  // dataReloadCounter is a manual escape hatch for callers that need to
+  // refresh the current hidden import session without changing the keys.
   // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isDbReady) return;
@@ -79,8 +107,6 @@ export const AppContainer: React.FC = () => {
   useEffect(() => {
     if (!isDbReady) return;
     if (currentSessionTimestamp === null) {
-      // Without an open session there is no applicants table to read; leave
-      // the in-memory list empty so feature pages cleanly degrade.
       setApplicants([]);
       return;
     }
@@ -95,6 +121,69 @@ export const AppContainer: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDbReady, currentSessionTimestamp, dataReloadCounter]);
 
+  const ensureWritableSession = async (): Promise<string> => {
+    if (currentEventName === null) {
+      throw new Error('先にイベントを作成、または既存イベントを開いてください。');
+    }
+    if (currentSessionTimestamp !== null) {
+      return currentSessionTimestamp;
+    }
+
+    const timestamp = await createSession(currentEventName);
+    await openSession(timestamp);
+    saveLastUsedSession(timestamp);
+    setCurrentSessionTimestamp(timestamp);
+    setSessions(await listSessions(currentEventName));
+    return timestamp;
+  };
+
+  const applyImport = async (
+    rows: string[][],
+    mapping: import('@/common/importFormat').ColumnMapping,
+    options?: import('@/common/sheetParsers').MapRowOptions,
+    nextPage: PageType = 'dataManagement',
+  ) => {
+    setIsDataLoading(true);
+    try {
+      await ensureWritableSession();
+      const users = rows
+        .map((row) => mapRowToUserBeanWithMapping(row as unknown[], mapping, options))
+        .filter((user) => user.name.trim() !== '' || user.x_id.trim() !== '');
+      await persistApplicants(users);
+      setApplicants(users);
+      setCurrentWinners([]);
+      resetMatching();
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(STORAGE_KEYS.SESSION);
+      }
+      setActivePage(nextPage);
+    } catch (error) {
+      setAlertMessage(error instanceof Error ? error.message : '応募データの取り込みに失敗しました。');
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
+
+  const handleImportUserRows = (
+    rows: string[][],
+    mapping: import('@/common/importFormat').ColumnMapping,
+    options?: import('@/common/sheetParsers').MapRowOptions,
+    nextPage?: PageType,
+  ) => {
+    if (applicants.length > 0 || currentWinners.length > 0) {
+      setPendingImport({ rows, mapping, options, nextPage });
+      return;
+    }
+    void applyImport(rows, mapping, options, nextPage);
+  };
+
+  const handleConfirmImportOverwrite = () => {
+    if (!pendingImport) return;
+    const next = pendingImport;
+    setPendingImport(null);
+    void applyImport(next.rows, next.mapping, next.options, next.nextPage);
+  };
+
   const INTERNAL_PAGES: PageType[] = ['internalManagement', 'cast', 'ngManagement', 'tweet', 'attendance'];
   const APPLICATION_PAGES: PageType[] = ['dataManagement', 'lottery', 'matching', 'import'];
 
@@ -107,46 +196,20 @@ export const AppContainer: React.FC = () => {
   const sidebarButtons: { text: string; page: PageType; icon?: React.ReactNode }[] = [
     { text: '応募管理', page: 'dataManagement', icon: <Users size={18} /> },
     { text: '内部管理', page: 'internalManagement', icon: <Settings size={18} /> },
-    { text: 'セッション切替', page: 'sessionPicker', icon: <Upload size={18} /> },
     { text: 'イベント切り替え', page: 'eventManagement', icon: <CalendarDays size={18} /> },
     { text: NAV.GUIDE, page: 'guide', icon: <HelpCircle size={18} /> },
   ];
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Routing matrix:
-  //   currentEventName === null
-  //     → must open / create an event first. EventManagementPage is the only
-  //       reachable page (guide is also allowed as a read-only escape hatch).
-  //   currentEventName !== null && currentSessionTimestamp === null
-  //     → an event is open but no applicant CSV has been imported yet.
-  //       SessionPickerPage is forced for any page that depends on applicants
-  //       (lottery / matching / data-management). Event-scoped pages
-  //       (eventManagement, internalManagement and its sub-tabs, guide) are
-  //       still reachable so the user can edit casts / NG / attendance
-  //       between imports.
-  //   both set
-  //     → normal page dispatch.
-  // ──────────────────────────────────────────────────────────────────────────
   const renderPage = () => {
     if (currentEventName === null && activePage !== 'guide') {
       return <EventManagementPage />;
-    }
-    if (
-      currentEventName !== null &&
-      currentSessionTimestamp === null &&
-      activePage !== 'guide' &&
-      activePage !== 'eventManagement' &&
-      activePage !== 'internalManagement' &&
-      !INTERNAL_PAGES.includes(activePage)
-    ) {
-      return <SessionPickerPage />;
     }
     switch (activePage) {
       case 'dataManagement':
       case 'lottery':
       case 'matching':
       case 'import':
-        return <DataManagementPage />;
+        return <DataManagementPage onImportUserRows={handleImportUserRows} />;
       case 'internalManagement':
       case 'cast':
       case 'ngManagement':
@@ -155,17 +218,16 @@ export const AppContainer: React.FC = () => {
         return <InternalManagementPage />;
       case 'eventManagement':
         return <EventManagementPage />;
-      case 'sessionPicker':
-        return <SessionPickerPage />;
       case 'guide':
         return <GuidePage />;
       default:
-        return <DataManagementPage />;
+        return <DataManagementPage onImportUserRows={handleImportUserRows} />;
     }
   };
 
   return (
     <ErrorBoundary>
+      <ClickEffect />
       <div className={styles.appContainer} data-theme={themeId}>
         <div className={styles.mobileHeader} data-context="mobile-header">
           <HeaderLogo />
@@ -217,6 +279,20 @@ export const AppContainer: React.FC = () => {
           </div>
         </aside>
         {isMenuOpen && <div className={styles.overlay} onClick={() => setIsMenuOpen(false)} />}
+        {alertMessage !== null && (
+          <ConfirmModal type="alert" message={alertMessage} onConfirm={() => setAlertMessage(null)} confirmLabel="OK" />
+        )}
+        {pendingImport !== null && (
+          <ConfirmModal
+            type="confirm"
+            title={IMPORT_OVERWRITE.MODAL_TITLE}
+            message={IMPORT_OVERWRITE.MODAL_MESSAGE}
+            confirmLabel={IMPORT_OVERWRITE.CONFIRM_LABEL}
+            cancelLabel={IMPORT_OVERWRITE.CANCEL_LABEL}
+            onConfirm={handleConfirmImportOverwrite}
+            onCancel={() => setPendingImport(null)}
+          />
+        )}
         <main className={styles.mainContent}>
           {isDataLoading && <LoadingOverlay message="データを読み込んでいます…" />}
           <div className={styles.mainContentScroll}>

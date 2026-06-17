@@ -15,6 +15,8 @@ import { getPreferenceScore } from './matching-hungarian-engine';
 export interface MatchedCast {
   cast: CastBean;
   rank: number;
+  /** 0-based ローテーション番号。画面では 1-based で表示する。 */
+  rotationIndex?: number;
   score?: number;
   isNGWarning?: boolean;
   ngReason?: string;

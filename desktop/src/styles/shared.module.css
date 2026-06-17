@@ -13,10 +13,20 @@
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: var(--discord-button-primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-success {
@@ -24,10 +34,20 @@
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.btn-success:hover {
+.btn-success:hover:not(:disabled) {
   background-color: var(--discord-button-success-hover);
+}
+
+.btn-success:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-secondary {
@@ -35,10 +55,20 @@
   color: var(--discord-text-normal);
   padding: 10px 20px;
   font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background-color: var(--discord-button-secondary-hover);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-danger {
@@ -46,50 +76,63 @@
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background-color: #c23636;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-export-secondary {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid var(--discord-border);
   background-color: var(--discord-bg-secondary);
   color: var(--discord-text-normal);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .btn-export-secondary:hover:not(:disabled) {
   background-color: var(--discord-bg-hover);
+  border-color: var(--discord-text-muted);
 }
 
 .btn-export-secondary:disabled {
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .btn-export-primary {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   border: none;
   background-color: var(--discord-accent-green);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
 }
 
 .btn-export-primary:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.08);
 }
 
 .btn-export-primary:disabled {
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .btn-full-width {
@@ -264,7 +307,7 @@
 .page-header-row--flex-start {
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 12px;
 }
 
@@ -286,7 +329,7 @@
 .page-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--discord-background-modifier-accent);
+  border-bottom: 2px solid var(--discord-background-modifier-accent, var(--discord-border));
   margin-bottom: 24px;
   scrollbar-width: thin;
   scrollbar-color: rgba(88, 101, 242, 0.55) rgba(255, 255, 255, 0.06);
@@ -326,19 +369,21 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
+  border-radius: 4px 4px 0 0;
 }
 
 .page-tab:hover:not(:disabled) {
   color: var(--discord-text-normal);
-  background: var(--discord-background-modifier-hover);
+  background: var(--discord-background-modifier-hover, var(--discord-bg-hover));
 }
 
 .page-tab--active {
-  color: var(--discord-accent-primary);
-  border-bottom-color: var(--discord-accent-primary);
+  color: var(--discord-accent-primary, var(--discord-accent-blue));
+  border-bottom-color: var(--discord-accent-primary, var(--discord-accent-blue));
+  font-weight: 600;
 }
 
 .page-tab:disabled,
@@ -362,12 +407,13 @@
 }
 
 .form-label {
-  color: var(--discord-text-muted);
+  color: var(--discord-text-normal);
   display: block;
   margin-bottom: 6px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .form-inline-note {
@@ -390,10 +436,6 @@
 .form-input:focus {
   border-color: var(--discord-accent-blue);
   box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
-}
-
-select.form-input {
-  cursor: pointer;
 }
 
 .form-number-input {
@@ -568,13 +610,12 @@ select.form-input {
 
 .status-card {
   background-color: var(--discord-bg-secondary);
-  padding: 12px 20px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
   border: 1px solid var(--discord-border);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-end;
+  align-items: center;
+  gap: 10px;
 }
 
 .status-card__label {
@@ -582,12 +623,14 @@ select.form-input {
   color: var(--discord-text-muted);
   text-transform: uppercase;
   font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .status-card__value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--discord-text-normal);
+  line-height: 1;
 }
 
 .status-card__value-accent {
@@ -595,10 +638,10 @@ select.form-input {
 }
 
 .status-card__value-suffix {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--discord-text-muted);
   font-weight: 500;
-  margin-left: 4px;
+  margin-left: 2px;
 }
 
 /* ========================================
@@ -874,6 +917,26 @@ select.form-input {
   font-weight: 600;
 }
 
+/* チェックテーマ: CSS Modules の共通Radixモーダルにも直接適用する */
+:global([data-theme="skyblue"]) .modal-overlay {
+  background-color: rgba(25, 83, 130, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:global([data-theme="skyblue"]) .modal-content {
+  background-color: #ffffff;
+  border-color: rgba(96, 165, 250, 0.32);
+  color: #183a5f;
+  box-shadow:
+    0 20px 60px rgba(25, 83, 130, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+:global([data-theme="skyblue"]) .modal-title {
+  color: #102b49;
+}
+
 /* ========================================
    List-detail layout (shared by Cast/Event/NG management)
    ======================================== */
@@ -923,7 +986,7 @@ select.form-input {
 .cast-list-panel__items {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 4px;
 }
 
 .cast-list-panel__empty {
@@ -938,13 +1001,14 @@ select.form-input {
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 9px 10px;
   background: none;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
   text-align: left;
   color: var(--discord-text-normal);
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .cast-list-item:hover {
@@ -953,8 +1017,7 @@ select.form-input {
 
 .cast-list-item--selected {
   background: var(--discord-bg-selected);
-  border-left: 2px solid var(--discord-accent-blue);
-  padding-left: 10px;
+  color: var(--discord-text-header);
 }
 
 .cast-list-item__dot {

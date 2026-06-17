@@ -1,0 +1,37 @@
+/* 共通Dialog外枠。本文レイアウトは各機能側で定義する。 */
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dialog-title {
+  margin: 0;
+}
+
+.dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--discord-text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.dialog-close:hover {
+  background: var(--discord-bg-hover);
+  color: var(--discord-text-normal);
+}
+
+.dialog-close svg {
+  display: block;
+}

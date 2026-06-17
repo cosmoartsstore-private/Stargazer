@@ -1,18 +1,29 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import { AppDialog } from '@/components/AppDialog';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { ImportPage } from '@/features/import/ImportPage';
 import {
   computeAutoCautionUsers,
   getCautionNGCastNames,
   isCautionUser,
 } from '@/features/matching/logics/caution-user';
 import { useAppContext } from '@/stores/AppContext';
+import type { PageType } from '@/stores/AppContext';
 import { persistApplicants } from '@/db';
 import type { UserBean } from '@/common/types/entities';
 import styles from './ApplicantDataPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 type FilterMode = 'all' | 'caution';
+
+interface ApplicantDataPageProps {
+  onImportUserRows: (
+    rows: string[][],
+    mapping: import('@/common/importFormat').ColumnMapping,
+    options?: import('@/common/sheetParsers').MapRowOptions,
+    nextPage?: PageType
+  ) => void;
+}
 
 function getExtraMap(rawExtra: unknown[]): Map<string, string> {
   return new Map(
@@ -39,71 +50,62 @@ interface DetailModalProps {
 }
 
 const ApplicantDetailModal: React.FC<DetailModalProps> = ({ user, isCaution, ngCastNames, extraMap, onClose }) => {
-  const modalContainer =
-    typeof document !== 'undefined' ? (document.getElementById('modal-root') ?? document.body) : undefined;
+  const hasNgCasts = ngCastNames.length > 0;
+  const title = (
+    <>
+      {user.name || '名前なし'}
+      {(hasNgCasts || isCaution) && (
+        <span className={`${styles.cautionReason} ${styles.applicantDetailTitleBadge}`}>
+          {hasNgCasts ? 'NGキャストあり' : '要注意人物'}
+        </span>
+      )}
+    </>
+  );
 
   return (
-    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <Dialog.Portal container={modalContainer}>
-        <Dialog.Overlay className={shared.modalOverlay} onClick={onClose} />
-        <Dialog.Content
-          className={shared.modalContent}
-          style={{ maxWidth: 480, width: '90vw' }}
-          aria-describedby={undefined}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <Dialog.Title className={shared.modalTitle} style={{ margin: 0 }}>
-              {user.name || '名前なし'}
-              {isCaution && <span className={styles.cautionReason} style={{ marginLeft: 8, fontSize: 12 }}>⚠ 要注意</span>}
-            </Dialog.Title>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                style={{ background: 'none', border: 'none', color: 'var(--discord-text-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
-                aria-label="閉じる"
-              >
-                ×
-              </button>
-            </Dialog.Close>
-          </div>
+    <AppDialog
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title={title}
+      showClose
+      titleClassName={styles.applicantDetailTitle}
+      contentStyle={{ maxWidth: 480, width: '90vw' }}
+    >
+      <dl className={styles.applicantRow__detailGrid}>
+        <dt>X ID</dt>
+        <dd>{user.x_id || '未設定'}</dd>
 
-          <dl className={styles.applicantRow__detailGrid}>
-            <dt>X ID</dt>
-            <dd>{user.x_id || '未設定'}</dd>
+        {user.vrc_url && (
+          <>
+            <dt>VRC URL</dt>
+            <dd><a href={user.vrc_url} target="_blank" rel="noreferrer">{user.vrc_url}</a></dd>
+          </>
+        )}
 
-            {user.vrc_url && (
-              <>
-                <dt>VRC URL</dt>
-                <dd><a href={user.vrc_url} target="_blank" rel="noreferrer">{user.vrc_url}</a></dd>
-              </>
-            )}
+        {user.casts.map((cast, i) =>
+          cast ? (
+            <React.Fragment key={i}>
+              <dt>希望 {i + 1}</dt>
+              <dd>{cast}</dd>
+            </React.Fragment>
+          ) : null,
+        )}
 
-            {user.casts.map((cast, i) =>
-              cast ? (
-                <React.Fragment key={i}>
-                  <dt>希望 {i + 1}</dt>
-                  <dd>{cast}</dd>
-                </React.Fragment>
-              ) : null,
-            )}
+        {[...extraMap.entries()].map(([key, value]) => (
+          <React.Fragment key={key}>
+            <dt>{key}</dt>
+            <dd>{value}</dd>
+          </React.Fragment>
+        ))}
 
-            {[...extraMap.entries()].map(([key, value]) => (
-              <React.Fragment key={key}>
-                <dt>{key}</dt>
-                <dd>{value}</dd>
-              </React.Fragment>
-            ))}
-
-            {isCaution && (
-              <>
-                <dt>要注意理由</dt>
-                <dd className={styles.cautionReason}>{ngCastNames.join('、')} のNG対象です</dd>
-              </>
-            )}
-          </dl>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        {hasNgCasts && (
+          <>
+            <dt>NGキャスト</dt>
+            <dd className={styles.cautionReason}>{ngCastNames.join('、')} がNGにしています</dd>
+          </>
+        )}
+      </dl>
+    </AppDialog>
   );
 };
 
@@ -119,7 +121,7 @@ interface RowProps {
 
 const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSelect, onRemove }) => (
   <tr
-    className={`${styles.applicantRow}${isCaution ? ` ${styles.applicantRowCaution}` : ''}`}
+    className={`${styles.applicantRow}${isCaution || ngCastNames.length > 0 ? ` ${styles.applicantRowCaution}` : ''}`}
     onClick={() => onSelect(user)}
     style={{ cursor: 'pointer' }}
   >
@@ -129,34 +131,45 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSel
     <td>{user.casts[1] || '—'}</td>
     <td>{user.casts[2] || '—'}</td>
     <td>
-      {isCaution ? (
-        <span className={styles.cautionReason}>⚠ {ngCastNames.join('・')} のNG</span>
-      ) : '通常'}
+      <NgCastCell ngCastNames={ngCastNames} />
     </td>
     <td>
       <button
         type="button"
-        className={shared.btnSecondary}
-        style={{ fontSize: 12, padding: '4px 10px' }}
+        className={styles.applicantDeleteButton}
         onClick={(e) => { e.stopPropagation(); onRemove(user.x_id); }}
+        aria-label="応募データを削除"
+        title="削除"
       >
-        削除
+        ×
       </button>
     </td>
   </tr>
 ));
 
+interface NgCastCellProps {
+  ngCastNames: string[];
+}
+
+const NgCastCell: React.FC<NgCastCellProps> = ({ ngCastNames }) => {
+  if (ngCastNames.length === 0) {
+    return <span className={styles.ngCastNone}>—</span>;
+  }
+  if (ngCastNames.length === 1) {
+    return <span className={styles.ngCastSingle}>{ngCastNames[0]}</span>;
+  }
+  return <span className={styles.ngCastSummary}>{ngCastNames.length}名のキャストがNG</span>;
+};
+
 // ── ページ本体 ─────────────────────────────────────────────────────────────────
 
-export const ApplicantDataPage: React.FC = () => {
-  // CSV/TSV import has been removed from this page. Imports now exclusively
-  // create a new session DB through SessionPickerPage so that every applicant
-  // set lives in its own session and we never overwrite history.
-  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentSessionTimestamp, setActivePage } = useAppContext();
+export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUserRows }) => {
+  const { applicants: applyUsers, casts, setApplicants, matchingSettings, currentSessionTimestamp } = useAppContext();
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [selectedUser, setSelectedUser] = useState<UserBean | null>(null);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showImportForm, setShowImportForm] = useState(false);
 
   const cautionUsers = useMemo(() => {
     const auto = computeAutoCautionUsers(
@@ -184,9 +197,10 @@ export const ApplicantDataPage: React.FC = () => {
     const map = new Map<string, { isCaution: boolean; ngCastNames: string[]; extraMap: Map<string, string> }>();
     for (const user of filteredUsers) {
       const caution = isCautionUser(user, cautionUsers);
+      const ngCastNames = getCautionNGCastNames(user, casts, matchingSettings.ngJudgmentType);
       map.set(user.x_id, {
         isCaution: caution,
-        ngCastNames: caution ? getCautionNGCastNames(user, casts, matchingSettings.ngJudgmentType) : [],
+        ngCastNames,
         extraMap: getExtraMap(user.raw_extra),
       });
     }
@@ -217,28 +231,20 @@ export const ApplicantDataPage: React.FC = () => {
     }
     setShowClearConfirm(false);
     setSelectedUser(null);
+    setShowImportForm(true);
   };
 
   if (applyUsers.length === 0) {
     return (
       <div className={shared.pageWrapper}>
         <div className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>応募データ</h1>
+          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>一覧</h1>
           <p className={shared.pageHeaderSubtitle}>
-            このセッションにはまだ応募者が登録されていません。
+            応募者TSVを取り込むと、ここに一覧が表示されます。
           </p>
         </div>
-        <section className={shared.sectionBlock}>
-          <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
-            応募 CSV/TSV はセッション選択画面から取り込みます。
-          </p>
-          <button
-            type="button"
-            className={shared.btnPrimary}
-            onClick={() => setActivePage('sessionPicker')}
-          >
-            新しいセッションを作る
-          </button>
+        <section className={shared.sectionBlock} aria-label="応募者TSV取り込み">
+          <ImportPage onImportUserRows={onImportUserRows} />
         </section>
       </div>
     );
@@ -249,7 +255,7 @@ export const ApplicantDataPage: React.FC = () => {
     : null;
 
   return (
-    <div className={`${shared.pageWrapper} ${shared.pageWrapperFlex}`}>
+    <div className={`${shared.pageWrapper} ${shared.pageWrapperFlex}${showImportForm ? '' : ` ${styles.applicantListPageStatic}`}`}>
       <div className={styles.applicantListHeader}>
         <div className={styles.applicantListHeader__stats}>
           <span className={styles.applicantListHeader__count}>{applyUsers.length} 件</span>
@@ -284,9 +290,9 @@ export const ApplicantDataPage: React.FC = () => {
             type="button"
             className={shared.btnSecondary}
             style={{ fontSize: 12, padding: '6px 12px' }}
-            onClick={() => setActivePage('sessionPicker')}
+            onClick={() => setShowImportForm((open) => !open)}
           >
-            新しいセッションを作る
+            {showImportForm ? '取り込みを閉じる' : 'TSV再取り込み'}
           </button>
           <button
             type="button"
@@ -299,7 +305,13 @@ export const ApplicantDataPage: React.FC = () => {
         </div>
       </div>
 
-      <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ maxHeight: 'calc(100vh - 180px)' }}>
+      {showImportForm && (
+        <section className={shared.sectionBlock} style={{ marginBottom: 16 }} aria-label="応募者TSV再取り込み">
+          <ImportPage onImportUserRows={onImportUserRows} />
+        </section>
+      )}
+
+      <div className={`${shared.tableContainer} ${shared.customScrollbar} ${styles.applicantListTableContainer}`}>
         <table>
           <thead>
             <tr>
@@ -308,8 +320,8 @@ export const ApplicantDataPage: React.FC = () => {
               <th>希望 1</th>
               <th>希望 2</th>
               <th>希望 3</th>
-              <th>状態</th>
-              <th>操作</th>
+              <th>NGキャスト</th>
+              <th aria-label="操作"></th>
             </tr>
           </thead>
           <tbody>

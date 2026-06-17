@@ -46,13 +46,19 @@ const NAV_GROUPS: NavGroup[] = [
 
 /* ── 補助コンポーネント ── */
 
-const FeatureHeader: React.FC<{ icon: React.ReactNode; title: string; description: string; color: string }> = ({ icon, title, description, color }) => (
+const FeatureHeader: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
+  colorSoft?: string;
+}> = ({ icon, title, description, color, colorSoft }) => (
   <div style={{
     display: 'flex', alignItems: 'center', gap: 16,
     padding: '20px 22px',
     marginBottom: 24,
     marginLeft: -24, marginRight: -24, marginTop: -20,
-    background: `linear-gradient(135deg, ${color} 0%, ${color}aa 100%)`,
+    background: `linear-gradient(135deg, ${color} 0%, ${colorSoft ?? `${color}aa`} 100%)`,
     borderRadius: '10px 10px 0 0',
   }}>
     <div style={{
@@ -130,12 +136,7 @@ const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
 
 const ScreenSample: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div style={{ border: '1px solid var(--discord-border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-    <div style={{ background: 'var(--discord-bg-hover)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--discord-border)' }}>
-      <div style={{ display: 'flex', gap: 5 }}>
-        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5f57' }} />
-        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#febc2e' }} />
-        <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#28c840' }} />
-      </div>
+    <div style={{ background: 'var(--discord-bg-hover)', padding: '7px 12px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--discord-border)' }}>
       <span style={{ fontSize: 11, color: 'var(--discord-text-muted)', fontWeight: 600 }}>{title}</span>
     </div>
     <div style={{ padding: '12px 14px', background: 'var(--discord-bg-dark)', fontSize: 12 }}>
@@ -150,7 +151,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'applicant-data': (
     <div>
-      <FeatureHeader icon={<Database size={26} />} title="応募データ" description="取り込んだ応募者一覧の確認・管理を行う画面です。" color="#5865f2" />
+      <FeatureHeader icon={<Database size={26} />} title="応募データ" description="取り込んだ応募者一覧の確認・管理を行う画面です。" color="var(--guide-accent-primary)" colorSoft="var(--guide-accent-primary-soft)" />
 
       <ScreenSample title="応募データ">
         <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--discord-border)', marginBottom: 8 }}>
@@ -185,19 +186,19 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="主な機能">
         <FeatureList items={[
           '応募者一覧の表示（ユーザー名・X ID・希望キャスト 1〜3）',
-          '行をクリックすると詳細行が展開（VRC URL・カスタムカラム等）',
+          '行をクリックすると応募者詳細を表示（VRC URL・カスタムカラム・NGキャスト等）',
           'X ID をクリックすると X（Twitter）のユーザーページをブラウザで開く',
           '要注意ユーザーフィルター：「全件」「要注意」タブで絞り込み',
-          '要注意ユーザー行にはどのキャストのNGかを表示',
+          'NGキャスト欄は1件ならキャスト名、複数なら「○名のキャストがNG」と表示',
           '「再取り込み」でTSVを再選択して上書き取り込み',
           '「元ログ削除」で応募データを全削除',
-          '個別の応募者を削除',
+          '個別の応募者は行末の赤い×で削除',
         ]} />
       </Section>
 
       <Section title="要注意ユーザーとは">
-        <p>NG管理で設定した「要注意人物」として登録されているユーザーが自動的にマークされます。<br/>
-        一覧内でアイコンとともにどのキャストのNGに登録されているかも表示されます。</p>
+        <p>NG管理で設定した「要注意人物」、またはキャストNGに一致するユーザーは一覧で強調表示されます。<br/>
+        NGキャスト欄は要注意人物の登録状況とは独立して表示され、複数いる場合は件数、詳細なキャスト名は応募者詳細で確認します。</p>
       </Section>
 
       <Section title="注意事項">
@@ -212,10 +213,10 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'import': (
     <div>
-      <FeatureHeader icon={<FileText size={26} />} title="データ読取" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="#8b5cf6" />
+      <FeatureHeader icon={<FileText size={26} />} title="データ読取" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="var(--guide-accent-import)" colorSoft="var(--guide-accent-import-soft)" />
 
       <ScreenSample title="データ読取 — 列マッピング">
-        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 6, fontSize: 11, color: 'var(--discord-text-muted)' }}>
+        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', borderRadius: 6, fontSize: 11, color: 'var(--discord-text-muted)' }}>
           📄 responses.tsv &nbsp;|&nbsp; 42行 検出 &nbsp;|&nbsp; 有効: 41件
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -234,8 +235,9 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 10, textAlign: 'right' }}>
-          <span style={{ padding: '5px 14px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>この割り当てで取り込む</span>
+        <div style={{ marginTop: 10, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+          <span style={{ padding: '5px 12px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>抽選だけ行う</span>
+          <span style={{ padding: '5px 14px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>取り込む</span>
         </div>
       </ScreenSample>
 
@@ -246,7 +248,8 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           'マッピングが正しいか確認し、必要に応じて各ドロップダウンで修正',
           '希望キャストの形式（別列 or カンマ区切り1列）を選択',
           'プレビューで取り込み結果を確認',
-          '「この割り当てで取り込む」をクリックして確定',
+          '一覧で確認する場合は「○件を取り込む」をクリックして確定',
+          '取り込み後すぐ抽選へ進む場合は「抽選だけ行う」を選択',
         ]} />
       </Section>
 
@@ -276,7 +279,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'lottery': (
     <div>
-      <FeatureHeader icon={<CheckCircle size={26} />} title="抽選" description="当選者を決定する抽選の設定・実行を行う画面です。" color="#10b981" />
+      <FeatureHeader icon={<CheckCircle size={26} />} title="抽選" description="当選者を決定する抽選の設定・実行を行う画面です。" color="var(--guide-accent-lottery)" colorSoft="var(--guide-accent-lottery-soft)" />
 
       <ScreenSample title="抽選設定">
         <div style={{ display: 'flex', gap: 16 }}>
@@ -293,11 +296,11 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
               </div>
             ))}
           </div>
-          <div style={{ width: 130, padding: '10px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6 }}>
-            <div style={{ fontSize: 10, color: '#10b981', fontWeight: 700, marginBottom: 4 }}>✓ 検証OK</div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>枠数: 12</div>
+          <div style={{ width: 130, padding: '10px 12px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 6 }}>
+            <div style={{ fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700, marginBottom: 4 }}>✓ 検証OK</div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>合計席数: 12席</div>
             <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>出席キャスト: 4</div>
-            <div style={{ marginTop: 8, padding: '4px 0', background: '#10b981', color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, textAlign: 'center' }}>抽選実行</div>
+            <div style={{ marginTop: 8, padding: '4px 0', background: 'var(--guide-accent-lottery)', color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, textAlign: 'center' }}>抽選実行</div>
           </div>
         </div>
       </ScreenSample>
@@ -308,7 +311,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
             { id: 'M000', color: '#6b7280', title: 'マッチングなし', desc: '抽選のみ。キャスト割り当てを行いません' },
             { id: 'M001', color: '#3b82f6', title: 'ランダム',       desc: '希望キャストを優先しつつランダム割り当て。総テーブル数で枠指定' },
             { id: 'M002', color: '#10b981', title: 'ローテーション', desc: '公平に循環させる。総テーブル数で枠指定' },
-            { id: 'M003', color: '#f59e0b', title: '複数名',         desc: 'テーブルあたりゲスト数・ローテキャスト数を細かく設定。空席許容あり' },
+            { id: 'M003', color: '#f59e0b', title: '複数名',         desc: 'テーブルあたりゲスト数・ローテキャスト数・当日枠を細かく設定' },
           ] as const).map(m => (
             <div key={m.id} style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--discord-bg-dark)', border: `1px solid ${m.color}44`, borderLeft: `3px solid ${m.color}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -328,19 +331,20 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           '総テーブル数（M001/M002）：テーブル数 × ローテーション回数 = 枠数',
           'テーブルあたりゲスト数（M003）：1テーブルの最大人数',
           'ローテあたりキャスト数（M003）：1ローテーションで担当するキャスト数',
-          '空席許容（M003）：枠が余った場合に空席を許可するか',
-          '確定当選者：抽選に関わらず必ず当選とするユーザーを事前指定',
+          '当日枠を含める（M003）：当日枠分の席数を合計席数に追加',
+          '確定当選者：抽選に関わらず必ず当選とするユーザーを事前指定。抽選人数と合わせた合計当選者数を確認可能',
         ]} />
       </Section>
 
       <Section title="検証パネル">
-        <p>設定した条件に問題がないか自動チェックします。キャスト出席状況・枠数・人数のバランスが合わない場合は警告が表示されます。</p>
+        <p>設定した条件に問題がないか自動チェックします。キャスト出席状況・合計席数・合計当選者数のバランスが合わない場合は警告が表示されます。INFOには合計席数と合計当選者数を表示します。</p>
       </Section>
 
       <Section title="抽選実行後">
         <FeatureList items={[
           '当選者一覧がテーブル表示されます（ユーザー名・X ID・確定/抽選の区分・希望キャスト）',
-          '「抽選結果をTSVで保存」でファイル出力できます',
+          '「抽選結果保存」で現在の抽選結果をDBに保存できます',
+          '保存済み抽選結果は後から選択し直せます',
           '「マッチングへ」でマッチングタブに遷移します',
           '再実行すると上書き確認ダイアログが表示されます',
         ]} />
@@ -358,28 +362,28 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'matching': (
     <div>
-      <FeatureHeader icon={<BarChart3 size={26} />} title="マッチング" description="抽選結果を元に、当選者とキャストの割り当てを行い結果を確認・出力する画面です。" color="#f59e0b" />
+      <FeatureHeader icon={<BarChart3 size={26} />} title="マッチング" description="抽選結果を元に、当選者とキャストの割り当てを行い結果を確認・出力する画面です。" color="var(--guide-accent-matching)" colorSoft="var(--guide-accent-matching-soft)" />
 
-      <ScreenSample title="マッチング結果（ユーザー別）">
+      <ScreenSample title="マッチング結果（キャスト別）">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>
-            {['ユーザー名', 'X ID', 'R1', 'R2', 'R3'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
+            {['キャスト', 'R1', 'R2', 'R3', '合計'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {[
-              { name: 'テストユーザー', xid: '@test_vrc',   casts: ['キャストA', 'キャストC', 'キャストB'], ranks: [1, 3, 2] },
-              { name: 'サンプル太郎',   xid: '@sample_vrc', casts: ['キャストB', 'キャストA', '---'],       ranks: [2, 1, 0] },
-              { name: 'ゲスト花子',     xid: '@guest_h',    casts: ['キャストC', '---', '---'],            ranks: [0, 0, 0] },
+              { cast: 'キャストA', users: ['テストユーザー', 'サンプル太郎', 'なし'], ranks: [1, 1, 0] },
+              { cast: 'キャストB', users: ['ゲスト花子', 'テストユーザー', 'サンプル太郎'], ranks: [0, 2, 3] },
+              { cast: 'キャストC', users: ['サンプル太郎', 'なし', 'テストユーザー'], ranks: [2, 0, 1] },
             ].map((r, i) => (
               <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
-                <td style={{ padding: '5px 8px', color: 'var(--discord-text-normal)' }}>{r.name}</td>
-                <td style={{ padding: '5px 8px', color: 'var(--discord-text-muted)' }}>{r.xid}</td>
-                {r.casts.map((c, j) => (
+                <td style={{ padding: '5px 8px', color: 'var(--discord-text-normal)', fontWeight: 700 }}>{r.cast}</td>
+                {r.users.map((user, j) => (
                   <td key={j} style={{ padding: '5px 8px' }}>
-                    <span style={{ fontSize: 10, color: 'var(--discord-text-normal)' }}>{c}</span>
+                    <span style={{ fontSize: 10, color: user === 'なし' ? 'var(--discord-text-muted)' : 'var(--discord-text-normal)' }}>{user}</span>
                     {r.ranks[j] > 0 && <span style={{ marginLeft: 4, padding: '1px 5px', borderRadius: 3, background: r.ranks[j] === 1 ? '#f5c400' : r.ranks[j] === 2 ? '#a8a8a8' : '#ad6f2d', color: r.ranks[j] === 2 ? '#000' : '#fff', fontSize: 9, fontWeight: 700 }}>{r.ranks[j]}希</span>}
                   </td>
                 ))}
+                <td style={{ padding: '5px 8px', color: 'var(--discord-text-muted)' }}>{r.users.filter((user) => user !== 'なし').length}</td>
               </tr>
             ))}
           </tbody>
@@ -389,9 +393,9 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="画面構成">
         <FeatureList items={[
           '【設定セクション】マッチング方式・NG条件・マッチング動作の確認と設定',
-          '【ユーザー別結果】当選者ごとの割り当てキャストを表形式で表示',
-          '【テーブル別結果】テーブルごとにカード形式で表示',
-          '【エクスポートセクション】TSVファイル出力',
+          '【キャスト別結果】キャストごとに応対する応募者をローテーション別に表示',
+          '【テーブル別結果】テーブルごとの座席と担当キャストを表形式で表示',
+          '【エクスポートセクション】キャスト別結果をTSVファイル出力',
         ]} />
       </Section>
 
@@ -409,9 +413,8 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <Section title="結果の出力">
         <FeatureList items={[
-          '「PNGで保存（当選者別）」：ユーザー別テーブルを画像で保存',
-          '「PNGで保存（テーブル別）」：テーブル別カードを画像で保存',
-          '「マッチング結果をTSVで保存」：テキスト形式で全結果を出力',
+          '「PNG出力」：キャスト別結果またはテーブル別結果を画像で保存',
+          '「マッチング結果をTSVで保存」：キャスト別に応対する応募者をローテーション列付きで出力',
         ]} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
           {([
@@ -439,7 +442,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'cast': (
     <div>
-      <FeatureHeader icon={<Users size={26} />} title="キャスト名簿" description="キャストの登録・編集・削除と出席状態の管理を行う画面です。" color="#06b6d4" />
+      <FeatureHeader icon={<Users size={26} />} title="キャスト名簿" description="キャストの登録・プロフィール・連絡先を管理する画面です。" color="var(--guide-accent-cast)" colorSoft="var(--guide-accent-cast-soft)" />
 
       <ScreenSample title="キャスト名簿">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -493,13 +496,14 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           'キャスト名：直接編集可能',
           'グループ名：グループを設定できます（マッチング結果でグループ分けに使用）',
           'プロフィール：自由テキストのメモ欄',
-          '連絡先URL：VRChat・X・Discord 等のURLを複数登録可能（外部ブラウザで開くリンクボタン付き）',
-          '削除ボタン：確認ダイアログ後にキャストを削除',
+          '連絡先：Discord DM URL、WebプロフィールURL、Xの @username を登録し、リンクボタンで開けます',
+          'クイック入力：Discord DM URLの先頭を追加できます。Discord、X、VRChatは外部サイトを開きます',
+          '削除ボタン：単色赤背景のボタンから確認ダイアログ後にキャストを削除',
         ]} />
       </Section>
 
-      <Section title="出席状態について">
-        <p>キャスト名簿では出席状態は表示のみです。出席の切り替えは「出席管理」タブで行います。</p>
+      <Section title="出席設定との関係">
+        <p>キャスト名簿は名簿情報の管理画面です。イベント当日の出席中・待機の切り替えと出席履歴の保存は「出席管理」タブで行います。</p>
       </Section>
 
       <Section title="注意事項">
@@ -514,7 +518,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'ng': (
     <div>
-      <FeatureHeader icon={<UserX size={26} />} title="NG管理" description="キャストごとのNGユーザー登録と、要注意人物の管理を行う画面です。" color="#ef4444" />
+      <FeatureHeader icon={<UserX size={26} />} title="NG管理" description="キャストごとのNGユーザー登録と、要注意人物の管理を行う画面です。" color="var(--guide-accent-output)" colorSoft="var(--guide-accent-output-soft)" />
 
       <ScreenSample title="NG管理 — キャストNG">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -551,7 +555,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
         <FeatureList items={[
           'ユーザー名（任意）と X ID を入力して「追加」',
           'X IDは @ 付きに自動正規化されます（例：@example → @example）',
-          '登録済みNGユーザーはリスト表示。削除ボタンで削除',
+          '登録済みNGユーザーはリスト表示。行末の赤い×で削除',
           'NGを受けているキャストが多いユーザーは「要注意人物」タブの候補に自動表示',
         ]} />
       </Section>
@@ -563,7 +567,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
         <FeatureList items={[
           '「○人以上のキャストがNGを出したら候補表示」の閾値を設定',
           '条件を満たすユーザーをカードで一覧表示',
-          'カードには X ID・ユーザー名（複数の場合は全て表示）・NGを出しているキャスト数・キャスト名を表示',
+          'カードには X ID・ユーザー名（複数の場合は全て表示）・NGを出しているキャスト数を表示。件数を開くとキャスト名を確認できます',
           '「要注意に追加」ボタンで登録済みセクションに移動',
         ]} />
 
@@ -571,7 +575,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
         <FeatureList items={[
           '手動でユーザー名・X IDを入力して追加することもできます',
           '登録種別バッジ：「手動」（青）または「自動＋NG数」（緑）で表示',
-          '削除ボタンで登録解除',
+          '行末の赤い×で登録解除',
         ]} />
       </Section>
 
@@ -592,7 +596,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'attendance': (
     <div>
-      <FeatureHeader icon={<Calendar size={26} />} title="出席管理" description="イベント当日のキャスト出席状態の設定と、出席記録の管理を行う画面です。" color="#6366f1" />
+      <FeatureHeader icon={<Calendar size={26} />} title="出席管理" description="イベント当日の出席中・待機の切り替えと、出席履歴の保存を行う画面です。" color="var(--guide-accent-primary)" colorSoft="var(--guide-accent-primary-soft)" />
 
       <ScreenSample title="出席設定">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -602,9 +606,9 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           ] as const).map(col => (
             <div key={col.label}>
               <div style={{ fontSize: 11, fontWeight: 700, color: col.color, marginBottom: 6 }}>{col.label} ({col.casts.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {col.casts.map(c => (
-                  <span key={c} style={{ padding: '3px 9px', borderRadius: 12, background: col.color, color: '#fff', fontSize: 11, fontWeight: 600 }}>{c}</span>
+                  <span key={c} style={{ padding: '4px 9px', borderRadius: 5, background: col.color, color: '#fff', fontSize: 11, fontWeight: 600 }}>{c}</span>
                 ))}
               </div>
             </div>
@@ -619,34 +623,35 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="タブ構成">
         <FeatureList items={[
           '【出席設定】当日の出席/待機状態を設定し記録する',
-          '【出席記録】記録済みデータの確認・累積出席回数の確認',
+          '【出席履歴】キャスト別・日付別の出席履歴を確認',
         ]} />
       </Section>
 
       <Section title="出席設定 タブ">
-        <p>キャストを「出席中」「待機中」に振り分けます。チップをクリックすると左右のリスト間を移動します。</p>
+        <p>キャストを「出席中」「待機中」に振り分けます。キャスト名の行をクリックすると、もう一方のリストへ移動します。</p>
         <FeatureList items={[
           '「全員出席」ボタン：全キャストを出席中に移動',
           '「全員待機」ボタン：全キャストを待機中に移動',
           'キャストはグループごとに区切って表示',
+          '出席中・待機のBOX内ではキャストを1名ずつ縦に表示',
           '「保存」ボタン：出席記録モーダルを開く',
         ]} />
 
         <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>保存モーダル</h4>
         <FeatureList items={[
-          '左：記録日を手動入力（YYYY-MM-DD形式、デフォルトは今日）',
-          '中央：出席キャスト数を大きく表示',
-          '右：出席キャスト名の一覧',
+          '上段左：記録日を手動入力（YYYY-MM-DD形式、デフォルトは今日）',
+          '上段右：出席キャスト数を大きく表示',
+          '下段：出席キャスト名の一覧',
           '同じ日付に記録済みの場合は「上書きします」警告を表示',
           '「保存」ボタンで確定',
         ]} />
       </Section>
 
-      <Section title="出席記録 タブ">
+      <Section title="出席履歴 タブ">
         <FeatureList items={[
-          'このイベントの最新出席記録のキャスト名をチップで表示',
-          '「出席履歴（N件）」ボタン：全出席記録の一覧をモーダルで表示（日付・イベント名・出席数・キャスト名チップ）',
-          'キャスト別累積出席回数テーブル：キャスト名・出席回数・最終記録日を一覧表示',
+          'キャスト名を縦軸、記録日を横軸にしたチェック表で表示',
+          'キャスト名の隣に累積出席回数を表示',
+          '日付列は横スクロールで確認可能',
         ]} />
       </Section>
 
@@ -663,28 +668,27 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'tweet': (
     <div>
-      <FeatureHeader icon={<Settings size={26} />} title="投稿テンプレ" description="X（Twitter）への投稿文テンプレートを作成・管理する画面です。" color="#0ea5e9" />
+      <FeatureHeader icon={<Settings size={26} />} title="投稿テンプレ" description="X（Twitter）への投稿文テンプレートを作成・管理する画面です。" color="var(--guide-accent-cast)" colorSoft="var(--guide-accent-cast-soft)" />
 
       <ScreenSample title="投稿テンプレ">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>テンプレート編集</div>
             <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
-              {'【{event_name}】\nキャスト出演情報\n{casts}\n\n日程：{date}'}
+              {'【{event_name}】\nキャスト出演情報\n{casts}'}
             </div>
             <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
-              {['{casts}', '{event_name}', '{date}'].map(p => (
+              {['{casts}', '{event_name}'].map(p => (
                 <span key={p} style={{ padding: '2px 6px', background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.3)', borderRadius: 4, fontSize: 10, color: 'var(--discord-accent-blue)', fontFamily: 'monospace' }}>{p}</span>
               ))}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>プレビュー <span style={{ color: 'var(--discord-accent-blue)' }}>68字</span></div>
+            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>プレビュー</div>
             <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
-              {'【サンプルイベント】\nキャスト出演情報\nキャストA\nキャストB\nキャストC\n\n日程：2026/05/03'}
+              {'【サンプルイベント】\nキャスト出演情報\nキャストA\nキャストB\nキャストC'}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 5, marginTop: 5 }}>
-              <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 10, color: 'var(--discord-text-muted)' }}>Xを開く</span>
               <span style={{ padding: '3px 8px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>コピー</span>
             </div>
           </div>
@@ -706,7 +710,6 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           {([
             { ph: '{casts}',      desc: '出席中のキャスト名（改行区切り）' },
             { ph: '{event_name}', desc: '現在選択中のイベント名' },
-            { ph: '{date}',       desc: '今日の日付（YYYY/MM/DD形式）' },
           ] as const).map(({ ph, desc }) => (
             <div key={ph} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 7, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)' }}>
               <code style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--discord-accent-blue)', background: 'rgba(88,101,242,0.12)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{ph}</code>
@@ -722,7 +725,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           'プレースホルダーが実際の値に置換された状態でリアルタイムプレビュー表示',
           '文字数カウント表示（280字超過時は赤色で警告）',
           '「クリップボードにコピー」ボタンで投稿文をコピー',
-          '「Xを開く」ボタンでブラウザのXを開く',
+          'コピーした投稿文を任意の投稿先へ貼り付け',
         ]} />
       </Section>
 
@@ -767,7 +770,7 @@ export const GuidePage: React.FC = () => {
   }, []);
 
   return (
-    <div className={shared.pageWrapper} style={{ maxWidth: 1400, paddingBottom: 60 }}>
+    <div className={`${shared.pageWrapper} ${styles.guidePage}`} style={{ maxWidth: 1400, paddingBottom: 60 }}>
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(4px); }
@@ -809,7 +812,7 @@ export const GuidePage: React.FC = () => {
                   { icon: Users,       text: 'キャスト出席設定', desc: '当日の出席状態を設定' },
                   { icon: Settings,    text: '抽選設定・実行', desc: '条件を設定して当選者を決定' },
                   { icon: CheckCircle, text: 'マッチング実行', desc: 'NGを考慮して割り当て' },
-                  { icon: BarChart3,   text: '結果を出力',     desc: 'PNG・TSVで保存' },
+                  { icon: BarChart3,   text: '結果を出力',     desc: '抽選結果保存・PNG/TSV出力' },
                 ].map((item, idx) => (
                   <div key={idx} className={styles.guideFlowItem}>
                     <item.icon size={24} className={styles.guideFlowItemIcon} />
@@ -830,15 +833,15 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 1 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #8b5cf6 0%, #8b5cf6bb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-import) 0%, var(--guide-accent-import-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>1</div>
                   <FileText size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>データ読取</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', 'プレビューで確認し「この割り当てで取り込む」をクリック'].map((s, i) => (
+                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選だけ行う」を選択'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#8b5cf622', border: '1px solid #8b5cf666', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#8b5cf6', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-import)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
@@ -851,7 +854,10 @@ export const GuidePage: React.FC = () => {
                           <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-accent-blue)' }}>{v}</span>
                         </div>
                       ))}
-                      <div style={{ marginTop: 4, textAlign: 'right' }}><span style={{ padding: '3px 10px', background: '#8b5cf6', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>取り込む</span></div>
+                      <div style={{ marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 5 }}>
+                        <span style={{ padding: '3px 8px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選だけ</span>
+                        <span style={{ padding: '3px 10px', background: 'var(--guide-accent-import)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>取り込む</span>
+                      </div>
                     </div>
                   </ScreenSample>
                 </div>
@@ -859,15 +865,15 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 2 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #5865f2 0%, #5865f2bb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-primary) 0%, var(--guide-accent-primary-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>2</div>
                   <Database size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>応募データ確認</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「応募データ」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', '要注意ユーザー（NG管理に登録済み）は自動でフラグ表示される', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
+                    {['「応募データ」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', 'NGキャストに一致する応募者は一覧と詳細で確認できる', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#5865f222', border: '1px solid #5865f266', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#5865f2', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-primary-bg)', border: '1px solid var(--guide-accent-primary-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-primary)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
@@ -887,15 +893,15 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 3 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #06b6d4 0%, #06b6d4bb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-cast) 0%, var(--guide-accent-cast-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>3</div>
                   <Users size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>キャスト出席設定</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「出席管理」タブを開き「出席設定」タブを選択する', '当日参加できないキャストのチップをクリックして「待機中」に移動する', '「全員出席」ボタンで一括設定も可能', '設定完了後「保存」をクリックして出席記録を保存する'].map((s, i) => (
+                    {['「出席管理」タブを開き「出席設定」タブを選択する', '当日参加できないキャスト行をクリックして「待機」に移動する', '「全員出席」ボタンで一括設定も可能', '設定完了後「保存」をクリックして出席記録を保存する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#06b6d422', border: '1px solid #06b6d466', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#06b6d4', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-cast-bg)', border: '1px solid var(--guide-accent-cast-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-cast)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
@@ -905,7 +911,7 @@ export const GuidePage: React.FC = () => {
                       {[{ label: '出席中', color: '#3ba55d', casts: ['キャストA', 'キャストB', 'キャストC'] }, { label: '待機中', color: '#747f8d', casts: ['キャストD'] }].map(col => (
                         <div key={col.label}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: col.color, marginBottom: 4 }}>{col.label}</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{col.casts.map(c => <span key={c} style={{ padding: '2px 7px', borderRadius: 10, background: col.color, color: '#fff', fontSize: 10 }}>{c}</span>)}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{col.casts.map(c => <span key={c} style={{ padding: '3px 7px', borderRadius: 4, background: col.color, color: '#fff', fontSize: 10 }}>{c}</span>)}</div>
                         </div>
                       ))}
                     </div>
@@ -916,15 +922,15 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 4 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #10b981 0%, #10b981bb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-lottery) 0%, var(--guide-accent-lottery-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>4</div>
                   <Settings size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>抽選設定・実行</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「抽選」タブでマッチング形式を選ぶ（M000〜M003）', '当選人数・ローテーション回数・テーブル数などを設定する', '検証パネルでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する'].map((s, i) => (
+                    {['「抽選」タブでマッチング形式を選ぶ（M000〜M003）', '当選人数・ローテーション回数・テーブル数などを設定する', '検証パネルでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する', '残したい結果は「抽選結果保存」でDBに保存する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#10b98122', border: '1px solid #10b98166', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#10b981', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-lottery)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
@@ -937,8 +943,8 @@ export const GuidePage: React.FC = () => {
                           <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-text-header)', fontWeight: 600 }}>{v}</span>
                         </div>
                       ))}
-                      <div style={{ marginTop: 4, padding: '5px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 5, fontSize: 10, color: '#10b981', fontWeight: 700 }}>✓ 検証OK — 枠数: 12</div>
-                      <div style={{ textAlign: 'right' }}><span style={{ padding: '3px 10px', background: '#10b981', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選実行</span></div>
+                      <div style={{ marginTop: 4, padding: '5px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 5, fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700 }}>✓ 検証OK — 合計席数: 12席</div>
+                      <div style={{ textAlign: 'right' }}><span style={{ padding: '3px 10px', background: 'var(--guide-accent-lottery)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選実行</span></div>
                     </div>
                   </ScreenSample>
                 </div>
@@ -946,24 +952,24 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 5 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #f59e0b 0%, #f59e0bbb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-matching) 0%, var(--guide-accent-matching-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>5</div>
                   <CheckCircle size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>マッチング実行</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「マッチング」タブでNG判定タイプを設定する', 'NG違反時の動作（再割り当てするか）を設定する', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をユーザー別・テーブル別で確認する'].map((s, i) => (
+                    {['「マッチング」タブでNG判定タイプを設定する', 'NG違反時の動作（再割り当てするか）を設定する', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をキャスト別・テーブル別の表で確認する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#f59e0b22', border: '1px solid #f59e0b66', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#f59e0b', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-matching-bg)', border: '1px solid var(--guide-accent-matching-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-matching)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
                   <ScreenSample title="マッチング結果">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['名前', 'R1', 'R2'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['キャスト', 'R1', 'R2'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {[['テストさん', 'キャストA', 'キャストC', 1, 3], ['花子さん', 'キャストB', 'キャストA', 2, 1], ['太郎さん', 'キャストC', '---', 0, 0]].map(([n, c1, c2, r1, r2], i) => (
+                        {[['キャストA', 'テストさん', '花子さん', 1, 2], ['キャストB', '太郎さん', 'テストさん', 0, 1], ['キャストC', '花子さん', '---', 3, 0]].map(([n, c1, c2, r1, r2], i) => (
                           <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
                             <td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>{n}</td>
                             {[[c1, r1], [c2, r2]].map(([c, r], j) => (
@@ -982,23 +988,28 @@ export const GuidePage: React.FC = () => {
 
               {/* Step 6 */}
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, #ef4444 0%, #ef4444bb 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-output) 0%, var(--guide-accent-output-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>6</div>
                   <BarChart3 size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>結果の出力</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「PNGで保存（当選者別）」または「PNGで保存（テーブル別）」で画像保存する', '「マッチング結果をTSVで保存」でテキスト形式で出力する', 'X投稿には「投稿テンプレ」タブでテンプレートを編集してコピーする'].map((s, i) => (
+                    {['抽選結果は「抽選結果保存」でDBに保存し、保存済み結果から再選択できる', 'キャスト別結果またはテーブル別結果をPNGで保存する', '「マッチング結果をTSVで保存」でキャスト別に応対する応募者を出力する', 'X投稿には「投稿テンプレ」タブでテンプレートを編集してコピーする'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#ef444422', border: '1px solid #ef444466', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#ef4444', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-output-bg)', border: '1px solid var(--guide-accent-output-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-output)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
                   <ScreenSample title="出力ボタン">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {[['PNGで保存（当選者別）', '#5865f2'], ['PNGで保存（テーブル別）', '#5865f2'], ['マッチング結果をTSVで保存', '#3ba55d']].map(([label, color]) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, background: `${color}18`, border: `1px solid ${color}44`, fontSize: 11, color: 'var(--discord-text-normal)', fontWeight: 600 }}>
+                      {[
+                        { label: '抽選結果保存', color: 'var(--guide-accent-lottery)', bg: 'var(--guide-accent-lottery-bg)', border: 'var(--guide-accent-lottery-border)' },
+                        { label: 'PNG出力（キャスト別）', color: 'var(--guide-accent-primary)', bg: 'var(--guide-accent-primary-bg)', border: 'var(--guide-accent-primary-border)' },
+                        { label: 'PNG出力（テーブル別）', color: 'var(--guide-accent-primary)', bg: 'var(--guide-accent-primary-bg)', border: 'var(--guide-accent-primary-border)' },
+                        { label: 'マッチング結果をTSVで保存', color: 'var(--guide-accent-lottery)', bg: 'var(--guide-accent-lottery-bg)', border: 'var(--guide-accent-lottery-border)' },
+                      ].map(({ label, color, bg, border }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, background: bg, border: `1px solid ${border}`, fontSize: 11, color: 'var(--discord-text-normal)', fontWeight: 600 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
                           {label}
                         </div>
@@ -1019,11 +1030,12 @@ export const GuidePage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {([
                 { q: '抽選をやり直したい',           a: '抽選タブで再度「抽選実行」をクリックします。上書き確認ダイアログが表示されます。マッチングも再実行が必要です。' },
+                { q: '前に保存した抽選結果を使いたい', a: '抽選タブの「保存済み抽選結果」から結果を選び、「保存済み結果を開く」をクリックします。' },
                 { q: 'NGを追加したい',               a: 'NG管理タブでキャストのNGユーザーを追加します。追加後はマッチングタブで「解除」→再実行してください。' },
                 { q: 'キャストの出席状態を変えたい', a: '出席管理タブで変更し「保存」します。抽選・マッチングはすでに実行済みの場合、再実行が必要です。' },
-                { q: '前回と同じキャストデータを使いたい', a: 'キャスト名簿はイベントをまたいで共有されます。イベントを切り替えてもキャストデータはそのまま引き継がれます。' },
+                { q: '前回と同じキャストデータを使いたい', a: 'キャスト名簿は同一イベント内のセッション間で共有されます。別イベントでは、そのイベントのキャスト名簿を使います。' },
                 { q: '応募データを複数イベント分管理したい', a: 'アプリ上部のイベントセレクターで切り替えます。イベントごとに応募データ・抽選結果・マッチング結果が分離して管理されます。' },
-                { q: '結果ファイルはどこに保存される？',    a: '保存ダイアログが表示されて任意の場所を選択できます。デフォルトはダウンロードフォルダです。' },
+                { q: '結果ファイルはどこに保存される？',    a: '抽選結果はDBに保存されます。PNG出力やマッチング結果TSVは保存ダイアログで任意の場所を選択できます。' },
               ] as const).map(({ q, a }) => (
                 <div key={q} className={styles.guideCard} style={{ padding: '14px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>

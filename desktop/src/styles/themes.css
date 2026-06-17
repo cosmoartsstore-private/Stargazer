@@ -180,272 +180,37 @@
   padding: 4px;
 }
 
-/* ========== チェックテーマ（ストライプ青・スプライト構造を青系で再現） ========== */
-.app-container[data-theme="skyblue"] {
-  --cast-present-bg: #2e9d6e;
-  --cast-absent-bg: #8db4c9;
-  --discord-accent-gold: #c5a000;
-  /* 水色テーマでは少し濃いめの金 */
-  --discord-bg-dark: rgba(255, 255, 255, 0.96);
+/* ========== チェックテーマ（アイスリボンチェック基準） ========== */
+[data-theme="skyblue"] {
+  --cast-present-bg: #2f9f78;
+  --cast-absent-bg: #a9c9dd;
+  --discord-accent-blue: #2d8fd3;
+  --discord-accent-green: #2f9f78;
+  --discord-accent-gold: #b99700;
+  --discord-bg-dark: rgba(255, 255, 255, 0.965);
   --discord-bg-main: transparent;
-  --discord-bg-secondary: rgba(255, 255, 255, 0.92);
-  --discord-bg-hover: rgba(70, 140, 210, 0.08);
-  --discord-bg-selected: rgba(70, 140, 210, 0.14);
-  --discord-bg-alt: rgba(70, 140, 210, 0.06);
-  --discord-bg-sidebar: rgba(255, 255, 255, 0.94);
-  --discord-text-normal: #1e3a5f;
-  --discord-text-muted: rgba(30, 58, 95, 0.65);
-  --discord-text-link: #2d7cc4;
-  --discord-text-header: #152942;
-  --discord-border: rgba(70, 140, 210, 0.25);
-  --discord-divider: rgba(70, 140, 210, 0.18);
-  --discord-button-primary: #4a8ec8;
-  --discord-button-primary-hover: #3a7eb8;
-  --discord-button-secondary: rgba(70, 140, 210, 0.12);
-  --discord-button-secondary-hover: rgba(70, 140, 210, 0.2);
+  --discord-bg-secondary: rgba(255, 255, 255, 0.91);
+  --discord-bg-hover: rgba(45, 143, 211, 0.10);
+  --discord-bg-selected: rgba(45, 143, 211, 0.16);
+  --discord-bg-alt: rgba(96, 165, 250, 0.08);
+  --discord-bg-sidebar: rgba(255, 255, 255, 0.92);
+  --discord-text-normal: #183a5f;
+  --discord-text-muted: rgba(24, 58, 95, 0.64);
+  --discord-text-link: #1b78be;
+  --discord-text-header: #102b49;
+  --discord-border: rgba(96, 165, 250, 0.32);
+  --discord-divider: rgba(96, 165, 250, 0.22);
+  --discord-button-primary: #2d8fd3;
+  --discord-button-primary-hover: #247cc0;
+  --discord-button-secondary: rgba(96, 165, 250, 0.16);
+  --discord-button-secondary-hover: rgba(96, 165, 250, 0.26);
 
   /* sticky elements */
-  --db-sticky-bg: #f6faff;
-  --db-sticky-bg-alt: #f6faff;
-  --db-sticky-bg-caution: #ffe6e8;
-  --db-sticky-shadow-right: 4px 0 12px rgba(30, 58, 95, 0.12);
-  --db-sticky-shadow-bottom: 0 4px 12px rgba(30, 58, 95, 0.12);
-}
-
-/* チェックテーマでは表をしましまにしない（白で統一） */
-.app-container[data-theme="skyblue"] tbody tr:nth-child(even) {
-  background-color: transparent;
-}
-
-.app-container[data-theme="skyblue"] .sidebar-theme-pills {
-  background: rgba(70, 140, 210, 0.1);
-}
-
-.app-container[data-theme="skyblue"] .sidebar {
-  background: rgba(255, 255, 255, 0.9) !important;
-  border-right: 1px solid rgba(70, 140, 210, 0.2);
-}
-
-.app-container[data-theme="skyblue"] .sidebar-button {
-  color: #3a6a9a;
-}
-
-.app-container[data-theme="skyblue"] .sidebar-button.active {
-  background: rgba(255, 255, 255, 0.95);
-  color: #152942;
-  box-shadow: inset 4px 0 0 #4a8ec8;
-}
-
-.app-container[data-theme="skyblue"] .sidebar-button.logout {
-  color: var(--discord-accent-red);
-}
-
-.app-container[data-theme="skyblue"] .mobile-header {
-  background: rgba(240, 248, 255, 0.98);
-  border-bottom: 1px solid rgba(70, 140, 210, 0.2);
-}
-
-.app-container[data-theme="skyblue"] .menu-toggle {
-  background: #4a8ec8;
-  color: #ffffff;
-}
-
-.app-container[data-theme="skyblue"] .header-logo__title {
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .header-logo__tagline {
-  color: rgba(30, 58, 95, 0.6);
-}
-
-.app-container[data-theme="skyblue"] .page-card-narrow {
-  background-color: rgba(255, 255, 255, 0.96);
-  border-color: rgba(70, 140, 210, 0.22);
-}
-
-.app-container[data-theme="skyblue"] .page-card {
-  background-color: rgba(255, 255, 255, 0.94);
-  border-color: rgba(70, 140, 210, 0.22);
-}
-
-/* キャストカード出欠 */
-.app-container[data-theme="skyblue"] .cast-card__status-dot--present {
-  background-color: var(--cast-present-bg);
-}
-
-.app-container[data-theme="skyblue"] .cast-card__status-dot--absent {
-  background-color: var(--cast-absent-bg);
-}
-
-.app-container[data-theme="skyblue"] .cast-card__presence-button--present {
-  background-color: var(--cast-present-bg);
-  color: #fff;
-}
-
-.app-container[data-theme="skyblue"] .cast-card__presence-button--absent {
-  background-color: var(--cast-absent-bg);
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .cast-presence-summary__col--present .cast-presence-summary__label {
-  color: var(--cast-present-bg);
-}
-
-.app-container[data-theme="skyblue"] .cast-presence-summary__chip--present {
-  background-color: var(--cast-present-bg);
-  color: #fff;
-}
-
-.app-container[data-theme="skyblue"] .cast-presence-summary__col--absent .cast-presence-summary__label {
-  color: #4a6a80;
-}
-
-.app-container[data-theme="skyblue"] .cast-presence-summary__chip--absent {
-  background-color: #8db4c9;
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .ng-page__exception-chip {
-  background-color: #b8d0e0;
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .caution-candidate-name-chip {
-  background-color: #b8d0e0;
-  color: #152942;
-}
-
-/* モーダル */
-.app-container[data-theme="skyblue"] .modal-overlay {
-  background-color: rgba(30, 58, 95, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.app-container[data-theme="skyblue"] .modal-content {
-  background-color: var(--discord-bg-dark);
-  border-color: var(--discord-border);
-  box-shadow: 0 20px 60px rgba(30, 58, 95, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-
-.app-container[data-theme="skyblue"] .modal-title {
-  color: var(--discord-text-header);
-}
-
-.app-container[data-theme="skyblue"] .modal-message {
-  color: var(--discord-text-normal);
-}
-
-.app-container[data-theme="skyblue"] .modal-btn-cancel {
-  background-color: var(--discord-button-secondary);
-  color: var(--discord-text-normal);
-  border-color: var(--discord-border);
-}
-
-.app-container[data-theme="skyblue"] .modal-btn-cancel:hover {
-  background-color: var(--discord-button-secondary-hover);
-}
-
-.app-container[data-theme="skyblue"] .btn-primary.modal-btn-confirm {
-  background-color: var(--discord-button-primary);
-  color: #fff;
-}
-
-.app-container[data-theme="skyblue"] .btn-primary.modal-btn-confirm:hover {
-  background-color: var(--discord-button-primary-hover);
-}
-
-/* テーマプレビュー */
-.app-container[data-theme="skyblue"] .theme-preview__layout {
-  border-color: rgba(70, 140, 210, 0.25);
-}
-
-.app-container[data-theme="skyblue"] .theme-preview:hover .theme-preview__layout {
-  border-color: rgba(70, 140, 210, 0.4);
-}
-
-.app-container[data-theme="skyblue"] .theme-preview.active .theme-preview__layout {
-  border-color: #4a8ec8;
-  box-shadow: 0 0 0 2px rgba(74, 142, 200, 0.25);
-}
-
-.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle-group {
-  background: rgba(70, 140, 210, 0.12);
-  border-color: rgba(70, 140, 210, 0.25);
-}
-
-.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle {
-  color: #1e3a5f;
-}
-
-.app-container[data-theme="skyblue"] .sidebar-theme-slider .btn-toggle.active {
-  background: #4a8ec8;
-  color: #fff;
-}
-
-/* フォーム入力 */
-.app-container[data-theme="skyblue"] .form-input,
-.app-container[data-theme="skyblue"] input[type="text"],
-.app-container[data-theme="skyblue"] input[type="number"],
-.app-container[data-theme="skyblue"] select {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(70, 140, 210, 0.25);
-  color: #1e3a5f;
-}
-
-/* チェック系テーマ（skyblue）: 白背景＋青系文字で視認性確保 */
-.app-container[data-theme="skyblue"] .app-select__trigger {
-  background: #ffffff;
-  border: 2px solid rgba(70, 140, 210, 0.5);
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .app-select__trigger:hover:not(:disabled) {
-  border-color: #4a8ec8;
-  background: #f8fbff;
-}
-
-.app-container[data-theme="skyblue"] .app-select__content {
-  background: #ffffff;
-  border: 2px solid rgba(70, 140, 210, 0.4);
-}
-
-.app-container[data-theme="skyblue"] .app-select__item {
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .app-select__item:hover,
-.app-container[data-theme="skyblue"] .app-select__item[data-highlighted] {
-  background: rgba(74, 142, 200, 0.12);
-}
-
-.app-container[data-theme="skyblue"] .import-column-mapping__select {
-  background: #ffffff;
-  border: 2px solid rgba(70, 140, 210, 0.5);
-  color: #152942;
-}
-
-.app-container[data-theme="skyblue"] .import-column-mapping__select:hover {
-  border-color: #4a8ec8;
-  background: #f8fbff;
-}
-
-.app-container[data-theme="skyblue"] .import-column-mapping__select option {
-  background: #ffffff;
-  color: #152942;
-}
-
-/* ボタントグル */
-.app-container[data-theme="skyblue"] .btn-toggle {
-  background: rgba(70, 140, 210, 0.08);
-  color: #3a6a9a;
-  border: 1px solid rgba(70, 140, 210, 0.2);
-}
-
-.app-container[data-theme="skyblue"] .btn-toggle.active {
-  background: rgba(74, 142, 200, 0.18);
-  color: #152942;
-  border-color: rgba(74, 142, 200, 0.4);
+  --db-sticky-bg: #f7fbff;
+  --db-sticky-bg-alt: #f0f8ff;
+  --db-sticky-bg-caution: #ffe7eb;
+  --db-sticky-shadow-right: 4px 0 12px rgba(25, 83, 130, 0.14);
+  --db-sticky-shadow-bottom: 0 4px 12px rgba(25, 83, 130, 0.14);
 }
 
 .sidebar-theme-pill {
@@ -636,56 +401,6 @@
 }
 
 /* データ読取：カスタム形式の列マッピング */
-.import-column-mapping {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.import-column-mapping__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.import-column-mapping__label {
-  flex: 0 0 140px;
-  font-size: 14px;
-  color: var(--discord-text-normal);
-}
-
-.import-column-mapping__select-wrap {
-  flex: 1;
-  max-width: 320px;
-}
-
-.import-column-mapping__select,
-select.app-select-native {
-  flex: 1;
-  max-width: 120px;
-  min-height: 40px;
-  padding: 8px 10px;
-  font-size: 14px;
-  font-weight: 500;
-  background: var(--discord-bg-dark);
-  border: 2px solid var(--discord-border);
-  border-radius: 6px;
-  color: var(--discord-text-header);
-  cursor: pointer;
-}
-
-.import-column-mapping__select:hover,
-select.app-select-native:hover {
-  border-color: var(--discord-text-muted);
-  background: var(--discord-bg-secondary);
-}
-
-.import-column-mapping__select option,
-select.app-select-native option {
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-header);
-}
-
 .import-weight-option__card {
   padding: 14px 16px;
   background: var(--discord-bg-secondary);
@@ -779,4 +494,3 @@ select.app-select-native option {
   text-align: center;
   color: var(--discord-text-muted);
 }
-

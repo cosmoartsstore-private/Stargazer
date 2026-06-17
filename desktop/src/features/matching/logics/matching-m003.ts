@@ -48,15 +48,18 @@ function runSingleAttempt(
   ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
   const userMap = new Map<string, MatchedCast[]>();
-  const castUnits = buildCastUnits(activeCasts, params.castsPerRotation);
-  if (castUnits.length === 0) {
+  const allCastUnits = buildCastUnits(activeCasts, params.castsPerRotation);
+  if (allCastUnits.length === 0) {
     return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
 
   const guestGroups = buildGuestGroups(winners, params.usersPerTable);
-  if (params.totalTables !== undefined && params.totalTables !== guestGroups.length) {
+  if (params.totalTables !== undefined && params.totalTables < guestGroups.length) {
     return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
+  const castUnits = params.totalTables !== undefined
+    ? allCastUnits.slice(0, params.totalTables)
+    : allCastUnits;
   if (castUnits.length < guestGroups.length) {
     return { userMap, ngConflict: true, failureReason: 'insufficient-capacity' };
   }
@@ -94,18 +97,24 @@ function runSingleAttempt(
   const tableSlots: TableSlot[] = [];
   guestGroups.forEach((group, groupIndex) => {
     const slotIndex = assignment[groupIndex];
-    const tableIndex = groupIndex + 1;
-    const roundCasts = rotation.flatMap((round) => round[slotIndex]);
+    const tableIndex = slotIndex + 1;
+    const roundCastGroups = rotation.map((round, roundIndex) => ({
+      roundIndex,
+      casts: round[slotIndex],
+    }));
 
     group.forEach((winner) => {
-      const matches = roundCasts.map((cast) => {
-        const rankIndex = winner.casts.indexOf(cast.name);
-        return {
-          cast,
-          rank: rankIndex >= 0 && rankIndex < 3 && winner.preference_mode !== 'flat' ? rankIndex + 1 : 0,
-          score: getPreferenceScore(winner, cast.name),
-        };
-      });
+      const matches = roundCastGroups.flatMap(({ roundIndex, casts }) =>
+        casts.map((cast) => {
+          const rankIndex = winner.casts.indexOf(cast.name);
+          return {
+            cast,
+            rank: rankIndex >= 0 && rankIndex < 3 && winner.preference_mode !== 'flat' ? rankIndex + 1 : 0,
+            rotationIndex: roundIndex,
+            score: getPreferenceScore(winner, cast.name),
+          };
+        }),
+      );
       userMap.set(winner.x_id, matches);
       tableSlots.push({
         user: winner,
@@ -117,7 +126,9 @@ function runSingleAttempt(
     for (let seatIndex = group.length; seatIndex < params.usersPerTable; seatIndex += 1) {
       tableSlots.push({
         user: null,
-        matches: roundCasts.map((cast) => ({ cast, rank: 0 })),
+        matches: roundCastGroups.flatMap(({ roundIndex, casts }) =>
+          casts.map((cast) => ({ cast, rank: 0, rotationIndex: roundIndex })),
+        ),
         tableIndex,
       });
     }

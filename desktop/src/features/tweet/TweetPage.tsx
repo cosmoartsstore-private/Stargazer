@@ -5,7 +5,6 @@ import styles from './TweetPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 const TEMPLATE_KEY = 'tweet_template';
-const TAG_MASTER_KEY = 'tag_master_items';
 
 const DEFAULT_TEMPLATE = `【出席キャスト】
 {casts}`;
@@ -13,31 +12,25 @@ const DEFAULT_TEMPLATE = `【出席キャスト】
 const PLACEHOLDERS = [
   { key: '{casts}',       label: 'キャスト一覧（改行区切り）' },
   { key: '{event_name}',  label: 'イベント名' },
-  { key: '{date}',        label: '今日の日付（YYYY/MM/DD）' },
-  { key: '{cast_count}',  label: 'キャスト人数' },
-  { key: '{tags}',        label: 'タグマスタのタグ（スペース区切り）' },
 ];
 
-function buildPreview(template: string, casts: string[], eventName: string, tags: string[]): string {
-  const today = new Date();
-  const date = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+function buildPreview(template: string, casts: string[], eventName: string): string {
   const attendingCasts = casts.filter(Boolean);
   return template
     .replace(/{casts}/g,      attendingCasts.length > 0 ? attendingCasts.join('\n') : '（キャスト未登録）')
     .replace(/{event_name}/g, eventName || 'イベント')
-    .replace(/{date}/g,       date)
-    .replace(/{cast_count}/g, String(attendingCasts.length))
-    .replace(/{tags}/g,       tags.length > 0 ? tags.join(' ') : '');
+    .replace(/{date}/g,       '')
+    .replace(/{cast_count}/g, '')
+    .replace(/{tags}/g,       '');
 }
 
 export const TweetPage: React.FC = () => {
   const { casts: allCasts, currentEventName } = useAppContext();
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [copied, setCopied] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
 
   const casts = allCasts.filter((c) => c.is_present).map((c) => c.name);
-  const preview = buildPreview(template, casts, currentEventName ?? '', tags);
+  const preview = buildPreview(template, casts, currentEventName ?? '');
 
   const loadTemplate = useCallback(async () => {
     try {
@@ -57,20 +50,10 @@ export const TweetPage: React.FC = () => {
     }
   }, [currentEventName]);
 
-  const loadTags = useCallback(async () => {
-    try {
-      const saved = await getSetting(TAG_MASTER_KEY);
-      if (saved) setTags(JSON.parse(saved) as string[]);
-    } catch {
-      // ignore
-    }
-  }, []);
-
   useEffect(() => {
     void loadTemplate();
     void loadEventMeta();
-    void loadTags();
-  }, [loadTemplate, loadEventMeta, loadTags, currentEventName]);
+  }, [loadTemplate, loadEventMeta, currentEventName]);
 
   const handleTemplateChange = async (value: string) => {
     setTemplate(value);

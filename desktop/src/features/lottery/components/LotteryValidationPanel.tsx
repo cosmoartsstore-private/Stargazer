@@ -6,16 +6,22 @@ interface LotteryValidationPanelProps {
     validation: {
         errors: string[];
         warnings: string[];
+        info: string[];
     };
     onRunClick: () => void;
+    readySubtext?: string;
+    runLabel?: string;
 }
 
 export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
     validation,
     onRunClick,
+    readySubtext = '抽選を行う準備が完了しています',
+    runLabel = '抽選開始',
 }) => {
     const hasErrors   = validation.errors.length > 0;
     const hasWarnings = validation.warnings.length > 0;
+    const hasInfo     = validation.info.length > 0;
 
     const panelMod = hasErrors ? styles.lotteryValidationPanelDanger
                    : hasWarnings ? styles.lotteryValidationPanelWarning
@@ -27,17 +33,24 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                 <div className={styles.lotteryValidationHeader}>
                     {hasErrors   && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeError}`}>ERROR</span>}
                     {hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeWarning}`}>WARNING</span>}
+                    {hasInfo     && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeInfo}`}>INFO</span>}
                     {!hasErrors && !hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeNormal}`}>OK</span>}
                 </div>
 
                 <div className={`${styles.lotteryValidationContent} ${shared.customScrollbar}`}>
-                    {!hasErrors && !hasWarnings ? (
+                    {!hasErrors && !hasWarnings && !hasInfo ? (
                         <div className={styles.lotteryValidationEmpty}>
                             <p className={styles.lotteryValidationEmptyText}>設定に問題はありません</p>
-                            <p className={styles.lotteryValidationEmptySubtext}>抽選を行う準備が完了しています</p>
+                            <p className={styles.lotteryValidationEmptySubtext}>{readySubtext}</p>
                         </div>
                     ) : (
                         <div className={styles.lotteryValidationList}>
+                            {validation.info.map((message, idx) => (
+                                <div key={`info-${idx}`} className={`${styles.lotteryValidationItem} ${styles.lotteryValidationItemInfo}`}>
+                                    <strong className={styles.lotteryValidationItemLabel}>情報</strong>
+                                    {message}
+                                </div>
+                            ))}
                             {validation.errors.map((error, idx) => (
                                 <div key={`err-${idx}`} className={`${styles.lotteryValidationItem} ${styles.lotteryValidationItemError}`}>
                                     <strong className={styles.lotteryValidationItemLabel}>エラー</strong>
@@ -62,7 +75,7 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                     className={`${shared.btnPrimary} ${shared.btnPrimaryFull}`}
                     disabled={hasErrors}
                 >
-                    抽選開始
+                    {runLabel}
                 </button>
             </div>
         </div>

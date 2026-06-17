@@ -2,68 +2,101 @@
    出席管理ページ
    ======================================== */
 
+.attendance-page {
+  --attendance-surface: var(--discord-bg-dark);
+  --attendance-surface-raised: var(--discord-bg-secondary);
+  --attendance-surface-deep: var(--discord-bg-dark);
+  --attendance-sticky-bg: #171b24;
+  --attendance-sticky-head-bg: #10131a;
+  --attendance-border: var(--discord-border);
+  --attendance-border-strong: rgba(255, 255, 255, 0.18);
+  --attendance-grid: #2e3542;
+  --attendance-text: var(--discord-text-header);
+  --attendance-muted: var(--discord-text-muted);
+  --attendance-accent: var(--discord-accent-green);
+  --attendance-accent-soft: rgba(35, 165, 89, 0.14);
+  --attendance-present: var(--discord-accent-green);
+  --attendance-present-bg: rgba(35, 165, 89, 0.2);
+  --attendance-present-bg-alt: rgba(35, 165, 89, 0.26);
+  --attendance-present-border: rgba(35, 165, 89, 0.58);
+  --attendance-present-contrast: #ffffff;
+  --attendance-empty-bg: var(--discord-bg-dark);
+  --attendance-empty-bg-alt: var(--discord-bg-alt);
+  --attendance-empty-icon: #687386;
+}
+
+.attendance-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px;
+  margin-bottom: 18px;
+  background: var(--attendance-surface-deep);
+  border: 1px solid var(--attendance-border);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.attendance-tab {
+  min-width: 112px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--attendance-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+}
+
+.attendance-tab:hover {
+  color: var(--attendance-text);
+  background: var(--attendance-empty-bg);
+}
+
+.attendance-tab-active {
+  background: var(--attendance-surface-raised);
+  border-color: var(--attendance-border-strong);
+  color: var(--attendance-text);
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.attendance-tab:focus-visible {
+  outline: 2px solid var(--attendance-accent);
+  outline-offset: 2px;
+}
+
+.attendance-tab-content {
+  min-width: 0;
+}
+
 .records-tab {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.attendance-action-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
-  border-radius: 8px;
-}
-
-.attendance-action-bar__info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.attendance-count-text {
+  display: inline;
+  color: var(--attendance-text);
   font-size: 13px;
-  color: var(--discord-text-muted);
-}
-
-.attendance-action-bar__saved-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(87, 242, 135, 0.12);
-  border: 1px solid rgba(87, 242, 135, 0.3);
-  color: var(--discord-text-success);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.attendance-action-bar__hint {
-  font-size: 13px;
-  color: var(--discord-text-muted);
-}
-
-.attendance-count-badge {
-  display: inline-block;
-  min-width: 28px;
-  text-align: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(88, 101, 242, 0.15);
-  border: 1px solid rgba(88, 101, 242, 0.3);
-  color: var(--discord-accent-blue);
-  font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .attendance-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 0;
+  padding: 48px 24px;
   color: var(--discord-text-muted);
   font-size: 13px;
+  text-align: center;
+  line-height: 1.6;
 }
 
 /* ── 出席設定タブ ── */
@@ -78,8 +111,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 14px;
+  padding: 12px 18px;
   background: var(--discord-bg-secondary);
   border: 1px solid var(--discord-border);
   border-radius: 10px;
@@ -89,33 +122,67 @@
 .setup-counter {
   display: flex;
   align-items: center;
-  gap: 14px;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.setup-count-present { color: var(--discord-accent-green); }
-.setup-count-absent  { color: var(--discord-text-muted); }
+.setup-count-present {
+  color: var(--attendance-present);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.setup-count-present::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--attendance-present);
+  flex-shrink: 0;
+}
+
+.setup-count-absent {
+  color: var(--discord-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.setup-count-absent::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--discord-text-muted);
+  flex-shrink: 0;
+}
 
 .setup-bulk-btns {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .setup-bulk-present,
 .setup-bulk-absent {
-  padding: 7px 20px;
-  border-radius: 999px;
+  padding: 7px 18px;
+  border-radius: 6px;
   border: none;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.setup-bulk-present:active,
+.setup-bulk-absent:active {
+  transform: scale(0.97);
 }
 
 .setup-bulk-present {
-  background: var(--discord-accent-green);
-  color: #fff;
+  background: var(--attendance-present);
+  color: var(--attendance-present-contrast);
 }
 
 .setup-bulk-absent {
@@ -141,17 +208,6 @@
   gap: 8px;
   padding-left: 14px;
   border-left: 1px solid var(--discord-border);
-}
-
-.setup-saved-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(87, 242, 135, 0.12);
-  border: 1px solid rgba(87, 242, 135, 0.3);
-  color: var(--discord-text-success);
-  font-size: 11px;
-  font-weight: 600;
 }
 
 /* 左右2カラム */
@@ -193,8 +249,8 @@
 }
 
 .setup-col-badge-present {
-  background: var(--discord-accent-green);
-  color: #fff;
+  background: var(--attendance-present);
+  color: var(--attendance-present-contrast);
 }
 
 .setup-col-badge-absent {
@@ -243,32 +299,80 @@
 /* チップ */
 .setup-chip-wrap {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
 }
 
 .setup-chip {
-  padding: 5px 14px;
-  border-radius: 999px;
-  border: none;
-  font-size: 13px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s, border-color 0.15s;
   font-family: inherit;
+  line-height: 1.3;
+  text-align: left;
 }
 
-.setup-chip:hover  { opacity: 0.8; }
+.setup-chip:hover  { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); }
 .setup-chip:active { transform: scale(0.96); }
 
 .setup-chip-present {
-  background: var(--discord-accent-green);
-  color: #fff;
+  background: var(--attendance-present);
+  color: var(--attendance-present-contrast);
+  border-color: var(--attendance-present-border);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.setup-chip-absent {
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+.setup-chip-wait {
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--attendance-muted);
+  border: 1px dashed var(--attendance-border);
+  opacity: 0.56;
+}
+
+.setup-chip-wait:hover {
+  border-style: solid;
+  opacity: 0.76;
+}
+
+.setup-chip-wait::after {
+  content: '未選択';
+  margin-left: 12px;
+  color: var(--attendance-muted);
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.8;
+}
+
+.setup-chip-wait-selected {
+  justify-content: space-between;
+  background: var(--discord-bg-secondary);
+  color: var(--attendance-text);
+  border: 1px solid var(--attendance-border);
+  opacity: 1;
+}
+
+.setup-chip-wait-selected:hover {
+  border-color: var(--attendance-border-strong);
+  border-style: solid;
+  opacity: 1;
+}
+
+.setup-chip-wait-selected::after {
+  content: '待機';
+  margin-left: 12px;
+  color: var(--attendance-muted);
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.72;
 }
 
 /* ── 出席記録タブ ── */
@@ -276,7 +380,12 @@
 .records-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+  overflow: hidden;
+  background: var(--attendance-surface);
+  border: 1px solid var(--attendance-border);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .records-section-header {
@@ -284,81 +393,189 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 48px;
+  padding: 14px 18px;
+  background: var(--attendance-surface-raised);
+  border-bottom: 1px solid var(--attendance-border);
 }
 
-.history-btn {
-  padding: 5px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--discord-border);
-  background: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+.records-title {
+  color: var(--attendance-text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.4;
 }
 
-.history-btn:hover:not(:disabled) {
-  background: var(--discord-bg-hover);
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-accent-blue);
-}
-
-.history-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.cast-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.cast-chip {
-  display: inline-block;
-  padding: 4px 12px;
+.records-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 10px;
+  background: var(--attendance-accent-soft);
+  border: 1px solid rgba(35, 165, 89, 0.36);
   border-radius: 999px;
-  background: var(--discord-accent-green);
-  color: #fff;
+  color: var(--attendance-accent);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── 出席履歴モーダル ── */
+.attendance-matrix-wrap {
+  width: 100%;
+  overflow: auto;
+  background: var(--attendance-surface);
+  border: none;
+  border-radius: 0;
+  isolation: isolate;
+}
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
+.attendance-matrix {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--attendance-grid);
+  font-size: 12px;
+}
+
+.attendance-matrix th,
+.attendance-matrix td {
+  border-right: 1px solid var(--attendance-grid);
+  border-bottom: 1px solid var(--attendance-grid);
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.attendance-matrix th:last-child,
+.attendance-matrix td:last-child {
+  border-right: none;
+}
+
+.attendance-matrix tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.attendance-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  background: var(--attendance-surface-deep);
+  background-clip: border-box;
+  color: var(--attendance-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: inset 0 -1px 0 var(--attendance-grid);
+}
+
+.attendance-matrix-cast-head,
+.attendance-matrix-cast-name {
+  position: sticky;
+  left: 0;
+  width: 168px;
+  min-width: 168px;
+  max-width: 168px;
+  z-index: 6;
+  background: var(--attendance-sticky-bg);
+  background-clip: border-box;
+  text-align: left;
+  box-shadow: 1px 0 0 var(--attendance-grid);
+}
+
+.attendance-matrix-cast-head {
+  z-index: 9;
+  background: var(--attendance-sticky-head-bg);
+}
+
+.attendance-matrix-cast-name {
+  color: var(--attendance-text);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attendance-matrix-count-head,
+.attendance-matrix-count-cell {
+  position: sticky;
+  left: 168px;
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+  z-index: 5;
+  background: var(--attendance-sticky-bg);
+  background-clip: border-box;
+  text-align: center;
+  box-shadow:
+    1px 0 0 var(--attendance-grid),
+    12px 0 18px -16px rgba(0, 0, 0, 0.9);
+}
+
+.attendance-matrix-count-head {
+  z-index: 8;
+  background: var(--attendance-sticky-head-bg);
+}
+
+.attendance-matrix-date-head {
+  min-width: 104px;
+}
+
+.attendance-matrix-cell {
+  min-width: 72px;
+  text-align: center;
+  color: var(--attendance-muted);
+  background: var(--attendance-empty-bg);
+}
+
+.attendance-matrix tbody tr:nth-child(even) .attendance-matrix-cell {
+  background: var(--attendance-empty-bg-alt);
+}
+
+.attendance-matrix-cell-present {
+  background: var(--attendance-present-bg);
+  box-shadow: inset 0 0 0 1px rgba(35, 165, 89, 0.2);
+}
+
+.attendance-matrix tbody tr:nth-child(even) .attendance-matrix-cell-present {
+  background: var(--attendance-present-bg-alt);
+}
+
+.attendance-check-mark {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  color: var(--attendance-present);
+  font-weight: 800;
+  line-height: 1;
 }
 
-.modal-panel {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
-  border-radius: 12px;
-  width: 560px;
-  max-width: 90vw;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.attendance-check-mark svg,
+.attendance-empty-mark svg {
+  display: block;
 }
+
+.attendance-empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--attendance-empty-icon);
+  opacity: 0.7;
+}
+
+/* ── モーダル共通 ── */
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  margin-bottom: 0;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--discord-border);
   flex-shrink: 0;
 }
 
 .modal-title {
-  font-size: 15px;
+  margin: 0;
+  font-size: 16px;
   font-weight: 700;
   color: var(--discord-text-header);
 }
@@ -367,10 +584,10 @@
   background: none;
   border: none;
   color: var(--discord-text-muted);
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
   line-height: 1;
   transition: color 0.12s, background 0.12s;
 }
@@ -380,110 +597,25 @@
   background: var(--discord-bg-hover);
 }
 
-.modal-panel .table-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 20px 20px;
-}
-
-/* 履歴カードリスト */
-.history-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0;
-}
-
-.history-card {
-  display: grid;
-  grid-template-columns: 130px 70px 1fr;
-  align-items: center;
-  gap: 0;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--discord-border);
-  transition: background 0.1s;
-}
-
-.history-card:hover {
-  background: var(--discord-bg-hover);
-}
-
-.history-card:last-child {
-  border-bottom: none;
-}
-
-.history-card-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.history-date {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--discord-text-header);
-  font-variant-numeric: tabular-nums;
-}
-
-.history-event-name {
-  font-size: 11px;
-  color: var(--discord-text-muted);
-}
-
-.history-card-center {
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
-  justify-content: center;
-}
-
-.history-count-num {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--discord-accent-green);
-  line-height: 1;
-}
-
-.history-count-unit {
-  font-size: 13px;
-  color: var(--discord-text-muted);
-}
-
-.history-card-right {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding-left: 12px;
-}
-
-.history-cast-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
-  font-size: 11px;
-}
-
 /* ── 記録確認モーダル（大） ── */
 
 .save-modal-panel {
-  background: var(--discord-bg-secondary);
+  background: #20232c;
   border: 1px solid var(--discord-border);
   border-radius: 12px;
-  width: 720px;
+  width: 640px;
   max-width: 92vw;
   max-height: 82vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--discord-modal-content-shadow);
+  outline: none;
 }
 
 .save-modal-body {
   display: grid;
-  grid-template-columns: 180px 120px 1fr;
+  grid-template-columns: minmax(0, 1fr) 180px;
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -493,20 +625,29 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 24px 20px;
+  padding: 20px;
   border-right: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--discord-border);
 }
 
-.save-modal-col:last-child {
+.save-modal-col:nth-child(2) {
   border-right: none;
 }
 
+.save-modal-col:last-child {
+  grid-column: 1 / -1;
+  min-height: 0;
+  border-right: none;
+  border-bottom: none;
+  padding-top: 18px;
+}
+
 .save-modal-col-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--discord-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .record-date-input {
@@ -528,19 +669,42 @@
 }
 
 .save-modal-col-center {
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+}
+
+.record-date-field {
+  position: relative;
+}
+
+.record-date-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  color: var(--discord-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.record-date-field .record-date-input {
+  padding-left: 34px;
+}
+
+.save-count-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .save-count-num {
   font-size: 48px;
   font-weight: 800;
-  color: var(--discord-accent-green);
+  color: var(--attendance-present);
   line-height: 1;
 }
 
 .save-count-unit {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--discord-text-muted);
 }
@@ -552,49 +716,140 @@
 .save-cast-list {
   flex: 1;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  align-content: start;
+  gap: 6px;
 }
 
 .save-cast-item {
-  font-size: 13px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--discord-text-normal);
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 7px 10px;
+  border-radius: 6px;
   background: var(--discord-bg-dark);
+  border: 1px solid var(--discord-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 20px;
+  gap: 12px;
+  padding: 16px 20px;
   border-top: 1px solid var(--discord-border);
   flex-shrink: 0;
 }
 
 .overwrite-note {
   font-size: 12px;
+  font-weight: 500;
   color: var(--discord-text-warning, #faa61a);
   margin-right: auto;
+  padding: 4px 10px;
+  background: rgba(250, 166, 26, 0.1);
+  border-radius: 4px;
+  border: 1px solid rgba(250, 166, 26, 0.25);
 }
 
 /* ライトテーマ：bg-darkが白化するため明示的に有彩色を指定 */
 
-:global([data-theme="skyblue"]) .setup-chip-absent {
-  background: #8db4c9;
-  color: #152942;
+:global([data-theme="skyblue"]) .attendance-page {
+  --attendance-surface: #f7fbff;
+  --attendance-surface-raised: #ffffff;
+  --attendance-surface-deep: #edf8ff;
+  --attendance-sticky-bg: #ffffff;
+  --attendance-sticky-head-bg: #edf8ff;
+  --attendance-border: #bfdbfe;
+  --attendance-border-strong: #93c5fd;
+  --attendance-grid: #bfdbfe;
+  --attendance-text: #102b49;
+  --attendance-muted: #47708f;
+  --attendance-accent: #2f9f78;
+  --attendance-accent-soft: rgba(47, 159, 120, 0.13);
+  --attendance-present: #2f9f78;
+  --attendance-present-bg: rgba(47, 159, 120, 0.18);
+  --attendance-present-bg-alt: rgba(47, 159, 120, 0.24);
+  --attendance-present-border: rgba(47, 159, 120, 0.5);
+  --attendance-present-contrast: #ffffff;
+  --attendance-empty-bg: #f8fbff;
+  --attendance-empty-bg-alt: #eef5fb;
+  --attendance-empty-icon: #7fa4c2;
 }
 
-:global([data-theme="skyblue"]) .history-cast-chip {
-  background: #aac8dc;
-  color: #152942;
+:global([data-theme="skyblue"]) .attendance-matrix {
+  width: max-content;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+:global([data-theme="skyblue"]) .attendance-matrix-date-head,
+:global([data-theme="skyblue"]) .attendance-matrix-cell {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait {
+  background: #f8fbff;
+  border-color: #bfdbfe;
+  border-style: dashed;
+  color: #47708f;
+  opacity: 0.62;
+  box-shadow: none;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait:hover {
+  border-color: #93c5fd;
+  opacity: 0.72;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait-selected {
+  background: #ffffff;
+  border-color: #bfdbfe;
+  border-style: solid;
+  color: #102b49;
+  opacity: 1;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait-selected:hover {
+  border-color: #93c5fd;
+  opacity: 0.92;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait::after {
+  color: #7fa4c2;
+}
+
+:global([data-theme="skyblue"]) .setup-chip-wait-selected::after {
+  color: #47708f;
+  opacity: 0.82;
+}
+
+:global([data-theme="skyblue"]) .save-modal-panel {
+  background: #ffffff;
 }
 
 :global([data-theme="skyblue"]) .save-cast-item {
-  background: #c0d4e8;
-  color: #152942;
+  background: #d4ecfb;
+  color: #102b49;
 }
 
+@media (max-width: 640px) {
+  .save-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .save-modal-col {
+    border-right: none;
+  }
+
+  .save-modal-col:last-child {
+    grid-column: auto;
+  }
+}

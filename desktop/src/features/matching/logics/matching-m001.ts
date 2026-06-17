@@ -58,12 +58,13 @@ export function runRandomMatching(
   for (let slotIndex = 0; slotIndex < baseSlots.length; slotIndex += 1) {
     const winnerIndex = assignment.indexOf(slotIndex);
     const winner = winnerIndex >= 0 ? winners[winnerIndex] : null;
-    const matches = rotation.map((round) => {
+    const matches = rotation.map((round, roundIndex) => {
       const cast = round[slotIndex];
       const rankIndex = winner ? winner.casts.indexOf(cast.name) : -1;
       return {
         cast,
-        rank: rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
+        rank: winner && winner.preference_mode !== 'flat' && rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
+        rotationIndex: roundIndex,
       };
     });
 

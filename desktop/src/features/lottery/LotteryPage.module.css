@@ -75,6 +75,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .workflow-inline-card__body {
@@ -83,11 +84,113 @@
   color: var(--discord-text-normal);
 }
 
-.workflow-checkbox {
-  display: flex;
-  align-items: center;
+.workflow-inline-card__meta {
+  margin-left: auto;
+  color: var(--discord-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.matching-type-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
-  font-size: 13px;
+}
+
+.matching-type-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--discord-border);
+  border-radius: 6px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
+}
+
+.matching-type-option:hover:not(:disabled) {
+  border-color: var(--discord-accent-blue);
+}
+
+.matching-type-option--selected {
+  background: var(--discord-bg-selected);
+  border-color: var(--discord-accent-blue);
+  color: var(--discord-text-header);
+}
+
+.workflow-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--discord-border);
+  border-radius: 999px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workflow-switch__knob {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--discord-bg-hover);
+  flex-shrink: 0;
+}
+
+.workflow-switch__knob::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--discord-text-muted);
+  transition: transform 0.12s, background 0.12s;
+}
+
+.workflow-switch--on {
+  border-color: var(--discord-accent-green);
+  color: var(--discord-text-header);
+}
+
+.workflow-switch--on .workflow-switch__knob {
+  background: rgba(35, 165, 89, 0.25);
+}
+
+.workflow-switch--on .workflow-switch__knob::after {
+  transform: translateX(16px);
+  background: var(--discord-accent-green);
+}
+
+.same-day-slot-control {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.same-day-slot-control span {
+  color: var(--discord-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.same-day-slot-control input {
+  max-width: 140px;
 }
 
 .workflow-result-section {
@@ -102,8 +205,17 @@
   flex-wrap: wrap;
 }
 
-.workflow-result-toolbar__filename {
-  flex: 1 1 260px;
+.workflow-saved-result-control {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex: 1 1 440px;
+  min-width: 280px;
+}
+
+.workflow-saved-result-select {
+  flex: 1 1 320px;
+  min-width: 220px;
   margin-bottom: 0;
 }
 
@@ -218,20 +330,6 @@
   letter-spacing: 0.05em;
 }
 
-.import-cast-radios {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.import-cast-radios label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
 .import-preview-empty {
   display: flex;
   align-items: center;
@@ -339,6 +437,7 @@
 .lottery-validation-badge--normal  { background: var(--discord-accent-green); }
 .lottery-validation-badge--warning { background: var(--discord-accent-yellow); color: #1a1000; }
 .lottery-validation-badge--error   { background: var(--discord-accent-red); }
+.lottery-validation-badge--info    { background: var(--discord-accent-blue); }
 
 .lottery-validation-content {
   padding: 12px 14px;
@@ -395,6 +494,11 @@
   color: var(--discord-text-warning);
 }
 
+.lottery-validation-item--info {
+  background: rgba(88, 101, 242, 0.12);
+  color: var(--discord-text-normal);
+}
+
 .lottery-validation-item-label {
   flex-shrink: 0;
   font-weight: 700;
@@ -417,32 +521,60 @@
 .guaranteed-select-modal-list__scroll {
   max-height: 50vh;
   overflow-y: auto;
-  padding: 4px 0;
-  border: 1px solid var(--discord-border);
-  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  padding: 2px;
 }
 
 .guaranteed-select-modal-list__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  display: grid;
+  gap: 4px;
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid var(--discord-border);
+  border-radius: 8px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-normal);
+  text-align: left;
   cursor: pointer;
+  font: inherit;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
 .guaranteed-select-modal-list__item:hover {
   background: var(--discord-bg-hover);
+  border-color: var(--discord-accent-blue);
 }
 
-.guaranteed-select-modal-list__item input {
-  flex-shrink: 0;
-  accent-color: var(--discord-accent-blue);
+.guaranteed-select-modal-list__item--selected {
+  background: rgba(88, 101, 242, 0.14);
+  border-color: var(--discord-accent-blue);
+  box-shadow: inset 0 0 0 1px rgba(88, 101, 242, 0.28);
+}
+
+.guaranteed-select-modal-list__check {
+  width: fit-content;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--discord-bg-hover);
+  color: var(--discord-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.guaranteed-select-modal-list__item--selected .guaranteed-select-modal-list__check {
+  background: var(--discord-accent-blue);
+  color: #fff;
 }
 
 .guaranteed-select-modal-list__name {
-  flex: 0 0 140px;
-  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
   color: var(--discord-text-header);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .guaranteed-select-modal-list__id {

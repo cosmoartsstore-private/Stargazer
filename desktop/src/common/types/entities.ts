@@ -18,7 +18,7 @@ export interface NGUserEntry {
 export interface CastBean {
   name: string;
   is_present: boolean;
-  /** 連絡先URL一覧（VRCプロフィール・X・Discord等）。＋で複数追加可能 */
+  /** 連絡先一覧（Discord DM URL・WebプロフィールURL・Xの @username など）。＋で複数追加可能 */
   contact_urls?: string[];
   /** 仕様準拠のNGリスト（ユーザー名・アカウントID） */
   ng_entries?: NGUserEntry[];

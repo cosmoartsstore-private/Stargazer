@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { downloadTsv } from '@/common/downloadCsv';
 import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS } from '@/features/matching/types/matching-type-codes';
 import { LotteryValidationPanel } from './components/LotteryValidationPanel';
 import { useLotteryValidation } from './hooks/useLotteryValidation';
 import { useAppContext } from '@/stores/AppContext';
 import {
+  getSavedLotteryResults,
   getLotteryResults,
+  listSavedLotteryRuns,
   replaceLotteryResults,
+  saveLotteryRun,
+  type SavedLotteryRunRow,
 } from '@/db/repositories/lotteryRepository';
 import { getSessionDb } from '@/db/database';
 import type { UserBean } from '@/common/types/entities';
@@ -21,6 +25,58 @@ function shuffle<T>(items: readonly T[]): T[] {
     [copied[index], copied[swapIndex]] = [copied[swapIndex], copied[index]];
   }
   return copied;
+}
+
+interface ApplicantIdRow {
+  id: number;
+  x_id: string;
+}
+
+interface LotteryPersistenceRow {
+  applicant_id: number;
+  is_guaranteed: boolean;
+}
+
+interface LotteryRestoreRow {
+  applicant_id: number;
+  is_guaranteed: number;
+}
+
+async function getApplicantIdRows(): Promise<ApplicantIdRow[]> {
+  const db = getSessionDb();
+  return db.select<ApplicantIdRow[]>('SELECT id, x_id FROM applicants');
+}
+
+async function buildLotteryPersistenceRows(winners: UserBean[]): Promise<LotteryPersistenceRow[]> {
+  const applicantRows = await getApplicantIdRows();
+  const xIdToId = new Map(applicantRows.map((row) => [row.x_id, row.id]));
+  return winners
+    .map((winner) => {
+      const id = xIdToId.get(winner.x_id);
+      return id == null ? null : { applicant_id: id, is_guaranteed: !!winner.is_guaranteed };
+    })
+    .filter((row): row is LotteryPersistenceRow => row !== null);
+}
+
+async function restoreLotteryWinners(rows: LotteryRestoreRow[], applicants: UserBean[]): Promise<UserBean[]> {
+  const applicantRows = await getApplicantIdRows();
+  const idToXId = new Map(applicantRows.map((row) => [row.id, row.x_id]));
+  const xIdToUser = new Map(applicants.map((user) => [user.x_id, user]));
+  const restored: UserBean[] = [];
+  for (const row of rows) {
+    const xId = idToXId.get(row.applicant_id);
+    if (!xId) continue;
+    const user = xIdToUser.get(xId);
+    if (!user) continue;
+    restored.push({ ...user, is_guaranteed: row.is_guaranteed === 1 });
+  }
+  return restored;
+}
+
+function formatSavedLotteryLabel(winnerCount: number): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `抽選結果 ${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}（${winnerCount}名）`;
 }
 
 export const LotteryPage: React.FC = () => {
@@ -47,6 +103,8 @@ export const LotteryPage: React.FC = () => {
     setCastsPerRotation,
     allowM003EmptySeats,
     setAllowM003EmptySeats,
+    m003SameDaySlotCount,
+    setM003SameDaySlotCount,
     currentSessionTimestamp,
   } = useAppContext();
 
@@ -55,7 +113,9 @@ export const LotteryPage: React.FC = () => {
   //   Lottery is stochastic — re-running produces a different winner set, and
   //   the user re-running is a deliberate destructive action they should opt
   //   into (the existing "上書き" modal handles that). To survive a session
-  //   re-open we therefore round-trip winners through `lottery_results`.
+  //   re-open we therefore round-trip the active winners through
+  //   `lottery_results`. Saved runs are explicit snapshots that the user can
+  //   choose again later.
   //   Matching, by contrast, is deterministic from (winners, casts,
   //   matching settings) so we just recompute it whenever the user lands on
   //   the matching page — no need to store, no risk of stale results.
@@ -67,23 +127,10 @@ export const LotteryPage: React.FC = () => {
       try {
         const rows = await getLotteryResults();
         if (rows.length === 0) return;
-        const db = getSessionDb();
-        interface ApplicantRow { id: number; x_id: string; }
-        const applicantRows = await db.select<ApplicantRow[]>(
-          'SELECT id, x_id FROM applicants',
-        );
-        const idToXId = new Map(applicantRows.map((r) => [r.id, r.x_id]));
-        const xIdToUser = new Map(applicants.map((u) => [u.x_id, u]));
-        const restored: UserBean[] = [];
-        for (const row of rows) {
-          const xId = idToXId.get(row.applicant_id);
-          if (!xId) continue;
-          const user = xIdToUser.get(xId);
-          if (!user) continue;
-          restored.push({ ...user, is_guaranteed: row.is_guaranteed === 1 });
-        }
+        const restored = await restoreLotteryWinners(rows, applicants);
         if (restored.length > 0) {
           setCurrentWinners(restored);
+          setGuaranteedWinners(restored.filter((winner) => winner.is_guaranteed));
         }
       } catch (e) {
         console.warn('抽選結果の読み込みに失敗しました:', e);
@@ -96,19 +143,55 @@ export const LotteryPage: React.FC = () => {
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
 
   const [lotteryCount, setLotteryCount] = useState(1);
-  const [backupFileName, setBackupFileName] = useState('lottery-result');
   const [showGuaranteedSelect, setShowGuaranteedSelect] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
+  const [savedRuns, setSavedRuns] = useState<SavedLotteryRunRow[]>([]);
+  const [selectedSavedRunId, setSelectedSavedRunId] = useState('');
+  const [savingLotteryRun, setSavingLotteryRun] = useState(false);
+  const [lotteryMessage, setLotteryMessage] = useState<string | null>(null);
 
-  const totalWinners = lotteryCount + guaranteedWinners.length;
+  const refreshSavedRuns = useCallback(async () => {
+    if (!currentSessionTimestamp) {
+      setSavedRuns([]);
+      setSelectedSavedRunId('');
+      return;
+    }
+    try {
+      const runs = await listSavedLotteryRuns();
+      setSavedRuns(runs);
+      setSelectedSavedRunId((current) => {
+        if (!current) return '';
+        return runs.some((run) => String(run.id) === current) ? current : '';
+      });
+    } catch (e) {
+      console.warn('保存済み抽選結果の読み込みに失敗しました:', e);
+    }
+  }, [currentSessionTimestamp]);
+
+  useEffect(() => {
+    void refreshSavedRuns();
+  }, [refreshSavedRuns]);
+
+  const guaranteedCount = guaranteedWinners.length;
+  const totalWinners = lotteryCount + guaranteedCount;
+  const savedRunOptions: AppSelectOption[] = useMemo(
+    () => savedRuns.map((run) => ({
+      value: String(run.id),
+      label: `${run.label} / 合計 ${run.winner_count}名 / ${run.created_at}`,
+    })),
+    [savedRuns],
+  );
   const validation = useLotteryValidation({
     matchingTypeCode,
     totalWinners,
+    lotteryCount,
+    guaranteedCount,
     totalTables,
     activeCastCount,
     castsPerRotation,
     usersPerTable,
     allowM003EmptySeats,
+    sameDaySlotCount: m003SameDaySlotCount,
   });
 
   const guaranteedIds = useMemo(
@@ -137,18 +220,7 @@ export const LotteryPage: React.FC = () => {
     if (currentSessionTimestamp) {
       (async () => {
         try {
-          const db = getSessionDb();
-          interface ApplicantRow { id: number; x_id: string; }
-          const applicantRows = await db.select<ApplicantRow[]>(
-            'SELECT id, x_id FROM applicants',
-          );
-          const xIdToId = new Map(applicantRows.map((r) => [r.x_id, r.id]));
-          const rows = nextWinners
-            .map((w) => {
-              const id = xIdToId.get(w.x_id);
-              return id == null ? null : { applicant_id: id, is_guaranteed: !!w.is_guaranteed };
-            })
-            .filter((r): r is { applicant_id: number; is_guaranteed: boolean } => r !== null);
+          const rows = await buildLotteryPersistenceRows(nextWinners);
           await replaceLotteryResults(rows);
         } catch (e) {
           console.error('抽選結果の保存に失敗しました:', e);
@@ -161,6 +233,72 @@ export const LotteryPage: React.FC = () => {
     ...winner,
     lotteryType: guaranteedIds.has(winner.x_id) || winner.is_guaranteed ? '確定当選' : '抽選当選',
   }));
+
+  const handleSaveLotteryRun = useCallback(async () => {
+    if (currentWinners.length === 0 || savingLotteryRun) return;
+    setSavingLotteryRun(true);
+    try {
+      const rows = await buildLotteryPersistenceRows(currentWinners);
+      if (rows.length === 0) {
+        setLotteryMessage('保存できる抽選結果がありません。');
+        return;
+      }
+      const runId = await saveLotteryRun({
+        label: formatSavedLotteryLabel(rows.length),
+        matchingTypeCode,
+        lotteryCount,
+        guaranteedCount: currentWinners.filter((winner) => winner.is_guaranteed).length,
+        rows,
+      });
+      await replaceLotteryResults(rows);
+      await refreshSavedRuns();
+      setSelectedSavedRunId(String(runId));
+      setLotteryMessage('抽選結果をDBに保存しました。');
+    } catch (e) {
+      console.error('抽選結果の保存に失敗しました:', e);
+      setLotteryMessage('抽選結果の保存に失敗しました。');
+    } finally {
+      setSavingLotteryRun(false);
+    }
+  }, [
+    currentWinners,
+    lotteryCount,
+    matchingTypeCode,
+    refreshSavedRuns,
+    savingLotteryRun,
+  ]);
+
+  const handleLoadSavedLotteryRun = useCallback(async () => {
+    const runId = Number(selectedSavedRunId);
+    if (!Number.isFinite(runId) || runId <= 0) return;
+    try {
+      const rows = await getSavedLotteryResults(runId);
+      const restored = await restoreLotteryWinners(rows, applicants);
+      if (restored.length === 0) {
+        setLotteryMessage('選択した抽選結果を復元できませんでした。');
+        return;
+      }
+      setCurrentWinners(restored);
+      setGuaranteedWinners(restored.filter((winner) => winner.is_guaranteed));
+      setGlobalMatchingResult(null);
+      setGlobalTableSlots(undefined);
+      setGlobalMatchingError(null);
+      await replaceLotteryResults(await buildLotteryPersistenceRows(restored));
+      const selected = savedRuns.find((run) => run.id === runId);
+      setLotteryMessage(`${selected?.label ?? '保存済み抽選結果'}を選択しました。`);
+    } catch (e) {
+      console.error('保存済み抽選結果の選択に失敗しました:', e);
+      setLotteryMessage('保存済み抽選結果の選択に失敗しました。');
+    }
+  }, [
+    applicants,
+    savedRuns,
+    selectedSavedRunId,
+    setCurrentWinners,
+    setGlobalMatchingError,
+    setGlobalMatchingResult,
+    setGlobalTableSlots,
+  ]);
 
   return (
     <div className={styles.lotteryScreen}>
@@ -194,17 +332,18 @@ export const LotteryPage: React.FC = () => {
 
             <label className={shared.formGroup}>
               <span className={shared.formLabel}>マッチング方式</span>
-              <select
-                className={shared.formInput}
-                value={matchingTypeCode}
-                onChange={(event) => setMatchingTypeCode(event.target.value as typeof matchingTypeCode)}
-              >
+              <div className={styles.matchingTypeOptions}>
                 {MATCHING_TYPE_CODES_SELECTABLE.map((code) => (
-                  <option key={code} value={code}>
+                  <button
+                    key={code}
+                    type="button"
+                    className={`${styles.matchingTypeOption}${matchingTypeCode === code ? ` ${styles.matchingTypeOptionSelected}` : ''}`}
+                    onClick={() => setMatchingTypeCode(code)}
+                  >
                     {MATCHING_TYPE_LABELS[code]}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </label>
 
             <label className={shared.formGroup}>
@@ -253,20 +392,44 @@ export const LotteryPage: React.FC = () => {
                   />
                 </label>
 
-                <label className={styles.workflowCheckbox}>
-                  <input
-                    type="checkbox"
-                    checked={allowM003EmptySeats}
-                    onChange={(event) => setAllowM003EmptySeats(event.target.checked)}
-                  />
-                  <span>空席を許容する</span>
-                </label>
+                <div className={shared.formGroup}>
+                  <span className={shared.formLabel}>当日枠を含める</span>
+                  <button
+                    type="button"
+                    className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
+                    role="switch"
+                    aria-checked={allowM003EmptySeats}
+                    onClick={() => {
+                      const next = !allowM003EmptySeats;
+                      setAllowM003EmptySeats(next);
+                      if (next && m003SameDaySlotCount < 1) {
+                        setM003SameDaySlotCount(1);
+                      }
+                    }}
+                  >
+                    <span className={styles.workflowSwitch__knob} />
+                    <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
+                  </button>
+                  {allowM003EmptySeats && (
+                    <label className={styles.sameDaySlotControl}>
+                      <span>当日枠数</span>
+                      <input
+                        type="number"
+                        min={1}
+                        className={shared.formInput}
+                        value={m003SameDaySlotCount}
+                        onChange={(event) => setM003SameDaySlotCount(Math.max(1, Number(event.target.value) || 1))}
+                      />
+                    </label>
+                  )}
+                </div>
               </>
             )}
 
             <div className={styles.workflowInlineCard}>
               <div className={styles.workflowInlineCard__header}>
                 <strong>確定当選者</strong>
+                <span className={styles.workflowInlineCard__meta}>合計当選者 {totalWinners} 名</span>
                 <button type="button" className={shared.btnSecondary} onClick={() => setShowGuaranteedSelect(true)}>
                   選択
                 </button>
@@ -299,43 +462,40 @@ export const LotteryPage: React.FC = () => {
           <div>
             <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>当選者リスト</h2>
             <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-              抽選結果を TSV で保存し、必要ならそのままマッチング画面へ遷移します。
+              抽選結果はDBに保存できます。保存済みの結果は後から選択し直せます。
             </p>
           </div>
         </div>
 
         <div className={styles.workflowResultToolbar}>
-          <label className={`${shared.formGroup} ${styles.workflowResultToolbar__filename}`}>
-            <span className={shared.formLabel}>バックアップファイル名</span>
-            <input
-              type="text"
-              className={shared.formInput}
-              value={backupFileName}
-              onChange={(event) => setBackupFileName(event.target.value)}
-              placeholder="lottery-result"
-            />
-          </label>
+          <div className={styles.workflowSavedResultControl}>
+            <label className={`${shared.formGroup} ${styles.workflowSavedResultSelect}`}>
+              <span className={shared.formLabel}>保存済み抽選結果</span>
+              <AppSelect
+                value={selectedSavedRunId}
+                onValueChange={setSelectedSavedRunId}
+                options={savedRunOptions}
+                placeholder={savedRuns.length === 0 ? '保存済み結果はありません' : '保存済み結果を選択'}
+                disabled={savedRuns.length === 0}
+              />
+            </label>
+            <button
+              type="button"
+              className={shared.btnSecondary}
+              disabled={!selectedSavedRunId}
+              onClick={() => { void handleLoadSavedLotteryRun(); }}
+            >
+              保存済み結果を開く
+            </button>
+          </div>
           <div className={styles.workflowResultToolbar__actions}>
             <button
               type="button"
-              className={shared.btnExportPrimary}
-              disabled={resultRows.length === 0}
-              onClick={() =>
-                downloadTsv(
-                  [
-                    ['ユーザー', 'X ID', '区分', '希望キャスト'],
-                    ...resultRows.map((row) => [
-                      row.name,
-                      row.x_id,
-                      row.lotteryType,
-                      row.casts.join(', '),
-                    ]),
-                  ],
-                  `${backupFileName || 'lottery-result'}.tsv`,
-                )
-              }
+              className={shared.btnPrimary}
+              disabled={resultRows.length === 0 || savingLotteryRun}
+              onClick={() => { void handleSaveLotteryRun(); }}
             >
-              TSV保存
+              {savingLotteryRun ? '保存中...' : '抽選結果保存'}
             </button>
             <button
               type="button"
@@ -383,8 +543,9 @@ export const LotteryPage: React.FC = () => {
         <ConfirmModal
           type="alert"
           title="確定当選者の選択"
-          message={`現在 ${guaranteedWinners.length} 名を確定当選者として設定しています。`}
+          message={`現在 ${guaranteedWinners.length} 名を確定当選者として設定しています。合計当選者数は ${totalWinners} 名です。`}
           confirmLabel="閉じる"
+          size="wide"
           onConfirm={() => setShowGuaranteedSelect(false)}
         >
           <div className={styles.guaranteedSelectModalList}>
@@ -392,20 +553,21 @@ export const LotteryPage: React.FC = () => {
               {allUsers.map((user) => {
                 const isSelected = guaranteedIds.has(user.x_id);
                 return (
-                  <label key={user.x_id} className={styles.guaranteedSelectModalList__item}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {
+                  <button
+                    key={user.x_id}
+                    type="button"
+                    className={`${styles.guaranteedSelectModalList__item}${isSelected ? ` ${styles.guaranteedSelectModalList__itemSelected}` : ''}`}
+                    onClick={() => {
                         const nextGuaranteed = isSelected
                           ? guaranteedWinners.filter((winner) => winner.x_id !== user.x_id)
                           : [...guaranteedWinners, user];
                         setGuaranteedWinners(nextGuaranteed);
-                      }}
-                    />
+                    }}
+                  >
+                    <span className={styles.guaranteedSelectModalList__check}>{isSelected ? '選択中' : '未選択'}</span>
                     <span className={styles.guaranteedSelectModalList__name}>{user.name || user.x_id}</span>
                     <span className={styles.guaranteedSelectModalList__id}>{user.x_id}</span>
-                  </label>
+                  </button>
                 );
               })}
             </div>
@@ -422,6 +584,15 @@ export const LotteryPage: React.FC = () => {
           cancelLabel="キャンセル"
           onConfirm={runLottery}
           onCancel={() => setConfirmReplace(false)}
+        />
+      )}
+      {lotteryMessage && (
+        <ConfirmModal
+          type="alert"
+          title="抽選結果"
+          message={lotteryMessage}
+          confirmLabel="閉じる"
+          onConfirm={() => setLotteryMessage(null)}
         />
       )}
     </div>
