@@ -5,8 +5,17 @@ import { CounterControl } from '@/components/CounterControl';
 import { getCautionNGCastNames } from '@/features/matching/logics/caution-user';
 import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
 import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
+import { NgCastResultCell } from './components/NgCastResultCell';
 import { LotteryValidationPanel } from './components/LotteryValidationPanel';
 import { useLotteryValidation } from './hooks/useLotteryValidation';
+import {
+  formatSavedLotteryLabel,
+  shuffle,
+} from './services/lottery-draw';
+import {
+  buildLotteryPersistenceRows,
+  restoreLotteryWinners,
+} from './services/lottery-result-persistence';
 import { useAppContext } from '@/stores/AppContext';
 import {
   getSavedLotteryResults,
@@ -16,85 +25,8 @@ import {
   saveLotteryRun,
   type SavedLotteryRunRow,
 } from '@/db/repositories/lotteryRepository';
-import { getSessionDb } from '@/db/database';
-import type { UserBean } from '@/common/types/entities';
 import styles from './LotteryPage.module.css';
 import shared from '@/styles/shared.module.css';
-
-function shuffle<T>(items: readonly T[]): T[] {
-  const copied = [...items];
-  for (let index = copied.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [copied[index], copied[swapIndex]] = [copied[swapIndex], copied[index]];
-  }
-  return copied;
-}
-
-interface ApplicantIdRow {
-  id: number;
-  x_id: string;
-}
-
-interface LotteryPersistenceRow {
-  applicant_id: number;
-  is_guaranteed: boolean;
-}
-
-interface LotteryRestoreRow {
-  applicant_id: number;
-  is_guaranteed: number;
-}
-
-async function getApplicantIdRows(): Promise<ApplicantIdRow[]> {
-  const db = getSessionDb();
-  return db.select<ApplicantIdRow[]>('SELECT id, x_id FROM applicants');
-}
-
-async function buildLotteryPersistenceRows(winners: UserBean[]): Promise<LotteryPersistenceRow[]> {
-  const applicantRows = await getApplicantIdRows();
-  const xIdToId = new Map(applicantRows.map((row) => [row.x_id, row.id]));
-  return winners
-    .map((winner) => {
-      const id = xIdToId.get(winner.x_id);
-      return id == null ? null : { applicant_id: id, is_guaranteed: !!winner.is_guaranteed };
-    })
-    .filter((row): row is LotteryPersistenceRow => row !== null);
-}
-
-async function restoreLotteryWinners(rows: LotteryRestoreRow[], applicants: UserBean[]): Promise<UserBean[]> {
-  const applicantRows = await getApplicantIdRows();
-  const idToXId = new Map(applicantRows.map((row) => [row.id, row.x_id]));
-  const xIdToUser = new Map(applicants.map((user) => [user.x_id, user]));
-  const restored: UserBean[] = [];
-  for (const row of rows) {
-    const xId = idToXId.get(row.applicant_id);
-    if (!xId) continue;
-    const user = xIdToUser.get(xId);
-    if (!user) continue;
-    restored.push({ ...user, is_guaranteed: row.is_guaranteed === 1 });
-  }
-  return restored;
-}
-
-function formatSavedLotteryLabel(winnerCount: number): string {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `抽選結果 ${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}（${winnerCount}名）`;
-}
-
-const NgCastResultCell: React.FC<{ ngCastNames: string[] }> = ({ ngCastNames }) => {
-  if (ngCastNames.length === 0) {
-    return <span className={styles.workflowResultNgNone}>—</span>;
-  }
-  const label = ngCastNames.length === 1
-    ? ngCastNames[0]
-    : `${ngCastNames.length}名のキャストがNG`;
-  return (
-    <span className={styles.workflowResultNgBadge} title={ngCastNames.join('、')}>
-      {label}
-    </span>
-  );
-};
 
 export const LotteryPage: React.FC = () => {
   const {
@@ -126,21 +58,9 @@ export const LotteryPage: React.FC = () => {
     currentSessionTimestamp,
   } = useAppContext();
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Why we persist lottery results but NOT matching results:
-  //   Lottery is stochastic — re-running produces a different winner set, and
-  //   the user re-running is a deliberate destructive action they should opt
-  //   into (the existing "上書き" modal handles that). To survive a session
-  //   re-open we therefore round-trip the active winners through
-  //   `lottery_results`. Saved runs are explicit snapshots that the user can
-  //   choose again later.
-  //   Matching, by contrast, is deterministic from (winners, casts,
-  //   matching settings) so we just recompute it whenever the user lands on
-  //   the matching page — no need to store, no risk of stale results.
-  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentSessionTimestamp) return;
-    if (currentWinners.length > 0) return; // local state already populated
+    if (currentWinners.length > 0) return;
     (async () => {
       try {
         const rows = await getLotteryResults();
