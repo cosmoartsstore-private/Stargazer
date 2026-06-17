@@ -368,63 +368,68 @@ export const LotteryPage: React.FC = () => {
               />
             </label>
 
-            {matchingTypeCode === 'M003' && (
-              <>
-                <label className={shared.formGroup}>
-                  <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
-                  <input
-                    type="number"
-                    min={1}
-                    className={shared.formInput}
-                    value={usersPerTable}
-                    onChange={(event) => setUsersPerTable(Math.max(1, Number(event.target.value) || 1))}
-                  />
-                </label>
+            <div className={`${styles.m003SettingsSlot}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
+              {matchingTypeCode === 'M003' ? (
+                <>
+                  <label className={shared.formGroup}>
+                    <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className={shared.formInput}
+                      value={usersPerTable}
+                      onChange={(event) => setUsersPerTable(Math.max(1, Number(event.target.value) || 1))}
+                    />
+                  </label>
 
-                <label className={shared.formGroup}>
-                  <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
-                  <input
-                    type="number"
-                    min={1}
-                    className={shared.formInput}
-                    value={castsPerRotation}
-                    onChange={(event) => setCastsPerRotation(Math.max(1, Number(event.target.value) || 1))}
-                  />
-                </label>
+                  <label className={shared.formGroup}>
+                    <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className={shared.formInput}
+                      value={castsPerRotation}
+                      onChange={(event) => setCastsPerRotation(Math.max(1, Number(event.target.value) || 1))}
+                    />
+                  </label>
 
-                <div className={shared.formGroup}>
-                  <span className={shared.formLabel}>当日枠を含める</span>
-                  <button
-                    type="button"
-                    className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
-                    role="switch"
-                    aria-checked={allowM003EmptySeats}
-                    onClick={() => {
-                      const next = !allowM003EmptySeats;
-                      setAllowM003EmptySeats(next);
-                      if (next && m003SameDaySlotCount < 1) {
-                        setM003SameDaySlotCount(1);
-                      }
-                    }}
-                  >
-                    <span className={styles.workflowSwitch__knob} />
-                    <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
-                  </button>
-                  {allowM003EmptySeats && (
-                    <label className={styles.sameDaySlotControl}>
+                  <div className={shared.formGroup}>
+                    <span className={shared.formLabel}>当日枠を含める</span>
+                    <button
+                      type="button"
+                      className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
+                      role="switch"
+                      aria-checked={allowM003EmptySeats}
+                      onClick={() => {
+                        const next = !allowM003EmptySeats;
+                        setAllowM003EmptySeats(next);
+                        if (next && m003SameDaySlotCount < 1) {
+                          setM003SameDaySlotCount(1);
+                        }
+                      }}
+                    >
+                      <span className={styles.workflowSwitch__knob} />
+                      <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
+                    </button>
+                    <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
                       <span>当日枠数</span>
                       <input
                         type="number"
                         min={1}
                         className={shared.formInput}
                         value={m003SameDaySlotCount}
+                        disabled={!allowM003EmptySeats}
                         onChange={(event) => setM003SameDaySlotCount(Math.max(1, Number(event.target.value) || 1))}
                       />
                     </label>
-                  )}
+                  </div>
+                </>
+              ) : (
+                <div className={styles.m003SettingsPlaceholder}>
+                  M003 テーブル制を選択すると、テーブル単位の詳細条件を編集できます。
                 </div>
-              </>
-            )}
+              )}
+            </div>
 
             <div className={styles.workflowInlineCard}>
               <div className={styles.workflowInlineCard__header}>

@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stargazer 抽選・マッチング画面デモ</title>
+  <style>
+    :root {
+      --bg-root: #f8fcff;
+      --bg-panel: rgba(255, 255, 255, 0.94);
+      --bg-panel-strong: rgba(255, 255, 255, 0.985);
+      --bg-soft: rgba(96, 165, 250, 0.10);
+      --bg-selected: rgba(45, 143, 211, 0.16);
+      --line: rgba(96, 165, 250, 0.32);
+      --line-soft: rgba(96, 165, 250, 0.20);
+      --text: #183a5f;
+      --text-strong: #102b49;
+      --muted: rgba(24, 58, 95, 0.64);
+      --blue: #2d8fd3;
+      --blue-hover: #247cc0;
+      --green: #2f9f78;
+      --gold: #b99700;
+      --danger: #d83c3e;
+      --shadow: 0 18px 44px rgba(25, 83, 130, 0.12);
+      --radius: 8px;
+      font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+      color: var(--text);
+      background: var(--bg-root);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg-root);
+      background-image:
+        radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.95) 0 2px, transparent 2.5px),
+        radial-gradient(circle at 78% 64%, rgba(186, 230, 253, 0.55) 0 2px, transparent 3px),
+        radial-gradient(circle at 42% 82%, rgba(221, 214, 254, 0.36) 0 2px, transparent 3px),
+        repeating-linear-gradient(60deg, rgba(96, 165, 250, 0.50) 0 1px, rgba(248, 252, 255, 0.88) 1px 19px, rgba(186, 230, 253, 0.34) 19px 59px, rgba(248, 252, 255, 0.88) 59px 82px),
+        repeating-linear-gradient(-60deg, rgba(125, 211, 252, 0.52) 0 1px, rgba(248, 252, 255, 0.88) 1px 19px, rgba(191, 219, 254, 0.32) 19px 59px, rgba(248, 252, 255, 0.88) 59px 82px),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 249, 255, 0.88) 42%, rgba(238, 242, 255, 0.62));
+      overflow: hidden;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 10px;
+      background: rgba(255, 255, 255, 0.92);
+      border-right: 1px solid rgba(96, 165, 250, 0.26);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+      padding: 8px 10px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      margin-bottom: 4px;
+    }
+
+    .brand strong {
+      color: var(--text-strong);
+      font-size: 19px;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .nav-section {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav-label {
+      margin: 10px 8px 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      min-height: 40px;
+      padding: 9px 10px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #2e678f;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .nav-btn.active {
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--text-strong);
+      box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.22);
+    }
+
+    .screen-switch {
+      margin-top: auto;
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      background: rgba(96, 165, 250, 0.12);
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+    }
+
+    .screen-switch button {
+      min-height: 36px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .screen-switch button.active {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .content {
+      min-width: 0;
+      overflow: auto;
+      padding: 20px;
+    }
+
+    .page {
+      display: none;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding-bottom: 40px;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .page-header {
+      margin-bottom: 16px;
+    }
+
+    .page-header h1 {
+      margin: 0;
+      color: var(--text-strong);
+      font-size: 25px;
+      line-height: 1.25;
+    }
+
+    .page-header p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .two-pane {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .matching-pane {
+      grid-template-columns: minmax(0, 1fr) 300px;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.48);
+      padding: 18px;
+    }
+
+    .panel.sticky {
+      position: sticky;
+      top: 18px;
+    }
+
+    .section-head {
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      color: var(--text-strong);
+      font-size: 18px;
+    }
+
+    .section-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: 40px minmax(92px, 1fr) 40px;
+      align-items: stretch;
+      width: min(240px, 100%);
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--bg-panel-strong);
+      overflow: hidden;
+    }
+
+    .stepper button {
+      border: none;
+      background: rgba(96, 165, 250, 0.12);
+      color: var(--blue);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .stepper-value {
+      display: grid;
+      place-items: center;
+      border-left: 1px solid var(--line-soft);
+      border-right: 1px solid var(--line-soft);
+      color: var(--text-strong);
+      font-size: 20px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .type-options,
+    .option-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(128px, 1fr));
+      gap: 8px;
+    }
+
+    .option-grid.two {
+      grid-template-columns: repeat(2, minmax(128px, 1fr));
+    }
+
+    .option-btn {
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--bg-panel-strong);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .option-btn small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .option-btn.active {
+      background: var(--bg-selected);
+      border-color: var(--blue);
+      color: var(--text-strong);
+    }
+
+    .m003-slot {
+      display: grid;
+      gap: 16px;
+      min-height: 318px;
+    }
+
+    .m003-slot.is-placeholder {
+      min-height: 318px;
+    }
+
+    .placeholder {
+      display: grid;
+      place-items: center;
+      min-height: 100%;
+      padding: 20px;
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.74);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.65;
+    }
+
+    .switch-row {
+      display: grid;
+      grid-template-columns: 132px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      width: 132px;
+      min-height: 38px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--bg-panel-strong);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .switch.active {
+      border-color: var(--green);
+      color: var(--text-strong);
+    }
+
+    .switch-track {
+      position: relative;
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(45, 143, 211, 0.14);
+      flex: 0 0 auto;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 19px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .switch-text {
+      min-width: 48px;
+      text-align: left;
+    }
+
+    .help {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .inline-card {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .inline-card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .inline-card-head strong {
+      color: var(--text-strong);
+      font-size: 14px;
+    }
+
+    .inline-card-head .meta {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .btn {
+      min-height: 36px;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(96, 165, 250, 0.16);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .btn.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      background: var(--blue-hover);
+    }
+
+    .validation {
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .validation-head {
+      display: flex;
+      gap: 6px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 2px 9px;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .badge.ok { background: var(--green); }
+    .badge.warn { background: var(--gold); color: #1a1000; }
+    .badge.blue { background: var(--blue); }
+    .badge.red { background: var(--danger); }
+
+    .validation-body {
+      display: grid;
+      gap: 8px;
+      min-height: 216px;
+      padding: 14px;
+    }
+
+    .validation-item {
+      padding: 9px 10px;
+      border-radius: 6px;
+      background: rgba(45, 143, 211, 0.10);
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .validation-item.ok {
+      display: grid;
+      place-items: center;
+      min-height: 132px;
+      background: rgba(47, 159, 120, 0.12);
+      color: var(--green);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .side-action {
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .result-section {
+      margin-top: 20px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .select-like {
+      display: flex;
+      align-items: center;
+      min-height: 40px;
+      min-width: 360px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--bg-panel-strong);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .table-wrap {
+      margin-top: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-panel-strong);
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      border-right: 1px solid var(--line-soft);
+      color: var(--text);
+      font-size: 13px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th:last-child,
+    td:last-child {
+      border-right: none;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    th {
+      background: rgba(96, 165, 250, 0.10);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    td strong {
+      color: var(--text-strong);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .meta-card {
+      display: grid;
+      gap: 4px;
+      min-height: 68px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .meta-card span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .meta-card strong {
+      color: var(--text-strong);
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chip-list,
+    .assign-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+      padding: 4px 8px;
+      border: 1px solid rgba(45, 143, 211, 0.32);
+      border-radius: 999px;
+      background: rgba(45, 143, 211, 0.12);
+      color: var(--text-strong);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chip.gold {
+      border-color: rgba(185, 151, 0, 0.40);
+      background: rgba(185, 151, 0, 0.14);
+    }
+
+    .chip.red {
+      border-color: rgba(216, 60, 62, 0.38);
+      background: rgba(216, 60, 62, 0.12);
+      color: var(--danger);
+    }
+
+    .rank {
+      padding: 1px 5px;
+      border-radius: 999px;
+      background: rgba(16, 43, 73, 0.10);
+      font-size: 10px;
+    }
+
+    .filename {
+      color: var(--text-strong);
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    @media (max-width: 1180px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        flex-direction: row;
+        align-items: center;
+        overflow: auto;
+      }
+
+      .brand,
+      .nav-label {
+        display: none;
+      }
+
+      .screen-switch {
+        margin-top: 0;
+        grid-template-columns: repeat(2, 1fr);
+        min-width: 260px;
+      }
+
+      .two-pane,
+      .matching-pane {
+        grid-template-columns: 1fr;
+      }
+
+      .panel.sticky {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>Stargazer</strong>
+        <span>アイスリボンチェック / 実アプリ相当デモ</span>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">メイン</div>
+        <button class="nav-btn active">応募管理</button>
+        <button class="nav-btn">内部管理</button>
+        <button class="nav-btn">イベント切り替え</button>
+        <button class="nav-btn">ヘルプ</button>
+      </div>
+      <div class="screen-switch">
+        <button class="active" data-screen="lottery">抽選画面</button>
+        <button data-screen="matching">マッチング画面</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section id="lottery" class="page active">
+        <header class="page-header">
+          <h1>抽選</h1>
+          <p>確定当選者と当選人数を設定し、抽選結果を確認してからマッチングへ進みます。</p>
+        </header>
+
+        <div class="two-pane">
+          <section class="panel">
+            <div class="section-head">
+              <h2>抽選設定</h2>
+              <p>数値は直接入力ではなくステッパーで増減する案。方式切替時もM003欄の領域を固定します。</p>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span class="label">当選人数</span>
+                <div class="stepper">
+                  <button type="button">-</button>
+                  <div class="stepper-value">8</div>
+                  <button type="button">+</button>
+                </div>
+              </label>
+
+              <label class="field">
+                <span class="label">マッチング方式</span>
+                <div class="type-options">
+                  <button class="option-btn">M001 個別</button>
+                  <button class="option-btn">M002 均等</button>
+                  <button class="option-btn active">M003 テーブル制</button>
+                </div>
+              </label>
+
+              <label class="field">
+                <span class="label">ラウンド数</span>
+                <div class="stepper">
+                  <button type="button">-</button>
+                  <div class="stepper-value">3</div>
+                  <button type="button">+</button>
+                </div>
+              </label>
+
+              <label class="field">
+                <span class="label">総テーブル数</span>
+                <div class="stepper">
+                  <button type="button">-</button>
+                  <div class="stepper-value">4</div>
+                  <button type="button">+</button>
+                </div>
+              </label>
+
+              <div class="m003-slot">
+                <label class="field">
+                  <span class="label">1テーブルあたりのゲスト数</span>
+                  <div class="stepper">
+                    <button type="button">-</button>
+                    <div class="stepper-value">2</div>
+                    <button type="button">+</button>
+                  </div>
+                </label>
+
+                <label class="field">
+                  <span class="label">1ローテあたりのキャスト数</span>
+                  <div class="stepper">
+                    <button type="button">-</button>
+                    <div class="stepper-value">1</div>
+                    <button type="button">+</button>
+                  </div>
+                </label>
+
+                <div class="field">
+                  <span class="label">当日枠を含める</span>
+                  <div class="switch-row">
+                    <button class="switch active" type="button">
+                      <span class="switch-track"></span>
+                      <span class="switch-text">含める</span>
+                    </button>
+                    <span class="help">当日枠分の席数を合計席数に追加します。</span>
+                  </div>
+                  <div class="stepper">
+                    <button type="button">-</button>
+                    <div class="stepper-value">2</div>
+                    <button type="button">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="inline-card">
+                <div class="inline-card-head">
+                  <strong>確定当選者</strong>
+                  <span class="meta">合計当選者 10 名</span>
+                  <button class="btn">選択</button>
+                </div>
+                <div class="chip-list">
+                  <span class="chip gold">星野 みお</span>
+                  <span class="chip gold">水瀬 ルカ</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="panel sticky validation">
+            <div class="validation-head">
+              <span class="badge ok">READY</span>
+              <span class="badge blue">M003</span>
+            </div>
+            <div class="validation-body">
+              <div class="validation-item ok">
+                抽選を行う準備が完了しています<br>
+                合計当選者 10名 / 合計席数 10席
+              </div>
+              <div class="validation-item">確定当選者 2名、通常抽選 8名で実行します。</div>
+              <div class="validation-item">当日枠 2席を含めて、テーブル数は実質5卓として扱います。</div>
+            </div>
+            <div class="side-action">
+              <button class="btn primary" style="width:100%">抽選実行</button>
+            </div>
+          </aside>
+        </div>
+
+        <section class="panel result-section">
+          <div class="toolbar">
+            <div>
+              <div class="section-head" style="margin-bottom:8px">
+                <h2>当選者リスト</h2>
+                <p>保存済み結果はDBから選択し直せます。</p>
+              </div>
+              <div class="select-like">抽選結果 2026/06/17 22:30（10名） / 合計 10名</div>
+            </div>
+            <div style="display:flex; gap:10px">
+              <button class="btn primary">抽選結果保存</button>
+              <button class="btn primary">マッチングへ</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ユーザー</th>
+                  <th>X ID</th>
+                  <th>区分</th>
+                  <th>希望キャスト</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>佐藤 はる</strong></td><td>@haru</td><td>抽選当選</td><td>星野 みお, 水瀬 ルカ</td></tr>
+                <tr><td><strong>鈴木 りん</strong></td><td>@rin</td><td>抽選当選</td><td>水瀬 ルカ, 朝比奈 まい</td></tr>
+                <tr><td><strong>高橋 かな</strong></td><td>@kana</td><td>確定当選</td><td>星野 みお</td></tr>
+                <tr><td><strong>田中 そら</strong></td><td>@sora</td><td>抽選当選</td><td>朝比奈 まい, 桐生 えな</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="matching" class="page">
+        <header class="page-header">
+          <h1>マッチング</h1>
+          <p>設定確認、結果表示、PNG・TSV出力を分けています。条件の表示領域は方式切替でも固定します。</p>
+        </header>
+
+        <div class="two-pane matching-pane">
+          <div>
+            <section class="panel">
+              <div class="section-head">
+                <h2>マッチング設定</h2>
+                <p>実行前に必要な設定を集約し、右側の検証パネルは高さを保ちます。</p>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta-card"><span>方式</span><strong>M003 テーブル制</strong></div>
+                <div class="meta-card"><span>当選者数</span><strong>10 名</strong></div>
+                <div class="meta-card"><span>ラウンド数</span><strong>3</strong></div>
+                <div class="meta-card"><span>合計席数</span><strong>10 席</strong></div>
+              </div>
+
+              <div class="form-grid">
+                <label class="field">
+                  <span class="label">方式</span>
+                  <div class="type-options">
+                    <button class="option-btn">M001 個別</button>
+                    <button class="option-btn">M002 均等</button>
+                    <button class="option-btn active">M003 テーブル制</button>
+                  </div>
+                </label>
+
+                <label class="field">
+                  <span class="label">ラウンド数</span>
+                  <div class="stepper">
+                    <button type="button">-</button>
+                    <div class="stepper-value">3</div>
+                    <button type="button">+</button>
+                  </div>
+                </label>
+
+                <label class="field">
+                  <span class="label">テーブル数</span>
+                  <div class="stepper">
+                    <button type="button">-</button>
+                    <div class="stepper-value">4</div>
+                    <button type="button">+</button>
+                  </div>
+                </label>
+
+                <div class="m003-slot">
+                  <label class="field">
+                    <span class="label">1テーブルあたりのユーザー数</span>
+                    <div class="stepper">
+                      <button type="button">-</button>
+                      <div class="stepper-value">2</div>
+                      <button type="button">+</button>
+                    </div>
+                  </label>
+
+                  <label class="field">
+                    <span class="label">1ラウンドあたりのキャスト数</span>
+                    <div class="stepper">
+                      <button type="button">-</button>
+                      <div class="stepper-value">1</div>
+                      <button type="button">+</button>
+                    </div>
+                  </label>
+
+                  <div class="field">
+                    <span class="label">当日枠を含める</span>
+                    <div class="switch-row">
+                      <button class="switch active" type="button">
+                        <span class="switch-track"></span>
+                        <span class="switch-text">含める</span>
+                      </button>
+                      <span class="help">当日枠分の席数を合計席数に追加</span>
+                    </div>
+                    <div class="stepper">
+                      <button type="button">-</button>
+                      <div class="stepper-value">2</div>
+                      <button type="button">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <label class="field">
+                  <span class="label">NG判定</span>
+                  <div class="option-grid">
+                    <button class="option-btn active">ユーザー名 + ID</button>
+                    <button class="option-btn">ユーザー名</button>
+                    <button class="option-btn">ID</button>
+                  </div>
+                </label>
+
+                <label class="field">
+                  <span class="label">探索モード</span>
+                  <div class="option-grid two">
+                    <button class="option-btn active">効率モード<small>条件到達で即採用</small></button>
+                    <button class="option-btn">品質モード<small>時間内で最良を採用</small></button>
+                  </div>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <aside class="panel sticky validation">
+            <div class="validation-head">
+              <span class="badge ok">READY</span>
+              <span class="badge blue">MATCH</span>
+            </div>
+            <div class="validation-body">
+              <div class="validation-item ok">
+                マッチングを行う準備が完了しています<br>
+                当選者 10名 / 出席キャスト 5名
+              </div>
+              <div class="validation-item">NG対象は自動除外します。</div>
+              <div class="validation-item">合計席数は当日枠を含む席数として表示します。</div>
+            </div>
+            <div class="side-action">
+              <button class="btn primary" style="width:100%">マッチング開始</button>
+            </div>
+          </aside>
+        </div>
+
+        <section class="panel result-section">
+          <div class="toolbar">
+            <div class="section-head" style="margin-bottom:0">
+              <h2>キャスト別結果</h2>
+              <p>各キャストが応対する応募者をローテーション別に確認できます。</p>
+            </div>
+            <button class="btn">PNG出力</button>
+          </div>
+          <div class="table-wrap">
+            <table style="min-width:1000px">
+              <thead>
+                <tr>
+                  <th style="width:220px">キャスト</th>
+                  <th>第1ローテ</th>
+                  <th>第2ローテ</th>
+                  <th>第3ローテ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>星野 みお</strong></td>
+                  <td><div class="assign-list"><span class="chip gold">高橋 かな <span class="rank">第一希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip">佐藤 はる <span class="rank">第二希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip red">田中 そら <span class="rank">NG</span></span></div></td>
+                </tr>
+                <tr>
+                  <td><strong>水瀬 ルカ</strong></td>
+                  <td><div class="assign-list"><span class="chip">佐藤 はる <span class="rank">第一希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip gold">鈴木 りん <span class="rank">第一希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip">空席</span></div></td>
+                </tr>
+                <tr>
+                  <td><strong>朝比奈 まい</strong></td>
+                  <td><div class="assign-list"><span class="chip">田中 そら <span class="rank">第二希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip">高橋 かな <span class="rank">希望</span></span></div></td>
+                  <td><div class="assign-list"><span class="chip">鈴木 りん <span class="rank">第二希望</span></span></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel result-section">
+          <div class="toolbar">
+            <div class="section-head" style="margin-bottom:0">
+              <h2>テーブル別結果</h2>
+              <p>テーブルごとの座席と担当キャストを表で確認できます。</p>
+            </div>
+            <button class="btn">PNG出力</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:130px">テーブル</th>
+                  <th style="width:72px">席</th>
+                  <th>応募者</th>
+                  <th>X ID</th>
+                  <th>担当キャスト</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>テーブル 1</strong></td><td>1</td><td>佐藤 はる</td><td>@haru</td><td><span class="chip">水瀬 ルカ <span class="rank">第一希望</span></span></td></tr>
+                <tr><td><strong>テーブル 1</strong></td><td>2</td><td>鈴木 りん</td><td>@rin</td><td><span class="chip gold">朝比奈 まい <span class="rank">第二希望</span></span></td></tr>
+                <tr><td><strong>テーブル 2</strong></td><td>1</td><td>高橋 かな</td><td>@kana</td><td><span class="chip gold">星野 みお <span class="rank">第一希望</span></span></td></tr>
+                <tr><td><strong>テーブル 2</strong></td><td>2</td><td>空席</td><td>未割り当て</td><td><span class="chip">キャスト未割り当て</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="toolbar" style="margin-top:20px">
+          <div>
+            <span class="label">バックアップファイル名</span>
+            <div class="filename">matching-result</div>
+          </div>
+          <button class="btn primary">TSV保存</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll("[data-screen]");
+    const pages = document.querySelectorAll(".page");
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        buttons.forEach((item) => item.classList.remove("active"));
+        pages.forEach((page) => page.classList.remove("active"));
+        button.classList.add("active");
+        document.getElementById(button.dataset.screen).classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>

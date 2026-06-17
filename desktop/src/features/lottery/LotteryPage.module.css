@@ -125,10 +125,37 @@
   color: var(--discord-text-header);
 }
 
+.m003-settings-slot {
+  display: grid;
+  gap: 16px;
+  min-height: 320px;
+}
+
+.m003-settings-slot--inactive {
+  align-items: stretch;
+}
+
+.m003-settings-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 18px;
+  border: 1px dashed var(--discord-border);
+  border-radius: 8px;
+  background: var(--discord-bg-dark);
+  color: var(--discord-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .workflow-switch {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  width: 132px;
   min-height: 38px;
   padding: 7px 12px;
   border: 1px solid var(--discord-border);
@@ -139,6 +166,11 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.workflow-switch > span:last-child {
+  min-width: 48px;
+  text-align: left;
 }
 
 .workflow-switch__knob {
@@ -179,6 +211,7 @@
 .same-day-slot-control {
   display: grid;
   gap: 6px;
+  min-height: 68px;
   margin-top: 10px;
 }
 
@@ -191,6 +224,10 @@
 
 .same-day-slot-control input {
   max-width: 140px;
+}
+
+.same-day-slot-control--disabled {
+  opacity: 0.52;
 }
 
 .workflow-result-section {
