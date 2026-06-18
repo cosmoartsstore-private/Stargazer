@@ -3,6 +3,7 @@ import munkres from 'munkres-js';
 
 const INF = 1e9;
 
+/** スコア最大化問題を、munkres-js が解くコスト最小化問題へ変換して割り当てる。 */
 function hungarianAssign(scoreMatrix: number[][]): number[] {
   const n = scoreMatrix.length;
   if (n === 0) return [];
@@ -23,6 +24,7 @@ export const PREFERENCE_WEIGHTS: Readonly<Record<number, number>> = {
   3: 50,
 };
 
+/** 応募者の希望順位と希望モードから、キャスト1名分の評価点を算出する。 */
 export function getPreferenceScore(user: UserBean, castName: string): number {
   if (!Array.isArray(user.casts) || user.casts.length === 0) {
     return 0;
@@ -40,6 +42,7 @@ export function getPreferenceScore(user: UserBean, castName: string): number {
   return PREFERENCE_WEIGHTS[prefIndex + 1] ?? 0;
 }
 
+/** 入力配列を変更せず、Fisher-Yates 法でランダム順の配列を返す。 */
 export function shuffleArray<T>(items: readonly T[]): T[] {
   const shuffled = [...items];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -49,6 +52,7 @@ export function shuffleArray<T>(items: readonly T[]): T[] {
   return shuffled;
 }
 
+/** 先頭スロットを1つずつずらし、ローテーションごとの巡回表を構築する。 */
 export function buildRotation<T>(base: readonly T[], numRounds: number): T[][] {
   const roundCount = Math.max(1, numRounds);
   return Array.from({ length: roundCount }, (_, roundIndex) =>
@@ -56,6 +60,7 @@ export function buildRotation<T>(base: readonly T[], numRounds: number): T[][] {
   );
 }
 
+/** 任意のスロット評価関数を使い、各行に最も総得点が高いスロットを割り当てる。 */
 export function assignWithHungarian<TSlot>(
   rowCount: number,
   slots: readonly TSlot[],

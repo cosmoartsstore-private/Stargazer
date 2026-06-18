@@ -2,6 +2,7 @@ import type { CastAttendanceEvent, CastAttendanceSummary } from '@/db';
 import type { CastBean } from '@/common/types/entities';
 import type { AttendanceMatrixRow, GroupedCasts } from './types';
 
+/** グループ名ごとにキャストをまとめ、未所属キャストを独立した末尾グループに集約する。 */
 export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
   const map = new Map<string, CastBean[]>();
   const ungrouped: CastBean[] = [];
@@ -25,10 +26,12 @@ export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
   return result;
 }
 
+/** 出席履歴から日付だけを取り出し、履歴表の列順として昇順に整列する。 */
 export function buildAttendanceDates(history: CastAttendanceEvent[]): string[] {
   return Array.from(new Set(history.map((event) => event.recorded_at.slice(0, 10)))).sort();
 }
 
+/** DB の集約文字列を、表示・集計で扱うキャスト名配列へ戻す。 */
 function parseAttendanceCastNames(castNames: string): string[] {
   return castNames
     .split(',')
@@ -36,6 +39,7 @@ function parseAttendanceCastNames(castNames: string): string[] {
     .filter(Boolean);
 }
 
+/** 出席履歴をキャスト名から出席日集合へ変換し、行構築時の参照表にする。 */
 function buildAttendanceByCast(history: CastAttendanceEvent[]): Map<string, Set<string>> {
   const matrix = new Map<string, Set<string>>();
 
@@ -54,6 +58,7 @@ function buildAttendanceByCast(history: CastAttendanceEvent[]): Map<string, Set<
   return matrix;
 }
 
+/** キャスト一覧、履歴、累計を統合し、出席履歴表の行データを構築する。 */
 export function buildAttendanceRows(
   casts: CastBean[],
   history: CastAttendanceEvent[],

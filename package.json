@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "npm run tauri dev --prefix desktop",
-    "build": "npm run tauri build --prefix desktop"
+    "build": "npm run tauri build --prefix desktop",
+    "test": "npm run test --prefix desktop",
+    "test:coverage": "npm run test:coverage --prefix desktop"
   }
 }

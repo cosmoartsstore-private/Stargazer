@@ -53,7 +53,7 @@ sample-data/                # 手動確認用サンプルデータ
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) 20.19 以上の 20 系、22.12 以上の 22 系、または 24 以上
 - [Rust](https://rustup.rs/)
 - [Tauri CLI](https://tauri.app/)
 - Windows 10 / 11
@@ -76,6 +76,18 @@ npm run build
 ```
 
 > **Note:** `tauri` はグローバルではなく `desktop/node_modules` に入っているため、必ず `npm run` 経由で起動してください。
+
+### Test
+
+```bash
+# TypeScript の純粋ロジックテスト
+npm test
+
+# カバレッジ付きで実行
+npm run test:coverage
+```
+
+テストは `desktop/src/**/*.test.ts` に配置し、取込パース、抽選、マッチング、出欠集計など、業務結果に影響する純粋ロジックを優先して検証します。
 
 ## Database
 

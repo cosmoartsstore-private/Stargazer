@@ -29,7 +29,8 @@ export interface MatchedCast {
 export interface TableSlot {
   user: UserBean | null;
   matches: MatchedCast[];
-  tableIndex?: number; // M003用: 1-based テーブル番号
+  /** 1-based テーブル番号。未指定時は表示側で配列順から補完する。 */
+  tableIndex?: number;
 }
 
 export type MatchingFailureReason =
@@ -71,6 +72,7 @@ export interface MatchingRunOptions {
 }
 
 export class MatchingService {
+    /** 指定された方式コードに応じてマッチングを実行し、警告・スコア集計を付与する。 */
     static runMatching(
         winners: UserBean[],
         allCasts: CastBean[],
@@ -141,6 +143,7 @@ export class MatchingService {
     }
 }
 
+/** アルゴリズム結果に NG 警告と確認可否の集計を付け、画面で扱う最終結果にする。 */
 function finalizeResult(
     res: MatchingResult,
     winners: UserBean[],
@@ -154,6 +157,7 @@ function finalizeResult(
     return resultWithWarnings;
 }
 
+/** warn モードで許容された NG 組み合わせに、表示用の警告情報を付与する。 */
 function attachWarnings(
     res: MatchingResult,
     winners: UserBean[],
@@ -187,6 +191,7 @@ function attachWarnings(
     return res;
 }
 
+/** マッチ結果全体の希望順位、NG 警告、未割り当てを集計して確定可能か判定する。 */
 function evaluateMatchingResult(result: MatchingResult, winners: UserBean[]): MatchingScoreSummary {
     let totalScore = 0;
     let firstChoiceCount = 0;

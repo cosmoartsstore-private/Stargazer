@@ -4,6 +4,7 @@ node_modules/
 # Tauri build output
 desktop/dist/
 desktop/src-tauri/target/
+desktop/coverage/
 
 # TypeScript build info
 *.tsbuildinfo

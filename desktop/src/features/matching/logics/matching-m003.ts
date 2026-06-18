@@ -18,6 +18,7 @@ const DEFAULT_SEARCH_TIME_LIMIT_MS = 30_000;
 const DEFAULT_RELAXED_AFTER_MS = 10_000;
 const STRICT_MIN_AVERAGE_SCORE = 50;
 
+/** 出勤キャストを1ローテーションあたりの人数単位に分割する。 */
 function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): CastBean[][] {
   if (activeCasts.length % castsPerRotation !== 0) {
     return [];
@@ -29,6 +30,7 @@ function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): Cast
   );
 }
 
+/** 応募者を1テーブルあたりの人数に分け、探索単位のゲストグループを作る。 */
 function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[][] {
   if (usersPerTable <= 1) {
     return shuffleArray(winners).map((winner) => [winner]);
@@ -40,6 +42,7 @@ function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[
   );
 }
 
+/** ランダム化したキャスト単位とゲストグループで、M003 の1回分の割り当てを試行する。 */
 function runSingleAttempt(
   winners: UserBean[],
   activeCasts: CastBean[],
@@ -137,6 +140,7 @@ function runSingleAttempt(
   return { userMap, tableSlots };
 }
 
+/** 試行結果の全マッチ点数から、探索中の候補比較に使う平均点を算出する。 */
 function calculateAverageScore(result: MatchingResult): number {
   let totalScore = 0;
   let matchCount = 0;
@@ -151,6 +155,7 @@ function calculateAverageScore(result: MatchingResult): number {
   return matchCount > 0 ? totalScore / matchCount : 0;
 }
 
+/** M003 のグループ制マッチングを、時間制限内で複数試行して最良候補を返す。 */
 export function runMultipleMatching(
   winners: UserBean[],
   allCasts: CastBean[],

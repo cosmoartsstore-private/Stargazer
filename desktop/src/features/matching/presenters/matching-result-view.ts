@@ -30,6 +30,7 @@ export interface TableSlotGroup {
 
 const UNGROUPED_ROTATION_KEY = -1;
 
+/** 応募者一覧の順序を保って、ユーザー別の結果表示行を作る。 */
 export function buildResultRows(winners: UserBean[], resultMap: Map<string, MatchedCast[]> | null): ResultRow[] {
   if (!resultMap) {
     return [];
@@ -40,6 +41,7 @@ export function buildResultRows(winners: UserBean[], resultMap: Map<string, Matc
   }));
 }
 
+/** ユーザー別結果をキャスト別に再集計し、キャスト結果表の行を作る。 */
 export function buildCastResultRows(rows: ResultRow[], casts: CastBean[]): CastResultRow[] {
   if (rows.length === 0) {
     return [];
@@ -79,6 +81,7 @@ export function buildCastResultRows(rows: ResultRow[], casts: CastBean[]): CastR
     }));
 }
 
+/** マッチング失敗理由を、画面に表示する説明文へ変換する。 */
 export function formatFailureMessage(reason: MatchingFailureReason | undefined): string {
   switch (reason) {
     case 'time-limit':
@@ -93,6 +96,7 @@ export function formatFailureMessage(reason: MatchingFailureReason | undefined):
   }
 }
 
+/** マッチ結果の順位・点数から、表示ラベルと色分け用分類を返す。 */
 export function getMatchPreference(match: MatchedCast): { label: string; tone: MatchPreferenceTone } {
   if (match.rank === 1) return { label: '第一希望', tone: 'First' };
   if (match.rank === 2) return { label: '第二希望', tone: 'Second' };
@@ -101,6 +105,7 @@ export function getMatchPreference(match: MatchedCast): { label: string; tone: M
   return { label: '希望外', tone: 'Outside' };
 }
 
+/** 0-based のローテーション番号を画面用のラベルへ変換する。 */
 export function getRotationLabel(rotationIndex: number | null | undefined): string {
   if (typeof rotationIndex !== 'number' || rotationIndex < 0) {
     return 'ローテ未設定';
@@ -108,6 +113,7 @@ export function getRotationLabel(rotationIndex: number | null | undefined): stri
   return `第${rotationIndex + 1}ローテ`;
 }
 
+/** ユーザー1名分のマッチ結果をローテーション番号ごとにまとめる。 */
 export function groupMatchesByRotation(matches: MatchedCast[]): RotationMatchGroup[] {
   const grouped = new Map<number, MatchedCast[]>();
   matches.forEach((match) => {
@@ -129,6 +135,7 @@ export function groupMatchesByRotation(matches: MatchedCast[]): RotationMatchGro
     }));
 }
 
+/** 結果全体から、キャスト別表で必要なローテーション列の番号を集める。 */
 function collectRotationIndexes(rows: ResultRow[]): number[] {
   const indexes = new Set<number>();
   rows.forEach(({ matches }) => {
@@ -141,15 +148,18 @@ function collectRotationIndexes(rows: ResultRow[]): number[] {
   return [...indexes].sort((left, right) => left - right);
 }
 
+/** キャスト別表の列キーを、ローテーション別または単一列として返す。 */
 export function getCastResultColumnKeys(rows: ResultRow[]): Array<number | null> {
   const rotationIndexes = collectRotationIndexes(rows);
   return rotationIndexes.length > 0 ? rotationIndexes : [null];
 }
 
+/** キャスト別表の列キーをヘッダー表示名へ変換する。 */
 export function getCastResultColumnLabel(columnKey: number | null): string {
   return columnKey === null ? '応対する応募者' : getRotationLabel(columnKey);
 }
 
+/** キャスト別表の指定列に表示する割り当てだけを抽出する。 */
 export function getAssignmentsForColumn(row: CastResultRow, columnKey: number | null): CastResultAssignment[] {
   if (columnKey === null) {
     return row.assignments;
@@ -157,6 +167,7 @@ export function getAssignmentsForColumn(row: CastResultRow, columnKey: number | 
   return row.assignments.filter((assignment) => assignment.match.rotationIndex === columnKey);
 }
 
+/** マッチング形式ごとのスロットを、表示用にテーブル番号ごとへまとめる。 */
 export function groupTableSlots(tableSlots: TableSlot[] | undefined): TableSlotGroup[] {
   if (!tableSlots || tableSlots.length === 0) {
     return [];

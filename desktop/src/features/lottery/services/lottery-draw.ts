@@ -1,3 +1,4 @@
+/** 入力配列を変更せず、抽選用にランダム順の配列を返す。 */
 export function shuffle<T>(items: readonly T[]): T[] {
   const copied = [...items];
   for (let index = copied.length - 1; index > 0; index -= 1) {
@@ -7,6 +8,7 @@ export function shuffle<T>(items: readonly T[]): T[] {
   return copied;
 }
 
+/** 保存済み抽選結果の一覧に表示する日時付きラベルを生成する。 */
 export function formatSavedLotteryLabel(winnerCount: number): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, '0');

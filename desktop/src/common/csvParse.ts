@@ -1,3 +1,4 @@
+/** 区切り文字、改行、ダブルクォートを扱う最小限の delimited text パーサ。 */
 function parseDelimited(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -8,8 +9,13 @@ function parseDelimited(text: string, delimiter: string): string[][] {
   while (i < len) {
     const c = text[i];
     if (c === '"') {
-      inQuotes = !inQuotes;
-      i++;
+      if (inQuotes && text[i + 1] === '"') {
+        field += '"';
+        i += 2;
+      } else {
+        inQuotes = !inQuotes;
+        i++;
+      }
     } else if (c === delimiter && !inQuotes) {
       row.push(field);
       field = '';
@@ -44,9 +50,7 @@ function parseDelimited(text: string, delimiter: string): string[][] {
   return rows;
 }
 
-/**
- * TSV 全文をパース（タブ区切り・改行・ダブルクォート対応）
- */
+/** TSV 全文を、タブ区切り・改行・ダブルクォート対応で二次元配列に変換する。 */
 export function parseTSV(text: string): string[][] {
   return parseDelimited(text, '\t');
 }

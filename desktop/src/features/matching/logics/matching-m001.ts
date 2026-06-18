@@ -1,9 +1,10 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import type { NGJudgmentType, NGMatchingBehavior } from '@/features/matching/types/matching-system-types';
-import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
-import { isUserNGForCast } from './ng-judgment';
-import { assignWithHungarian, buildRotation, getPreferenceScore, shuffleArray } from './matching-hungarian-engine';
+import type { MatchedCast, MatchingResult } from './matching-io';
+import { shuffleArray } from './matching-hungarian-engine';
+import { runTableBasedMatching } from './matching-table-engine';
 
+/** 出勤キャストをランダム順に並べ、1テーブル1応募者型のマッチングを実行する。 */
 export function runRandomMatching(
   winners: UserBean[],
   allCasts: CastBean[],
@@ -24,64 +25,12 @@ export function runRandomMatching(
   }
 
   const baseSlots = shuffleArray(activeCasts).slice(0, Math.max(winners.length, Math.min(totalTables, activeCasts.length)));
-  const rotation = buildRotation(baseSlots, rotationCount);
-
-  const { assignment, hasInfeasible } = assignWithHungarian(
-    winners.length,
+  return runTableBasedMatching({
+    winners,
     baseSlots,
-    (winnerIndex, _, slotIndex) => {
-      const winner = winners[winnerIndex];
-      let totalScore = 0;
-      const seenCastNames = new Set<string>();
-
-      for (let roundIndex = 0; roundIndex < rotation.length; roundIndex += 1) {
-        const cast = rotation[roundIndex][slotIndex];
-        const shouldExclude =
-          ngMatchingBehavior === 'exclude' && isUserNGForCast(winner, cast, ngJudgmentType);
-        if (shouldExclude || seenCastNames.has(cast.name)) {
-          return Number.NEGATIVE_INFINITY;
-        }
-
-        seenCastNames.add(cast.name);
-        totalScore += getPreferenceScore(winner, cast.name);
-      }
-
-      return totalScore;
-    },
-  );
-
-  if (hasInfeasible) {
-    return { userMap: new Map(), ngConflict: true, failureReason: 'ng-conflict' };
-  }
-
-  const tableSlots: TableSlot[] = [];
-  for (let slotIndex = 0; slotIndex < baseSlots.length; slotIndex += 1) {
-    const winnerIndex = assignment.indexOf(slotIndex);
-    const winner = winnerIndex >= 0 ? winners[winnerIndex] : null;
-    const matches = rotation.map((round, roundIndex) => {
-      const cast = round[slotIndex];
-      const rankIndex = winner ? winner.casts.indexOf(cast.name) : -1;
-      return {
-        cast,
-        rank: winner && winner.preference_mode !== 'flat' && rankIndex >= 0 && rankIndex < 3 ? rankIndex + 1 : 0,
-        rotationIndex: roundIndex,
-      };
-    });
-
-    if (winner) {
-      userMap.set(winner.x_id, matches);
-    }
-
-    tableSlots.push({
-      user: winner,
-      matches,
-      tableIndex: slotIndex + 1,
-    });
-  }
-
-  for (let index = tableSlots.length; index < totalTables; index += 1) {
-    tableSlots.push({ user: null, matches: [], tableIndex: index + 1 });
-  }
-
-  return { userMap, tableSlots };
+    totalTables,
+    rotationCount,
+    ngJudgmentType,
+    ngMatchingBehavior,
+  });
 }

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { excludeDebugPlugin } from "./vite-plugin-exclude-debug";
 
@@ -15,6 +15,35 @@ export default defineConfig(async () => ({
   css: {
     modules: {
       localsConvention: 'dashesOnly',
+    },
+  },
+  test: {
+    coverage: {
+      provider: 'v8',
+      include: [
+        'src/common/csvParse.ts',
+        'src/common/sheetParsers.ts',
+        'src/common/xIdUtils.ts',
+        'src/features/attendance/models/attendanceMatrix.ts',
+        'src/features/lottery/services/lottery-draw.ts',
+        'src/features/matching/logics/caution-user.ts',
+        'src/features/matching/logics/matching-hungarian-engine.ts',
+        'src/features/matching/logics/matching-io.ts',
+        'src/features/matching/logics/matching-m001.ts',
+        'src/features/matching/logics/matching-m002.ts',
+        'src/features/matching/logics/matching-m003.ts',
+        'src/features/matching/logics/matching-table-engine.ts',
+        'src/features/matching/logics/ng-judgment.ts',
+        'src/features/matching/presenters/matching-result-export.ts',
+        'src/features/matching/presenters/matching-result-view.ts',
+      ],
+      thresholds: {
+        statements: 80,
+        branches: 58,
+        functions: 100,
+        lines: 80,
+        perFile: true,
+      },
     },
   },
 
