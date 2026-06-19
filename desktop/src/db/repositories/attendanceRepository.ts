@@ -1,8 +1,8 @@
-// Cast attendance history lives in the event-shared DB: each event accumulates
-// its own attendance log across all import sessions. Aggregations no longer
-// span events (one DB per event), so the "last event" field always equals the
-// currently-open event.
+// キャスト出席履歴はイベント共有 DB に保存し、同一イベント内の全取込セッションで累積する。
+// イベントごとに DB が分かれるため、集計結果の最終イベント名は現在開いているイベント名になる。
+import { invoke } from '@tauri-apps/api/core';
 import { getSharedDb, getCurrentEventName } from '../database';
+import { getRequiredEventName } from './commandContext';
 
 export interface CastAttendanceRecord {
   cast_name: string;
@@ -90,23 +90,11 @@ export async function recordCastAttendance(
   presentCastNames: string[],
   recordedAt: string,
 ): Promise<void> {
-  const db = getSharedDb();
-  await db.execute(
-    `DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?)`,
-    [recordedAt],
-  );
-  for (const name of presentCastNames) {
-    const rows = await db.select<[{ id: number }]>(
-      'SELECT id FROM casts WHERE name = ? LIMIT 1',
-      [name],
-    );
-    const castId = rows[0]?.id;
-    if (!castId) continue;
-    await db.execute(
-      'INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?, ?)',
-      [castId, recordedAt],
-    );
-  }
+  await invoke('record_cast_attendance_atomic', {
+    eventName: getRequiredEventName(),
+    presentCastNames,
+    recordedAt,
+  });
 }
 
 /** 指定日付のキャスト出席記録が存在するか */

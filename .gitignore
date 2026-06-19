@@ -29,3 +29,6 @@ tauri-dev.log
 
 # Huge combined files
 all_codes_combined.txt
+
+# ローカルの現実寄りフォームサンプルは識別子に見える値を含み得る
+sample-data/applicants-vrchatter-*.tsv

@@ -91,7 +91,13 @@ npm run test:coverage
 
 ## Database
 
-SQLite テーブル: `events`, `casts`, `cast_urls`, `cast_ng_entries`, `applicants`, `applicant_casts`, `applicant_extra`, `caution_users`, `attendance`, `settings`, `cast_attendance`, `event_cast_present`
+SQLite は用途別に DB を分けます。
+
+- ルート DB: `apps`
+- イベント共有 DB: `meta`, `casts`, `cast_urls`, `cast_ng_entries`, `caution_users`, `event_cast_present`, `cast_attendance`, `header_templates`, `settings`
+- 取込セッション DB: `meta`, `applicants`, `applicant_casts`, `applicant_extra`, `lottery_results`, `lottery_saved_runs`, `lottery_saved_run_results`
+
+応募者・キャスト・出席・抽選結果の複数 SQL を伴う保存処理は、Rust 側 command で単一 SQLite transaction として実行します。
 
 ## License
 

@@ -1,6 +1,8 @@
-use serde::Serialize;
+use rusqlite::OptionalExtension;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 const SHARED_DIR: &str = "shared";
 const CACHE_DIR: &str = "Cache";
@@ -222,10 +224,7 @@ CREATE INDEX idx_lottery_saved_run_results_run_id
   ON lottery_saved_run_results(run_id, result_order);
 "#;
 
-const SESSION_MIGRATIONS: &[(i32, &str)] = &[
-    (1, SESSION_MIGRATION_V1),
-    (2, SESSION_MIGRATION_V2),
-];
+const SESSION_MIGRATIONS: &[(i32, &str)] = &[(1, SESSION_MIGRATION_V1), (2, SESSION_MIGRATION_V2)];
 
 fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
@@ -378,6 +377,430 @@ struct SessionInfo {
     timestamp: String,
 }
 
+#[derive(Deserialize)]
+struct RawExtraInput {
+    key: String,
+    value: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ApplicantInput {
+    name: Option<String>,
+    x_id: String,
+    vrc_url: Option<String>,
+    casts: Vec<String>,
+    preference_mode: Option<String>,
+    is_guaranteed: bool,
+    raw_extra: Vec<RawExtraInput>,
+}
+
+#[derive(Deserialize)]
+struct NgUserInput {
+    username: Option<String>,
+    #[serde(rename = "accountId")]
+    account_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CastInput {
+    name: String,
+    is_present: bool,
+    contact_urls: Vec<String>,
+    ng_entries: Vec<NgUserInput>,
+    group_name: Option<String>,
+    photo_data_url: Option<String>,
+    memo: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CastPatchInput {
+    update_is_present: bool,
+    is_present: bool,
+    update_group_name: bool,
+    group_name: Option<String>,
+    update_photo_data_url: bool,
+    photo_data_url: Option<String>,
+    update_memo: bool,
+    memo: Option<String>,
+    update_contact_urls: bool,
+    contact_urls: Vec<String>,
+    update_ng_entries: bool,
+    ng_entries: Vec<NgUserInput>,
+}
+
+#[derive(Deserialize)]
+struct LotteryResultInput {
+    applicant_id: i64,
+    is_guaranteed: bool,
+}
+
+/** SQLite エラーに、呼び出し元の操作名を付けたユーザー向けメッセージを作る。 */
+fn sqlite_error(context: &str, error: rusqlite::Error) -> String {
+    format!("{context}: {error}")
+}
+
+/** イベント共有 DB を、foreign key を有効化した書き込み用 connection として開く。 */
+fn open_shared_write_connection(event_name: &str) -> Result<rusqlite::Connection, String> {
+    validate_event_name(event_name)?;
+    let db_path = ensure_event_shared_db(event_name)?;
+    let conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DBを開けませんでした: {e}"))?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("DB設定に失敗しました: {e}"))?;
+    Ok(conn)
+}
+
+/** 取込セッション DB を、foreign key を有効化した書き込み用 connection として開く。 */
+fn open_session_write_connection(
+    event_name: &str,
+    timestamp: &str,
+) -> Result<rusqlite::Connection, String> {
+    validate_event_name(event_name)?;
+    validate_timestamp(timestamp)?;
+    let db_path = ensure_session_db(event_name, timestamp)?;
+    let conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("DBを開けませんでした: {e}"))?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("DB設定に失敗しました: {e}"))?;
+    Ok(conn)
+}
+
+/** キャスト本体、連絡先 URL、NG エントリを同じ transaction に挿入する。 */
+fn insert_cast_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    cast: &CastInput,
+) -> rusqlite::Result<()> {
+    tx.execute(
+        "INSERT INTO casts (name, group_name, is_attend, photo_data_url, memo)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![
+            &cast.name,
+            cast.group_name.as_deref(),
+            if cast.is_present { 1 } else { 0 },
+            cast.photo_data_url.as_deref(),
+            cast.memo.as_deref()
+        ],
+    )?;
+    let cast_id: i64 = tx.query_row("SELECT last_insert_rowid()", [], |row| row.get(0))?;
+    tx.execute(
+        "INSERT OR REPLACE INTO event_cast_present (cast_id, is_present) VALUES (?1, ?2)",
+        rusqlite::params![cast_id, if cast.is_present { 1 } else { 0 }],
+    )?;
+    for url in &cast.contact_urls {
+        tx.execute(
+            "INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)",
+            rusqlite::params![cast_id, url],
+        )?;
+    }
+    for ng in &cast.ng_entries {
+        tx.execute(
+            "INSERT INTO cast_ng_entries (cast_id, username, userid) VALUES (?1, ?2, ?3)",
+            rusqlite::params![cast_id, ng.username.as_deref(), ng.account_id.as_deref()],
+        )?;
+    }
+    Ok(())
+}
+
+/** 応募者一覧と依存する保存済み抽選結果を、単一 SQLite transaction で全置換する。 */
+fn persist_applicants_in_connection(
+    conn: &mut rusqlite::Connection,
+    users: &[ApplicantInput],
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM lottery_saved_run_results", [])?;
+    tx.execute("DELETE FROM lottery_saved_runs", [])?;
+    tx.execute("DELETE FROM applicants", [])?;
+    for user in users {
+        tx.execute(
+            "INSERT INTO applicants (x_id, name, vrc_url, is_guaranteed)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                &user.x_id,
+                user.name.as_deref(),
+                user.vrc_url.as_deref(),
+                if user.is_guaranteed { 1 } else { 0 }
+            ],
+        )?;
+        let applicant_id: i64 = tx.query_row("SELECT last_insert_rowid()", [], |row| row.get(0))?;
+        for (index, cast_name) in user.casts.iter().enumerate() {
+            if cast_name.is_empty() {
+                continue;
+            }
+            tx.execute(
+                "INSERT INTO applicant_casts (applicant_id, preference_order, cast_name)
+                 VALUES (?1, ?2, ?3)",
+                rusqlite::params![applicant_id, index as i64, cast_name],
+            )?;
+        }
+        tx.execute(
+            "INSERT INTO applicant_extra (applicant_id, field_key, field_value)
+             VALUES (?1, '__preference_mode', ?2)",
+            rusqlite::params![
+                applicant_id,
+                user.preference_mode
+                    .as_deref()
+                    .filter(|mode| *mode == "flat" || *mode == "ranked")
+                    .unwrap_or("ranked")
+            ],
+        )?;
+        for extra in &user.raw_extra {
+            tx.execute(
+                "INSERT INTO applicant_extra (applicant_id, field_key, field_value)
+                 VALUES (?1, ?2, ?3)",
+                rusqlite::params![applicant_id, &extra.key, extra.value.as_deref()],
+            )?;
+        }
+    }
+    tx.commit()
+}
+
+/** キャスト一覧を、関連 URL/NG エントリを含めて単一 transaction で全置換する。 */
+fn persist_all_casts_in_connection(
+    conn: &mut rusqlite::Connection,
+    casts: &[CastInput],
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM casts", [])?;
+    for cast in casts {
+        insert_cast_in_transaction(&tx, cast)?;
+    }
+    tx.commit()
+}
+
+/** キャスト1件と関連 URL/NG エントリを単一 transaction で追加する。 */
+fn insert_cast_in_connection(
+    conn: &mut rusqlite::Connection,
+    cast: &CastInput,
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    insert_cast_in_transaction(&tx, cast)?;
+    tx.commit()
+}
+
+/** キャストの部分更新を、関連 URL/NG エントリの全置換と同じ transaction にまとめる。 */
+fn update_cast_fields_in_connection(
+    conn: &mut rusqlite::Connection,
+    name: &str,
+    patch: &CastPatchInput,
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    if patch.update_is_present {
+        tx.execute(
+            "UPDATE casts SET is_attend = ?1 WHERE name = ?2",
+            rusqlite::params![if patch.is_present { 1 } else { 0 }, name],
+        )?;
+    }
+    if patch.update_group_name {
+        tx.execute(
+            "UPDATE casts SET group_name = ?1 WHERE name = ?2",
+            rusqlite::params![patch.group_name.as_deref(), name],
+        )?;
+    }
+    if patch.update_photo_data_url {
+        tx.execute(
+            "UPDATE casts SET photo_data_url = ?1 WHERE name = ?2",
+            rusqlite::params![patch.photo_data_url.as_deref(), name],
+        )?;
+    }
+    if patch.update_memo {
+        tx.execute(
+            "UPDATE casts SET memo = ?1 WHERE name = ?2",
+            rusqlite::params![patch.memo.as_deref(), name],
+        )?;
+    }
+
+    if patch.update_is_present || patch.update_contact_urls || patch.update_ng_entries {
+        let cast_id: Option<i64> = tx
+            .query_row("SELECT id FROM casts WHERE name = ?1", [name], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        if let Some(cast_id) = cast_id {
+            if patch.update_is_present {
+                tx.execute(
+                    "INSERT OR REPLACE INTO event_cast_present (cast_id, is_present)
+                     VALUES (?1, ?2)",
+                    rusqlite::params![cast_id, if patch.is_present { 1 } else { 0 }],
+                )?;
+            }
+            if patch.update_contact_urls {
+                tx.execute("DELETE FROM cast_urls WHERE cast_id = ?1", [cast_id])?;
+                for url in &patch.contact_urls {
+                    tx.execute(
+                        "INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)",
+                        rusqlite::params![cast_id, url],
+                    )?;
+                }
+            }
+            if patch.update_ng_entries {
+                tx.execute("DELETE FROM cast_ng_entries WHERE cast_id = ?1", [cast_id])?;
+                for ng in &patch.ng_entries {
+                    tx.execute(
+                        "INSERT INTO cast_ng_entries (cast_id, username, userid)
+                         VALUES (?1, ?2, ?3)",
+                        rusqlite::params![
+                            cast_id,
+                            ng.username.as_deref(),
+                            ng.account_id.as_deref()
+                        ],
+                    )?;
+                }
+            }
+        }
+    }
+    tx.commit()
+}
+
+/** キャストのイベント内出席状態を単一 transaction で保存する。 */
+fn update_cast_attend_in_connection(
+    conn: &mut rusqlite::Connection,
+    name: &str,
+    is_present: bool,
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    let cast_id: Option<i64> = tx
+        .query_row("SELECT id FROM casts WHERE name = ?1", [name], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    if let Some(cast_id) = cast_id {
+        tx.execute(
+            "UPDATE casts SET is_attend = ?1 WHERE id = ?2",
+            rusqlite::params![if is_present { 1 } else { 0 }, cast_id],
+        )?;
+        tx.execute(
+            "INSERT OR REPLACE INTO event_cast_present (cast_id, is_present)
+             VALUES (?1, ?2)",
+            rusqlite::params![cast_id, if is_present { 1 } else { 0 }],
+        )?;
+    }
+    tx.commit()
+}
+
+/** キャスト名を変更する。関連テーブルは cast_id 参照のため更新しない。 */
+fn rename_cast_in_connection(
+    conn: &mut rusqlite::Connection,
+    old_name: &str,
+    new_name: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE casts SET name = ?1 WHERE name = ?2",
+        rusqlite::params![new_name, old_name],
+    )?;
+    Ok(())
+}
+
+/** キャストと関連 URL/NG エントリを単一 transaction で削除する。 */
+fn delete_cast_in_connection(conn: &mut rusqlite::Connection, name: &str) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    let cast_id: Option<i64> = tx
+        .query_row("SELECT id FROM casts WHERE name = ?1", [name], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    if let Some(cast_id) = cast_id {
+        tx.execute("DELETE FROM cast_urls WHERE cast_id = ?1", [cast_id])?;
+        tx.execute("DELETE FROM cast_ng_entries WHERE cast_id = ?1", [cast_id])?;
+    }
+    tx.execute("DELETE FROM casts WHERE name = ?1", [name])?;
+    tx.commit()
+}
+
+/** 指定日のキャスト出席記録を、既存行削除と新規挿入を含めて単一 transaction で保存する。 */
+fn record_cast_attendance_in_connection(
+    conn: &mut rusqlite::Connection,
+    present_cast_names: &[String],
+    recorded_at: &str,
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?1)",
+        [recorded_at],
+    )?;
+    for name in present_cast_names {
+        let cast_id: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM casts WHERE name = ?1 LIMIT 1",
+                [name],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(cast_id) = cast_id {
+            tx.execute(
+                "INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?1, ?2)",
+                rusqlite::params![cast_id, recorded_at],
+            )?;
+        }
+    }
+    tx.commit()
+}
+
+/** 現在セッションの抽選結果を単一 transaction で全置換する。 */
+fn replace_lottery_results_in_connection(
+    conn: &mut rusqlite::Connection,
+    rows: &[LotteryResultInput],
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM lottery_results", [])?;
+    for row in rows {
+        tx.execute(
+            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, ?2)",
+            rusqlite::params![row.applicant_id, if row.is_guaranteed { 1 } else { 0 }],
+        )?;
+    }
+    tx.commit()
+}
+
+/** 現在セッションの抽選結果を削除する。 */
+fn clear_lottery_results_in_connection(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM lottery_results", [])?;
+    Ok(())
+}
+
+/** 抽選結果スナップショットを、見出し行と当選者行を単一 transaction で保存する。 */
+fn save_lottery_run_in_connection(
+    conn: &mut rusqlite::Connection,
+    label: &str,
+    matching_type_code: &str,
+    lottery_count: i64,
+    guaranteed_count: i64,
+    rows: &[LotteryResultInput],
+) -> rusqlite::Result<i64> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "INSERT INTO lottery_saved_runs
+           (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![
+            label,
+            matching_type_code,
+            lottery_count,
+            guaranteed_count,
+            rows.len() as i64
+        ],
+    )?;
+    let run_id: i64 = tx.query_row("SELECT last_insert_rowid()", [], |row| row.get(0))?;
+    for (index, row) in rows.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO lottery_saved_run_results
+               (run_id, applicant_id, is_guaranteed, result_order)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                run_id,
+                row.applicant_id,
+                if row.is_guaranteed { 1 } else { 0 },
+                index as i64
+            ],
+        )?;
+    }
+    tx.commit()?;
+    Ok(run_id)
+}
+
 #[tauri::command]
 fn list_events() -> Vec<String> {
     let root = resolve_data_root();
@@ -455,6 +878,133 @@ fn get_session_db_uri(event_name: String, timestamp: String) -> Result<String, S
     validate_timestamp(&timestamp)?;
     let db_path = ensure_session_db(&event_name, &timestamp)?;
     Ok(path_to_sqlite_uri(&db_path))
+}
+
+/** 応募者一覧の全置換を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn persist_applicants_atomic(
+    event_name: String,
+    timestamp: String,
+    users: Vec<ApplicantInput>,
+) -> Result<(), String> {
+    let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    persist_applicants_in_connection(&mut conn, &users)
+        .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))
+}
+
+/** キャスト一覧の全置換を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn persist_all_casts_atomic(event_name: String, casts: Vec<CastInput>) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    persist_all_casts_in_connection(&mut conn, &casts)
+        .map_err(|e| sqlite_error("キャスト一覧の保存に失敗しました", e))
+}
+
+/** キャスト追加を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn insert_cast_atomic(event_name: String, cast: CastInput) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    insert_cast_in_connection(&mut conn, &cast)
+        .map_err(|e| sqlite_error("キャスト追加に失敗しました", e))
+}
+
+/** キャスト部分更新を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn update_cast_fields_atomic(
+    event_name: String,
+    name: String,
+    patch: CastPatchInput,
+) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    update_cast_fields_in_connection(&mut conn, &name, &patch)
+        .map_err(|e| sqlite_error("キャスト更新に失敗しました", e))
+}
+
+/** キャスト出席状態の保存を Rust 側で実行する。 */
+#[tauri::command]
+fn update_cast_attend_atomic(
+    event_name: String,
+    name: String,
+    is_present: bool,
+) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    update_cast_attend_in_connection(&mut conn, &name, is_present)
+        .map_err(|e| sqlite_error("キャスト出席状態の保存に失敗しました", e))
+}
+
+/** キャスト名変更を Rust 側で実行する。 */
+#[tauri::command]
+fn rename_cast_atomic(
+    event_name: String,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    rename_cast_in_connection(&mut conn, &old_name, &new_name)
+        .map_err(|e| sqlite_error("キャスト名変更に失敗しました", e))
+}
+
+/** キャスト削除を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn delete_cast_atomic(event_name: String, name: String) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    delete_cast_in_connection(&mut conn, &name)
+        .map_err(|e| sqlite_error("キャスト削除に失敗しました", e))
+}
+
+/** 指定日のキャスト出席記録を Rust 側の単一 SQLite transaction で保存する。 */
+#[tauri::command]
+fn record_cast_attendance_atomic(
+    event_name: String,
+    present_cast_names: Vec<String>,
+    recorded_at: String,
+) -> Result<(), String> {
+    let mut conn = open_shared_write_connection(&event_name)?;
+    record_cast_attendance_in_connection(&mut conn, &present_cast_names, &recorded_at)
+        .map_err(|e| sqlite_error("キャスト出席記録の保存に失敗しました", e))
+}
+
+/** 現在セッションの抽選結果全置換を Rust 側の単一 SQLite transaction で実行する。 */
+#[tauri::command]
+fn replace_lottery_results_atomic(
+    event_name: String,
+    timestamp: String,
+    rows: Vec<LotteryResultInput>,
+) -> Result<(), String> {
+    let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    replace_lottery_results_in_connection(&mut conn, &rows)
+        .map_err(|e| sqlite_error("抽選結果の保存に失敗しました", e))
+}
+
+/** 現在セッションの抽選結果削除を Rust 側で実行する。 */
+#[tauri::command]
+fn clear_lottery_results_atomic(event_name: String, timestamp: String) -> Result<(), String> {
+    let conn = open_session_write_connection(&event_name, &timestamp)?;
+    clear_lottery_results_in_connection(&conn)
+        .map_err(|e| sqlite_error("抽選結果の削除に失敗しました", e))
+}
+
+/** 保存済み抽選結果を Rust 側の単一 SQLite transaction で保存し、作成 ID を返す。 */
+#[tauri::command]
+fn save_lottery_run_atomic(
+    event_name: String,
+    timestamp: String,
+    label: String,
+    matching_type_code: String,
+    lottery_count: i64,
+    guaranteed_count: i64,
+    rows: Vec<LotteryResultInput>,
+) -> Result<i64, String> {
+    let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    save_lottery_run_in_connection(
+        &mut conn,
+        &label,
+        &matching_type_code,
+        lottery_count,
+        guaranteed_count,
+        &rows,
+    )
+    .map_err(|e| sqlite_error("保存済み抽選結果の保存に失敗しました", e))
 }
 
 #[tauri::command]
@@ -642,6 +1192,17 @@ pub fn run() {
             list_sessions,
             create_session,
             get_session_db_uri,
+            persist_applicants_atomic,
+            persist_all_casts_atomic,
+            insert_cast_atomic,
+            update_cast_fields_atomic,
+            update_cast_attend_atomic,
+            rename_cast_atomic,
+            delete_cast_atomic,
+            record_cast_attendance_atomic,
+            replace_lottery_results_atomic,
+            clear_lottery_results_atomic,
+            save_lottery_run_atomic,
             delete_session,
             create_event,
             delete_event,
@@ -668,10 +1229,8 @@ mod tests {
                 .duration_since(UNIX_EPOCH)
                 .expect("システム時刻がUNIX_EPOCHより前になっています")
                 .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "stargazer-{name}-{}-{nanos}",
-                std::process::id()
-            ));
+            let path = std::env::temp_dir()
+                .join(format!("stargazer-{name}-{}-{nanos}", std::process::id()));
             std::fs::create_dir_all(&path).expect("テスト用ディレクトリを作成できません");
             Self(path)
         }
@@ -788,6 +1347,284 @@ mod tests {
 
         assert_eq!(user_version, 2);
         assert_eq!(table_count, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn persist_applicants_failure_keeps_existing_rows_and_saved_runs() -> rusqlite::Result<()> {
+        let dir = TestDir::new("persist-applicants-rollback");
+        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, name) VALUES (?1, ?2)",
+            rusqlite::params!["@old_user", "Old User"],
+        )?;
+        let old_applicant_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO lottery_saved_runs
+               (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
+             VALUES ('旧抽選', 'M002', 1, 0, 1)",
+            [],
+        )?;
+        let run_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO lottery_saved_run_results
+               (run_id, applicant_id, is_guaranteed, result_order)
+             VALUES (?1, ?2, 0, 0)",
+            rusqlite::params![run_id, old_applicant_id],
+        )?;
+
+        let users = vec![
+            ApplicantInput {
+                name: Some("New User".to_string()),
+                x_id: "@duplicate".to_string(),
+                vrc_url: None,
+                casts: vec!["Cast A".to_string()],
+                preference_mode: Some("ranked".to_string()),
+                is_guaranteed: false,
+                raw_extra: vec![],
+            },
+            ApplicantInput {
+                name: Some("Duplicate User".to_string()),
+                x_id: "@duplicate".to_string(),
+                vrc_url: None,
+                casts: vec![],
+                preference_mode: Some("flat".to_string()),
+                is_guaranteed: true,
+                raw_extra: vec![],
+            },
+        ];
+
+        assert!(persist_applicants_in_connection(&mut conn, &users).is_err());
+        let applicant_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM applicants", [], |row| row.get(0))?;
+        let saved_run_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
+                row.get(0)
+            })?;
+        let saved_result_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM lottery_saved_run_results",
+            [],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(applicant_count, 1);
+        assert_eq!(saved_run_count, 1);
+        assert_eq!(saved_result_count, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn replace_lottery_results_failure_keeps_existing_rows() -> rusqlite::Result<()> {
+        let dir = TestDir::new("replace-lottery-rollback");
+        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        conn.execute("INSERT INTO applicants (x_id) VALUES ('@old_user')", [])?;
+        let applicant_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 1)",
+            [applicant_id],
+        )?;
+
+        let rows = vec![LotteryResultInput {
+            applicant_id: 999_999,
+            is_guaranteed: false,
+        }];
+
+        assert!(replace_lottery_results_in_connection(&mut conn, &rows).is_err());
+        let remaining_applicant_id: i64 =
+            conn.query_row("SELECT applicant_id FROM lottery_results", [], |row| {
+                row.get(0)
+            })?;
+        assert_eq!(remaining_applicant_id, applicant_id);
+        Ok(())
+    }
+
+    #[test]
+    fn save_lottery_run_failure_rolls_back_heading_row() -> rusqlite::Result<()> {
+        let dir = TestDir::new("save-lottery-run-rollback");
+        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let rows = vec![LotteryResultInput {
+            applicant_id: 999_999,
+            is_guaranteed: false,
+        }];
+
+        assert!(save_lottery_run_in_connection(&mut conn, "保存", "M002", 1, 0, &rows).is_err());
+        let run_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
+                row.get(0)
+            })?;
+        let result_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM lottery_saved_run_results",
+            [],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(run_count, 0);
+        assert_eq!(result_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn update_cast_fields_replaces_related_rows() -> rusqlite::Result<()> {
+        let dir = TestDir::new("update-cast-fields");
+        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        conn.execute(
+            "INSERT INTO casts (name, group_name) VALUES ('Cast A', 'Old')",
+            [],
+        )?;
+        let cast_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO cast_urls (cast_id, url) VALUES (?1, 'https://example.test/old')",
+            [cast_id],
+        )?;
+        conn.execute(
+            "INSERT INTO cast_ng_entries (cast_id, username, userid) VALUES (?1, 'Old', '@old')",
+            [cast_id],
+        )?;
+
+        let patch = CastPatchInput {
+            update_is_present: true,
+            is_present: false,
+            update_group_name: true,
+            group_name: None,
+            update_photo_data_url: false,
+            photo_data_url: None,
+            update_memo: true,
+            memo: Some("updated".to_string()),
+            update_contact_urls: true,
+            contact_urls: vec!["https://example.test/new".to_string()],
+            update_ng_entries: true,
+            ng_entries: vec![NgUserInput {
+                username: None,
+                account_id: Some("@new".to_string()),
+            }],
+        };
+
+        update_cast_fields_in_connection(&mut conn, "Cast A", &patch)?;
+
+        let row: (Option<String>, i64, Option<String>) = conn.query_row(
+            "SELECT group_name, is_attend, memo FROM casts WHERE name = 'Cast A'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        let url: String = conn.query_row(
+            "SELECT url FROM cast_urls WHERE cast_id = ?1",
+            [cast_id],
+            |row| row.get(0),
+        )?;
+        let userid: String = conn.query_row(
+            "SELECT userid FROM cast_ng_entries WHERE cast_id = ?1",
+            [cast_id],
+            |row| row.get(0),
+        )?;
+        let present_flag: i64 = conn.query_row(
+            "SELECT is_present FROM event_cast_present WHERE cast_id = ?1",
+            [cast_id],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(row, (None, 0, Some("updated".to_string())));
+        assert_eq!(url, "https://example.test/new");
+        assert_eq!(userid, "@new");
+        assert_eq!(present_flag, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn cast_persistence_keeps_event_present_table_in_sync() -> rusqlite::Result<()> {
+        let dir = TestDir::new("cast-present-sync");
+        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let casts = vec![
+            CastInput {
+                name: "Cast A".to_string(),
+                is_present: false,
+                contact_urls: vec![],
+                ng_entries: vec![],
+                group_name: None,
+                photo_data_url: None,
+                memo: None,
+            },
+            CastInput {
+                name: "Cast B".to_string(),
+                is_present: true,
+                contact_urls: vec![],
+                ng_entries: vec![],
+                group_name: None,
+                photo_data_url: None,
+                memo: None,
+            },
+        ];
+
+        persist_all_casts_in_connection(&mut conn, &casts)?;
+
+        let present_flags: Vec<i64> = {
+            let mut stmt = conn.prepare(
+                "SELECT ecp.is_present
+                 FROM event_cast_present ecp
+                 JOIN casts c ON c.id = ecp.cast_id
+                 ORDER BY c.name",
+            )?;
+            let rows = stmt
+                .query_map([], |row| row.get(0))?
+                .collect::<rusqlite::Result<Vec<i64>>>()?;
+            rows
+        };
+
+        assert_eq!(present_flags, vec![0, 1]);
+        Ok(())
+    }
+
+    #[test]
+    fn update_cast_presence_keeps_cast_table_in_sync() -> rusqlite::Result<()> {
+        let dir = TestDir::new("update-cast-present-sync");
+        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        conn.execute(
+            "INSERT INTO casts (name, is_attend) VALUES ('Cast A', 0)",
+            [],
+        )?;
+
+        update_cast_attend_in_connection(&mut conn, "Cast A", true)?;
+
+        let row: (i64, i64) = conn.query_row(
+            "SELECT c.is_attend, ecp.is_present
+             FROM casts c
+             JOIN event_cast_present ecp ON ecp.cast_id = c.id
+             WHERE c.name = 'Cast A'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        assert_eq!(row, (1, 1));
+        Ok(())
+    }
+
+    #[test]
+    fn record_cast_attendance_replaces_same_day_rows() -> rusqlite::Result<()> {
+        let dir = TestDir::new("record-attendance");
+        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        conn.execute("INSERT INTO casts (name) VALUES ('Cast A')", [])?;
+        let cast_a_id = conn.last_insert_rowid();
+        conn.execute("INSERT INTO casts (name) VALUES ('Cast B')", [])?;
+        conn.execute(
+            "INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?1, '2026-06-18')",
+            [cast_a_id],
+        )?;
+
+        record_cast_attendance_in_connection(
+            &mut conn,
+            &["Cast B".to_string(), "Missing Cast".to_string()],
+            "2026-06-18",
+        )?;
+
+        let names: String = conn.query_row(
+            "SELECT GROUP_CONCAT(c.name, ',')
+             FROM cast_attendance ca
+             JOIN casts c ON c.id = ca.cast_id
+             WHERE DATE(ca.recorded_at) = DATE('2026-06-18')",
+            [],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(names, "Cast B");
         Ok(())
     }
 }

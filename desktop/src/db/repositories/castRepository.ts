@@ -1,8 +1,9 @@
-// Cast data (roster, NG entries, contact URLs, per-event present flag) lives
-// in the event-shared DB so it persists across all import sessions for one
-// event. This repository only touches the shared DB.
+// キャスト情報（名簿、NG、連絡先、イベント内出席状態）はイベント共有 DB に保存する。
+// 同一イベント内の複数取込セッションをまたいで保持するため、この repository は共有 DB のみを対象にする。
+import { invoke } from '@tauri-apps/api/core';
 import { getSharedDb } from '../database';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
+import { getRequiredEventName } from './commandContext';
 
 interface CastRow {
   id: number;
@@ -15,6 +16,28 @@ interface CastRow {
 interface UrlRow { url: string; }
 interface NgRow  { username: string | null; userid: string | null; }
 
+/** backend command へ渡すため、未指定の任意項目を null または空配列へ正規化する。 */
+function toCastPayload(cast: CastBean): {
+  name: string;
+  is_present: boolean;
+  contact_urls: string[];
+  ng_entries: NGUserEntry[];
+  group_name: string | null;
+  photo_data_url: string | null;
+  memo: string | null;
+} {
+  return {
+    name: cast.name,
+    is_present: cast.is_present,
+    contact_urls: cast.contact_urls ?? [],
+    ng_entries: cast.ng_entries ?? [],
+    group_name: cast.group_name ?? null,
+    photo_data_url: cast.photo_data_url ?? null,
+    memo: cast.memo ?? null,
+  };
+}
+
+/** キャスト本体に紐づく連絡先 URL と NG エントリを読み込む。 */
 async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entries: NGUserEntry[] }> {
   const db = getSharedDb();
   const urls = await db.select<UrlRow[]>('SELECT url FROM cast_urls WHERE cast_id = ?', [castId]);
@@ -27,6 +50,7 @@ async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entri
   };
 }
 
+/** 現在イベントのキャスト一覧を、連絡先・NG・出席状態つきで読み込む。 */
 export async function getAllCasts(): Promise<CastBean[]> {
   const db = getSharedDb();
   const rows = await db.select<CastRow[]>('SELECT * FROM casts ORDER BY id');
@@ -51,114 +75,73 @@ export async function getAllCasts(): Promise<CastBean[]> {
   return result;
 }
 
+/** キャストのイベント内出席状態を更新する。存在しない名前は無視する。 */
 export async function updateCastAttend(name: string, isPresent: boolean): Promise<void> {
-  const db = getSharedDb();
-  const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
-  const castId = rows[0]?.id;
-  if (castId === undefined) return;
-  await db.execute(
-    'INSERT OR REPLACE INTO event_cast_present (cast_id, is_present) VALUES (?, ?)',
-    [castId, isPresent ? 1 : 0],
-  );
+  await invoke('update_cast_attend_atomic', {
+    eventName: getRequiredEventName(),
+    name,
+    isPresent,
+  });
 }
 
+/** 現在イベントに登録されているキャスト数を返す。 */
 export async function getCastCount(): Promise<number> {
   const db = getSharedDb();
   const rows = await db.select<[{ n: number }]>('SELECT COUNT(*) AS n FROM casts');
   return rows[0]?.n ?? 0;
 }
 
+/** キャスト一覧を全置換する。途中失敗時は既存一覧を残す。 */
 export async function persistAllCasts(casts: CastBean[]): Promise<void> {
-  const db = getSharedDb();
-  await db.execute('DELETE FROM casts');
-  for (const cast of casts) {
-    const r = await db.execute(
-      'INSERT INTO casts (name, group_name, is_attend, photo_data_url, memo) VALUES (?, ?, ?, ?, ?)',
-      [cast.name, cast.group_name ?? null, cast.is_present ? 1 : 0,
-       cast.photo_data_url ?? null, cast.memo ?? null],
-    );
-    const castId = r.lastInsertId as number;
-    for (const url of cast.contact_urls ?? []) {
-      await db.execute('INSERT INTO cast_urls (cast_id, url) VALUES (?, ?)', [castId, url]);
-    }
-    for (const ng of cast.ng_entries ?? []) {
-      await db.execute(
-        'INSERT INTO cast_ng_entries (cast_id, username, userid) VALUES (?, ?, ?)',
-        [castId, ng.username ?? null, ng.accountId ?? null],
-      );
-    }
-  }
+  await invoke('persist_all_casts_atomic', {
+    eventName: getRequiredEventName(),
+    casts: casts.map(toCastPayload),
+  });
 }
 
+/** キャストを1件追加し、連絡先 URL と NG エントリも同じ transaction で保存する。 */
 export async function insertCast(cast: CastBean): Promise<void> {
-  const db = getSharedDb();
-  const r = await db.execute(
-    'INSERT INTO casts (name, group_name, is_attend, photo_data_url, memo) VALUES (?, ?, ?, ?, ?)',
-    [cast.name, cast.group_name ?? null, cast.is_present ? 1 : 0,
-     cast.photo_data_url ?? null, cast.memo ?? null],
-  );
-  const castId = r.lastInsertId as number;
-  for (const url of cast.contact_urls ?? []) {
-    await db.execute('INSERT INTO cast_urls (cast_id, url) VALUES (?, ?)', [castId, url]);
-  }
-  for (const ng of cast.ng_entries ?? []) {
-    await db.execute(
-      'INSERT INTO cast_ng_entries (cast_id, username, userid) VALUES (?, ?, ?)',
-      [castId, ng.username ?? null, ng.accountId ?? null],
-    );
-  }
+  await invoke('insert_cast_atomic', {
+    eventName: getRequiredEventName(),
+    cast: toCastPayload(cast),
+  });
 }
 
+/** キャストの編集可能項目を部分更新し、URL/NG は指定時のみ全置換する。 */
 export async function updateCastFields(name: string, patch: Partial<Omit<CastBean, 'name'>>): Promise<void> {
-  const db = getSharedDb();
-  const colUpdates: string[] = [];
-  const colValues: unknown[] = [];
-
-  if ('is_present' in patch)      { colUpdates.push('is_attend = ?');      colValues.push(patch.is_present ? 1 : 0); }
-  if ('group_name' in patch)      { colUpdates.push('group_name = ?');     colValues.push(patch.group_name ?? null); }
-  if ('photo_data_url' in patch)  { colUpdates.push('photo_data_url = ?'); colValues.push(patch.photo_data_url ?? null); }
-  if ('memo' in patch)            { colUpdates.push('memo = ?');           colValues.push(patch.memo ?? null); }
-
-  if (colUpdates.length > 0) {
-    await db.execute(`UPDATE casts SET ${colUpdates.join(', ')} WHERE name = ?`, [...colValues, name]);
-  }
-
-  const needsCastId = 'contact_urls' in patch || 'ng_entries' in patch;
-  if (needsCastId) {
-    const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
-    const castId = rows[0]?.id;
-    if (castId !== undefined) {
-      if ('contact_urls' in patch) {
-        await db.execute('DELETE FROM cast_urls WHERE cast_id = ?', [castId]);
-        for (const url of patch.contact_urls ?? []) {
-          await db.execute('INSERT INTO cast_urls (cast_id, url) VALUES (?, ?)', [castId, url]);
-        }
-      }
-      if ('ng_entries' in patch) {
-        await db.execute('DELETE FROM cast_ng_entries WHERE cast_id = ?', [castId]);
-        for (const ng of patch.ng_entries ?? []) {
-          await db.execute(
-            'INSERT INTO cast_ng_entries (cast_id, username, userid) VALUES (?, ?, ?)',
-            [castId, ng.username ?? null, ng.accountId ?? null],
-          );
-        }
-      }
-    }
-  }
+  await invoke('update_cast_fields_atomic', {
+    eventName: getRequiredEventName(),
+    name,
+    patch: {
+      update_is_present: 'is_present' in patch,
+      is_present: patch.is_present === true,
+      update_group_name: 'group_name' in patch,
+      group_name: patch.group_name ?? null,
+      update_photo_data_url: 'photo_data_url' in patch,
+      photo_data_url: patch.photo_data_url ?? null,
+      update_memo: 'memo' in patch,
+      memo: patch.memo ?? null,
+      update_contact_urls: 'contact_urls' in patch,
+      contact_urls: patch.contact_urls ?? [],
+      update_ng_entries: 'ng_entries' in patch,
+      ng_entries: patch.ng_entries ?? [],
+    },
+  });
 }
 
+/** キャスト名を変更する。関連テーブルは cast_id 参照のため更新不要。 */
 export async function renameCast(oldName: string, newName: string): Promise<void> {
-  const db = getSharedDb();
-  await db.execute('UPDATE casts SET name = ? WHERE name = ?', [newName, oldName]);
+  await invoke('rename_cast_atomic', {
+    eventName: getRequiredEventName(),
+    oldName,
+    newName,
+  });
 }
 
+/** キャストと関連 URL/NG エントリを削除する。 */
 export async function deleteCast(name: string): Promise<void> {
-  const db = getSharedDb();
-  const rows = await db.select<[{ id: number }]>('SELECT id FROM casts WHERE name = ?', [name]);
-  const castId = rows[0]?.id;
-  if (castId !== undefined) {
-    await db.execute('DELETE FROM cast_urls WHERE cast_id = ?', [castId]);
-    await db.execute('DELETE FROM cast_ng_entries WHERE cast_id = ?', [castId]);
-  }
-  await db.execute('DELETE FROM casts WHERE name = ?', [name]);
+  await invoke('delete_cast_atomic', {
+    eventName: getRequiredEventName(),
+    name,
+  });
 }

@@ -1,7 +1,8 @@
-// Lottery results are per-import-session: re-running the lottery on the same
-// applicant set replaces the whole row set, so this repository targets the
-// session DB and exposes a TRUNCATE+INSERT replace operation.
+// 抽選結果は取込セッションごとの揮発データとして扱う。
+// 同じ応募者集合で再抽選した場合は結果行全体を置き換える。
+import { invoke } from '@tauri-apps/api/core';
 import { getSessionDb } from '../database';
+import { getRequiredSessionContext } from './commandContext';
 
 export interface LotteryResultRow {
   applicant_id: number;
@@ -24,6 +25,7 @@ export interface SavedLotteryResultRow {
   result_order: number;
 }
 
+/** 保存済み抽選結果を扱う追加テーブルを、旧DBにも作成する。 */
 async function ensureSavedLotteryRunTables(): Promise<void> {
   const db = getSessionDb();
   await db.execute(`
@@ -53,6 +55,7 @@ async function ensureSavedLotteryRunTables(): Promise<void> {
   `);
 }
 
+/** 現在セッションの抽選結果を保存順で取得する。 */
 export async function getLotteryResults(): Promise<LotteryResultRow[]> {
   const db = getSessionDb();
   return db.select<LotteryResultRow[]>(
@@ -60,33 +63,25 @@ export async function getLotteryResults(): Promise<LotteryResultRow[]> {
   );
 }
 
+/** 現在セッションの抽選結果を全置換する。途中失敗時は既存結果を残す。 */
 export async function replaceLotteryResults(
   rows: { applicant_id: number; is_guaranteed: boolean }[],
 ): Promise<void> {
-  const db = getSessionDb();
-  // tauri-plugin-sql does not expose a transaction handle, so we open/commit
-  // BEGIN/COMMIT manually to keep the replace atomic.
-  await db.execute('BEGIN');
-  try {
-    await db.execute('DELETE FROM lottery_results');
-    for (const row of rows) {
-      await db.execute(
-        'INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?, ?)',
-        [row.applicant_id, row.is_guaranteed ? 1 : 0],
-      );
-    }
-    await db.execute('COMMIT');
-  } catch (err) {
-    await db.execute('ROLLBACK');
-    throw err;
-  }
+  const { eventName, timestamp } = getRequiredSessionContext();
+  await invoke('replace_lottery_results_atomic', {
+    eventName,
+    timestamp,
+    rows,
+  });
 }
 
+/** 現在セッションの抽選結果を削除する。 */
 export async function clearLotteryResults(): Promise<void> {
-  const db = getSessionDb();
-  await db.execute('DELETE FROM lottery_results');
+  const { eventName, timestamp } = getRequiredSessionContext();
+  await invoke('clear_lottery_results_atomic', { eventName, timestamp });
 }
 
+/** 保存済み抽選結果の見出し一覧を新しい順に取得する。 */
 export async function listSavedLotteryRuns(): Promise<SavedLotteryRunRow[]> {
   await ensureSavedLotteryRunTables();
   const db = getSessionDb();
@@ -97,6 +92,7 @@ export async function listSavedLotteryRuns(): Promise<SavedLotteryRunRow[]> {
   );
 }
 
+/** 保存済み抽選結果1件の当選者行を保存順で取得する。 */
 export async function getSavedLotteryResults(runId: number): Promise<SavedLotteryResultRow[]> {
   await ensureSavedLotteryRunTables();
   const db = getSessionDb();
@@ -109,6 +105,7 @@ export async function getSavedLotteryResults(runId: number): Promise<SavedLotter
   );
 }
 
+/** 抽選結果スナップショットを、見出し行と当選者行を同じ transaction で保存する。 */
 export async function saveLotteryRun(params: {
   label: string;
   matchingTypeCode: string;
@@ -116,39 +113,14 @@ export async function saveLotteryRun(params: {
   guaranteedCount: number;
   rows: { applicant_id: number; is_guaranteed: boolean }[];
 }): Promise<number> {
-  await ensureSavedLotteryRunTables();
-  const db = getSessionDb();
-  await db.execute('BEGIN');
-  try {
-    const inserted = await db.select<Array<{ id: number }>>(
-      `INSERT INTO lottery_saved_runs
-        (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-       VALUES (?, ?, ?, ?, ?)
-       RETURNING id`,
-      [
-        params.label,
-        params.matchingTypeCode,
-        params.lotteryCount,
-        params.guaranteedCount,
-        params.rows.length,
-      ],
-    );
-    const runId = inserted[0]?.id;
-    if (runId == null) {
-      throw new Error('保存済み抽選結果IDを取得できませんでした。');
-    }
-    for (const [index, row] of params.rows.entries()) {
-      await db.execute(
-        `INSERT INTO lottery_saved_run_results
-          (run_id, applicant_id, is_guaranteed, result_order)
-         VALUES (?, ?, ?, ?)`,
-        [runId, row.applicant_id, row.is_guaranteed ? 1 : 0, index],
-      );
-    }
-    await db.execute('COMMIT');
-    return runId;
-  } catch (err) {
-    await db.execute('ROLLBACK');
-    throw err;
-  }
+  const { eventName, timestamp } = getRequiredSessionContext();
+  return invoke<number>('save_lottery_run_atomic', {
+    eventName,
+    timestamp,
+    label: params.label,
+    matchingTypeCode: params.matchingTypeCode,
+    lotteryCount: params.lotteryCount,
+    guaranteedCount: params.guaranteedCount,
+    rows: params.rows,
+  });
 }
