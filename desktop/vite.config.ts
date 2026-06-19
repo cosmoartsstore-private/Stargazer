@@ -31,6 +31,7 @@ export default defineConfig(async () => ({
         'src/db/repositories/lotteryRepository.ts',
         'src/features/attendance/models/attendanceMatrix.ts',
         'src/features/lottery/services/lottery-draw.ts',
+        'src/features/lottery/services/lottery-result-persistence.ts',
         'src/features/matching/logics/caution-user.ts',
         'src/features/matching/logics/matching-hungarian-engine.ts',
         'src/features/matching/logics/matching-io.ts',

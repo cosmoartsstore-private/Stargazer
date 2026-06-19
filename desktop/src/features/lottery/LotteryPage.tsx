@@ -15,6 +15,7 @@ import {
 import {
   buildLotteryPersistenceRows,
   restoreLotteryWinners,
+  summarizeLotteryPersistenceRows,
 } from './services/lottery-result-persistence';
 import { useAppContext } from '@/stores/AppContext';
 import {
@@ -251,11 +252,12 @@ export const LotteryPage: React.FC = () => {
         setLotteryMessage('保存できる抽選結果がありません。');
         return;
       }
+      const summary = summarizeLotteryPersistenceRows(rows);
       const runId = await saveLotteryRun({
-        label: formatSavedLotteryLabel(rows.length),
+        label: formatSavedLotteryLabel(summary.winnerCount),
         matchingTypeCode,
-        lotteryCount,
-        guaranteedCount: currentWinners.filter((winner) => winner.is_guaranteed).length,
+        lotteryCount: summary.lotteryCount,
+        guaranteedCount: summary.guaranteedCount,
         rows,
       });
       await replaceLotteryResults(rows);
@@ -270,7 +272,6 @@ export const LotteryPage: React.FC = () => {
     }
   }, [
     currentWinners,
-    lotteryCount,
     matchingTypeCode,
     refreshSavedRuns,
     savingLotteryRun,
