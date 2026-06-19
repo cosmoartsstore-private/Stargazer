@@ -97,6 +97,8 @@ SQLite は用途別に DB を分けます。
 - イベント共有 DB: `meta`, `casts`, `cast_urls`, `cast_ng_entries`, `caution_users`, `event_cast_present`, `cast_attendance`, `header_templates`, `settings`
 - 取込セッション DB: `meta`, `applicants`, `applicant_casts`, `applicant_extra`, `lottery_results`, `lottery_saved_runs`, `lottery_saved_run_results`
 
+要注意ユーザーはイベント共有 DB の `caution_users` を正とします。イベント識別子を持たない旧 `localStorage` 保存分は、別イベントへの混入を避けるため自動移行しません。
+
 応募者・キャスト・出席・抽選結果の複数 SQL を伴う保存処理は、Rust 側 command で単一 SQLite transaction として実行します。
 
 ## License

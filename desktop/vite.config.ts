@@ -43,6 +43,7 @@ export default defineConfig(async () => ({
         'src/features/matching/logics/ng-judgment.ts',
         'src/features/matching/presenters/matching-result-export.ts',
         'src/features/matching/presenters/matching-result-view.ts',
+        'src/features/matching/stores/matching-settings-store.ts',
       ],
       thresholds: {
         statements: 80,
