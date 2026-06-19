@@ -1,16 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { UserBean, CastBean } from '@/common/types/entities';
-import { STORAGE_KEYS } from '@/common/config';
-import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
+import type { ThemeId } from '@/common/themes';
 import {
   getInitialMatchingSettings,
   normalizeMatchingSettingsState,
   persistMatchingSettings,
   type MatchingSettingsState,
 } from '@/features/matching/stores/matching-settings-store';
-import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
+import type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import type { MatchedCast, TableSlot } from '@/features/matching/logics/matching-io';
+import {
+  getInitialSession,
+  getInitialThemeId,
+  persistSession,
+  persistTheme,
+  removeStoredSession,
+  type PersistedSession,
+} from '@/stores/app-storage-store';
 import {
   initializeApp,
   saveLastUsedEvent,
@@ -25,75 +32,11 @@ import {
 } from '@/db/database';
 import { listSessions, type SessionInfo } from '@/db/repositories/eventRepository';
 export type { UserBean, CastBean } from '@/common/types/entities';
-
-const VALID_MATCHING_CODES: readonly string[] = [...MATCHING_TYPE_CODES];
-
-export interface PersistedSession {
-  winners: UserBean[];
-  matchingTypeCode: MatchingTypeCode;
-  rotationCount: number;
-  totalTables: number;
-  usersPerTable: number;
-  castsPerRotation: number;
-  allowM003EmptySeats: boolean;
-  m003SameDaySlotCount: number;
-}
-
-function getInitialSession(): PersistedSession | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
-    if (!raw) return null;
-    const d = JSON.parse(raw) as unknown;
-    if (!d || typeof d !== 'object') return null;
-    const o = d as Record<string, unknown>;
-    if (!Array.isArray(o.winners)) return null;
-
-    let matchingTypeCode: MatchingTypeCode = 'M001';
-    if (typeof o.matchingTypeCode === 'string' && VALID_MATCHING_CODES.includes(o.matchingTypeCode)) {
-      const restored = o.matchingTypeCode as MatchingTypeCode;
-      matchingTypeCode = restored === 'M003' ? 'M001' : restored;
-    }
-    const rotationCount = typeof (o as { rotationCount?: number }).rotationCount === 'number' && (o as { rotationCount: number }).rotationCount >= 1
-      ? (o as { rotationCount: number }).rotationCount
-      : DEFAULT_ROTATION_COUNT;
-    const totalTables = typeof (o as { totalTables?: number }).totalTables === 'number' && (o as { totalTables: number }).totalTables >= 1
-      ? (o as { totalTables: number }).totalTables
-      : 15;
-    const usersPerTable = typeof (o as { usersPerTable?: number }).usersPerTable === 'number' && (o as { usersPerTable: number }).usersPerTable >= 1
-      ? (o as { usersPerTable: number }).usersPerTable
-      : 1;
-    const castsPerRotation = typeof (o as { castsPerRotation?: number }).castsPerRotation === 'number' && (o as { castsPerRotation: number }).castsPerRotation >= 1
-      ? (o as { castsPerRotation: number }).castsPerRotation
-      : 1;
-    const allowM003EmptySeats = typeof (o as { allowM003EmptySeats?: boolean }).allowM003EmptySeats === 'boolean'
-      ? (o as { allowM003EmptySeats: boolean }).allowM003EmptySeats
-      : false;
-    const m003SameDaySlotCount = typeof (o as { m003SameDaySlotCount?: number }).m003SameDaySlotCount === 'number' && (o as { m003SameDaySlotCount: number }).m003SameDaySlotCount >= 0
-      ? Math.floor((o as { m003SameDaySlotCount: number }).m003SameDaySlotCount)
-      : 0;
-
-    return { winners: o.winners as UserBean[], matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount };
-  } catch {
-    return null;
-  }
-}
+export type { PersistedSession } from '@/stores/app-storage-store';
 
 export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
 export type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 export type { ThemeId } from '@/common/themes';
-
-function getInitialThemeId(): ThemeId {
-  if (typeof window === 'undefined') return DEFAULT_THEME_ID;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.THEME);
-    if (!raw) return DEFAULT_THEME_ID;
-    const id = raw.trim();
-    return THEME_IDS.includes(id as ThemeId) ? (id as ThemeId) : DEFAULT_THEME_ID;
-  } catch {
-    return DEFAULT_THEME_ID;
-  }
-}
 
 interface AppContextType {
   activePage: PageType;
@@ -205,7 +148,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     const session: PersistedSession = {
       winners: currentWinners,
       matchingTypeCode,
@@ -216,12 +158,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       allowM003EmptySeats,
       m003SameDaySlotCount,
     };
-    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+    persistSession(session);
   }, [currentWinners, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEYS.THEME, themeId);
+    persistTheme(themeId);
   }, [themeId]);
 
   const switchEvent = async (name: string) => {
@@ -234,7 +175,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSessions([]);
     setApplicantsState([]);
     setCurrentWinners([]);
-    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEYS.SESSION);
+    removeStoredSession();
     resetMatching();
     try {
       const list = await listSessions(name);
@@ -263,7 +204,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     saveLastUsedSession(timestamp);
     setCurrentSessionTimestamp(timestamp);
     setCurrentWinners([]);
-    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEYS.SESSION);
+    removeStoredSession();
     resetMatching();
     bumpDataReload();
   };

@@ -11,8 +11,8 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { HeaderLogo } from '@/components/HeaderLogo';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAppContext, type PageType } from '@/stores/AppContext';
+import { removeStoredSession } from '@/stores/app-storage-store';
 import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
-import { STORAGE_KEYS } from '@/common/config';
 import { IMPORT_OVERWRITE, NAV } from '@/common/copy';
 import {
   createSession,
@@ -153,9 +153,7 @@ export const AppContainer: React.FC = () => {
       setApplicants(users);
       setCurrentWinners([]);
       resetMatching();
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(STORAGE_KEYS.SESSION);
-      }
+      removeStoredSession();
       setActivePage(nextPage);
     } catch (error) {
       setAlertMessage(error instanceof Error ? error.message : '応募データの取り込みに失敗しました。');

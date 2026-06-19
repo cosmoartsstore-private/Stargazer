@@ -44,6 +44,7 @@ export default defineConfig(async () => ({
         'src/features/matching/presenters/matching-result-export.ts',
         'src/features/matching/presenters/matching-result-view.ts',
         'src/features/matching/stores/matching-settings-store.ts',
+        'src/stores/app-storage-store.ts',
       ],
       thresholds: {
         statements: 80,
