@@ -31,6 +31,7 @@ export default defineConfig(async () => ({
         'src/db/repositories/castRepository.ts',
         'src/db/repositories/commandContext.ts',
         'src/db/repositories/eventRepository.ts',
+        'src/db/repositories/headerTemplateRepository.ts',
         'src/db/repositories/lotteryRepository.ts',
         'src/features/attendance/models/attendanceMatrix.ts',
         'src/features/lottery/services/lottery-draw.ts',

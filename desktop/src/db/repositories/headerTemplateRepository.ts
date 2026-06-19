@@ -1,14 +1,14 @@
-// Header templates capture a learned mapping from a particular CSV layout
-// (identified by a header signature) to column roles and matching settings.
-// They are shared across all import sessions of an event, so this repository
-// targets the event-shared DB.
+/**
+ * CSV ヘッダー構成と列割り当てを紐づけるテンプレートの保存境界。
+ * テンプレートは同一イベント内の取込セッションで共有するため、共有 DB を対象にする。
+ */
 import { getSharedDb } from '../database';
 
 export interface HeaderTemplate {
   id: number;
   signature: string;
   label: string | null;
-  // JSON strings as stored in DB; callers parse/serialize on demand.
+  /** DB へ保存した JSON 文字列。呼び出し側で必要な形式へ parse/serialize する。 */
   column_mapping: string | null;
   matching_settings: string | null;
   created_at: string | null;
@@ -30,6 +30,13 @@ interface TemplateRow {
   created_at: string | null;
 }
 
+type HeaderTemplatePatch = Partial<
+  Pick<HeaderTemplate, 'signature' | 'label' | 'column_mapping' | 'matching_settings'>
+>;
+
+const TEMPLATE_COLUMNS = 'id, signature, label, column_mapping, matching_settings, created_at';
+
+/** DB 行を repository の公開型へ整形する。 */
 function rowToTemplate(row: TemplateRow): HeaderTemplate {
   return {
     id: row.id,
@@ -41,25 +48,28 @@ function rowToTemplate(row: TemplateRow): HeaderTemplate {
   };
 }
 
+/** 共有 DB に保存されたヘッダーテンプレートを新しい順で取得する。 */
 export async function listHeaderTemplates(): Promise<HeaderTemplate[]> {
   const db = getSharedDb();
   const rows = await db.select<TemplateRow[]>(
-    'SELECT id, signature, label, column_mapping, matching_settings, created_at FROM header_templates ORDER BY created_at DESC, id DESC',
+    `SELECT ${TEMPLATE_COLUMNS} FROM header_templates ORDER BY created_at DESC, id DESC`,
   );
   return rows.map(rowToTemplate);
 }
 
+/** ヘッダー signature が一致するテンプレートを 1 件取得する。 */
 export async function findHeaderTemplateBySignature(
   sig: string,
 ): Promise<HeaderTemplate | null> {
   const db = getSharedDb();
   const rows = await db.select<TemplateRow[]>(
-    'SELECT id, signature, label, column_mapping, matching_settings, created_at FROM header_templates WHERE signature = ? LIMIT 1',
+    `SELECT ${TEMPLATE_COLUMNS} FROM header_templates WHERE signature = ? LIMIT 1`,
     [sig],
   );
   return rows[0] ? rowToTemplate(rows[0]) : null;
 }
 
+/** 新しいヘッダーテンプレートを保存し、採番された ID を返す。 */
 export async function insertHeaderTemplate(t: NewHeaderTemplate): Promise<number> {
   const db = getSharedDb();
   const r = await db.execute(
@@ -69,9 +79,10 @@ export async function insertHeaderTemplate(t: NewHeaderTemplate): Promise<number
   return r.lastInsertId as number;
 }
 
+/** 指定された項目だけをヘッダーテンプレートへ反映する。 */
 export async function updateHeaderTemplate(
   id: number,
-  patch: Partial<HeaderTemplate>,
+  patch: HeaderTemplatePatch,
 ): Promise<void> {
   const db = getSharedDb();
   const sets: string[] = [];
@@ -100,6 +111,7 @@ export async function updateHeaderTemplate(
   );
 }
 
+/** 指定 ID のヘッダーテンプレートを削除する。 */
 export async function deleteHeaderTemplate(id: number): Promise<void> {
   const db = getSharedDb();
   await db.execute('DELETE FROM header_templates WHERE id = ?', [id]);
