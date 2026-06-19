@@ -25,6 +25,7 @@ export default defineConfig(async () => ({
         'src/common/browserStorage.ts',
         'src/common/sheetParsers.ts',
         'src/common/xIdUtils.ts',
+        'src/db/headerSignature.ts',
         'src/db/initializer.ts',
         'src/db/repositories/applicantRepository.ts',
         'src/db/repositories/attendanceRepository.ts',
