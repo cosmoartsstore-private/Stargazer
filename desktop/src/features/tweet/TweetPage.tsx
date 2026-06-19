@@ -3,41 +3,32 @@ import { useAppContext } from '@/stores/AppContext';
 import { getSetting, setSetting, getEventMeta } from '@/db';
 import styles from './TweetPage.module.css';
 import shared from '@/styles/shared.module.css';
-
-const TEMPLATE_KEY = 'tweet_template';
-
-const DEFAULT_TEMPLATE = `【出席キャスト】
-{casts}`;
+import {
+  buildTweetPreview,
+  DEFAULT_TWEET_TEMPLATE,
+  resolveTweetTemplate,
+  TWEET_TEMPLATE_KEY,
+} from './tweetTemplate';
 
 const PLACEHOLDERS = [
   { key: '{casts}',       label: 'キャスト一覧（改行区切り）' },
   { key: '{event_name}',  label: 'イベント名' },
 ];
 
-function buildPreview(template: string, casts: string[], eventName: string): string {
-  const attendingCasts = casts.filter(Boolean);
-  return template
-    .replace(/{casts}/g,      attendingCasts.length > 0 ? attendingCasts.join('\n') : '（キャスト未登録）')
-    .replace(/{event_name}/g, eventName || 'イベント')
-    .replace(/{date}/g,       '')
-    .replace(/{cast_count}/g, '')
-    .replace(/{tags}/g,       '');
-}
-
 export const TweetPage: React.FC = () => {
   const { casts: allCasts, currentEventName } = useAppContext();
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
+  const [template, setTemplate] = useState(DEFAULT_TWEET_TEMPLATE);
   const [copied, setCopied] = useState(false);
 
   const casts = allCasts.filter((c) => c.is_present).map((c) => c.name);
-  const preview = buildPreview(template, casts, currentEventName ?? '');
+  const preview = buildTweetPreview(template, casts, currentEventName ?? '');
 
   const loadTemplate = useCallback(async () => {
     try {
-      const saved = await getSetting(TEMPLATE_KEY);
-      if (saved) setTemplate(saved);
+      const saved = await getSetting(TWEET_TEMPLATE_KEY);
+      setTemplate(resolveTweetTemplate(saved));
     } catch {
-      // ignore
+      // 読み込み失敗時は現在のテンプレート表示を維持する。
     }
   }, []);
 
@@ -46,7 +37,7 @@ export const TweetPage: React.FC = () => {
     try {
       await getEventMeta();
     } catch {
-      // ignore
+      // イベント情報の取得に失敗しても投稿編集は続行する。
     }
   }, [currentEventName]);
 
@@ -57,7 +48,7 @@ export const TweetPage: React.FC = () => {
 
   const handleTemplateChange = async (value: string) => {
     setTemplate(value);
-    await setSetting(TEMPLATE_KEY, value).catch(() => {});
+    await setSetting(TWEET_TEMPLATE_KEY, value).catch(() => {});
   };
 
   const handleCopy = async () => {
@@ -69,7 +60,7 @@ export const TweetPage: React.FC = () => {
   const insertPlaceholder = (key: string) => {
     setTemplate((prev) => {
       const next = prev + key;
-      void setSetting(TEMPLATE_KEY, next).catch(() => {});
+      void setSetting(TWEET_TEMPLATE_KEY, next).catch(() => {});
       return next;
     });
   };
@@ -92,7 +83,7 @@ export const TweetPage: React.FC = () => {
               type="button"
               className={shared.btnSecondary}
               style={{ fontSize: 11, padding: '3px 8px' }}
-              onClick={() => { void handleTemplateChange(DEFAULT_TEMPLATE); }}
+              onClick={() => { void handleTemplateChange(DEFAULT_TWEET_TEMPLATE); }}
             >
               リセット
             </button>

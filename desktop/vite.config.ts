@@ -33,6 +33,7 @@ export default defineConfig(async () => ({
         'src/db/repositories/eventRepository.ts',
         'src/db/repositories/headerTemplateRepository.ts',
         'src/db/repositories/lotteryRepository.ts',
+        'src/db/repositories/settingsRepository.ts',
         'src/features/attendance/models/attendanceMatrix.ts',
         'src/features/lottery/services/lottery-draw.ts',
         'src/features/lottery/services/lottery-result-persistence.ts',
@@ -48,6 +49,7 @@ export default defineConfig(async () => ({
         'src/features/matching/presenters/matching-result-export.ts',
         'src/features/matching/presenters/matching-result-view.ts',
         'src/features/matching/stores/matching-settings-store.ts',
+        'src/features/tweet/tweetTemplate.ts',
         'src/stores/app-storage-store.ts',
       ],
       thresholds: {
