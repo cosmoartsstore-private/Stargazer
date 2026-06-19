@@ -5,6 +5,11 @@
 
 import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import { STORAGE_KEYS } from '@/common/config';
+import {
+  readBrowserStorageItem,
+  removeBrowserStorageItem,
+  writeBrowserStorageItem,
+} from '@/common/browserStorage';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
 import type { UserBean } from '@/common/types/entities';
 import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
@@ -20,49 +25,6 @@ export interface PersistedSession {
   castsPerRotation: number;
   allowM003EmptySeats: boolean;
   m003SameDaySlotCount: number;
-}
-
-/** ブラウザで使用可能な localStorage を取得する。取得できない環境では null を返す。 */
-function getBrowserStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** 指定キーの保存文字列を読み取る。読み取り時の例外は未保存と同じ扱いにする。 */
-function getStoredItem(key: string): string | null {
-  const storage = getBrowserStorage();
-  if (!storage) return null;
-  try {
-    return storage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/** 指定キーへ保存する。保存できない環境では UI を止めず何もしない。 */
-function setStoredItem(key: string, value: string): void {
-  const storage = getBrowserStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(key, value);
-  } catch {
-    // セッションとテーマは再生成できる軽量状態なので、保存失敗は無視する。
-  }
-}
-
-/** 指定キーの保存値を削除する。削除できない環境では UI を止めず何もしない。 */
-function removeStoredItem(key: string): void {
-  const storage = getBrowserStorage();
-  if (!storage) return;
-  try {
-    storage.removeItem(key);
-  } catch {
-    // セッション再読込の補助処理なので、削除失敗は次回の正規化に任せる。
-  }
 }
 
 /** JSON 文字列を object として読み取る。壊れた JSON や配列は復元不可として扱う。 */
@@ -106,13 +68,13 @@ function normalizePersistedSession(value: Record<string, unknown>): PersistedSes
 
 /** localStorage から前回の抽選・マッチング一時セッションを復元する。 */
 export function getInitialSession(): PersistedSession | null {
-  const stored = parseStoredObject(getStoredItem(STORAGE_KEYS.SESSION));
+  const stored = parseStoredObject(readBrowserStorageItem(STORAGE_KEYS.SESSION));
   return stored ? normalizePersistedSession(stored) : null;
 }
 
 /** localStorage から初期テーマを復元する。未保存または不正値なら既定テーマを返す。 */
 export function getInitialThemeId(): ThemeId {
-  const raw = getStoredItem(STORAGE_KEYS.THEME);
+  const raw = readBrowserStorageItem(STORAGE_KEYS.THEME);
   if (!raw) return DEFAULT_THEME_ID;
   const id = raw.trim();
   return THEME_IDS.includes(id as ThemeId) ? (id as ThemeId) : DEFAULT_THEME_ID;
@@ -120,15 +82,15 @@ export function getInitialThemeId(): ThemeId {
 
 /** 抽選・マッチング一時セッションを localStorage に保存する。 */
 export function persistSession(session: PersistedSession): void {
-  setStoredItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+  writeBrowserStorageItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
 }
 
 /** テーマ選択を localStorage に保存する。 */
 export function persistTheme(themeId: ThemeId): void {
-  setStoredItem(STORAGE_KEYS.THEME, themeId);
+  writeBrowserStorageItem(STORAGE_KEYS.THEME, themeId);
 }
 
 /** 保存済みの抽選・マッチング一時セッションを削除する。 */
 export function removeStoredSession(): void {
-  removeStoredItem(STORAGE_KEYS.SESSION);
+  removeBrowserStorageItem(STORAGE_KEYS.SESSION);
 }

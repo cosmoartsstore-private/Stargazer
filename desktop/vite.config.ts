@@ -22,8 +22,10 @@ export default defineConfig(async () => ({
       provider: 'v8',
       include: [
         'src/common/csvParse.ts',
+        'src/common/browserStorage.ts',
         'src/common/sheetParsers.ts',
         'src/common/xIdUtils.ts',
+        'src/db/initializer.ts',
         'src/db/repositories/applicantRepository.ts',
         'src/db/repositories/attendanceRepository.ts',
         'src/db/repositories/castRepository.ts',

@@ -4,6 +4,7 @@
  */
 
 import { STORAGE_KEYS } from '@/common/config';
+import { getBrowserStorage } from '@/common/browserStorage';
 import { parseXUsername } from '@/common/xIdUtils';
 import {
   FIXED_NG_JUDGMENT_TYPE,
@@ -29,16 +30,6 @@ export interface MatchingSettingsState {
   searchMode: MatchingSearchMode;
   caution: CautionUserSettings;
   ngExceptions: NGExceptionSettings;
-}
-
-/** ブラウザ環境で利用できる localStorage を取得する。権限エラー時は未使用として扱う。 */
-function getBrowserStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
 }
 
 /** 保存済み JSON を読み込み、壊れた値は既定値へ戻せるよう null として扱う。 */
