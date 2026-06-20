@@ -53,6 +53,7 @@ export default defineConfig(async () => ({
         'src/features/matching/presenters/matching-result-view.ts',
         'src/features/matching/stores/matching-settings-store.ts',
         'src/features/tweet/tweetTemplate.ts',
+        'src/layout/appNavigation.ts',
         'src/stores/app-storage-store.ts',
       ],
       thresholds: {

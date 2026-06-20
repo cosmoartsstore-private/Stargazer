@@ -69,8 +69,9 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({ user, isCaution, ngC
       onOpenChange={(open) => { if (!open) onClose(); }}
       title={title}
       showClose
+      className={styles.applicantDetailModal}
       titleClassName={styles.applicantDetailTitle}
-      contentStyle={{ maxWidth: 480, width: '90vw' }}
+      contentStyle={{ width: 'min(760px, calc(100vw - 48px))' }}
     >
       <dl className={styles.applicantRow__detailGrid}>
         <dt>X ID</dt>

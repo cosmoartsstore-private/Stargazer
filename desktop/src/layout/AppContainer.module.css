@@ -257,6 +257,18 @@
   font-weight: 700;
 }
 
+.sidebar-button:disabled,
+.sidebar-button--disabled {
+  color: rgba(148, 155, 164, 0.46);
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.sidebar-button:disabled:hover,
+.sidebar-button--disabled:hover {
+  background: transparent;
+}
+
 .sidebar-button-label {
   flex: 1;
   text-align: left;
@@ -400,6 +412,12 @@
   background: rgba(255, 255, 255, 0.96);
   color: #102b49;
   font-weight: 700;
+}
+
+:global([data-theme="skyblue"]) .sidebar-button:disabled,
+:global([data-theme="skyblue"]) .sidebar-button--disabled {
+  color: rgba(46, 103, 143, 0.42);
+  opacity: 0.62;
 }
 
 :global([data-theme="skyblue"]) .mobile-header {

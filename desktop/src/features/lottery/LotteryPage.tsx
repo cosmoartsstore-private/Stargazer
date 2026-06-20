@@ -29,6 +29,8 @@ import {
 import styles from './LotteryPage.module.css';
 import shared from '@/styles/shared.module.css';
 
+const GUARANTEED_WINNER_PREVIEW_LIMIT = 4;
+
 export const LotteryPage: React.FC = () => {
   const {
     setActivePage,
@@ -201,6 +203,12 @@ export const LotteryPage: React.FC = () => {
     () => new Set(guaranteedWinners.map((winner) => winner.x_id)),
     [guaranteedWinners],
   );
+  const guaranteedWinnerSummary = useMemo(
+    () => guaranteedWinners.map((winner) => winner.name || winner.x_id).join(', '),
+    [guaranteedWinners],
+  );
+  const visibleGuaranteedWinners = guaranteedWinners.slice(0, GUARANTEED_WINNER_PREVIEW_LIMIT);
+  const hiddenGuaranteedWinnerCount = Math.max(0, guaranteedWinners.length - visibleGuaranteedWinners.length);
 
   const runLottery = () => {
     const guaranteedIdSet = new Set(guaranteedWinners.map((winner) => winner.x_id));
@@ -353,10 +361,32 @@ export const LotteryPage: React.FC = () => {
                     選択
                   </button>
                 </div>
-                <div className={styles.workflowInlineCard__body}>
+                <div className={styles.workflowInlineCard__body} title={guaranteedWinnerSummary || undefined}>
                   {guaranteedWinners.length > 0
-                    ? guaranteedWinners.map((winner) => winner.name || winner.x_id).join(', ')
+                    ? visibleGuaranteedWinners.map((winner) => {
+                        const label = winner.name || winner.x_id;
+                        return (
+                          <span
+                            key={winner.x_id}
+                            className={styles.workflowInlineCard__winnerChip}
+                            title={`${label} (${winner.x_id})`}
+                          >
+                            {label}
+                          </span>
+                        );
+                      })
                     : '未設定'}
+                  {hiddenGuaranteedWinnerCount > 0 && (
+                    <button
+                      type="button"
+                      className={`${styles.workflowInlineCard__winnerChip} ${styles.workflowInlineCard__winnerChipMore}`}
+                      title={guaranteedWinnerSummary}
+                      aria-label={`非表示の確定当選者 ${hiddenGuaranteedWinnerCount} 名を確認する`}
+                      onClick={() => setShowGuaranteedSelect(true)}
+                    >
+                      +{hiddenGuaranteedWinnerCount}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -377,7 +407,7 @@ export const LotteryPage: React.FC = () => {
               </label>
 
               {isLotteryOnlyMode ? (
-                <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowFormWide}`}>
+                <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowFormWide} ${styles.workflowLotteryOnlySlot}`}>
                   <div className={styles.m003SettingsPlaceholder}>
                     抽選のみ行うため、ラウンド数・テーブル数・キャスト割り当て条件は使用しません。
                   </div>
@@ -591,11 +621,13 @@ export const LotteryPage: React.FC = () => {
             <div className={`${styles.guaranteedSelectModalList__scroll} ${shared.customScrollbar}`}>
               {allUsers.map((user) => {
                 const isSelected = guaranteedIds.has(user.x_id);
+                const displayName = user.name || user.x_id;
                 return (
                   <button
                     key={user.x_id}
                     type="button"
                     className={`${styles.guaranteedSelectModalList__item}${isSelected ? ` ${styles.guaranteedSelectModalList__itemSelected}` : ''}`}
+                    title={`${displayName}\n${user.x_id}`}
                     onClick={() => {
                         const nextGuaranteed = isSelected
                           ? guaranteedWinners.filter((winner) => winner.x_id !== user.x_id)
@@ -604,7 +636,7 @@ export const LotteryPage: React.FC = () => {
                     }}
                   >
                     <span className={styles.guaranteedSelectModalList__check}>{isSelected ? '選択中' : '未選択'}</span>
-                    <span className={styles.guaranteedSelectModalList__name}>{user.name || user.x_id}</span>
+                    <span className={styles.guaranteedSelectModalList__name}>{displayName}</span>
                     <span className={styles.guaranteedSelectModalList__id}>{user.x_id}</span>
                   </button>
                 );

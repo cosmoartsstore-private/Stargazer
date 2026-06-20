@@ -14,6 +14,7 @@ import { useAppContext, type PageType } from '@/stores/AppContext';
 import { removeStoredSession } from '@/stores/app-storage-store';
 import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
 import { IMPORT_OVERWRITE, NAV } from '@/common/copy';
+import { getVisiblePage, isSidebarPageDisabled } from './appNavigation';
 import {
   createSession,
   getAllCasts,
@@ -197,6 +198,7 @@ export const AppContainer: React.FC = () => {
     { text: 'イベント切り替え', page: 'eventManagement', icon: <CalendarDays size={18} /> },
     { text: NAV.GUIDE, page: 'guide', icon: <HelpCircle size={18} /> },
   ];
+  const visiblePage = getVisiblePage(activePage, currentEventName);
 
   const renderPage = () => {
     if (currentEventName === null && activePage !== 'guide') {
@@ -238,27 +240,39 @@ export const AppContainer: React.FC = () => {
             <div className={styles.sidebarTitle}>
               <HeaderLogo />
             </div>
-            {sidebarButtons.map((button, index) => (
-              <button
-                key={index}
-                className={`${styles.sidebarButton} ${isPageActive(activePage, button.page) ? styles.active : ''}`}
-                onClick={() => {
-                  setActivePage(button.page);
-                  setShowDebug(false);
-                  setIsMenuOpen(false);
-                }}
-                title={button.text}
-              >
-                {button.icon != null ? (
-                  <>
-                    {button.icon}
-                    <span className={styles.sidebarButtonLabel}>{button.text}</span>
-                  </>
-                ) : (
-                  button.text
-                )}
-              </button>
-            ))}
+            {sidebarButtons.map((button, index) => {
+              const disabled = isSidebarPageDisabled(button.page, currentEventName);
+              const className = [
+                styles.sidebarButton,
+                !disabled && isPageActive(visiblePage, button.page) ? styles.active : '',
+                disabled ? styles.sidebarButtonDisabled : '',
+              ].filter(Boolean).join(' ');
+
+              return (
+                <button
+                  key={index}
+                  className={className}
+                  onClick={() => {
+                    if (disabled) return;
+                    setActivePage(button.page);
+                    setShowDebug(false);
+                    setIsMenuOpen(false);
+                  }}
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                  title={disabled ? `${button.text}はイベント選択後に利用できます` : button.text}
+                >
+                  {button.icon != null ? (
+                    <>
+                      {button.icon}
+                      <span className={styles.sidebarButtonLabel}>{button.text}</span>
+                    </>
+                  ) : (
+                    button.text
+                  )}
+                </button>
+              );
+            })}
             {import.meta.env.DEV && (
               <button
                 className={`${styles.sidebarButton}${showDebug ? ` ${styles.active}` : ''}`}

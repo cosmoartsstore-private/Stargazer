@@ -60,6 +60,7 @@
 
 .workflow-condition-form {
   min-width: 0;
+  min-height: 480px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--discord-border);
@@ -122,7 +123,7 @@
 }
 
 .workflow-inline-card {
-  min-height: 96px;
+  min-height: 116px;
   padding: 16px;
   border: 1px solid var(--discord-border);
   border-radius: 8px;
@@ -135,13 +136,44 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  min-height: 34px;
   flex-wrap: wrap;
 }
 
 .workflow-inline-card__body {
+  display: flex;
+  min-width: 0;
+  max-height: 48px;
+  gap: 6px;
+  flex-wrap: wrap;
+  overflow: hidden;
   font-size: 13px;
   line-height: 1.6;
   color: var(--discord-text-normal);
+}
+
+.workflow-inline-card__winner-chip {
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--discord-bg-dark);
+  border: 0;
+  overflow: hidden;
+  color: var(--discord-text-header);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-inline-card__winner-chip--more {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--discord-accent-blue);
+}
+
+.workflow-inline-card__winner-chip--more:hover {
+  background: var(--discord-bg-hover);
 }
 
 .workflow-inline-card__meta {
@@ -189,7 +221,11 @@
 .m003-settings-slot {
   display: grid;
   gap: 14px;
-  min-height: 0;
+  min-height: 210px;
+}
+
+.workflow-lottery-only-slot {
+  min-height: 284px;
 }
 
 .m003-settings-slot--inactive {
@@ -200,7 +236,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 92px;
+  min-height: inherit;
   padding: 18px;
   border: 1px dashed var(--discord-border);
   border-radius: 8px;
@@ -672,7 +708,7 @@
   max-height: 50vh;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
   gap: 8px;
   padding: 2px;
 }
@@ -680,7 +716,9 @@
 .guaranteed-select-modal-list__item {
   display: grid;
   gap: 4px;
-  min-height: 74px;
+  min-width: 0;
+  min-height: 82px;
+  max-height: 82px;
   padding: 10px 12px;
   border: 1px solid var(--discord-border);
   border-radius: 8px;
@@ -705,6 +743,7 @@
 
 .guaranteed-select-modal-list__check {
   width: fit-content;
+  max-width: 100%;
   padding: 2px 7px;
   border-radius: 999px;
   background: var(--discord-bg-hover);
@@ -728,8 +767,12 @@
 }
 
 .guaranteed-select-modal-list__id {
+  min-width: 0;
+  overflow: hidden;
   font-size: 12px;
   color: var(--discord-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ========================================

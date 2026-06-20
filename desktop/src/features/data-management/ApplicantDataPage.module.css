@@ -132,10 +132,15 @@
 
 .applicant-row__detail-grid {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 5px 16px;
+  grid-template-columns: minmax(136px, 180px) minmax(0, 1fr);
+  gap: 8px 18px;
   font-size: 13px;
+  line-height: 1.55;
   margin: 0;
+}
+
+.applicant-detail-modal {
+  max-width: 760px;
 }
 
 .applicant-detail-title {
@@ -160,9 +165,31 @@
 }
 
 .applicant-row__detail-grid dd {
+  min-width: 0;
   color: var(--discord-text-normal);
-  word-break: break-all;
+  overflow-wrap: anywhere;
   margin: 0;
+}
+
+.applicant-row__detail-grid a {
+  color: var(--discord-text-link);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .applicant-row__detail-grid {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .applicant-row__detail-grid dt {
+    padding-top: 8px;
+    white-space: normal;
+  }
+
+  .applicant-row__detail-grid dt:first-child {
+    padding-top: 0;
+  }
 }
 
 .caution-reason {
