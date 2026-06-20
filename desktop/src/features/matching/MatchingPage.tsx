@@ -391,7 +391,7 @@ export const MatchingPage: React.FC = () => {
             onClick={() =>
               downloadTsv(
                 buildCastMatchingTsvRows(castResultRows, castResultColumnKeys),
-                `${backupFileName || 'matching-result'}.tsv`,
+                backupFileName || 'matching-result',
               )
             }
           >

@@ -23,6 +23,7 @@ export default defineConfig(async () => ({
       include: [
         'src/common/csvParse.ts',
         'src/common/browserStorage.ts',
+        'src/common/downloadCsv.ts',
         'src/common/sheetParsers.ts',
         'src/common/xIdUtils.ts',
         'src/db/headerSignature.ts',
