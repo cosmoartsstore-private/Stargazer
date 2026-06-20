@@ -29,7 +29,7 @@ import {
 import styles from './LotteryPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-const GUARANTEED_WINNER_PREVIEW_LIMIT = 4;
+const GUARANTEED_WINNER_PREVIEW_LIMIT = 1;
 
 export const LotteryPage: React.FC = () => {
   const {

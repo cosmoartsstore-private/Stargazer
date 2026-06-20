@@ -154,9 +154,8 @@
 .workflow-inline-card__winner-list {
   display: flex;
   min-width: 0;
-  max-height: 48px;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   overflow: hidden;
 }
 
