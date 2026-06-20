@@ -219,30 +219,6 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
               </div>
             </div>
 
-            <div className={styles.importMappingRow}>
-              <span className={styles.importMappingLabel}>希望キャスト形式</span>
-              <div className={styles.importMappingControl}>
-                <div className={styles.importCastOptions}>
-                  <button
-                    type="button"
-                    className={`${styles.importCastOption}${castInputType === 'separate' ? ` ${styles.importCastOptionSelected}` : ''}`}
-                    onClick={() => setCastInputType('separate')}
-                  >
-                    希望順位あり
-                    <span>別々の列</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.importCastOption}${castInputType === 'comma' ? ` ${styles.importCastOptionSelected}` : ''}`}
-                    onClick={() => setCastInputType('comma')}
-                  >
-                    希望順位なし
-                    <span>カンマ区切り</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {castInputType === 'separate' ? (
               <>
                 <div className={styles.importMappingRow}>
@@ -272,6 +248,26 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                 </div>
               </div>
             )}
+
+            <div className={styles.importCastFormatRow}>
+              <span className={styles.importCastFormatLabel}>希望キャスト形式:</span>
+              <div className={styles.importCastSegmented} role="group" aria-label="希望キャスト形式">
+                <button
+                  type="button"
+                  className={`${styles.importCastSegment}${castInputType === 'separate' ? ` ${styles.importCastSegmentSelected}` : ''}`}
+                  onClick={() => setCastInputType('separate')}
+                >
+                  順位あり（個々の列）
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.importCastSegment}${castInputType === 'comma' ? ` ${styles.importCastSegmentSelected}` : ''}`}
+                  onClick={() => setCastInputType('comma')}
+                >
+                  順位なし（カンマ区切り）
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

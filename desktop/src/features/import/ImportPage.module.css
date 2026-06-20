@@ -84,45 +84,56 @@
   margin-bottom: 0;
 }
 
-/* ── Cast format toggle ── */
+/* 希望キャスト形式は、マッピング表の補助設定として末尾にまとめる。 */
 
-.import-cast-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.import-cast-format-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0 0;
+  border-top: 1px solid var(--border-default);
 }
 
-.import-cast-option {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-start;
-  padding: 9px 10px;
+.import-cast-format-label {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.import-cast-segmented {
+  display: inline-flex;
+  min-width: 0;
+  padding: 2px;
   border: 1px solid var(--border-default);
   border-radius: 7px;
   background: var(--surface-panel);
-  color: var(--text-default);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.import-cast-option span {
+.import-cast-segment {
+  min-height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
 
-.import-cast-option:hover {
-  border-color: var(--accent-primary);
+.import-cast-segment:hover {
+  color: var(--text-default);
 }
 
-.import-cast-option--selected {
-  background: var(--surface-selected);
-  border-color: var(--accent-primary);
-  color: var(--text-heading);
+.import-cast-segment--selected {
+  background: var(--surface-panel-muted);
+  color: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 /* ── Mapping section ── */
@@ -292,8 +303,17 @@
     gap: 6px;
   }
 
-  .import-radio-group {
+  .import-cast-format-row {
+    align-items: stretch;
     flex-direction: column;
+  }
+
+  .import-cast-segmented {
+    width: 100%;
+  }
+
+  .import-cast-segment {
+    flex: 1;
   }
 
   .import-footer {
