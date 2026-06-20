@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Upload, FileText } from '@/common/icons';
+import { Upload, FileText, Sheet } from '@/common/icons';
+import { AppDialog } from '@/components/AppDialog';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { parseTSV } from '@/common/csvParse';
 import {
@@ -51,6 +52,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
   const [error, setError] = useState<string | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>(() => createEmptyColumnMapping());
   const [castInputType, setCastInputType] = useState<CastInputType>('separate');
+  const [rawColumnsOpen, setRawColumnsOpen] = useState(false);
   const [fileAreaShake, setFileAreaShake] = useState(false);
   const [xIdShake, setXIdShake] = useState(false);
 
@@ -61,6 +63,15 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
     ],
     [headers],
   );
+
+  // 元TSVの確認では、行ごとに列数がずれていても存在するセルを表示対象に含める。
+  const rawColumnIndexes = useMemo(() => {
+    const rowColumnCounts = rows?.map((row) => row.length) ?? [];
+    const columnCount = Math.max(headers.length, ...rowColumnCounts, 0);
+    return Array.from({ length: columnCount }, (_, index) => index);
+  }, [headers.length, rows]);
+
+  const getHeaderLabel = (index: number) => headers[index] || `列${index + 1}`;
 
   const sv = (idx: number) =>
     idx >= 0 && columnOptions.some((o) => o.value === String(idx)) ? String(idx) : NONE;
@@ -219,35 +230,37 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
               </div>
             </div>
 
-            {castInputType === 'separate' ? (
-              <>
+            <div className={styles.importCastMappingSlot}>
+              {castInputType === 'separate' ? (
+                <>
+                  <div className={styles.importMappingRow}>
+                    <span className={styles.importMappingLabel}>希望キャスト 1</span>
+                    <div className={styles.importMappingControl}>
+                      <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="カラムを選択" />
+                    </div>
+                  </div>
+                  <div className={styles.importMappingRow}>
+                    <span className={styles.importMappingLabel}>希望キャスト 2</span>
+                    <div className={styles.importMappingControl}>
+                      <AppSelect value={sv(mapping.cast2)} onValueChange={setCol('cast2')} options={columnOptions} placeholder="カラムを選択" />
+                    </div>
+                  </div>
+                  <div className={styles.importMappingRow}>
+                    <span className={styles.importMappingLabel}>希望キャスト 3</span>
+                    <div className={styles.importMappingControl}>
+                      <AppSelect value={sv(mapping.cast3)} onValueChange={setCol('cast3')} options={columnOptions} placeholder="カラムを選択" />
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className={styles.importMappingRow}>
-                  <span className={styles.importMappingLabel}>希望キャスト 1</span>
+                  <span className={styles.importMappingLabel}>希望キャスト列</span>
                   <div className={styles.importMappingControl}>
                     <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="カラムを選択" />
                   </div>
                 </div>
-                <div className={styles.importMappingRow}>
-                  <span className={styles.importMappingLabel}>希望キャスト 2</span>
-                  <div className={styles.importMappingControl}>
-                    <AppSelect value={sv(mapping.cast2)} onValueChange={setCol('cast2')} options={columnOptions} placeholder="カラムを選択" />
-                  </div>
-                </div>
-                <div className={styles.importMappingRow}>
-                  <span className={styles.importMappingLabel}>希望キャスト 3</span>
-                  <div className={styles.importMappingControl}>
-                    <AppSelect value={sv(mapping.cast3)} onValueChange={setCol('cast3')} options={columnOptions} placeholder="カラムを選択" />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className={styles.importMappingRow}>
-                <span className={styles.importMappingLabel}>希望キャスト列</span>
-                <div className={styles.importMappingControl}>
-                  <AppSelect value={sv(mapping.cast1)} onValueChange={setCol('cast1')} options={columnOptions} placeholder="カラムを選択" />
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
             <div className={styles.importCastFormatRow}>
               <span className={styles.importCastFormatLabel}>希望キャスト形式:</span>
@@ -277,9 +290,19 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
         <div className={styles.importPreviewEmpty}>TSV を選択するとプレビューが表示されます</div>
       ) : (
         <div className={styles.importPreviewSection}>
-          <div className={styles.importSectionHeader}>
-            プレビュー
-            <span className={styles.importPreviewCount}>先頭 {Math.min(PREVIEW_MAX, rows.length)} 件</span>
+          <div className={`${styles.importSectionHeader} ${styles.importPreviewHeader}`}>
+            <div className={styles.importPreviewHeaderMain}>
+              プレビュー
+              <span className={styles.importPreviewCount}>先頭 {Math.min(PREVIEW_MAX, rows.length)} 件</span>
+            </div>
+            <button
+              type="button"
+              className={`${shared.btnSecondary} ${styles.importRawColumnsBtn}`}
+              onClick={() => setRawColumnsOpen(true)}
+            >
+              <Sheet size={13} />
+              全列を表示
+            </button>
           </div>
 
           <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ maxHeight: 220 }}>
@@ -288,11 +311,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                 <tr>
                   <th>ユーザー名</th>
                   <th>X ID</th>
-                  {castInputType === 'comma' ? (
-                    <th>希望キャスト</th>
-                  ) : (
-                    [1, 2, 3].map((n) => <th key={n}>希望 {n}</th>)
-                  )}
+                  {[1, 2, 3].map((n) => <th key={n}>希望 {n}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -307,17 +326,11 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                         <span className={styles.importCellWarn}>空</span>
                       )}
                     </td>
-                    {castInputType === 'comma' ? (
-                      <td title={u.casts.join(', ')}>
-                        {u.casts.join(', ') || <span className={styles.importCellEmpty}>—</span>}
+                    {[0, 1, 2].map((i) => (
+                      <td key={i} title={u.casts[i] ?? ''}>
+                        {u.casts[i] || <span className={styles.importCellEmpty}>—</span>}
                       </td>
-                    ) : (
-                      [0, 1, 2].map((i) => (
-                        <td key={i}>
-                          {u.casts[i] || <span className={styles.importCellEmpty}>—</span>}
-                        </td>
-                      ))
-                    )}
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -353,6 +366,51 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {rows && rawColumnsOpen && (
+        <AppDialog
+          open={rawColumnsOpen}
+          onOpenChange={setRawColumnsOpen}
+          title="TSV全列"
+          showClose
+          className={styles.importRawModal}
+          contentStyle={{ width: 'min(1120px, calc(100vw - 48px))', maxWidth: '1120px' }}
+        >
+          <div className={styles.importRawModalMeta}>
+            <span>{rawColumnIndexes.length} 列</span>
+            <span>{rows.length} 件</span>
+          </div>
+          <div className={`${styles.importRawTableScroll} ${shared.customScrollbar}`}>
+            <table className={styles.importRawTable}>
+              <thead>
+                <tr>
+                  <th className={styles.importRawRowIndex}>#</th>
+                  {rawColumnIndexes.map((columnIndex) => (
+                    <th key={columnIndex} title={getHeaderLabel(columnIndex)}>
+                      {columnIndex + 1}: {getHeaderLabel(columnIndex)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    <th className={styles.importRawRowIndex} scope="row">{rowIndex + 1}</th>
+                    {rawColumnIndexes.map((columnIndex) => {
+                      const cell = row[columnIndex] ?? '';
+                      return (
+                        <td key={columnIndex} title={cell}>
+                          {cell || <span className={styles.importCellEmpty}>—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AppDialog>
       )}
     </div>
   );

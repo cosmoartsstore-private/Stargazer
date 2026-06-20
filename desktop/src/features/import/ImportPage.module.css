@@ -6,6 +6,8 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  --import-mapping-row-height: 57px;
+  --import-cast-mapping-slot-height: 171px;
 }
 
 /* ── Section header ── */
@@ -13,6 +15,7 @@
 .import-section-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   font-size: 12px;
   font-weight: 700;
@@ -84,14 +87,32 @@
   margin-bottom: 0;
 }
 
-/* 希望キャスト形式は、マッピング表の補助設定として末尾にまとめる。 */
+/* 希望キャスト形式の切替で行数が変わっても、下のプレビュー位置を固定する。 */
+
+.import-cast-mapping-slot {
+  height: var(--import-cast-mapping-slot-height);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.import-cast-mapping-slot .import-mapping-row {
+  min-height: var(--import-mapping-row-height);
+}
+
+.import-cast-mapping-slot .import-mapping-row:first-child {
+  padding-top: 10px;
+}
+
+.import-cast-mapping-slot .import-mapping-row:last-child {
+  padding-bottom: 10px;
+  border-bottom: none;
+}
 
 .import-cast-format-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 11px 0 0;
-  border-top: 1px solid var(--border-default);
 }
 
 .import-cast-format-label {
@@ -223,8 +244,31 @@
   border-radius: 4px;
 }
 
+.import-preview-header {
+  align-items: center;
+}
+
+.import-preview-header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.import-raw-columns-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .import-preview-table {
   font-size: 12px;
+  table-layout: fixed;
+  width: 100%;
 }
 
 .import-preview-table th {
@@ -252,6 +296,98 @@
   color: var(--accent-warning, #faa61a);
   font-weight: 600;
   font-size: 11px;
+}
+
+.import-raw-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+}
+
+.import-raw-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.import-raw-modal-meta span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-panel-muted);
+}
+
+.import-raw-table-scroll {
+  min-height: 220px;
+  max-height: min(68vh, 620px);
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-panel);
+}
+
+.import-raw-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.import-raw-table th,
+.import-raw-table td {
+  max-width: 220px;
+  min-width: 120px;
+  padding: 7px 10px;
+  border-right: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-raw-table th {
+  color: var(--text-heading);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  background: var(--surface-panel-muted);
+}
+
+.import-raw-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.import-raw-table tr:last-child th,
+.import-raw-table tr:last-child td {
+  border-bottom: none;
+}
+
+.import-raw-table th:last-child,
+.import-raw-table td:last-child {
+  border-right: none;
+}
+
+.import-raw-row-index {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 52px;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  color: var(--text-muted) !important;
+  text-align: right !important;
+  background: var(--surface-panel-muted) !important;
+}
+
+.import-raw-table thead .import-raw-row-index {
+  z-index: 3;
 }
 
 /* ── Footer (validation + submit) ── */
@@ -298,9 +434,24 @@
 /* ── Responsive ── */
 
 @media (max-width: 640px) {
+  .import-flow {
+    --import-mapping-row-height: 78px;
+    --import-cast-mapping-slot-height: 234px;
+  }
+
   .import-mapping-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .import-preview-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .import-raw-columns-btn {
+    justify-content: center;
+    width: 100%;
   }
 
   .import-cast-format-row {
