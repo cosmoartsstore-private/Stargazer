@@ -786,6 +786,12 @@
    Responsive
    ======================================== */
 
+@media (max-width: 1180px) {
+  .workflow-condition-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1050px) {
   .lottery-page-container {
     height: auto !important;
@@ -816,10 +822,6 @@
 
   .workflow-two-pane__side {
     position: static;
-  }
-
-  .workflow-condition-layout {
-    grid-template-columns: 1fr;
   }
 }
 
