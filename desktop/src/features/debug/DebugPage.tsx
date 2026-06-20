@@ -55,7 +55,7 @@ const QUICK_QUERIES: { label: string; sql: string; scope: DbScope }[] = [
 
 // ── Table renderer ────────────────────────────────────────────────────────────
 function RowTable({ rows }: { rows: Record<string, unknown>[] }) {
-  if (rows.length === 0) return <p style={{ color: 'var(--discord-text-muted)', fontSize: 12, margin: '6px 0' }}>(0 件)</p>;
+  if (rows.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '6px 0' }}>(0 件)</p>;
   const cols = Object.keys(rows[0]);
   return (
     <div style={{ overflowX: 'auto', maxHeight: 320 }} className={shared.customScrollbar}>
@@ -63,7 +63,7 @@ function RowTable({ rows }: { rows: Record<string, unknown>[] }) {
         <thead>
           <tr>
             {cols.map((col) => (
-              <th key={col} style={{ padding: '4px 10px', background: 'var(--discord-bg-tertiary)', border: '1px solid var(--discord-border)', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--discord-text-muted)' }}>
+              <th key={col} style={{ padding: '4px 10px', background: 'var(--surface-panel-elevated)', border: '1px solid var(--border-default)', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
                 {col}
               </th>
             ))}
@@ -71,14 +71,14 @@ function RowTable({ rows }: { rows: Record<string, unknown>[] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? 'var(--discord-bg-secondary)' : 'var(--discord-bg-dark)' }}>
+            <tr key={i} style={{ background: i % 2 === 0 ? 'var(--surface-panel-muted)' : 'var(--surface-panel)' }}>
               {cols.map((col) => {
                 const val = row[col];
-                const display = val === null ? <span style={{ color: 'var(--discord-text-muted)' }}>NULL</span>
+                const display = val === null ? <span style={{ color: 'var(--text-muted)' }}>NULL</span>
                   : typeof val === 'string' && val.length > 80 ? <span title={val}>{val.slice(0, 80)}…</span>
                   : String(val);
                 return (
-                  <td key={col} style={{ padding: '3px 10px', border: '1px solid var(--discord-border)', whiteSpace: 'nowrap', color: 'var(--discord-text-normal)' }}>
+                  <td key={col} style={{ padding: '3px 10px', border: '1px solid var(--border-default)', whiteSpace: 'nowrap', color: 'var(--text-default)' }}>
                     {display}
                   </td>
                 );
@@ -96,27 +96,27 @@ function TableCard({ data }: { data: TableData }) {
   const [open, setOpen] = useState(false);
   const count = data.rows.length;
   return (
-    <div style={{ border: '1px solid var(--discord-border)', borderRadius: 6, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--border-default)', borderRadius: 6, overflow: 'hidden' }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 12px', background: 'var(--discord-bg-secondary)', cursor: 'pointer',
-          border: 'none', color: 'var(--discord-text-normal)', fontSize: 13, fontFamily: 'monospace',
+          padding: '8px 12px', background: 'var(--surface-panel-muted)', cursor: 'pointer',
+          border: 'none', color: 'var(--text-default)', fontSize: 13, fontFamily: 'monospace',
         }}
       >
         <span>{data.name}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {data.error
             ? <span style={{ color: '#f04747', fontSize: 11 }}>ERR</span>
-            : <span style={{ background: count > 0 ? 'var(--discord-brand)' : 'var(--discord-bg-tertiary)', color: 'var(--discord-text-normal)', borderRadius: 10, padding: '1px 8px', fontSize: 11 }}>{count}</span>
+            : <span style={{ background: count > 0 ? 'var(--accent-primary)' : 'var(--surface-panel-elevated)', color: 'var(--text-default)', borderRadius: 10, padding: '1px 8px', fontSize: 11 }}>{count}</span>
           }
           <span style={{ fontSize: 16 }}>{open ? '▾' : '▸'}</span>
         </span>
       </button>
       {open && (
-        <div style={{ padding: '8px 12px', background: 'var(--discord-bg-dark)' }}>
+        <div style={{ padding: '8px 12px', background: 'var(--surface-panel)' }}>
           {data.error
             ? <p style={{ color: '#f04747', fontSize: 12 }}>{data.error}</p>
             : <RowTable rows={data.rows} />
@@ -233,8 +233,8 @@ export const DebugPage: React.FC = () => {
   ];
 
   const preStyle: React.CSSProperties = {
-    background: 'var(--discord-bg-secondary)',
-    border: '1px solid var(--discord-border)',
+    background: 'var(--surface-panel-muted)',
+    border: '1px solid var(--border-default)',
     borderRadius: 6,
     padding: 12,
     fontSize: 11,
@@ -242,7 +242,7 @@ export const DebugPage: React.FC = () => {
     overflowX: 'auto',
     overflowY: 'auto',
     maxHeight: 500,
-    color: 'var(--discord-text-normal)',
+    color: 'var(--text-default)',
     whiteSpace: 'pre',
     margin: 0,
   };
@@ -273,13 +273,13 @@ export const DebugPage: React.FC = () => {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
         {Object.entries(sessionState).map(([k, v]) => (
           <span key={k} style={{
-            background: 'var(--discord-bg-secondary)',
-            border: '1px solid var(--discord-border)',
+            background: 'var(--surface-panel-muted)',
+            border: '1px solid var(--border-default)',
             borderRadius: 4,
             padding: '2px 8px',
             fontSize: 11,
             fontFamily: 'monospace',
-            color: v === null ? 'var(--discord-text-muted)' : v === false ? '#f04747' : v === true ? '#43b581' : 'var(--discord-text-normal)',
+            color: v === null ? 'var(--text-muted)' : v === false ? '#f04747' : v === true ? '#43b581' : 'var(--text-default)',
           }}>
             {k}: <strong>{v === null ? 'null' : String(v)}</strong>
           </span>
@@ -302,7 +302,7 @@ export const DebugPage: React.FC = () => {
                 {dbLoading ? '読込中...' : '再読込'}
               </button>
             </div>
-            {dbLoading && <p style={{ color: 'var(--discord-text-muted)', fontSize: 13 }}>読込中...</p>}
+            {dbLoading && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>読込中...</p>}
             {tableData.map((td) => <TableCard key={td.name} data={td} />)}
           </div>
         )}
@@ -311,7 +311,7 @@ export const DebugPage: React.FC = () => {
         {activeTab === 'sql' && (
           <div style={{ display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
-              <span style={{ color: 'var(--discord-text-muted)' }}>対象 DB:</span>
+              <span style={{ color: 'var(--text-muted)' }}>対象 DB:</span>
               {(['shared', 'session'] as DbScope[]).map((s) => (
                 <button
                   key={s}
@@ -357,13 +357,13 @@ export const DebugPage: React.FC = () => {
                 {sqlRunning ? '...' : '実行'}
               </button>
             </div>
-            <p style={{ fontSize: 11, color: 'var(--discord-text-muted)' }}>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               Ctrl/Cmd + Enter で実行。SELECT / PRAGMA / WITH 以外は execute として処理。
             </p>
             {sqlError && <p style={{ color: '#f04747', fontSize: 12 }}>{sqlError}</p>}
             {sqlResults !== null && (
               <>
-                <p style={{ fontSize: 11, color: 'var(--discord-text-muted)' }}>{sqlResults.length} 行</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sqlResults.length} 行</p>
                 <RowTable rows={sqlResults} />
               </>
             )}
@@ -373,14 +373,14 @@ export const DebugPage: React.FC = () => {
         {/* ── Schema ── */}
         {activeTab === 'schema' && (
           <div style={{ display: 'grid', gap: 8 }}>
-            {schemaRows === null && <p style={{ color: 'var(--discord-text-muted)', fontSize: 13 }}>読込中...</p>}
+            {schemaRows === null && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>読込中...</p>}
             {schemaRows?.map((row) => (
-              <div key={String(row.name)} style={{ border: '1px solid var(--discord-border)', borderRadius: 6, overflow: 'hidden' }}>
-                <div style={{ padding: '6px 12px', background: 'var(--discord-bg-secondary)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 10, color: 'var(--discord-text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{String(row.type)}</span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--discord-text-normal)' }}>{String(row.name)}</span>
+              <div key={String(row.name)} style={{ border: '1px solid var(--border-default)', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ padding: '6px 12px', background: 'var(--surface-panel-muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{String(row.type)}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--text-default)' }}>{String(row.name)}</span>
                 </div>
-                <pre style={{ ...preStyle, borderRadius: 0, border: 'none', borderTop: '1px solid var(--discord-border)', maxHeight: 160 }}>
+                <pre style={{ ...preStyle, borderRadius: 0, border: 'none', borderTop: '1px solid var(--border-default)', maxHeight: 160 }}>
                   {String(row.sql)}
                 </pre>
               </div>

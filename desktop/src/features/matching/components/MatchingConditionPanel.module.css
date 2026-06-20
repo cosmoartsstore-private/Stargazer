@@ -2,9 +2,9 @@
   display: grid;
   gap: 16px;
   padding: 14px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .condition-header {
@@ -31,20 +31,20 @@
   min-width: 0;
   min-height: 66px;
   padding: 10px 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
 .condition-summary-label {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
 
 .condition-summary-value {
   min-width: 0;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 15px;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -56,7 +56,7 @@
 
 .condition-summary-note {
   margin: 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -74,32 +74,32 @@
   justify-content: center;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background: var(--surface-panel);
+  color: var(--text-default);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
 }
 
 .option-button span {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 600;
 }
 
 .option-button:hover:not(:disabled) {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .option-button--selected {
-  background: var(--discord-bg-selected);
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  border-color: var(--accent-primary);
+  color: var(--text-heading);
 }
 
 .option-button:disabled {

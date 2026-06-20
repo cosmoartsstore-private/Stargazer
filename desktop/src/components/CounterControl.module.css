@@ -4,9 +4,9 @@
   align-items: stretch;
   width: min(180px, 100%);
   min-height: 38px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   overflow: hidden;
 }
 
@@ -19,8 +19,8 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  background: var(--discord-bg-secondary);
-  color: var(--discord-text-header);
+  background: var(--surface-panel-muted);
+  color: var(--text-heading);
   font: inherit;
   font-size: 18px;
   font-weight: 800;
@@ -30,16 +30,16 @@
 }
 
 .counter-button:first-child {
-  border-right: 1px solid var(--discord-border);
+  border-right: 1px solid var(--border-default);
 }
 
 .counter-button:last-child {
-  border-left: 1px solid var(--discord-border);
+  border-left: 1px solid var(--border-default);
 }
 
 .counter-button:hover:not(:disabled) {
-  background: var(--discord-bg-hover);
-  color: var(--discord-accent-blue);
+  background: var(--surface-hover);
+  color: var(--accent-primary);
 }
 
 .counter-button:disabled {
@@ -53,7 +53,7 @@
   justify-content: center;
   min-width: 0;
   padding: 0 10px;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 16px;
   font-weight: 800;
   line-height: 1;
@@ -62,5 +62,5 @@
 }
 
 .counter-value:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--discord-accent-blue);
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
 }

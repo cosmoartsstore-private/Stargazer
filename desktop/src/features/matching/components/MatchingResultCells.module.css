@@ -25,7 +25,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
@@ -87,13 +87,13 @@
 .match-chip-outside {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.14);
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .match-chip-ng {
   background: rgba(237, 66, 69, 0.16);
   border-color: rgba(237, 66, 69, 0.45);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
 }
 
 .applicant-assignment-list {
@@ -124,7 +124,7 @@
 }
 
 .applicant-assignment-id {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -165,17 +165,17 @@
 .applicant-assignment-outside {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.12);
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .applicant-assignment-ng {
   background: rgba(237, 66, 69, 0.16);
   border-color: rgba(237, 66, 69, 0.45);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
 }
 
 .cast-result-empty {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 

@@ -1,6 +1,6 @@
 /* ========================================
-   CastManagementPage – CSS Module
-   Merged from: cast.css, cast-modern.css, cast-detail.css
+   CastManagementPage CSS Module
+   キャスト一覧、詳細プロフィール、連絡先編集を扱う。
    ======================================== */
 
 /* ========================================
@@ -13,8 +13,8 @@
   gap: 16px;
   margin-bottom: 24px;
   padding: 16px 20px;
-  background-color: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   font-size: 13px;
 }
@@ -35,7 +35,7 @@
 }
 
 .cast-presence-summary__col--absent .cast-presence-summary__label {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .cast-presence-summary__list {
@@ -72,20 +72,20 @@
 }
 
 .cast-presence-summary__chip--absent {
-  background-color: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background-color: var(--surface-panel);
+  color: var(--text-default);
   border-color: transparent;
 }
 
 .cast-presence-summary__empty {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .cast-presence-summary__hint {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin: -16px 0 20px 0;
   padding: 0 4px;
 }
@@ -107,8 +107,8 @@
 }
 
 .cast-card {
-  background-color: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -131,7 +131,7 @@
 
 .cast-card__name {
   font-weight: 600;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 16px;
 }
 
@@ -142,11 +142,11 @@
 }
 
 .cast-card__status-dot--present {
-  background-color: var(--discord-accent-green);
+  background-color: var(--accent-success);
 }
 
 .cast-card__status-dot--absent {
-  background-color: var(--discord-accent-red);
+  background-color: var(--accent-danger);
 }
 
 .cast-card__presence-button {
@@ -160,11 +160,11 @@
 }
 
 .cast-card__presence-button--present {
-  background-color: var(--discord-accent-green);
+  background-color: var(--accent-success);
 }
 
 .cast-card__presence-button--absent {
-  background-color: var(--discord-accent-red);
+  background-color: var(--accent-danger);
 }
 
 /* ─── Lit.Link 風リンクカード ─── */
@@ -187,16 +187,16 @@
 }
 
 .litlink__item:focus-within {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.25);
 }
 
 .litlink__item:has(.litlink__input--error) {
-  border-color: var(--discord-accent-red);
+  border-color: var(--accent-danger);
 }
 
 .litlink__item:has(.litlink__input--error):focus-within {
-  border-color: var(--discord-accent-red);
+  border-color: var(--accent-danger);
   box-shadow: 0 0 0 2px rgba(237, 66, 69, 0.25);
 }
 
@@ -228,26 +228,26 @@
   width: 100%;
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 12px;
   padding: 8px 10px;
   outline: none;
 }
 
 .litlink__input::placeholder {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   opacity: 0.6;
 }
 
 .litlink__input--error {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
 }
 
 .litlink__input--error~.litlink__validation-error,
 .litlink__validation-error {
   display: block;
   font-size: 10px;
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   padding: 0 10px 6px;
   line-height: 1.2;
 }
@@ -263,7 +263,7 @@
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.08);
-  color: var(--discord-text-link);
+  color: var(--text-link);
   cursor: pointer;
   transition: background 0.17s ease, color 0.17s ease;
 }
@@ -332,15 +332,15 @@
   border-radius: 999px;
   border: 1px dashed rgba(255, 255, 255, 0.15);
   background: transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   transition: border-color 0.17s ease, color 0.17s ease, background-color 0.17s ease;
 }
 
 .litlink__add:hover {
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
   background: rgba(88, 101, 242, 0.06);
 }
 
@@ -353,7 +353,7 @@
 
 .cast-card__ng-label {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -361,7 +361,7 @@
 .cast-card__delete-button {
   border: none;
   background-color: transparent;
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 11px;
   cursor: pointer;
   text-decoration: underline;
@@ -376,7 +376,7 @@
 
 .cast-card__ng-chip {
   font-size: 12px;
-  background-color: var(--discord-accent-red);
+  background-color: var(--accent-danger);
   color: #fff;
   padding: 4px 10px;
   border-radius: 16px;
@@ -387,7 +387,7 @@
 
 .cast-card__ng-chip-remove {
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
   line-height: 1;
 }
@@ -405,7 +405,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  background-color: var(--discord-accent-red);
+  background-color: var(--accent-danger);
   color: #fff;
   padding: 4px 10px;
   border-radius: 16px;
@@ -415,14 +415,14 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
   line-height: 1;
   padding: 0;
 }
 
 .ng-list__chip-remove:hover {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
 }
 
 /* キャスト別NG一覧：チップ形式 */
@@ -438,8 +438,8 @@
   align-items: flex-start;
   gap: 10px;
   padding: 8px 12px;
-  background-color: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
 }
 
@@ -447,7 +447,7 @@
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   min-width: 80px;
   padding-top: 4px;
 }
@@ -472,18 +472,18 @@
   display: flex;
   gap: 12px;
   align-items: stretch;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .cast-add-form-input-wrapper {
   display: flex;
   align-items: center;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 0 12px;
   flex: 1;
@@ -491,18 +491,18 @@
 }
 
 .cast-add-form-input-wrapper:focus-within {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-add-form-icon {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-right: 8px;
 }
 
 .cast-add-form-input {
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 14px;
   width: 100%;
   outline: none;
@@ -518,8 +518,8 @@
 .cast-search-container {
   display: flex;
   align-items: center;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 8px 12px;
   max-width: 320px;
@@ -528,18 +528,18 @@
 }
 
 .cast-search-container:focus-within {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-search-icon {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-right: 8px;
 }
 
 .cast-search-input {
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 14px;
   width: 100%;
   outline: none;
@@ -554,7 +554,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -572,9 +572,9 @@
   gap: 8px;
   margin-bottom: 10px;
   padding: 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .cast-contact-quick-header {
@@ -585,13 +585,13 @@
 }
 
 .cast-contact-quick-header span {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 12px;
   font-weight: 700;
 }
 
 .cast-contact-quick-header small {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -610,7 +610,7 @@
 
 .cast-contact-site-label {
   flex-shrink: 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -631,9 +631,9 @@
   min-height: 44px;
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid var(--discord-border);
-  background: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -641,8 +641,8 @@
 }
 
 .cast-contact-quick-btn:hover {
-  background: var(--discord-bg-hover);
-  border-color: var(--discord-accent-blue);
+  background: var(--surface-hover);
+  border-color: var(--accent-primary);
 }
 
 .cast-contact-site-btn {
@@ -661,8 +661,8 @@
   height: 22px;
   flex-shrink: 0;
   border-radius: 5px;
-  background: var(--discord-button-secondary);
-  color: var(--discord-text-muted);
+  background: var(--button-secondary-bg);
+  color: var(--text-muted);
 }
 
 .cast-contact-quick-text {
@@ -681,7 +681,7 @@
 }
 
 .cast-contact-quick-text small {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 500;
 }
@@ -696,8 +696,8 @@
   display: flex;
   align-items: center;
   flex: 1;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 5px 8px;
   transition: border-color 0.15s, background 0.15s;
@@ -705,12 +705,12 @@
 }
 
 .cast-contact-input-wrap:focus-within {
-  background: var(--discord-bg-secondary);
-  border-color: var(--discord-accent-blue);
+  background: var(--surface-panel-muted);
+  border-color: var(--accent-primary);
 }
 
 .cast-contact-icon {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-right: 6px;
 }
 
@@ -722,14 +722,14 @@
   height: 22px;
   flex-shrink: 0;
   border-radius: 5px;
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-muted);
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
 }
 
-.cast-contact-marker--discord {
+.cast-contact-marker--external-chat {
   background: rgba(88, 101, 242, 0.18);
   color: #5865f2;
 }
@@ -741,17 +741,17 @@
 
 .cast-contact-marker--x {
   background: rgba(20, 20, 20, 0.18);
-  color: var(--discord-text-header);
+  color: var(--text-heading);
 }
 
 .cast-contact-marker--https {
   background: rgba(59, 165, 93, 0.14);
-  color: var(--discord-accent-green);
+  color: var(--accent-success);
 }
 
 .cast-contact-marker--text {
   background: rgba(237, 66, 69, 0.12);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
 }
 
 .cast-contact-input {
@@ -759,7 +759,7 @@
   min-width: 0;
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 12px;
   outline: none;
   padding-left: 8px;
@@ -778,12 +778,12 @@
 }
 
 .cast-contact-btn--open {
-  background: var(--discord-button-secondary);
-  color: var(--discord-text-link);
+  background: var(--button-secondary-bg);
+  color: var(--text-link);
 }
 
 .cast-contact-btn--open:hover {
-  background: var(--discord-button-secondary-hover);
+  background: var(--button-secondary-hover-bg);
 }
 
 .cast-contact-btn:disabled {
@@ -792,12 +792,12 @@
 }
 
 .cast-contact-btn--open:disabled:hover {
-  background: var(--discord-button-secondary);
+  background: var(--button-secondary-bg);
 }
 
 .cast-contact-btn--delete {
   background: rgba(237, 66, 69, 0.1);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
 }
 
 .cast-contact-btn--delete:hover {
@@ -811,10 +811,10 @@
   justify-content: center;
   width: 100%;
   padding: 9px;
-  border: 1px dashed var(--discord-border);
+  border: 1px dashed var(--border-default);
   border-radius: 6px;
   background: transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -823,8 +823,8 @@
 
 .cast-contact-add-btn:hover {
   background: rgba(88, 101, 242, 0.06);
-  color: var(--discord-accent-blue);
-  border-color: var(--discord-accent-blue);
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
 }
 
 /* ========================================
@@ -836,22 +836,22 @@
   width: 110px;
   padding: 2px 6px;
   font-size: 11px;
-  background: var(--discord-bg-secondary);
-  border: 1px dashed var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px dashed var(--border-default);
   border-radius: 4px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   outline: none;
   transition: border-color 0.15s, color 0.15s;
 }
 
 .cast-card__group-input:focus {
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-text-normal);
+  border-color: var(--accent-primary);
+  color: var(--text-default);
   border-style: solid;
 }
 
 .cast-card__group-input:not(:placeholder-shown) {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   border-style: solid;
 }
 
@@ -862,8 +862,8 @@
 .cast-view-toggle {
   display: flex;
   gap: 2px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 3px;
   margin-left: auto;
@@ -878,7 +878,7 @@
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -886,13 +886,13 @@
 }
 
 .cast-view-toggle__btn:hover {
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-normal);
+  background: var(--surface-hover);
+  color: var(--text-default);
 }
 
 .cast-view-toggle__btn--active {
-  background: var(--discord-bg-selected);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  color: var(--text-heading);
   font-weight: 600;
   cursor: default;
 }
@@ -908,12 +908,12 @@
   align-items: start;
 }
 
-/* ── List panel (left) ── */
+/* 左側のキャスト一覧パネル */
 .cast-list-panel {
   display: flex;
   flex-direction: column;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
   height: calc(100vh - 270px);
@@ -926,19 +926,19 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-dark);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
 }
 
 .cast-list-panel__search-icon {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .cast-list-panel__search-input {
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 13px;
   width: 100%;
   outline: none;
@@ -953,7 +953,7 @@
 .cast-list-panel__empty {
   padding: 24px 16px;
   text-align: center;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -968,17 +968,17 @@
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   transition: background 0.12s, color 0.12s;
 }
 
 .cast-list-item:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .cast-list-item--selected {
-  background: var(--discord-bg-selected);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  color: var(--text-heading);
 }
 
 .cast-list-item__dot {
@@ -989,11 +989,11 @@
 }
 
 .cast-list-item__dot--present {
-  background: var(--discord-accent-green);
+  background: var(--accent-success);
 }
 
 .cast-list-item__dot--absent {
-  background: var(--discord-text-muted);
+  background: var(--text-muted);
 }
 
 .cast-list-item__info {
@@ -1004,7 +1004,7 @@
 .cast-list-item__name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1012,7 +1012,7 @@
 
 .cast-list-item__group {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
@@ -1020,9 +1020,9 @@
 }
 
 .cast-list-panel__add {
-  border-top: 1px solid var(--discord-border);
+  border-top: 1px solid var(--border-default);
   padding: 8px 10px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .cast-list-panel__add-row {
@@ -1033,10 +1033,10 @@
 
 .cast-list-panel__add-input {
   flex: 1;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 12px;
   padding: 6px 8px;
   outline: none;
@@ -1045,7 +1045,7 @@
 }
 
 .cast-list-panel__add-input:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-list-panel__add-btn {
@@ -1066,10 +1066,10 @@
   height: calc(100vh - 270px);
   min-height: 360px;
   max-height: 740px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   gap: 10px;
 }
@@ -1089,7 +1089,7 @@
 .cast-detail-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1100,8 +1100,8 @@
 
 /* パネル外枠：スクロール可能 */
 .cast-char-panel {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 24px;
   overflow-y: auto;
@@ -1175,22 +1175,22 @@
 }
 
 .cast-char-presence-btn--present {
-  background: var(--discord-accent-green);
-  border-color: var(--discord-accent-green);
+  background: var(--accent-success);
+  border-color: var(--accent-success);
   color: #fff;
 }
 
 .cast-char-presence-btn--absent {
-  background: var(--discord-bg-secondary);
-  border-color: var(--discord-text-muted);
-  color: var(--discord-text-muted);
+  background: var(--surface-panel-muted);
+  border-color: var(--text-muted);
+  color: var(--text-muted);
 }
 
 /* 2. 名前 ─ ゴーストinput、見出し風 */
 .cast-char-name-input {
   font-size: 26px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -1205,12 +1205,12 @@
 }
 
 .cast-char-name-input:hover {
-  border-color: var(--discord-border);
+  border-color: var(--border-default);
 }
 
 .cast-char-name-input:focus {
-  border-color: var(--discord-accent-blue);
-  background: var(--discord-bg-dark);
+  border-color: var(--accent-primary);
+  background: var(--surface-panel);
 }
 
 /* 3. 所属バッジ ─ 1個だけ、ピル型ゴーストinput */
@@ -1221,7 +1221,7 @@
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 3px 14px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   outline: none;
   font-family: inherit;
   text-align: center;
@@ -1232,19 +1232,19 @@
 }
 
 .cast-char-group-badge:hover {
-  border-color: var(--discord-border);
+  border-color: var(--border-default);
 }
 
 .cast-char-group-badge:focus {
-  border-color: var(--discord-accent-blue);
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  border-color: var(--accent-primary);
+  background: var(--surface-panel);
+  color: var(--text-default);
 }
 
 .cast-char-group-badge:not(:placeholder-shown) {
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-accent-blue);
-  background: var(--discord-bg-dark);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--surface-panel);
 }
 
 /* 4. 写真フレーム：左カラム内でポートレート */
@@ -1253,8 +1253,8 @@
   width: 100%;
   aspect-ratio: 9 / 16;
   border-radius: 10px;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -1265,7 +1265,7 @@
 }
 
 .cast-char-photo-frame:hover {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-char-photo-frame__img {
@@ -1273,7 +1273,7 @@
   height: 100%;
   object-fit: contain;
   display: block;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   image-rendering: auto;
 }
 
@@ -1283,7 +1283,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .cast-char-photo-frame__placeholder-icon {
@@ -1317,7 +1317,7 @@
 /* 罫線 */
 .cast-char-divider {
   height: 1px;
-  background: var(--discord-divider);
+  background: var(--border-divider);
   margin: 18px 0;
   width: 100%;
 }
@@ -1339,7 +1339,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   padding: 2px 4px;
   border-radius: 4px;
   display: inline-flex;
@@ -1349,8 +1349,8 @@
 }
 
 .cast-char-memo-edit-btn:hover {
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-hover);
+  color: var(--text-default);
+  background: var(--surface-hover);
 }
 
 /* 表示モード：枠なしのプレーンテキスト */
@@ -1358,7 +1358,7 @@
   box-sizing: border-box;
   font-size: 13px;
   line-height: 1.8;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -1374,11 +1374,11 @@
 }
 
 .cast-char-memo__text:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .cast-char-memo__text--empty {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -1388,10 +1388,10 @@
   height: 132px;
   min-height: 132px;
   box-sizing: border-box;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-accent-blue);
+  background: var(--surface-panel);
+  border: 1px solid var(--accent-primary);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 13px;
   line-height: 1.8;
   overflow-wrap: anywhere;
@@ -1404,7 +1404,7 @@
 }
 
 .cast-char-memo__textarea:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 /* 6. 連絡先（全幅） */
@@ -1420,7 +1420,7 @@
   padding: 8px 24px;
   border-radius: 6px;
   border: none;
-  background: var(--discord-accent-red);
+  background: var(--accent-danger);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -1453,13 +1453,13 @@
     min-height: unset;
   }
   .cast-char-profile-layout {
-    grid-template-columns: minmax(220px, 34%) 1fr;
+    grid-template-columns: 1fr;
     gap: 14px;
   }
 }
 
 /* ========================================
-   Skyblue theme overrides
+   Skyblue テーマ上書き
    ======================================== */
 
 :global([data-theme="skyblue"]) .cast-card__status-dot--present {

@@ -31,29 +31,29 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Erro
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: 'var(--discord-bg-main)',
-            color: 'var(--discord-text-normal)',
+            backgroundColor: 'var(--surface-page)',
+            color: 'var(--text-default)',
             padding: '24px',
           }}
         >
           <div
             style={{
-              backgroundColor: 'var(--discord-bg-dark)',
+              backgroundColor: 'var(--surface-panel)',
               borderRadius: 8,
               padding: '24px 32px',
-              border: '1px solid var(--discord-border)',
+              border: '1px solid var(--border-default)',
               maxWidth: 560,
               width: '100%',
               textAlign: 'left',
             }}
           >
-            <h1 style={{ fontSize: 20, marginBottom: 12, color: 'var(--discord-text-header)' }}>
+            <h1 style={{ fontSize: 20, marginBottom: 12, color: 'var(--text-heading)' }}>
               予期しないエラーが発生しました
             </h1>
-            <p style={{ fontSize: 14, color: 'var(--discord-text-muted)', marginBottom: 8 }}>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8 }}>
               画面を再読み込みしても解消しない場合は、スタッフまでお知らせください。
             </p>
-            <details style={{ fontSize: 12, color: 'var(--discord-text-muted)', marginTop: 12 }}>
+            <details style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
               <summary style={{ cursor: 'pointer' }}>エラー詳細</summary>
               <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', marginTop: 8 }}>
                 {message}

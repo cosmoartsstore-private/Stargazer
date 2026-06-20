@@ -132,7 +132,7 @@ export const TweetPage: React.FC = () => {
           </div>
           <div
             className={styles.tweetCharCount}
-            style={{ color: preview.length > 280 ? 'var(--discord-accent-red)' : 'var(--discord-text-muted)' }}
+            style={{ color: preview.length > 280 ? 'var(--accent-danger)' : 'var(--text-muted)' }}
           >
             {preview.length} 文字{preview.length > 280 ? '（Twitter上限超過）' : ''}
           </div>

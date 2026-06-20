@@ -63,9 +63,9 @@
   min-height: 480px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   overflow: hidden;
 }
 
@@ -83,18 +83,18 @@
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel-muted);
 }
 
 .workflow-column-header strong {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .workflow-column-header span {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -139,9 +139,9 @@
 .workflow-inline-card {
   min-height: 116px;
   padding: 16px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
 .workflow-inline-card__header {
@@ -162,7 +162,7 @@
   gap: 6px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .workflow-inline-card__winner-list {
@@ -178,10 +178,10 @@
   min-width: 0;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   border: 0;
   overflow: hidden;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -190,16 +190,16 @@
 .workflow-inline-card__winner-chip--more {
   cursor: pointer;
   font-weight: 700;
-  color: var(--discord-accent-blue);
+  color: var(--accent-primary);
 }
 
 .workflow-inline-card__winner-chip--more:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .workflow-inline-card__meta {
   margin-left: auto;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -217,10 +217,10 @@
   justify-content: center;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background: var(--surface-panel);
+  color: var(--text-default);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -230,13 +230,13 @@
 }
 
 .matching-type-option:hover:not(:disabled) {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .matching-type-option--selected {
-  background: var(--discord-bg-selected);
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  border-color: var(--accent-primary);
+  color: var(--text-heading);
 }
 
 .m003-settings-slot {
@@ -259,10 +259,10 @@
   justify-content: center;
   min-height: inherit;
   padding: 18px;
-  border: 1px dashed var(--discord-border);
+  border: 1px dashed var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-muted);
+  background: var(--surface-panel);
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.6;
@@ -282,10 +282,10 @@
   width: 132px;
   min-height: 38px;
   padding: 7px 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 999px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-muted);
+  background: var(--surface-panel);
+  color: var(--text-muted);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -302,7 +302,7 @@
   width: 34px;
   height: 18px;
   border-radius: 999px;
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
   flex-shrink: 0;
 }
 
@@ -314,13 +314,13 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--discord-text-muted);
+  background: var(--text-muted);
   transition: transform 0.12s, background 0.12s;
 }
 
 .workflow-switch--on {
-  border-color: var(--discord-accent-green);
-  color: var(--discord-text-header);
+  border-color: var(--accent-success);
+  color: var(--text-heading);
 }
 
 .workflow-switch--on .workflow-switch__knob {
@@ -329,7 +329,7 @@
 
 .workflow-switch--on .workflow-switch__knob::after {
   transform: translateX(16px);
-  background: var(--discord-accent-green);
+  background: var(--accent-success);
 }
 
 .same-day-slot-control {
@@ -339,7 +339,7 @@
 }
 
 .same-day-slot-control span {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -359,9 +359,9 @@
   gap: 14px;
   align-items: end;
   padding: 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
 .workflow-result-section {
@@ -402,7 +402,7 @@
   border: 1px solid rgba(237, 66, 69, 0.45);
   border-radius: 999px;
   background: rgba(237, 66, 69, 0.14);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -417,16 +417,16 @@
 
 .workflow-meta-card {
   padding: 14px 16px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
 .workflow-meta-card__label {
   display: block;
   margin-bottom: 6px;
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -440,9 +440,9 @@
 
 .matching-table-card {
   padding: 16px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .matching-table-card__title {
@@ -457,7 +457,7 @@
 
 .matching-table-card__item {
   padding-top: 12px;
-  border-top: 1px solid var(--discord-border);
+  border-top: 1px solid var(--border-default);
 }
 
 .matching-table-card__guest {
@@ -467,7 +467,7 @@
 .matching-table-card__id {
   margin-top: 2px;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .matching-table-card__casts {
@@ -477,11 +477,11 @@
 }
 
 .lottery-page-container {
-  /* used as a hook for media-query override */
+  /* メディアクエリで抽選ページ全体の高さを切り替えるためのフック */
 }
 
 .lottery-screen {
-  /* semantic wrapper */
+  /* 抽選ワークフロー全体をスクリーン単位で扱うためのラッパー */
 }
 
 /* ========================================
@@ -508,7 +508,7 @@
 .import-section-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -518,9 +518,9 @@
   align-items: center;
   justify-content: center;
   height: 140px;
-  border: 1px dashed var(--discord-border);
+  border: 1px dashed var(--border-default);
   border-radius: 8px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -558,11 +558,11 @@
 }
 
 .import-validation__ok {
-  color: var(--discord-text-success);
+  color: var(--text-success);
 }
 
 .import-validation__warn {
-  color: var(--discord-text-warning);
+  color: var(--text-warning);
 }
 
 /* ========================================
@@ -573,9 +573,9 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   overflow: hidden;
 }
 
@@ -583,18 +583,18 @@
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel-muted);
 }
 
 .lottery-validation-title-block strong {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .lottery-validation-title-block span {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -607,23 +607,23 @@
 }
 
 .lottery-validation-panel--danger {
-  /* semantic modifier */
+  /* エラー状態の見た目を追加するための拡張クラス */
 }
 
 .lottery-validation-panel--warning {
-  /* semantic modifier */
+  /* 警告状態の見た目を追加するための拡張クラス */
 }
 
 .lottery-validation-panel--normal {
-  /* semantic modifier */
+  /* 通常状態の見た目を追加するための拡張クラス */
 }
 
 .lottery-validation-header {
   display: flex;
   gap: 6px;
   padding: 6px 14px;
-  background: var(--discord-bg-secondary);
-  border-bottom: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border-bottom: 1px solid var(--border-default);
   user-select: none;
 }
 
@@ -637,10 +637,10 @@
   color: #fff;
 }
 
-.lottery-validation-badge--normal  { background: var(--discord-accent-green); }
-.lottery-validation-badge--warning { background: var(--discord-accent-yellow); color: #1a1000; }
-.lottery-validation-badge--error   { background: var(--discord-accent-red); }
-.lottery-validation-badge--info    { background: var(--discord-accent-blue); }
+.lottery-validation-badge--normal  { background: var(--accent-success); }
+.lottery-validation-badge--warning { background: var(--accent-warning); color: #1a1000; }
+.lottery-validation-badge--error   { background: var(--accent-danger); }
+.lottery-validation-badge--info    { background: var(--accent-primary); }
 
 .lottery-validation-content {
   padding: 12px 14px;
@@ -664,13 +664,13 @@
 .lottery-validation-empty-text {
   margin: 0;
   font-weight: 600;
-  color: var(--discord-text-success);
+  color: var(--text-success);
 }
 
 .lottery-validation-empty-subtext {
   margin: 0;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .lottery-validation-list {
@@ -692,17 +692,17 @@
 
 .lottery-validation-item--error {
   background: rgba(237, 66, 69, 0.15);
-  color: var(--discord-text-danger);
+  color: var(--text-danger);
 }
 
 .lottery-validation-item--warning {
   background: rgba(240, 178, 50, 0.12);
-  color: var(--discord-text-warning);
+  color: var(--text-warning);
 }
 
 .lottery-validation-item--info {
   background: rgba(88, 101, 242, 0.12);
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .lottery-validation-item-label {
@@ -713,7 +713,7 @@
 
 .lottery-action-bar {
   padding: 12px 14px;
-  border-top: 1px solid var(--discord-border);
+  border-top: 1px solid var(--border-default);
 }
 
 /* ========================================
@@ -741,10 +741,10 @@
   min-height: 82px;
   max-height: 82px;
   padding: 10px 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background: var(--surface-panel);
+  color: var(--text-default);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -752,13 +752,13 @@
 }
 
 .guaranteed-select-modal-list__item:hover {
-  background: var(--discord-bg-hover);
-  border-color: var(--discord-accent-blue);
+  background: var(--surface-hover);
+  border-color: var(--accent-primary);
 }
 
 .guaranteed-select-modal-list__item--selected {
   background: rgba(88, 101, 242, 0.14);
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
   box-shadow: inset 0 0 0 1px rgba(88, 101, 242, 0.28);
 }
 
@@ -767,14 +767,14 @@
   max-width: 100%;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-muted);
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 800;
 }
 
 .guaranteed-select-modal-list__item--selected .guaranteed-select-modal-list__check {
-  background: var(--discord-accent-blue);
+  background: var(--accent-primary);
   color: #fff;
 }
 
@@ -782,7 +782,7 @@
   min-width: 0;
   overflow: hidden;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -791,7 +791,7 @@
   min-width: 0;
   overflow: hidden;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

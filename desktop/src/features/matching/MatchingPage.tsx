@@ -245,7 +245,7 @@ export const MatchingPage: React.FC = () => {
                 総スコア {scoreSummary.totalScore} 点 / 平均 {scoreSummary.averageScore.toFixed(1)} 点 / 1位 {scoreSummary.firstChoiceCount} 件 / 2位 {scoreSummary.secondChoiceCount} 件 / 3位 {scoreSummary.thirdChoiceCount} 件 / 希望外 {scoreSummary.unpreferredCount} 件
               </p>
               {scoreSummary.ngWarningCount > 0 && (
-                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(237, 66, 69, 0.14)', color: 'var(--discord-text-danger)' }}>
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(237, 66, 69, 0.14)', color: 'var(--text-danger)' }}>
                   ※NGのマッチングがあります。可能な限り修正してください。
                 </div>
               )}
@@ -288,7 +288,7 @@ export const MatchingPage: React.FC = () => {
         <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
           <table className={styles.matchingResultTable} style={{ minWidth: castResultTableMinWidth }}>
             <thead>
-              <tr style={{ backgroundColor: 'var(--discord-bg-secondary)' }}>
+              <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
                 <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__cast}`}>キャスト</th>
                 {castResultColumnKeys.map((columnKey) => (
                   <th key={columnKey ?? 'none'} className={shared.tableHeaderCell}>{getCastResultColumnLabel(columnKey)}</th>
@@ -337,7 +337,7 @@ export const MatchingPage: React.FC = () => {
           <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
             <table className={`${styles.matchingResultTable} ${styles.matchingTableResultTable}`}>
               <thead>
-                <tr style={{ backgroundColor: 'var(--discord-bg-secondary)' }}>
+                <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
                   <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__table}`}>テーブル</th>
                   <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__seat}`}>席</th>
                   <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__guest}`}>応募者</th>

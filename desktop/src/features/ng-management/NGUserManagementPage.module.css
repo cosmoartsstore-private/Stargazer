@@ -15,8 +15,8 @@
 }
 
 .ng-page__section {
-  background-color: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   padding: 20px;
 }
@@ -28,13 +28,13 @@
 .ng-page__section-title {
   font-size: 16px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   margin: 0 0 4px 0;
 }
 
 .ng-page__section-desc {
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
 }
@@ -47,8 +47,8 @@
   max-width: 100%;
   padding: 4px;
   margin-bottom: 18px;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow-x: auto;
@@ -60,7 +60,7 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -69,13 +69,13 @@
 }
 
 .ng-sub-tab:hover {
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-hover);
+  color: var(--text-default);
+  background: var(--surface-hover);
 }
 
 .ng-sub-tab-active {
-  color: var(--discord-text-header);
-  background: var(--discord-bg-secondary);
+  color: var(--text-heading);
+  background: var(--surface-panel-muted);
   border-color: rgba(255, 255, 255, 0.18);
   font-weight: 700;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -83,7 +83,7 @@
 
 .ng-page__empty-note {
   font-size: 14px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-align: center;
   padding: 16px 0;
 }
@@ -151,12 +151,12 @@
 }
 
 .ng-page__badge--manual {
-  background-color: var(--discord-accent-blue);
+  background-color: var(--accent-primary);
   color: #fff;
 }
 
 .ng-page__badge--auto {
-  background-color: var(--discord-accent-green);
+  background-color: var(--accent-success);
   color: #fff;
 }
 
@@ -167,7 +167,7 @@
   border-radius: 4px;
   background: transparent;
   border: 1px solid rgba(237, 66, 69, 0.3);
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -194,15 +194,15 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  background-color: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background-color: var(--surface-panel);
+  color: var(--text-default);
   padding: 6px 12px;
   border-radius: 8px;
   transition: background-color 0.12s;
 }
 
 .ng-page__exception-chip:hover {
-  background-color: var(--discord-bg-hover);
+  background-color: var(--surface-hover);
 }
 
 .ng-page__exception-chip-text {
@@ -213,14 +213,14 @@
 
 .ng-page__exception-chip-id {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .ng-page__exception-chip-remove {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 18px;
   line-height: 1;
   padding: 0 2px;
@@ -229,7 +229,7 @@
 }
 
 .ng-page__exception-chip-remove:hover {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   background-color: rgba(237, 66, 69, 0.15);
 }
 
@@ -246,7 +246,7 @@
 
 .caution-threshold-label {
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -267,21 +267,21 @@
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--discord-bg-main);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-page);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   transition: background 0.12s, border-color 0.12s;
 }
 
 .caution-candidate-card:hover {
-  background: var(--discord-bg-hover);
-  border-color: var(--discord-accent-blue);
+  background: var(--surface-hover);
+  border-color: var(--accent-primary);
 }
 
 .caution-candidate-id {
   font-size: 13px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,16 +298,16 @@
   display: inline-block;
   padding: 4px 8px;
   border-radius: 6px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  color: var(--text-default);
+  border: 1px solid var(--border-default);
   font-size: 13px;
   font-weight: 700;
 }
 
 .caution-candidate-noname {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -323,7 +323,7 @@
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -354,7 +354,7 @@
   text-align: center;
   padding: 3px 7px;
   border-radius: 999px;
-  background: var(--discord-accent-red);
+  background: var(--accent-danger);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -370,7 +370,7 @@
   padding: 32px 0;
   text-align: center;
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 /* 右パネル：エントリー一覧 */
@@ -386,14 +386,14 @@
   gap: 10px;
   min-height: 36px;
   padding: 8px 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   transition: background 0.1s;
 }
 
 .ng-detail-item:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .ng-link-button {
@@ -403,18 +403,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-secondary);
-  color: var(--discord-text-muted);
+  background: var(--surface-panel-muted);
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .ng-link-button:hover {
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-text-header);
-  background: var(--discord-bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--text-heading);
+  background: var(--surface-hover);
 }
 
 /* ========================================
@@ -428,8 +428,8 @@
 }
 
 .ng-cast-grid__card {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -439,14 +439,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 9px 12px;
-  background: var(--discord-bg-dark);
-  border-bottom: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .ng-cast-grid__title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -458,14 +458,14 @@
   font-weight: 600;
   padding: 1px 7px;
   border-radius: 999px;
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-muted);
+  background: var(--surface-hover);
+  color: var(--text-muted);
   flex-shrink: 0;
   margin-left: 6px;
 }
 
 .ng-cast-grid__count--has {
-  background: var(--discord-accent-red);
+  background: var(--accent-danger);
   color: #fff;
 }
 
@@ -480,7 +480,7 @@
   padding: 14px 8px;
   text-align: center;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .ng-cast-grid__item {
@@ -493,7 +493,7 @@
 }
 
 .ng-cast-grid__item:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .ng-cast-grid__text {
@@ -506,7 +506,7 @@
 .ng-cast-grid__text-name {
   font-size: 14px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -514,7 +514,7 @@
 
 .ng-cast-grid__text-id {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -525,7 +525,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 22px;
   font-weight: 800;
   line-height: 1;
@@ -559,6 +559,15 @@
   .ng-page__caution-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .caution-candidate-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .caution-candidate-casts {
+    justify-content: space-between;
   }
 }
 

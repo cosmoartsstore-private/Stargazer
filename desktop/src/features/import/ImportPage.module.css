@@ -16,7 +16,7 @@
   gap: 10px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 12px;
@@ -26,8 +26,8 @@
 
 .import-file-section {
   padding: 16px 18px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
 }
 
@@ -44,7 +44,7 @@
   padding: 9px 16px;
   border-radius: 6px;
   border: none;
-  background: var(--discord-button-primary);
+  background: var(--button-primary-bg);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -54,7 +54,7 @@
 }
 
 .import-file-btn:hover {
-  background: var(--discord-button-primary-hover);
+  background: var(--button-primary-hover-bg);
 }
 
 .import-file-name {
@@ -62,23 +62,23 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
   padding: 6px 12px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   border: 1px solid transparent;
   border-radius: 6px;
 }
 
 .import-file-name--active {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-style: normal;
   font-weight: 500;
-  border-color: var(--discord-border);
+  border-color: var(--border-default);
 }
 
 .import-error {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   margin-top: 10px;
   margin-bottom: 0;
@@ -98,10 +98,10 @@
   gap: 2px;
   align-items: flex-start;
   padding: 9px 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 7px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background: var(--surface-panel);
+  color: var(--text-default);
   font: inherit;
   font-size: 12px;
   font-weight: 800;
@@ -110,26 +110,26 @@
 }
 
 .import-cast-option span {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 600;
 }
 
 .import-cast-option:hover {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .import-cast-option--selected {
-  background: var(--discord-bg-selected);
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  border-color: var(--accent-primary);
+  color: var(--text-heading);
 }
 
 /* ── Mapping section ── */
 
 .import-mapping-section {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 18px 20px;
 }
@@ -146,7 +146,7 @@
   gap: 14px;
   align-items: center;
   padding: 10px 0;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .import-mapping-row:last-child {
@@ -161,12 +161,12 @@
 .import-mapping-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   white-space: nowrap;
 }
 
 .import-required {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-weight: 700;
 }
 
@@ -179,7 +179,7 @@
 
 .import-mapping-error {
   font-size: 11px;
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
 }
 
 
@@ -190,15 +190,15 @@
   align-items: center;
   justify-content: center;
   min-height: 100px;
-  border: 1px dashed var(--discord-border);
+  border: 1px dashed var(--border-default);
   border-radius: 10px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .import-preview-section {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 18px 20px;
 }
@@ -206,9 +206,9 @@
 .import-preview-count {
   font-size: 11px;
   font-weight: 500;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   padding: 2px 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   border-radius: 4px;
 }
 
@@ -238,7 +238,7 @@
 }
 
 .import-cell-warn {
-  color: var(--discord-accent-yellow, #faa61a);
+  color: var(--accent-warning, #faa61a);
   font-weight: 600;
   font-size: 11px;
 }
@@ -252,7 +252,7 @@
   gap: 16px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid var(--discord-border);
+  border-top: 1px solid var(--border-default);
 }
 
 .import-validation {
@@ -263,12 +263,12 @@
 }
 
 .import-validation-ok {
-  color: var(--discord-accent-green);
+  color: var(--accent-success);
   font-weight: 600;
 }
 
 .import-validation-warn {
-  color: var(--discord-accent-yellow, #faa61a);
+  color: var(--accent-warning, #faa61a);
   font-weight: 500;
 }
 

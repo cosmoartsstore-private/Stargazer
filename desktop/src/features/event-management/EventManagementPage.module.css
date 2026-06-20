@@ -17,8 +17,8 @@
 
 /* ── Right panel ── */
 .event-char-panel {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 18px 24px;
   overflow-y: hidden;
@@ -40,7 +40,7 @@
 .event-char-name-input {
   font-size: 24px;
   font-weight: 700;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -55,12 +55,12 @@
 }
 
 .event-char-name-input:hover {
-  border-color: var(--discord-border);
+  border-color: var(--border-default);
 }
 
 .event-char-name-input:focus {
-  border-color: var(--discord-accent-blue);
-  background: var(--discord-bg-dark);
+  border-color: var(--accent-primary);
+  background: var(--surface-panel);
 }
 
 /* ── Photo frame 16:9 (big) ── */
@@ -69,8 +69,8 @@
   width: min(68%, 560px);
   aspect-ratio: 16 / 8;
   border-radius: 12px;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -82,7 +82,7 @@
 }
 
 .event-char-photo-frame:hover {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .event-char-photo-frame__img {
@@ -98,7 +98,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   padding: 20px;
   text-align: center;
 }
@@ -133,7 +133,7 @@
 .event-char-divider {
   height: 1px;
   width: 100%;
-  background: var(--discord-divider);
+  background: var(--border-divider);
   margin: 14px 0;
   flex-shrink: 0;
 }
@@ -166,7 +166,7 @@
 }
 
 .event-char-memo-text {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   white-space: pre-wrap;
   cursor: text;
   border: 1px solid transparent;
@@ -175,18 +175,18 @@
 }
 
 .event-char-memo-text:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .event-char-memo-text--empty {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .event-char-memo-textarea {
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-accent-blue);
-  color: var(--discord-text-normal);
+  background: var(--surface-panel);
+  border: 1px solid var(--accent-primary);
+  color: var(--text-default);
   outline: none;
   resize: none;
 }
@@ -223,7 +223,7 @@
 
 .event-char-switch-btn--current,
 .event-char-switch-btn:disabled {
-  background: var(--discord-accent-green);
+  background: var(--accent-success);
   color: #fff;
   cursor: default;
   opacity: 1;
@@ -237,7 +237,7 @@
   padding: 11px 48px;
   border-radius: 999px;
   border: none;
-  background: var(--discord-accent-red);
+  background: var(--accent-danger);
   color: #fff;
   font-size: 13px;
   font-weight: 700;

@@ -22,14 +22,14 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 
 .dialog-close:hover {
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-normal);
+  background: var(--surface-hover);
+  color: var(--text-default);
 }
 
 .dialog-close svg {

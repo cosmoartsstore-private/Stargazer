@@ -80,13 +80,13 @@
 }
 
 .guide-body-text {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   margin-bottom: 16px;
   line-height: 1.7;
 }
 
 .guide-label-muted {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   margin-bottom: 10px;
   font-weight: 600;
@@ -95,7 +95,7 @@
 .guide-list {
   margin: 0;
   padding-left: 20px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 14px;
   line-height: 1.8;
 }
@@ -115,21 +115,21 @@
 .guide-sample-preview {
   margin-top: 16px;
   padding: 16px;
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
 }
 
 .guide-sample-title {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
 }
 
 .guide-sample-label {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-bottom: 6px;
   font-weight: 600;
 }
@@ -141,40 +141,40 @@
 }
 
 .guide-sample-table thead tr {
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
 }
 
 .guide-sample-table th {
   padding: 6px;
   text-align: left;
   font-size: 9px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-weight: 600;
 }
 
 .guide-sample-table td {
   padding: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .guide-sample-table .cell-link {
-  color: var(--discord-text-link);
+  color: var(--text-link);
   cursor: pointer;
   text-decoration: underline;
 }
 
 .guide-mode-card {
   padding: 20px;
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
 }
 
 .guide-mode-card h4 {
   margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -183,7 +183,7 @@
 .guide-mode-list {
   margin: 0;
   padding-left: 20px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 14px;
   line-height: 2;
 }
@@ -196,7 +196,7 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--discord-accent-blue), var(--discord-accent-green));
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-success));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,11 +225,11 @@
   transform: translateX(-50%);
   margin-bottom: 8px;
   padding: 8px 12px;
-  background-color: var(--discord-bg-dark);
-  color: var(--discord-text-normal);
+  background-color: var(--surface-panel);
+  color: var(--text-default);
   font-size: 12px;
   border-radius: 6px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   white-space: nowrap;
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -245,7 +245,7 @@
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 6px solid var(--discord-bg-dark);
+  border-top: 6px solid var(--surface-panel);
 }
 
 .guide-flow-grid {
@@ -256,36 +256,36 @@
 
 .guide-flow-item-icon {
   display: block;
-  color: var(--discord-accent-blue);
+  color: var(--accent-primary);
   margin-bottom: 8px;
 }
 
 .guide-flow-item-title {
   font-weight: 600;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   margin-bottom: 4px;
 }
 
 .guide-flow-item-desc {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-align: center;
 }
 
 .guide-flow-box {
-  background: linear-gradient(135deg, var(--discord-bg-secondary), var(--discord-bg-dark));
+  background: linear-gradient(135deg, var(--surface-panel-muted), var(--surface-panel));
   padding: 24px;
   border-radius: 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /** 各画面の機能・FAQ などで使うカード（同上スタイルを共通化） */
 .guide-card {
-  background: linear-gradient(135deg, var(--discord-bg-secondary), var(--discord-bg-dark));
+  background: linear-gradient(135deg, var(--surface-panel-muted), var(--surface-panel));
   padding: 24px;
   border-radius: 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -298,9 +298,9 @@
   flex-direction: column;
   align-items: center;
   padding: 16px;
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
 }
 
 .guide-section-grid {
@@ -317,9 +317,9 @@
 
 .featureGuideSample {
   margin-bottom: 18px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   overflow: hidden;
 }
 
@@ -328,13 +328,13 @@
   justify-content: space-between;
   gap: 18px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-hover);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-hover);
 }
 
 .featureGuideSampleHeader h3 {
   margin: 3px 0 0;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 15px;
   font-weight: 700;
 }
@@ -342,13 +342,13 @@
 .featureGuideSampleHeader p {
   max-width: 480px;
   margin: 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .featureGuideSampleEyebrow {
-  color: var(--discord-accent-blue);
+  color: var(--accent-primary);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -361,40 +361,40 @@
   padding: 14px;
 }
 
-.mockAppFrame {
+.guidePreviewAppFrame {
   min-width: 0;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
   overflow: hidden;
 }
 
-.mockAppTopbar {
+.guidePreviewAppTopbar {
   height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 0 12px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel-muted);
 }
 
-.mockAppTopbar strong {
+.guidePreviewAppTopbar strong {
   display: block;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 12px;
   line-height: 1.2;
 }
 
-.mockAppTopbar span {
+.guidePreviewAppTopbar span {
   display: block;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   line-height: 1.2;
 }
 
-.mockTopbarStatus {
+.guidePreviewTopbarStatus {
   flex-shrink: 0;
   padding: 3px 8px;
   border: 1px solid var(--guide-accent-lottery-border);
@@ -405,43 +405,43 @@
   background: var(--guide-accent-lottery-bg);
 }
 
-.mockAppWorkspace {
+.guidePreviewAppWorkspace {
   display: grid;
   grid-template-columns: 118px minmax(0, 1fr);
   min-height: 365px;
 }
 
-.mockAppSidebar {
+.guidePreviewAppSidebar {
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 10px 8px;
-  border-right: 1px solid var(--discord-border);
-  background: color-mix(in srgb, var(--discord-bg-dark) 76%, #000 24%);
+  border-right: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--surface-panel) 76%, #000 24%);
 }
 
-.mockAppSidebarItem {
+.guidePreviewAppSidebarItem {
   min-height: 24px;
   display: flex;
   align-items: center;
   padding: 0 8px;
   border-radius: 5px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 600;
 }
 
-.mockAppSidebarItemActive {
-  color: var(--discord-text-header);
-  background: var(--discord-bg-selected);
-  box-shadow: inset 2px 0 0 var(--discord-accent-blue);
+.guidePreviewAppSidebarItemActive {
+  color: var(--text-heading);
+  background: var(--surface-selected);
+  box-shadow: inset 2px 0 0 var(--accent-primary);
 }
 
-.mockAppContent {
+.guidePreviewAppContent {
   position: relative;
   min-width: 0;
   padding: 14px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .featureGuideMarker {
@@ -455,7 +455,7 @@
   transform: translate(-50%, -50%);
   border: 2px solid #fff;
   border-radius: 50%;
-  background: var(--discord-accent-blue);
+  background: var(--accent-primary);
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -477,9 +477,9 @@
   grid-template-columns: 26px minmax(0, 1fr);
   gap: 9px;
   padding: 9px 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .featureGuideLegendItem > span {
@@ -489,7 +489,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--discord-accent-blue);
+  background: var(--accent-primary);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -498,48 +498,48 @@
 .featureGuideLegendItem strong {
   display: block;
   margin-bottom: 3px;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 12px;
   line-height: 1.35;
 }
 
 .featureGuideLegendItem p {
   margin: 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.55;
 }
 
-.mockScreenStack {
+.guidePreviewScreenStack {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.mockHeader {
+.guidePreviewHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.mockHeader h4 {
+.guidePreviewHeader h4 {
   margin: 0;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 17px;
   font-weight: 800;
 }
 
-.mockHeader p {
+.guidePreviewHeader p {
   margin: 4px 0 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.45;
 }
 
-.mockActions,
-.mockFooterActions,
-.mockExternalLinks {
+.guidePreviewActions,
+.guidePreviewFooterActions,
+.guidePreviewExternalLinks {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -547,7 +547,7 @@
   flex-wrap: wrap;
 }
 
-.mockButton {
+.guidePreviewButton {
   min-height: 26px;
   display: inline-flex;
   align-items: center;
@@ -560,42 +560,42 @@
   white-space: nowrap;
 }
 
-.mockButtonPrimary {
-  background: var(--discord-accent-blue);
+.guidePreviewButtonPrimary {
+  background: var(--accent-primary);
   color: #fff;
 }
 
-.mockButtonSecondary {
-  border-color: var(--discord-border);
-  background: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
+.guidePreviewButtonSecondary {
+  border-color: var(--border-default);
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
 }
 
-.mockButtonDanger {
+.guidePreviewButtonDanger {
   background: #dc2626;
   color: #fff;
 }
 
-.mockTabs {
+.guidePreviewTabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
-.mockTab {
+.guidePreviewTab {
   padding: 7px 10px;
   border-bottom: 2px solid transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
 
-.mockTabActive {
-  color: var(--discord-accent-blue);
-  border-bottom-color: var(--discord-accent-blue);
+.guidePreviewTabActive {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
 }
 
-.mockBadge {
+.guidePreviewBadge {
   display: inline-flex;
   align-items: center;
   min-height: 18px;
@@ -608,58 +608,58 @@
   vertical-align: middle;
 }
 
-.mockBadgeBlue {
-  color: var(--discord-accent-blue);
+.guidePreviewBadgeBlue {
+  color: var(--accent-primary);
   background: rgba(88, 101, 242, 0.16);
 }
 
-.mockBadgeGreen {
+.guidePreviewBadgeGreen {
   color: #0f9f6e;
   background: rgba(16, 185, 129, 0.16);
 }
 
-.mockBadgeRed {
+.guidePreviewBadgeRed {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.15);
 }
 
-.mockBadgeGray {
-  color: var(--discord-text-muted);
-  background: var(--discord-bg-secondary);
+.guidePreviewBadgeGray {
+  color: var(--text-muted);
+  background: var(--surface-panel-muted);
 }
 
-.mockBadgeYellow {
+.guidePreviewBadgeYellow {
   color: #7c5b00;
   background: rgba(245, 196, 0, 0.35);
 }
 
-.mockTable {
+.guidePreviewTable {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 11px;
 }
 
-.mockTable th,
-.mockTable td {
+.guidePreviewTable th,
+.guidePreviewTable td {
   padding: 7px 8px;
-  border: 1px solid var(--discord-border);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  color: var(--text-default);
   text-align: left;
   vertical-align: middle;
 }
 
-.mockTable th {
-  color: var(--discord-text-muted);
-  background: var(--discord-bg-secondary);
+.guidePreviewTable th {
+  color: var(--text-muted);
+  background: var(--surface-panel-muted);
   font-weight: 800;
 }
 
-.mockTableWarning {
+.guidePreviewTableWarning {
   background: rgba(239, 68, 68, 0.09);
 }
 
-.mockDeleteMark {
+.guidePreviewDeleteMark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -673,150 +673,150 @@
   line-height: 1;
 }
 
-.mockPanel {
+.guidePreviewPanel {
   min-width: 0;
   padding: 10px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
-.mockPanelTitle {
+.guidePreviewPanelTitle {
   margin-bottom: 8px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
 }
 
-.mockImportGrid,
-.mockLotteryGrid,
-.mockMatchingGrid,
-.mockTwoPane,
-.mockAttendanceGrid {
+.guidePreviewImportGrid,
+.guidePreviewLotteryGrid,
+.guidePreviewMatchingGrid,
+.guidePreviewTwoPane,
+.guidePreviewAttendanceGrid {
   display: grid;
   gap: 10px;
 }
 
-.mockImportGrid,
-.mockLotteryGrid,
-.mockMatchingGrid,
-.mockTwoPane {
+.guidePreviewImportGrid,
+.guidePreviewLotteryGrid,
+.guidePreviewMatchingGrid,
+.guidePreviewTwoPane {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.mockAttendanceGrid {
+.guidePreviewAttendanceGrid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 160px;
 }
 
-.mockFileStrip {
+.guidePreviewFileStrip {
   margin-bottom: 8px;
   padding: 7px 9px;
   border: 1px solid var(--guide-accent-import-border);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   background: var(--guide-accent-import-bg);
   font-size: 11px;
   font-weight: 700;
 }
 
-.mockMappingRow,
-.mockSettingLine {
+.guidePreviewMappingRow,
+.guidePreviewSettingLine {
   display: grid;
   grid-template-columns: 90px 18px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-height: 28px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 11px;
 }
 
-.mockMappingRow b {
-  color: var(--discord-text-muted);
+.guidePreviewMappingRow b {
+  color: var(--text-muted);
   font-weight: 800;
 }
 
-.mockMappingRow em {
+.guidePreviewMappingRow em {
   min-width: 0;
   padding: 4px 7px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 5px;
-  background: var(--discord-bg-dark);
-  color: var(--discord-accent-blue);
+  background: var(--surface-panel);
+  color: var(--accent-primary);
   font-style: normal;
   font-weight: 700;
 }
 
-.mockSettingLine {
+.guidePreviewSettingLine {
   grid-template-columns: minmax(0, 1fr) auto;
   padding: 7px 8px;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
-.mockSettingLine:last-child {
+.guidePreviewSettingLine:last-child {
   border-bottom: 0;
 }
 
-.mockSettingLine strong {
-  color: var(--discord-text-header);
+.guidePreviewSettingLine strong {
+  color: var(--text-heading);
 }
 
-.mockMetricGrid {
+.guidePreviewMetricGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
 }
 
-.mockMetricGrid div {
+.guidePreviewMetricGrid div {
   min-width: 0;
   padding: 9px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 7px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
 }
 
-.mockMetricGrid span {
+.guidePreviewMetricGrid span {
   display: block;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 700;
 }
 
-.mockMetricGrid strong {
+.guidePreviewMetricGrid strong {
   display: block;
   margin-top: 3px;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 16px;
   font-weight: 900;
 }
 
-.mockOptionGrid {
+.guidePreviewOptionGrid {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
 }
 
-.mockOptionGrid span,
-.mockOptionSelected {
+.guidePreviewOptionGrid span,
+.guidePreviewOptionSelected {
   display: inline-flex;
   min-height: 26px;
   align-items: center;
   padding: 0 9px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 5px;
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-dark);
+  color: var(--text-default);
+  background: var(--surface-panel);
   font-size: 11px;
   font-weight: 700;
 }
 
-.mockOptionSelected {
-  border-color: var(--discord-accent-blue);
-  color: var(--discord-accent-blue);
+.guidePreviewOptionSelected {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
   background: rgba(88, 101, 242, 0.14);
 }
 
-.mockValidation {
+.guidePreviewValidation {
   display: grid;
   gap: 6px;
   padding: 10px;
@@ -825,27 +825,27 @@
   background: var(--guide-accent-lottery-bg);
 }
 
-.mockValidation p,
-.mockValidation small {
+.guidePreviewValidation p,
+.guidePreviewValidation small {
   margin: 0;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 11px;
   line-height: 1.45;
 }
 
-.mockSavedRun {
+.guidePreviewSavedRun {
   display: grid;
   gap: 4px;
   margin-top: 8px;
   padding: 9px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 7px;
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-dark);
+  color: var(--text-default);
+  background: var(--surface-panel);
   font-size: 11px;
 }
 
-.mockListRow {
+.guidePreviewListRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -853,85 +853,85 @@
   min-height: 31px;
   padding: 0 9px;
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 12px;
   font-weight: 700;
 }
 
-.mockListRowActive {
-  background: var(--discord-bg-selected);
-  color: var(--discord-text-header);
+.guidePreviewListRowActive {
+  background: var(--surface-selected);
+  color: var(--text-heading);
 }
 
-.mockQuickInput {
+.guidePreviewQuickInput {
   margin-top: 10px;
   padding: 9px;
-  border: 1px dashed var(--discord-border);
+  border: 1px dashed var(--border-default);
   border-radius: 7px;
-  color: var(--discord-text-muted);
-  background: var(--discord-bg-dark);
+  color: var(--text-muted);
+  background: var(--surface-panel);
   font-size: 11px;
 }
 
-.mockProfileGrid {
+.guidePreviewProfileGrid {
   display: grid;
   grid-template-columns: 70px minmax(0, 1fr);
   gap: 12px;
   margin: 10px 0;
 }
 
-.mockAvatar {
+.guidePreviewAvatar {
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  color: var(--discord-text-muted);
-  background: var(--discord-bg-dark);
+  color: var(--text-muted);
+  background: var(--surface-panel);
   font-size: 12px;
   font-weight: 800;
 }
 
-.mockFieldStack {
+.guidePreviewFieldStack {
   display: grid;
   gap: 6px;
 }
 
-.mockFieldStack span,
-.mockTextArea {
+.guidePreviewFieldStack span,
+.guidePreviewTextArea {
   padding: 7px 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-dark);
+  color: var(--text-default);
+  background: var(--surface-panel);
   font-size: 11px;
   line-height: 1.5;
 }
 
-.mockCautionGrid {
+.guidePreviewCautionGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 9px;
 }
 
-.mockCautionGrid div {
+.guidePreviewCautionGrid div {
   display: grid;
   gap: 4px;
   padding: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 7px;
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-dark);
+  color: var(--text-default);
+  background: var(--surface-panel);
   font-size: 11px;
 }
 
-.mockCautionGrid span {
-  color: var(--discord-text-muted);
+.guidePreviewCautionGrid span {
+  color: var(--text-muted);
 }
 
-.mockAttendanceRow {
+.guidePreviewAttendanceRow {
   min-height: 30px;
   display: flex;
   align-items: center;
@@ -942,54 +942,54 @@
   font-weight: 800;
 }
 
-.mockAttendanceRowPresent {
+.guidePreviewAttendanceRowPresent {
   color: #fff;
   background: #2f9f78;
 }
 
-.mockAttendanceRowStandby {
-  color: var(--discord-text-header);
-  background: color-mix(in srgb, var(--discord-accent-blue) 24%, var(--discord-bg-dark) 76%);
+.guidePreviewAttendanceRowStandby {
+  color: var(--text-heading);
+  background: color-mix(in srgb, var(--accent-primary) 24%, var(--surface-panel) 76%);
   border: 1px solid rgba(88, 101, 242, 0.4);
 }
 
-.mockModalPreview {
+.guidePreviewModalPreview {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--discord-accent-blue);
+  border: 1px solid var(--accent-primary);
   border-radius: 8px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
 
-.mockModalPreview div {
+.guidePreviewModalPreview div {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
-.mockModalPreview strong {
-  color: var(--discord-text-header);
+.guidePreviewModalPreview strong {
+  color: var(--text-heading);
   font-size: 14px;
 }
 
-.mockModalPreview p {
+.guidePreviewModalPreview p {
   margin: 0;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 11px;
   line-height: 1.55;
 }
 
-.mockTextArea {
+.guidePreviewTextArea {
   min-height: 132px;
   font-size: 12px;
 }
 
-.mockCharacterCount {
-  color: var(--discord-text-muted);
+.guidePreviewCharacterCount {
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1000,11 +1000,11 @@
   .guide-section-grid,
   .guide-mode-grid,
   .featureGuideSampleLayout,
-  .mockImportGrid,
-  .mockLotteryGrid,
-  .mockMatchingGrid,
-  .mockTwoPane,
-  .mockAttendanceGrid {
+  .guidePreviewImportGrid,
+  .guidePreviewLotteryGrid,
+  .guidePreviewMatchingGrid,
+  .guidePreviewTwoPane,
+  .guidePreviewAttendanceGrid {
     grid-template-columns: 1fr !important;
   }
 
@@ -1012,11 +1012,11 @@
     flex-direction: column;
   }
 
-  .mockAppWorkspace {
+  .guidePreviewAppWorkspace {
     grid-template-columns: 92px minmax(0, 1fr);
   }
 
-  .mockMetricGrid {
+  .guidePreviewMetricGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

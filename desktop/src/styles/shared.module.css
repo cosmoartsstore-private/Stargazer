@@ -1,7 +1,6 @@
 /* =====================================================
-   Shared CSS Module – utility classes used across components
-   Import as: import shared from '@/styles/shared.module.css'
-   Access as: shared.btnPrimary, shared.pageWrapper, etc.
+   共有CSSモジュール：複数機能で使うUI部品
+   import shared from '@/styles/shared.module.css' で読み込む。
    ===================================================== */
 
 /* ========================================
@@ -9,7 +8,7 @@
    ======================================== */
 
 .btn-primary {
-  background-color: var(--discord-button-primary);
+  background-color: var(--button-primary-bg);
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
@@ -21,7 +20,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--discord-button-primary-hover);
+  background-color: var(--button-primary-hover-bg);
 }
 
 .btn-primary:disabled {
@@ -30,7 +29,7 @@
 }
 
 .btn-success {
-  background-color: var(--discord-button-success);
+  background-color: var(--button-success-bg);
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
@@ -42,7 +41,7 @@
 }
 
 .btn-success:hover:not(:disabled) {
-  background-color: var(--discord-button-success-hover);
+  background-color: var(--button-success-hover-bg);
 }
 
 .btn-success:disabled {
@@ -51,8 +50,8 @@
 }
 
 .btn-secondary {
-  background-color: var(--discord-button-secondary);
-  color: var(--discord-text-normal);
+  background-color: var(--button-secondary-bg);
+  color: var(--text-default);
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
@@ -63,7 +62,7 @@
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--discord-button-secondary-hover);
+  background-color: var(--button-secondary-hover-bg);
 }
 
 .btn-secondary:disabled {
@@ -72,7 +71,7 @@
 }
 
 .btn-danger {
-  background-color: var(--discord-button-danger);
+  background-color: var(--button-danger-bg);
   color: #fff;
   padding: 10px 20px;
   font-size: 14px;
@@ -95,9 +94,9 @@
 .btn-export-secondary {
   padding: 8px 16px;
   border-radius: 6px;
-  border: 1px solid var(--discord-border);
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-default);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -105,8 +104,8 @@
 }
 
 .btn-export-secondary:hover:not(:disabled) {
-  background-color: var(--discord-bg-hover);
-  border-color: var(--discord-text-muted);
+  background-color: var(--surface-hover);
+  border-color: var(--text-muted);
 }
 
 .btn-export-secondary:disabled {
@@ -118,7 +117,7 @@
   padding: 8px 16px;
   border-radius: 6px;
   border: none;
-  background-color: var(--discord-accent-green);
+  background-color: var(--accent-success);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -157,9 +156,9 @@
   flex: 1;
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid var(--discord-border);
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-default);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -167,8 +166,8 @@
 }
 
 .btn-toggle.active {
-  border-color: var(--discord-accent-blue);
-  background-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
+  background-color: var(--accent-primary);
   color: #fff;
 }
 
@@ -183,9 +182,9 @@
   border-radius: 6px;
   padding: 10px 12px;
   cursor: pointer;
-  border: 1px solid var(--discord-border);
-  background-color: var(--discord-bg-sidebar);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  background-color: var(--surface-sidebar);
+  color: var(--text-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -200,8 +199,8 @@
 }
 
 .btn-option.active {
-  border-color: var(--discord-accent-blue);
-  background-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
+  background-color: var(--accent-primary);
   color: #fff;
   font-weight: 600;
 }
@@ -274,7 +273,7 @@
 }
 
 .page-header-title {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-weight: 700;
   margin: 0;
 }
@@ -292,7 +291,7 @@
 }
 
 .page-header-subtitle {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
   margin-top: 4px;
 }
@@ -329,7 +328,9 @@
 .page-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--discord-background-modifier-accent, var(--discord-border));
+  align-items: flex-end;
+  min-height: 44px;
+  border-bottom: 2px solid var(--border-tab, var(--border-default));
   margin-bottom: 24px;
   scrollbar-width: thin;
   scrollbar-color: rgba(88, 101, 242, 0.55) rgba(255, 255, 255, 0.06);
@@ -362,10 +363,11 @@
 }
 
 .page-tab {
+  min-width: 128px;
   padding: 12px 24px;
   background: transparent;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -373,16 +375,18 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   border-radius: 4px 4px 0 0;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .page-tab:hover:not(:disabled) {
-  color: var(--discord-text-normal);
-  background: var(--discord-background-modifier-hover, var(--discord-bg-hover));
+  color: var(--text-default);
+  background: var(--surface-tab-hover, var(--surface-hover));
 }
 
 .page-tab--active {
-  color: var(--discord-accent-primary, var(--discord-accent-blue));
-  border-bottom-color: var(--discord-accent-primary, var(--discord-accent-blue));
+  color: var(--accent-primary, var(--accent-primary));
+  border-bottom-color: var(--accent-primary, var(--accent-primary));
   font-weight: 600;
 }
 
@@ -394,6 +398,7 @@
 
 .page-tab-content {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
 }
@@ -407,7 +412,7 @@
 }
 
 .form-label {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   display: block;
   margin-bottom: 6px;
   font-size: 12px;
@@ -418,13 +423,13 @@
 
 .form-inline-note {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .form-input {
-  background-color: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
-  color: var(--discord-text-normal);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  color: var(--text-default);
   padding: 10px 12px;
   border-radius: 4px;
   font-size: 14px;
@@ -434,17 +439,17 @@
 }
 
 .form-input:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
 }
 
 .form-number-input {
   width: 90px;
-  background-color: var(--discord-bg-sidebar);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-sidebar);
+  border: 1px solid var(--border-default);
   padding: 10px 12px;
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 18px;
   text-align: center;
   outline: none;
@@ -458,10 +463,10 @@
 }
 
 .form-card {
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
   padding: 20px;
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
 }
 
 .form-card--flex-row {
@@ -509,9 +514,9 @@
    ======================================== */
 
 .table-container {
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -551,17 +556,17 @@
 .table-header-cell {
   padding: 12px 16px;
   text-align: left;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: uppercase;
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
 }
 
 .table-cell {
   padding: 10px 16px;
   font-size: 14px;
-  color: var(--discord-text-normal);
-  border-bottom: 1px solid var(--discord-border);
+  color: var(--text-default);
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* ========================================
@@ -569,7 +574,7 @@
    ======================================== */
 
 .card {
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
@@ -578,29 +583,29 @@
 .card-header {
   margin-bottom: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .card-title {
   font-size: 20px;
   font-weight: 600;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   margin: 0;
 }
 
 .card-subtitle {
   font-size: 14px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
 .page-card-narrow {
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   border-radius: 8px;
   padding: 24px 32px;
   max-width: 600px;
   margin: 24px auto;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   text-align: left;
 }
 
@@ -609,10 +614,10 @@
    ======================================== */
 
 .status-card {
-  background-color: var(--discord-bg-secondary);
+  background-color: var(--surface-panel-muted);
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -620,7 +625,7 @@
 
 .status-card__label {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -629,17 +634,17 @@
 .status-card__value {
   font-size: 18px;
   font-weight: 700;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   line-height: 1;
 }
 
 .status-card__value-accent {
-  color: var(--discord-accent-green);
+  color: var(--accent-success);
 }
 
 .status-card__value-suffix {
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-weight: 500;
   margin-left: 2px;
 }
@@ -650,12 +655,12 @@
 
 .text-user-name {
   font-weight: 600;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .text-x-id {
   font-size: 12px;
-  color: var(--discord-text-link);
+  color: var(--text-link);
 }
 
 .text-x-id--clickable {
@@ -665,11 +670,11 @@
 }
 
 .text-x-id--clickable:hover {
-  color: var(--discord-accent-blue);
+  color: var(--accent-primary);
 }
 
 .text-x-id--caution {
-  color: var(--discord-accent-red) !important;
+  color: var(--accent-danger) !important;
   font-weight: 600;
   background-color: rgba(237, 66, 69, 0.1);
   padding: 2px 6px;
@@ -683,17 +688,17 @@
 
 .text-body-sm {
   font-size: 14px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .text-unassigned {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 14px;
 }
 
 .text-muted-italic {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -727,9 +732,9 @@
 
 .banner-muted {
   padding: 12px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   border-radius: 8px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 /* ========================================
@@ -749,7 +754,7 @@
    ======================================== */
 
 .import-error-msg {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -765,8 +770,8 @@
 }
 
 .rank-badge--out {
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-muted);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-muted);
 }
 
 .rank-badge--1 {
@@ -788,8 +793,8 @@
 }
 
 .rank-badge--other {
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-muted);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-muted);
 }
 
 .matching-cell-ng-warning {
@@ -824,8 +829,8 @@
   left: 0;
   right: 0;
   margin-top: 4px;
-  background-color: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 4px;
   z-index: 9999;
   max-height: 200px;
@@ -837,11 +842,11 @@
   padding: 10px 12px;
   cursor: pointer;
   font-size: 14px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .dropdown-item:hover {
-  background-color: var(--discord-bg-hover);
+  background-color: var(--surface-hover);
 }
 
 /* ========================================
@@ -849,7 +854,7 @@
    ======================================== */
 
 .section-block {
-  background-color: var(--discord-bg-main);
+  background-color: var(--surface-page);
   padding: 16px;
   border-radius: 8px;
 }
@@ -875,7 +880,7 @@
 .import-section-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -887,7 +892,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: var(--discord-modal-overlay);
+  background-color: var(--modal-backdrop);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -899,19 +904,19 @@
 }
 
 .modal-content {
-  background-color: var(--discord-modal-content-bg);
+  background-color: var(--modal-surface);
   border-radius: 12px;
-  border: 1px solid var(--discord-modal-content-border);
+  border: 1px solid var(--modal-border);
   padding: 28px 32px;
   width: 100%;
   max-width: 420px;
-  box-shadow: var(--discord-modal-content-shadow);
+  box-shadow: var(--modal-shadow);
   animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: center;
 }
 
 .modal-title {
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-size: 18px;
   margin-bottom: 8px;
   font-weight: 600;
@@ -951,8 +956,8 @@
 .cast-list-panel {
   display: flex;
   flex-direction: column;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   overflow: hidden;
   height: var(--panel-height, calc(100vh - 240px));
@@ -965,19 +970,19 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--discord-border);
-  background: var(--discord-bg-dark);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
 }
 
 .cast-list-panel__search-icon {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .cast-list-panel__search-input {
   border: none;
   background: transparent;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 13px;
   width: 100%;
   outline: none;
@@ -992,7 +997,7 @@
 .cast-list-panel__empty {
   padding: 24px 16px;
   text-align: center;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1007,17 +1012,17 @@
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   transition: background 0.12s, color 0.12s;
 }
 
 .cast-list-item:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .cast-list-item--selected {
-  background: var(--discord-bg-selected);
-  color: var(--discord-text-header);
+  background: var(--surface-selected);
+  color: var(--text-heading);
 }
 
 .cast-list-item__dot {
@@ -1028,11 +1033,11 @@
 }
 
 .cast-list-item__dot--present {
-  background: var(--discord-accent-green);
+  background: var(--accent-success);
 }
 
 .cast-list-item__dot--absent {
-  background: var(--discord-text-muted);
+  background: var(--text-muted);
 }
 
 .cast-list-item__info {
@@ -1043,7 +1048,7 @@
 .cast-list-item__name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1051,7 +1056,7 @@
 
 .cast-list-item__group {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
@@ -1059,9 +1064,9 @@
 }
 
 .cast-list-panel__add {
-  border-top: 1px solid var(--discord-border);
+  border-top: 1px solid var(--border-default);
   padding: 8px 10px;
-  background: var(--discord-bg-dark);
+  background: var(--surface-panel);
 }
 
 .cast-list-panel__add-row {
@@ -1072,10 +1077,10 @@
 
 .cast-list-panel__add-input {
   flex: 1;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 12px;
   padding: 6px 8px;
   outline: none;
@@ -1084,7 +1089,7 @@
 }
 
 .cast-list-panel__add-input:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-list-panel__add-btn {
@@ -1103,10 +1108,10 @@
   justify-content: center;
   height: var(--panel-height, calc(100vh - 240px));
   min-height: var(--panel-min-height, 400px);
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   gap: 10px;
 }
@@ -1125,14 +1130,14 @@
 .cast-detail-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .cast-char-panel {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   padding: 24px;
   overflow-y: auto;
@@ -1143,7 +1148,7 @@
 
 .cast-char-divider {
   height: 1px;
-  background: var(--discord-divider);
+  background: var(--border-divider);
   margin: 14px 0;
 }
 
@@ -1162,7 +1167,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   padding: 2px 4px;
   border-radius: 4px;
   display: inline-flex;
@@ -1172,14 +1177,14 @@
 }
 
 .cast-char-memo-edit-btn:hover {
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-hover);
+  color: var(--text-default);
+  background: var(--surface-hover);
 }
 
 .cast-char-memo__text {
   font-size: 13px;
   line-height: 1.8;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   white-space: pre-wrap;
   cursor: text;
   padding: 4px 6px;
@@ -1190,21 +1195,21 @@
 }
 
 .cast-char-memo__text:hover {
-  background: var(--discord-bg-hover);
+  background: var(--surface-hover);
 }
 
 .cast-char-memo__text--empty {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .cast-char-memo__textarea {
   width: 100%;
   box-sizing: border-box;
-  background: var(--discord-bg-dark);
-  border: 1px solid var(--discord-accent-blue);
+  background: var(--surface-panel);
+  border: 1px solid var(--accent-primary);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 13px;
   line-height: 1.8;
   padding: 8px 10px;
@@ -1216,7 +1221,7 @@
 }
 
 .cast-char-memo__textarea:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .cast-char-panel .cast-detail-section {

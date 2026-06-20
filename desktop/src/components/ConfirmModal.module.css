@@ -1,5 +1,5 @@
 /* ========================================
-   Modal
+   モーダル
    ======================================== */
 
 .modal-content--wide {
@@ -7,7 +7,7 @@
 }
 
 .modal-message {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 15px;
   line-height: 1.6;
   margin-bottom: 24px;
@@ -23,9 +23,9 @@
 .modal-btn-cancel {
   padding: 8px 16px;
   border-radius: 6px;
-  border: 1px solid var(--discord-border);
-  background-color: var(--discord-button-secondary);
-  color: var(--discord-text-normal);
+  border: 1px solid var(--border-default);
+  background-color: var(--button-secondary-bg);
+  color: var(--text-default);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -33,7 +33,7 @@
 }
 
 .modal-btn-cancel:hover {
-  background-color: var(--discord-button-secondary-hover);
+  background-color: var(--button-secondary-hover-bg);
 }
 
 .modal-btn-confirm {
@@ -42,14 +42,14 @@
   font-weight: 600;
   border: none;
   border-radius: 6px;
-  background-color: var(--discord-button-primary);
+  background-color: var(--button-primary-bg);
   color: #fff;
   cursor: pointer;
   transition: background-color 0.17s ease, opacity 0.15s;
 }
 
 .modal-btn-confirm:hover {
-  background-color: var(--discord-button-primary-hover);
+  background-color: var(--button-primary-hover-bg);
 }
 
 .modal-btn-confirm:disabled {
@@ -125,28 +125,28 @@
 }
 
 /* ========================================
-   Skyblue Theme Overrides
+   Skyblue テーマ上書き
    ======================================== */
 
 :global([data-theme="skyblue"]) .modal-message {
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 :global([data-theme="skyblue"]) .modal-btn-cancel {
-  background-color: var(--discord-button-secondary);
-  color: var(--discord-text-normal);
-  border-color: var(--discord-border);
+  background-color: var(--button-secondary-bg);
+  color: var(--text-default);
+  border-color: var(--border-default);
 }
 
 :global([data-theme="skyblue"]) .modal-btn-cancel:hover {
-  background-color: var(--discord-button-secondary-hover);
+  background-color: var(--button-secondary-hover-bg);
 }
 
 :global([data-theme="skyblue"]) .modal-btn-confirm {
-  background-color: var(--discord-button-primary);
+  background-color: var(--button-primary-bg);
   color: #fff;
 }
 
 :global([data-theme="skyblue"]) .modal-btn-confirm:hover {
-  background-color: var(--discord-button-primary-hover);
+  background-color: var(--button-primary-hover-bg);
 }

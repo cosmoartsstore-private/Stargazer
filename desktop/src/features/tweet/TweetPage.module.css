@@ -29,10 +29,10 @@
 .tweet-template-textarea {
   width: 100%;
   padding: 10px 12px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
@@ -43,7 +43,7 @@
 }
 
 .tweet-template-textarea:focus {
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .tweet-placeholder-list {
@@ -58,7 +58,7 @@
   align-items: center;
   padding: 3px 10px;
   border-radius: 6px;
-  background: var(--discord-accent-blue);
+  background: var(--accent-primary);
   color: #fff;
   font-size: 12px;
   font-family: monospace;
@@ -72,12 +72,12 @@
 
 .tweet-preview-box {
   padding: 12px 14px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   font-size: 13px;
   line-height: 1.7;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   white-space: pre-wrap;
   min-height: 120px;
   max-height: 320px;
@@ -98,9 +98,9 @@
   flex: 1;
   min-height: 42px;
   padding: 0 18px;
-  border: 1px solid var(--discord-accent-blue);
+  border: 1px solid var(--accent-primary);
   border-radius: 6px;
-  background: var(--discord-accent-blue);
+  background: var(--accent-primary);
   color: #fff;
   font: inherit;
   font-size: 13px;
@@ -118,6 +118,6 @@
 }
 
 .tweet-copy-button-copied {
-  border-color: var(--discord-accent-green);
-  background: var(--discord-accent-green);
+  border-color: var(--accent-success);
+  background: var(--accent-success);
 }

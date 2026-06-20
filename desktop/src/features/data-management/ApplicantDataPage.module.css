@@ -50,7 +50,7 @@
   border-radius: 12px;
   background: rgba(237, 66, 69, 0.14);
   border: 1px solid rgba(237, 66, 69, 0.3);
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -66,7 +66,7 @@
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   border-radius: 6px;
 }
 
@@ -76,7 +76,7 @@
   font-size: 12px;
   font-weight: 500;
   background: transparent;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   border: none;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -84,13 +84,13 @@
 
 .applicant-filter-tab:hover {
   transform: none;
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-normal);
+  background: var(--surface-hover);
+  color: var(--text-default);
 }
 
 .applicant-filter-tab--active {
-  background: var(--discord-bg-hover);
-  color: var(--discord-text-normal);
+  background: var(--surface-hover);
+  color: var(--text-default);
 }
 
 /* ========================================
@@ -122,7 +122,7 @@
 
 .applicant-row__detail-cell {
   padding: 0 !important;
-  border-bottom: 2px solid var(--discord-accent-blue) !important;
+  border-bottom: 2px solid var(--accent-primary) !important;
 }
 
 .applicant-row__detail {
@@ -143,6 +143,11 @@
   max-width: 760px;
 }
 
+.applicant-detail-modal .applicant-row__detail-grid {
+  grid-template-columns: minmax(220px, 42%) minmax(0, 1fr);
+  gap: 10px 20px;
+}
+
 .applicant-detail-title {
   display: flex;
   align-items: center;
@@ -155,7 +160,7 @@
 }
 
 .applicant-row__detail-grid dt {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -164,15 +169,23 @@
   padding-top: 2px;
 }
 
+.applicant-detail-modal .applicant-row__detail-grid dt {
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .applicant-row__detail-grid dd {
   min-width: 0;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   overflow-wrap: anywhere;
   margin: 0;
 }
 
 .applicant-row__detail-grid a {
-  color: var(--discord-text-link);
+  color: var(--text-link);
   overflow-wrap: anywhere;
 }
 
@@ -193,23 +206,23 @@
 }
 
 .caution-reason {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   font-weight: 500;
 }
 
 .ng-cast-none {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .ng-cast-single {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   font-weight: 700;
 }
 
 .ng-cast-summary {
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -224,7 +237,7 @@
   padding: 0 6px;
   border: none;
   background: transparent;
-  color: var(--discord-accent-red);
+  color: var(--accent-danger);
   font-size: 22px;
   font-weight: 800;
   line-height: 1;
@@ -327,11 +340,11 @@
 .applicant-import-card__file-name {
   min-width: 180px;
   padding: 9px 12px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--discord-bg-secondary);
+  background: var(--surface-panel-muted);
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .applicant-import-card__grid {
@@ -348,7 +361,7 @@
 .applicant-import-card__subtext {
   margin: 6px 0 10px;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -387,10 +400,10 @@
   text-align: left;
   padding: 10px 12px;
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
   background-color: var(--db-sticky-bg);
   position: sticky;
   top: 0;
@@ -402,7 +415,7 @@
   left: 0;
   z-index: 30;
   box-shadow: var(--db-sticky-shadow-right), var(--db-sticky-shadow-bottom);
-  border-right: 1px solid var(--discord-border);
+  border-right: 1px solid var(--border-default);
 }
 
 .db-table__th--sticky-right {
@@ -419,7 +432,7 @@
 .db-table__th-hint {
   font-size: 9px;
   font-weight: 400;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-left: 6px;
   font-style: italic;
   display: block;
@@ -428,8 +441,8 @@
 .db-table__cell {
   padding: 10px 12px;
   font-size: 12px;
-  color: var(--discord-text-normal);
-  border-bottom: 1px solid var(--discord-border);
+  color: var(--text-default);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .db-table__cell--sticky-left {
@@ -438,7 +451,7 @@
   z-index: 20;
   background-color: var(--db-sticky-bg);
   box-shadow: var(--db-sticky-shadow-right);
-  border-right: 1px solid var(--discord-border);
+  border-right: 1px solid var(--border-default);
 }
 
 .db-table tbody tr:nth-child(even) .db-table__cell--sticky-left {
@@ -457,7 +470,7 @@
   min-width: 50px !important;
   max-width: 50px !important;
   text-align: center;
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   padding: 10px 4px;
 }
 
@@ -467,22 +480,22 @@
 
 .db-table__cell--link {
   cursor: pointer;
-  color: var(--discord-text-link);
+  color: var(--text-link);
   transition: background-color 0.17s ease;
 }
 
 .db-table__cell--link:hover {
-  background-color: var(--discord-bg-hover);
+  background-color: var(--surface-hover);
 }
 
 .db-table__cell--note {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .db-table__cell--empty {
   padding: 32px;
   text-align: center;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   white-space: normal;
 }

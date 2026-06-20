@@ -80,14 +80,14 @@ const FeatureHeader: React.FC<{
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div style={{ marginBottom: 12 }}>
-    <div style={{ border: '1px solid var(--discord-border)', borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--discord-bg-hover)', borderBottom: '1px solid var(--discord-border)' }}>
-        <div style={{ width: 3, height: 12, background: 'var(--discord-accent-blue)', borderRadius: 2, flexShrink: 0 }} />
-        <h3 style={{ fontSize: 11, fontWeight: 700, color: 'var(--discord-text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+    <div style={{ border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-default)' }}>
+        <div style={{ width: 3, height: 12, background: 'var(--accent-primary)', borderRadius: 2, flexShrink: 0 }} />
+        <h3 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
           {title}
         </h3>
       </div>
-      <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--discord-text-normal)', lineHeight: 1.8, background: 'var(--discord-bg-secondary)' }}>
+      <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
         {children}
       </div>
     </div>
@@ -97,9 +97,9 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 const FeatureList: React.FC<{ items: string[] }> = ({ items }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
     {items.map((item, i) => (
-      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 10px', borderRadius: 6, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)' }}>
-        <span style={{ color: 'var(--discord-accent-blue)', flexShrink: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>›</span>
-        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.5 }}>{item}</span>
+      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 10px', borderRadius: 6, background: 'var(--surface-panel)', border: '1px solid var(--border-default)' }}>
+        <span style={{ color: 'var(--accent-primary)', flexShrink: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>›</span>
+        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.5 }}>{item}</span>
       </div>
     ))}
   </div>
@@ -109,10 +109,10 @@ const StepList: React.FC<{ items: string[] }> = ({ items }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
     {items.map((item, i) => (
       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--discord-accent-blue)', color: '#fff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--accent-primary)', color: '#fff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
           {i + 1}
         </div>
-        <div style={{ fontSize: 14, color: 'var(--discord-text-normal)', lineHeight: 1.6, paddingTop: 4 }}>{item}</div>
+        <div style={{ fontSize: 14, color: 'var(--text-default)', lineHeight: 1.6, paddingTop: 4 }}>{item}</div>
       </div>
     ))}
   </div>
@@ -125,7 +125,7 @@ const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
     </div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {items.map((item, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>
           <span style={{ color: '#c8890e', flexShrink: 0, fontWeight: 700 }}>•</span>
           {item}
         </div>
@@ -135,11 +135,11 @@ const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
 );
 
 const ScreenSample: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{ border: '1px solid var(--discord-border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-    <div style={{ background: 'var(--discord-bg-hover)', padding: '7px 12px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--discord-border)' }}>
-      <span style={{ fontSize: 11, color: 'var(--discord-text-muted)', fontWeight: 600 }}>{title}</span>
+  <div style={{ border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+    <div style={{ background: 'var(--surface-hover)', padding: '7px 12px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border-default)' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{title}</span>
     </div>
-    <div style={{ padding: '12px 14px', background: 'var(--discord-bg-dark)', fontSize: 12 }}>
+    <div style={{ padding: '12px 14px', background: 'var(--surface-panel)', fontSize: 12 }}>
       {children}
     </div>
   </div>
@@ -273,26 +273,26 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
       </div>
 
       <div className={styles.featureGuideSampleLayout}>
-        <div className={styles.mockAppFrame}>
-          <div className={styles.mockAppTopbar}>
+        <div className={styles.guidePreviewAppFrame}>
+          <div className={styles.guidePreviewAppTopbar}>
             <div>
               <strong>Manual Test Event</strong>
               <span>Stargazer</span>
             </div>
-            <div className={styles.mockTopbarStatus}>DB接続中</div>
+            <div className={styles.guidePreviewTopbarStatus}>DB接続中</div>
           </div>
-          <div className={styles.mockAppWorkspace}>
-            <aside className={styles.mockAppSidebar} aria-label="サンプル画面ナビゲーション">
+          <div className={styles.guidePreviewAppWorkspace}>
+            <aside className={styles.guidePreviewAppSidebar} aria-label="サンプル画面ナビゲーション">
               {['応募データ', 'データ読取', '抽選', 'マッチング', 'キャスト名簿', 'NG管理', '出席管理', '投稿テンプレ'].map(label => (
                 <span
                   key={label}
-                  className={`${styles.mockAppSidebarItem}${meta.activeNav === label ? ` ${styles.mockAppSidebarItemActive}` : ''}`}
+                  className={`${styles.guidePreviewAppSidebarItem}${meta.activeNav === label ? ` ${styles.guidePreviewAppSidebarItemActive}` : ''}`}
                 >
                   {label}
                 </span>
               ))}
             </aside>
-            <div className={styles.mockAppContent}>
+            <div className={styles.guidePreviewAppContent}>
               {renderFeatureSampleScreen(feature)}
               {meta.points.map(point => (
                 <span
@@ -345,73 +345,73 @@ function renderFeatureSampleScreen(feature: FeatureId): React.ReactNode {
   }
 }
 
-const MockHeader: React.FC<{ title: string; description?: string; actions?: React.ReactNode }> = ({ title, description, actions }) => (
-  <div className={styles.mockHeader}>
+const GuidePreviewHeader: React.FC<{ title: string; description?: string; actions?: React.ReactNode }> = ({ title, description, actions }) => (
+  <div className={styles.guidePreviewHeader}>
     <div>
       <h4>{title}</h4>
       {description && <p>{description}</p>}
     </div>
-    {actions && <div className={styles.mockActions}>{actions}</div>}
+    {actions && <div className={styles.guidePreviewActions}>{actions}</div>}
   </div>
 );
 
-const MockButton: React.FC<{ children: React.ReactNode; variant?: 'primary' | 'secondary' | 'danger' }> = ({ children, variant = 'secondary' }) => (
-  <span className={`${styles.mockButton} ${styles[`mockButton${variant[0].toUpperCase()}${variant.slice(1)}`]}`}>{children}</span>
+const GuidePreviewButton: React.FC<{ children: React.ReactNode; variant?: 'primary' | 'secondary' | 'danger' }> = ({ children, variant = 'secondary' }) => (
+  <span className={`${styles.guidePreviewButton} ${styles[`guidePreviewButton${variant[0].toUpperCase()}${variant.slice(1)}`]}`}>{children}</span>
 );
 
-const MockTabs: React.FC<{ tabs: string[]; activeIndex?: number }> = ({ tabs, activeIndex = 0 }) => (
-  <div className={styles.mockTabs}>
+const GuidePreviewTabs: React.FC<{ tabs: string[]; activeIndex?: number }> = ({ tabs, activeIndex = 0 }) => (
+  <div className={styles.guidePreviewTabs}>
     {tabs.map((tab, index) => (
-      <span key={tab} className={`${styles.mockTab}${activeIndex === index ? ` ${styles.mockTabActive}` : ''}`}>{tab}</span>
+      <span key={tab} className={`${styles.guidePreviewTab}${activeIndex === index ? ` ${styles.guidePreviewTabActive}` : ''}`}>{tab}</span>
     ))}
   </div>
 );
 
-const MockBadge: React.FC<{ children: React.ReactNode; tone?: 'blue' | 'green' | 'red' | 'gray' | 'yellow' }> = ({ children, tone = 'blue' }) => (
-  <span className={`${styles.mockBadge} ${styles[`mockBadge${tone[0].toUpperCase()}${tone.slice(1)}`]}`}>{children}</span>
+const GuidePreviewBadge: React.FC<{ children: React.ReactNode; tone?: 'blue' | 'green' | 'red' | 'gray' | 'yellow' }> = ({ children, tone = 'blue' }) => (
+  <span className={`${styles.guidePreviewBadge} ${styles[`guidePreviewBadge${tone[0].toUpperCase()}${tone.slice(1)}`]}`}>{children}</span>
 );
 
 const ApplicantDataSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader
       title="応募データ"
       description="responses_20260617.tsv / 42件"
-      actions={<><MockButton>再取り込み</MockButton><MockButton variant="danger">元ログ削除</MockButton></>}
+      actions={<><GuidePreviewButton>再取り込み</GuidePreviewButton><GuidePreviewButton variant="danger">元ログ削除</GuidePreviewButton></>}
     />
-    <MockTabs tabs={['全件 42', '要注意 2']} />
-    <table className={styles.mockTable}>
+    <GuidePreviewTabs tabs={['全件 42', '要注意 2']} />
+    <table className={styles.guidePreviewTable}>
       <thead>
         <tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>NGキャスト</th><th>操作</th></tr>
       </thead>
       <tbody>
-        <tr><td>サンプル太郎</td><td>@sample_vrc</td><td><MockBadge>キャストA</MockBadge><MockBadge tone="gray">キャストB</MockBadge></td><td>なし</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
-        <tr className={styles.mockTableWarning}><td>問題ユーザー</td><td>@problem_123</td><td><MockBadge tone="green">キャストC</MockBadge></td><td>2名のキャストがNG</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
-        <tr><td>ゲスト花子</td><td>@guest_hanako</td><td><MockBadge>キャストB</MockBadge><MockBadge tone="gray">キャストD</MockBadge></td><td>キャストA</td><td><span className={styles.mockDeleteMark}>×</span></td></tr>
+        <tr><td>サンプル太郎</td><td>@sample_vrc</td><td><GuidePreviewBadge>キャストA</GuidePreviewBadge><GuidePreviewBadge tone="gray">キャストB</GuidePreviewBadge></td><td>なし</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+        <tr className={styles.guidePreviewTableWarning}><td>問題ユーザー</td><td>@problem_123</td><td><GuidePreviewBadge tone="green">キャストC</GuidePreviewBadge></td><td>2名のキャストがNG</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+        <tr><td>ゲスト花子</td><td>@guest_hanako</td><td><GuidePreviewBadge>キャストB</GuidePreviewBadge><GuidePreviewBadge tone="gray">キャストD</GuidePreviewBadge></td><td>キャストA</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
       </tbody>
     </table>
   </div>
 );
 
 const ImportSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="データ読取" description="TSVファイルを読み込み、列を対応付けます。" actions={<MockButton variant="primary">TSVファイルを選択</MockButton>} />
-    <div className={styles.mockImportGrid}>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockFileStrip}>responses_20260617.tsv / 42行 / 有効 41件</div>
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="データ読取" description="TSVファイルを読み込み、列を対応付けます。" actions={<GuidePreviewButton variant="primary">TSVファイルを選択</GuidePreviewButton>} />
+    <div className={styles.guidePreviewImportGrid}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewFileStrip}>responses_20260617.tsv / 42行 / 有効 41件</div>
         {[
           ['ユーザー名', '名前'],
           ['X ID', 'X/Twitter ID'],
           ['VRC URL', 'VRChat URL'],
           ['希望キャスト', '第一希望, 第二希望, 第三希望'],
         ].map(([label, value]) => (
-          <div key={label} className={styles.mockMappingRow}>
+          <div key={label} className={styles.guidePreviewMappingRow}>
             <span>{label}</span><b>→</b><em>{value}</em>
           </div>
         ))}
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>プレビュー</div>
-        <table className={styles.mockTable}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>プレビュー</div>
+        <table className={styles.guidePreviewTable}>
           <tbody>
             <tr><td>サンプル太郎</td><td>@sample_vrc</td><td>キャストA</td></tr>
             <tr><td>ゲスト花子</td><td>@guest_hanako</td><td>キャストB</td></tr>
@@ -420,109 +420,109 @@ const ImportSampleScreen: React.FC = () => (
         </table>
       </div>
     </div>
-    <div className={styles.mockFooterActions}><MockButton>抽選へ進む</MockButton><MockButton variant="primary">41件を取り込む</MockButton></div>
+    <div className={styles.guidePreviewFooterActions}><GuidePreviewButton>抽選へ進む</GuidePreviewButton><GuidePreviewButton variant="primary">41件を取り込む</GuidePreviewButton></div>
   </div>
 );
 
 const LotterySampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="抽選設定" description="確定当選者と当選人数を設定し、抽選結果を保存できます。" />
-    <div className={styles.mockLotteryGrid}>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockMetricGrid}>
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="抽選設定" description="確定当選者と当選人数を設定し、抽選結果を保存できます。" />
+    <div className={styles.guidePreviewLotteryGrid}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewMetricGrid}>
           <div><span>当選人数</span><strong>20</strong></div>
           <div><span>確定当選者</span><strong>3</strong></div>
           <div><span>合計当選者数</span><strong>23</strong></div>
         </div>
-        <div className={styles.mockOptionGrid}>
+        <div className={styles.guidePreviewOptionGrid}>
           {['抽選のみ行う', 'ランダム', 'ローテーション', 'グループ制マッチング'].map((item, index) => (
-            <span key={item} className={index === 3 ? styles.mockOptionSelected : ''}>{item}</span>
+            <span key={item} className={index === 3 ? styles.guidePreviewOptionSelected : ''}>{item}</span>
           ))}
         </div>
-        <div className={styles.mockSettingLine}><span>当日枠を含める</span><strong>ON / 2席</strong></div>
-        <div className={styles.mockSettingLine}><span>合計席数</span><strong>26席</strong></div>
+        <div className={styles.guidePreviewSettingLine}><span>当日枠を含める</span><strong>ON / 2席</strong></div>
+        <div className={styles.guidePreviewSettingLine}><span>合計席数</span><strong>26席</strong></div>
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockValidation}><MockBadge tone="green">OK</MockBadge><p>設定に問題はありません。</p><small>INFO: 合計席数 26席、合計当選者数 23名</small></div>
-        <div className={styles.mockSavedRun}><strong>保存済み抽選結果</strong><span>2026-06-17 グループ制 / 23名</span></div>
-        <div className={styles.mockFooterActions}><MockButton variant="primary">抽選実行</MockButton><MockButton>抽選結果保存</MockButton></div>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">OK</GuidePreviewBadge><p>設定に問題はありません。</p><small>INFO: 合計席数 26席、合計当選者数 23名</small></div>
+        <div className={styles.guidePreviewSavedRun}><strong>保存済み抽選結果</strong><span>2026-06-17 グループ制 / 23名</span></div>
+        <div className={styles.guidePreviewFooterActions}><GuidePreviewButton variant="primary">抽選実行</GuidePreviewButton><GuidePreviewButton>抽選結果保存</GuidePreviewButton></div>
       </div>
     </div>
   </div>
 );
 
 const MatchingSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="マッチング" description="抽選結果からキャスト割り当てを作成します。" actions={<MockButton variant="primary">マッチング開始</MockButton>} />
-    <div className={styles.mockMetricGrid}>
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="マッチング" description="抽選結果からキャスト割り当てを作成します。" actions={<GuidePreviewButton variant="primary">マッチング開始</GuidePreviewButton>} />
+    <div className={styles.guidePreviewMetricGrid}>
       <div><span>方式</span><strong>グループ制</strong></div>
       <div><span>当選者</span><strong>23名</strong></div>
       <div><span>合計席数</span><strong>26席</strong></div>
       <div><span>出席キャスト</span><strong>8名</strong></div>
     </div>
-    <div className={styles.mockMatchingGrid}>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>実行条件</div>
-        <div className={styles.mockOptionGrid}><span>読み取り専用</span><span className={styles.mockOptionSelected}>品質モード</span><span>X IDでNG除外</span></div>
+    <div className={styles.guidePreviewMatchingGrid}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>実行条件</div>
+        <div className={styles.guidePreviewOptionGrid}><span>読み取り専用</span><span className={styles.guidePreviewOptionSelected}>品質モード</span><span>X IDでNG除外</span></div>
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockValidation}><MockBadge tone="green">OK</MockBadge><p>マッチング準備が完了しています。</p></div>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">OK</GuidePreviewBadge><p>マッチング準備が完了しています。</p></div>
       </div>
     </div>
-    <table className={styles.mockTable}>
+    <table className={styles.guidePreviewTable}>
       <thead><tr><th>キャスト</th><th>R1</th><th>R2</th><th>R3</th><th>合計</th></tr></thead>
       <tbody>
-        <tr><td>キャストA</td><td>サンプル太郎 <MockBadge tone="yellow">1希</MockBadge></td><td>ゲスト花子</td><td>なし</td><td>2</td></tr>
-        <tr><td>キャストB</td><td>ゲスト花子 <MockBadge tone="yellow">1希</MockBadge></td><td>サンプル太郎</td><td>問題ユーザー</td><td>3</td></tr>
+        <tr><td>キャストA</td><td>サンプル太郎 <GuidePreviewBadge tone="yellow">1希</GuidePreviewBadge></td><td>ゲスト花子</td><td>なし</td><td>2</td></tr>
+        <tr><td>キャストB</td><td>ゲスト花子 <GuidePreviewBadge tone="yellow">1希</GuidePreviewBadge></td><td>サンプル太郎</td><td>問題ユーザー</td><td>3</td></tr>
       </tbody>
     </table>
-    <div className={styles.mockFooterActions}><MockButton>PNG出力</MockButton><MockButton>マッチング結果をTSVで保存</MockButton></div>
+    <div className={styles.guidePreviewFooterActions}><GuidePreviewButton>PNG出力</GuidePreviewButton><GuidePreviewButton>マッチング結果をTSVで保存</GuidePreviewButton></div>
   </div>
 );
 
 const CastSampleScreen: React.FC = () => (
-  <div className={styles.mockTwoPane}>
-    <div className={styles.mockPanel}>
-      <div className={styles.mockPanelTitle}>キャスト一覧</div>
+  <div className={styles.guidePreviewTwoPane}>
+    <div className={styles.guidePreviewPanel}>
+      <div className={styles.guidePreviewPanelTitle}>キャスト一覧</div>
       {['キャストA / グループ1', 'キャストB / グループ1', 'キャストC / グループ2'].map((cast, index) => (
-        <div key={cast} className={`${styles.mockListRow}${index === 0 ? ` ${styles.mockListRowActive}` : ''}`}>{cast}</div>
+        <div key={cast} className={`${styles.guidePreviewListRow}${index === 0 ? ` ${styles.guidePreviewListRowActive}` : ''}`}>{cast}</div>
       ))}
-      <div className={styles.mockQuickInput}>キャストD を追加</div>
+      <div className={styles.guidePreviewQuickInput}>キャストD を追加</div>
     </div>
-    <div className={styles.mockPanel}>
-      <MockHeader title="キャストA" description="グループ1 / 出席対象" />
-      <div className={styles.mockProfileGrid}>
+    <div className={styles.guidePreviewPanel}>
+      <GuidePreviewHeader title="キャストA" description="グループ1 / 出席対象" />
+      <div className={styles.guidePreviewProfileGrid}>
         <div>
-          <div className={styles.mockAvatar}>写真</div>
-          <div style={{ marginTop: 8 }}><MockButton variant="danger">キャストを削除</MockButton></div>
+          <div className={styles.guidePreviewAvatar}>写真</div>
+          <div style={{ marginTop: 8 }}><GuidePreviewButton variant="danger">キャストを削除</GuidePreviewButton></div>
         </div>
-        <div className={styles.mockFieldStack}><span>名前: キャストA</span><span>グループ: グループ1</span><span>メモ: 接客メモを入力</span></div>
+        <div className={styles.guidePreviewFieldStack}><span>名前: キャストA</span><span>グループ: グループ1</span><span>メモ: 接客メモを入力</span></div>
       </div>
-      <div className={styles.mockExternalLinks}><MockButton>Discord</MockButton><MockButton>X</MockButton><MockButton>VRChat</MockButton></div>
+      <div className={styles.guidePreviewExternalLinks}><GuidePreviewButton>Discord</GuidePreviewButton><GuidePreviewButton>X</GuidePreviewButton><GuidePreviewButton>VRChat</GuidePreviewButton></div>
     </div>
   </div>
 );
 
 const NgSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="NG管理" description="キャストNGと要注意人物を管理します。" />
-    <MockTabs tabs={['キャストNG', '要注意人物']} />
-    <div className={styles.mockTwoPane}>
-      <div className={styles.mockPanel}>
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="NG管理" description="キャストNGと要注意人物を管理します。" />
+    <GuidePreviewTabs tabs={['キャストNG', '要注意人物']} />
+    <div className={styles.guidePreviewTwoPane}>
+      <div className={styles.guidePreviewPanel}>
         {[
           ['キャストA', '2'],
           ['キャストB', '0'],
           ['キャストC', '1'],
         ].map(([name, count], index) => (
-          <div key={name} className={`${styles.mockListRow}${index === 0 ? ` ${styles.mockListRowActive}` : ''}`}>
-            <span>{name}</span>{count !== '0' && <MockBadge tone="red">{count}</MockBadge>}
+          <div key={name} className={`${styles.guidePreviewListRow}${index === 0 ? ` ${styles.guidePreviewListRowActive}` : ''}`}>
+            <span>{name}</span>{count !== '0' && <GuidePreviewBadge tone="red">{count}</GuidePreviewBadge>}
           </div>
         ))}
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>キャストA のNG一覧</div>
-        <table className={styles.mockTable}><tbody><tr><td>問題ユーザー</td><td>@problem_123</td><td>リンク</td><td><span className={styles.mockDeleteMark}>×</span></td></tr><tr><td>別名ユーザー</td><td>@bad_user</td><td>リンク</td><td><span className={styles.mockDeleteMark}>×</span></td></tr></tbody></table>
-        <div className={styles.mockCautionGrid}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>キャストA のNG一覧</div>
+        <table className={styles.guidePreviewTable}><tbody><tr><td>問題ユーザー</td><td>@problem_123</td><td>リンク</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr><tr><td>別名ユーザー</td><td>@bad_user</td><td>リンク</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr></tbody></table>
+        <div className={styles.guidePreviewCautionGrid}>
           <div><strong>要注意候補</strong><span>@problem_123 / 2名のキャストがNG</span></div>
           <div><strong>登録済み</strong><span>@manual_user / 手動登録</span></div>
         </div>
@@ -532,43 +532,43 @@ const NgSampleScreen: React.FC = () => (
 );
 
 const AttendanceSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="出席管理" description="出席中・待機の切り替えと履歴を保存します。" actions={<MockButton variant="primary">出席を記録</MockButton>} />
-    <MockTabs tabs={['出席設定', '出席履歴']} />
-    <div className={styles.mockAttendanceGrid}>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>出席中 3名</div>
-        {['キャストA', 'キャストB', 'キャストC'].map(cast => <div key={cast} className={`${styles.mockAttendanceRow} ${styles.mockAttendanceRowPresent}`}>{cast}</div>)}
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="出席管理" description="出席中・待機の切り替えと履歴を保存します。" actions={<GuidePreviewButton variant="primary">出席を記録</GuidePreviewButton>} />
+    <GuidePreviewTabs tabs={['出席設定', '出席履歴']} />
+    <div className={styles.guidePreviewAttendanceGrid}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>出席中 3名</div>
+        {['キャストA', 'キャストB', 'キャストC'].map(cast => <div key={cast} className={`${styles.guidePreviewAttendanceRow} ${styles.guidePreviewAttendanceRowPresent}`}>{cast}</div>)}
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>待機 2名</div>
-        {['キャストD', 'キャストE'].map(cast => <div key={cast} className={`${styles.mockAttendanceRow} ${styles.mockAttendanceRowStandby}`}>{cast}</div>)}
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>待機 2名</div>
+        {['キャストD', 'キャストE'].map(cast => <div key={cast} className={`${styles.guidePreviewAttendanceRow} ${styles.guidePreviewAttendanceRowStandby}`}>{cast}</div>)}
       </div>
-      <div className={styles.mockModalPreview}>
+      <div className={styles.guidePreviewModalPreview}>
         <div><span>記録日</span><strong>2026-06-17</strong></div>
         <div><span>出席人数</span><strong>3名</strong></div>
         <p>キャストA / キャストB / キャストC</p>
       </div>
     </div>
-    <table className={styles.mockTable}>
+    <table className={styles.guidePreviewTable}>
       <tbody><tr><th>キャスト名</th><th>出席回数</th><th>06/15</th><th>06/16</th><th>06/17</th></tr><tr><td>キャストA</td><td>3</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>キャストD</td><td>1</td><td>-</td><td>✓</td><td>-</td></tr></tbody>
     </table>
   </div>
 );
 
 const TweetSampleScreen: React.FC = () => (
-  <div className={styles.mockScreenStack}>
-    <MockHeader title="投稿テンプレ" description="出席キャストを使った投稿文を作成します。" />
-    <div className={styles.mockTwoPane}>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>テンプレート編集</div>
-        <div className={styles.mockTextArea}>【{'{event_name}'}】<br />本日の出演キャスト<br />{'{casts}'}</div>
-        <div className={styles.mockExternalLinks}><MockBadge>{'{casts}'}</MockBadge><MockBadge>{'{event_name}'}</MockBadge></div>
+  <div className={styles.guidePreviewScreenStack}>
+    <GuidePreviewHeader title="投稿テンプレ" description="出席キャストを使った投稿文を作成します。" />
+    <div className={styles.guidePreviewTwoPane}>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>テンプレート編集</div>
+        <div className={styles.guidePreviewTextArea}>【{'{event_name}'}】<br />本日の出演キャスト<br />{'{casts}'}</div>
+        <div className={styles.guidePreviewExternalLinks}><GuidePreviewBadge>{'{casts}'}</GuidePreviewBadge><GuidePreviewBadge>{'{event_name}'}</GuidePreviewBadge></div>
       </div>
-      <div className={styles.mockPanel}>
-        <div className={styles.mockPanelTitle}>プレビュー</div>
-        <div className={styles.mockTextArea}>【Manual Test Event】<br />本日の出演キャスト<br />キャストA<br />キャストB<br />キャストC</div>
-        <div className={styles.mockFooterActions}><span className={styles.mockCharacterCount}>57 / 280</span><MockButton variant="primary">コピー</MockButton></div>
+      <div className={styles.guidePreviewPanel}>
+        <div className={styles.guidePreviewPanelTitle}>プレビュー</div>
+        <div className={styles.guidePreviewTextArea}>【Manual Test Event】<br />本日の出演キャスト<br />キャストA<br />キャストB<br />キャストC</div>
+        <div className={styles.guidePreviewFooterActions}><span className={styles.guidePreviewCharacterCount}>57 / 280</span><GuidePreviewButton variant="primary">コピー</GuidePreviewButton></div>
       </div>
     </div>
   </div>
@@ -584,14 +584,14 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <FeatureGuideSample feature="applicant-data" />
 
       <ScreenSample title="応募データ">
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--discord-border)', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border-default)', marginBottom: 8 }}>
           {['全件 (23)', '要注意 (1)'].map((t, i) => (
-            <span key={t} style={{ padding: '4px 12px', fontSize: 11, borderBottom: i === 0 ? '2px solid var(--discord-accent-blue)' : '2px solid transparent', color: i === 0 ? 'var(--discord-accent-blue)' : 'var(--discord-text-muted)', fontWeight: i === 0 ? 700 : 400 }}>{t}</span>
+            <span key={t} style={{ padding: '4px 12px', fontSize: 11, borderBottom: i === 0 ? '2px solid var(--accent-primary)' : '2px solid transparent', color: i === 0 ? 'var(--accent-primary)' : 'var(--text-muted)', fontWeight: i === 0 ? 700 : 400 }}>{t}</span>
           ))}
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-          <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>
-            {['ユーザー名', 'X ID', '希望1', '希望2', '希望3'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
+          <thead><tr style={{ borderBottom: '1px solid var(--border-default)' }}>
+            {['ユーザー名', 'X ID', '希望1', '希望2', '希望3'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600 }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {[
@@ -599,10 +599,10 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
               { name: '⚠ 問題ユーザー', xid: '@problem_123', c: ['キャストA', '', ''], caution: true },
               { name: 'サンプル太郎',   xid: '@sample_vrc', c: ['キャストC', 'キャストA', ''], caution: false },
             ].map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)', background: r.caution ? 'rgba(237,66,69,0.08)' : 'transparent' }}>
-                <td style={{ padding: '5px 8px', color: r.caution ? '#ed4245' : 'var(--discord-text-normal)', fontWeight: r.caution ? 600 : 400 }}>{r.name}</td>
-                <td style={{ padding: '5px 8px', color: 'var(--discord-text-link, #00b0f4)' }}>{r.xid}</td>
-                {r.c.map((c, j) => <td key={j} style={{ padding: '5px 8px', color: 'var(--discord-text-normal)' }}>{c}</td>)}
+              <tr key={i} style={{ borderBottom: '1px solid var(--border-default)', background: r.caution ? 'rgba(237,66,69,0.08)' : 'transparent' }}>
+                <td style={{ padding: '5px 8px', color: r.caution ? '#ed4245' : 'var(--text-default)', fontWeight: r.caution ? 600 : 400 }}>{r.name}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-link, #00b0f4)' }}>{r.xid}</td>
+                {r.c.map((c, j) => <td key={j} style={{ padding: '5px 8px', color: 'var(--text-default)' }}>{c}</td>)}
               </tr>
             ))}
           </tbody>
@@ -647,7 +647,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <FeatureGuideSample feature="import" />
 
       <ScreenSample title="データ読取 — 列マッピング">
-        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', borderRadius: 6, fontSize: 11, color: 'var(--discord-text-muted)' }}>
+        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' }}>
           📄 responses.tsv &nbsp;|&nbsp; 42行 検出 &nbsp;|&nbsp; 有効: 41件
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -658,17 +658,17 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
             { label: '希望キャスト 2', value: '第二希望' },
           ].map(row => (
             <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 110, fontSize: 11, color: 'var(--discord-text-normal)', flexShrink: 0 }}>
+              <span style={{ width: 110, fontSize: 11, color: 'var(--text-default)', flexShrink: 0 }}>
                 {row.label}{row.required && <span style={{ color: '#ed4245', marginLeft: 2 }}>*</span>}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--discord-text-muted)' }}>→</span>
-              <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 11, color: 'var(--discord-accent-blue)' }}>{row.value}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>→</span>
+              <span style={{ padding: '3px 8px', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 4, fontSize: 11, color: 'var(--accent-primary)' }}>{row.value}</span>
             </div>
           ))}
         </div>
         <div style={{ marginTop: 10, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-          <span style={{ padding: '5px 12px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>抽選へ進む</span>
-          <span style={{ padding: '5px 14px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>取り込む</span>
+          <span style={{ padding: '5px 12px', background: 'var(--button-secondary-bg)', color: 'var(--text-default)', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>抽選へ進む</span>
+          <span style={{ padding: '5px 14px', background: 'var(--accent-primary)', color: '#fff', borderRadius: 5, fontSize: 11, fontWeight: 700 }}>取り込む</span>
         </div>
       </ScreenSample>
 
@@ -723,15 +723,15 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
               { label: '総テーブル数', value: '4' },
             ].map(r => (
               <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 80, fontSize: 11, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{r.label}</span>
-                <span style={{ padding: '3px 8px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 4, fontSize: 11, color: 'var(--discord-text-header)', fontWeight: 600 }}>{r.value}</span>
+                <span style={{ width: 80, fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{r.label}</span>
+                <span style={{ padding: '3px 8px', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 4, fontSize: 11, color: 'var(--text-heading)', fontWeight: 600 }}>{r.value}</span>
               </div>
             ))}
           </div>
           <div style={{ width: 130, padding: '10px 12px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 6 }}>
             <div style={{ fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700, marginBottom: 4 }}>✓ 検証OK</div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>合計席数: 12席</div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>出席キャスト: 4</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>合計席数: 12席</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>出席キャスト: 4</div>
             <div style={{ marginTop: 8, padding: '4px 0', background: 'var(--guide-accent-lottery)', color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, textAlign: 'center' }}>抽選実行</div>
           </div>
         </div>
@@ -745,12 +745,12 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
             { id: 'ローテ', color: '#10b981', title: 'ローテーション', desc: '公平に循環させながら割り当てます' },
             { id: 'グループ', color: '#f59e0b', title: 'グループ制マッチング', desc: 'テーブルあたりゲスト数・担当キャスト数・当日枠を細かく設定します' },
           ] as const).map(m => (
-            <div key={m.id} style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--discord-bg-dark)', border: `1px solid ${m.color}44`, borderLeft: `3px solid ${m.color}` }}>
+            <div key={m.id} style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--surface-panel)', border: `1px solid ${m.color}44`, borderLeft: `3px solid ${m.color}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: '#fff', background: m.color, padding: '2px 7px', borderRadius: 4 }}>{m.id}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--discord-text-header)' }}>{m.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>{m.title}</span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--discord-text-muted)', lineHeight: 1.5 }}>{m.desc}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{m.desc}</div>
             </div>
           ))}
         </div>
@@ -799,8 +799,8 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <ScreenSample title="マッチング結果（キャスト別）">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-          <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>
-            {['キャスト', 'R1', 'R2', 'R3', '合計'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--discord-text-muted)', fontWeight: 600 }}>{h}</th>)}
+          <thead><tr style={{ borderBottom: '1px solid var(--border-default)' }}>
+            {['キャスト', 'R1', 'R2', 'R3', '合計'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600 }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {[
@@ -808,15 +808,15 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
               { cast: 'キャストB', users: ['ゲスト花子', 'テストユーザー', 'サンプル太郎'], ranks: [0, 2, 3] },
               { cast: 'キャストC', users: ['サンプル太郎', 'なし', 'テストユーザー'], ranks: [2, 0, 1] },
             ].map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
-                <td style={{ padding: '5px 8px', color: 'var(--discord-text-normal)', fontWeight: 700 }}>{r.cast}</td>
+              <tr key={i} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                <td style={{ padding: '5px 8px', color: 'var(--text-default)', fontWeight: 700 }}>{r.cast}</td>
                 {r.users.map((user, j) => (
                   <td key={j} style={{ padding: '5px 8px' }}>
-                    <span style={{ fontSize: 10, color: user === 'なし' ? 'var(--discord-text-muted)' : 'var(--discord-text-normal)' }}>{user}</span>
+                    <span style={{ fontSize: 10, color: user === 'なし' ? 'var(--text-muted)' : 'var(--text-default)' }}>{user}</span>
                     {r.ranks[j] > 0 && <span style={{ marginLeft: 4, padding: '1px 5px', borderRadius: 3, background: r.ranks[j] === 1 ? '#f5c400' : r.ranks[j] === 2 ? '#a8a8a8' : '#ad6f2d', color: r.ranks[j] === 2 ? '#000' : '#fff', fontSize: 9, fontWeight: 700 }}>{r.ranks[j]}希</span>}
                   </td>
                 ))}
-                <td style={{ padding: '5px 8px', color: 'var(--discord-text-muted)' }}>{r.users.filter((user) => user !== 'なし').length}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-muted)' }}>{r.users.filter((user) => user !== 'なし').length}</td>
               </tr>
             ))}
           </tbody>
@@ -880,31 +880,31 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <ScreenSample title="キャスト名簿">
         <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ width: 130, borderRight: '1px solid var(--discord-border)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ width: 130, borderRight: '1px solid var(--border-default)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {[
               { name: 'キャストA', group: 'グループ1', selected: true },
               { name: 'キャストB', group: 'グループ1', selected: false },
               { name: 'キャストC', group: 'グループ2', selected: false },
               { name: 'キャストD', group: 'グループ2', selected: false },
             ].map(c => (
-              <div key={c.name} style={{ padding: '5px 8px', borderRadius: 5, background: c.selected ? 'var(--discord-bg-selected)' : 'transparent', fontSize: 11 }}>
-                <div style={{ color: c.selected ? 'var(--discord-text-header)' : 'var(--discord-text-normal)', fontWeight: c.selected ? 600 : 400 }}>{c.name}</div>
-                <div style={{ color: 'var(--discord-text-muted)', fontSize: 10 }}>{c.group}</div>
+              <div key={c.name} style={{ padding: '5px 8px', borderRadius: 5, background: c.selected ? 'var(--surface-selected)' : 'transparent', fontSize: 11 }}>
+                <div style={{ color: c.selected ? 'var(--text-heading)' : 'var(--text-default)', fontWeight: c.selected ? 600 : 400 }}>{c.name}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{c.group}</div>
               </div>
             ))}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--discord-text-muted)' }}>👤</div>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--text-muted)' }}>👤</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--discord-text-header)' }}>キャストA</div>
-                <div style={{ fontSize: 10, color: 'var(--discord-text-muted)' }}>グループ1</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-heading)' }}>キャストA</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>グループ1</div>
               </div>
             </div>
             {[['連絡先', 'https://vrchat.com/...'], ['プロフィール', 'よろしくお願いします']].map(([k, v]) => (
               <div key={k} style={{ marginBottom: 4 }}>
-                <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 2 }}>{k}</div>
-                <div style={{ fontSize: 11, color: 'var(--discord-text-normal)', padding: '3px 6px', background: 'var(--discord-bg-secondary)', borderRadius: 4, border: '1px solid var(--discord-border)' }}>{v}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>{k}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-default)', padding: '3px 6px', background: 'var(--surface-panel-muted)', borderRadius: 4, border: '1px solid var(--border-default)' }}>{v}</div>
               </div>
             ))}
           </div>
@@ -957,20 +957,20 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
       <ScreenSample title="NG管理 — キャストNG">
         <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ width: 120, borderRight: '1px solid var(--discord-border)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ width: 120, borderRight: '1px solid var(--border-default)', paddingRight: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {[{ name: 'キャストA', ng: 2, sel: true }, { name: 'キャストB', ng: 0, sel: false }, { name: 'キャストC', ng: 1, sel: false }].map(c => (
-              <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 7px', borderRadius: 5, background: c.sel ? 'var(--discord-bg-selected)' : 'transparent', fontSize: 11 }}>
-                <span style={{ color: c.sel ? 'var(--discord-text-header)' : 'var(--discord-text-normal)', fontWeight: c.sel ? 600 : 400 }}>{c.name}</span>
+              <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 7px', borderRadius: 5, background: c.sel ? 'var(--surface-selected)' : 'transparent', fontSize: 11 }}>
+                <span style={{ color: c.sel ? 'var(--text-heading)' : 'var(--text-default)', fontWeight: c.sel ? 600 : 400 }}>{c.name}</span>
                 {c.ng > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: 10, padding: '0 5px', fontSize: 10, fontWeight: 700 }}>{c.ng}</span>}
               </div>
             ))}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: 'var(--discord-text-muted)', marginBottom: 6 }}>キャストA のNG一覧</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>キャストA のNG一覧</div>
             {[{ name: '問題ユーザー', xid: '@problem_123' }, { name: '', xid: '@bad_user' }].map((u, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 5, background: 'rgba(237,66,69,0.08)', border: '1px solid rgba(237,66,69,0.2)', marginBottom: 4, fontSize: 11 }}>
-                <span style={{ flex: 1, color: 'var(--discord-text-normal)' }}>{u.name || '—'}</span>
-                <span style={{ color: 'var(--discord-text-muted)' }}>{u.xid}</span>
+                <span style={{ flex: 1, color: 'var(--text-default)' }}>{u.name || '—'}</span>
+                <span style={{ color: 'var(--text-muted)' }}>{u.xid}</span>
                 <span style={{ color: '#ef4444', fontSize: 12, cursor: 'pointer' }}>✕</span>
               </div>
             ))}
@@ -998,7 +998,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="要注意人物 タブ">
         <p>「キャストNG」に登録されたデータを元に、複数のキャストからNGを受けているユーザーを自動で候補表示します。</p>
 
-        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>候補セクション</h4>
+        <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>候補セクション</h4>
         <FeatureList items={[
           '「○人以上のキャストがNGを出したら候補表示」の閾値を設定',
           '条件を満たすユーザーをカードで一覧表示',
@@ -1006,7 +1006,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           '「要注意に追加」ボタンで登録済みセクションに移動',
         ]} />
 
-        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>登録済みセクション</h4>
+        <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>登録済みセクション</h4>
         <FeatureList items={[
           '手動でユーザー名・X IDを入力して追加することもできます',
           '登録種別バッジ：「手動」（青）または「自動＋NG数」（緑）で表示',
@@ -1051,8 +1051,8 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           ))}
         </div>
         <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-          {['全員待機', '全員出席'].map(t => <span key={t} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--discord-border)', fontSize: 10, color: 'var(--discord-text-muted)' }}>{t}</span>)}
-          <span style={{ padding: '4px 10px', borderRadius: 4, background: 'var(--discord-accent-blue)', color: '#fff', fontSize: 10, fontWeight: 700 }}>保存</span>
+          {['全員待機', '全員出席'].map(t => <span key={t} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border-default)', fontSize: 10, color: 'var(--text-muted)' }}>{t}</span>)}
+          <span style={{ padding: '4px 10px', borderRadius: 4, background: 'var(--accent-primary)', color: '#fff', fontSize: 10, fontWeight: 700 }}>保存</span>
         </div>
       </ScreenSample>
 
@@ -1073,7 +1073,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
           '「保存」ボタン：出席記録モーダルを開く',
         ]} />
 
-        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>保存モーダル</h4>
+        <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>保存モーダル</h4>
         <FeatureList items={[
           '上段左：記録日を手動入力（YYYY-MM-DD形式、デフォルトは今日）',
           '上段右：出席キャスト数を大きく表示',
@@ -1110,23 +1110,23 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <ScreenSample title="投稿テンプレ">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>テンプレート編集</div>
-            <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>テンプレート編集</div>
+            <div style={{ background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--text-default)', lineHeight: 1.7, minHeight: 70 }}>
               {'【{event_name}】\nキャスト出演情報\n{casts}'}
             </div>
             <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
               {['{casts}', '{event_name}'].map(p => (
-                <span key={p} style={{ padding: '2px 6px', background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.3)', borderRadius: 4, fontSize: 10, color: 'var(--discord-accent-blue)', fontFamily: 'monospace' }}>{p}</span>
+                <span key={p} style={{ padding: '2px 6px', background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.3)', borderRadius: 4, fontSize: 10, color: 'var(--accent-primary)', fontFamily: 'monospace' }}>{p}</span>
               ))}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--discord-text-muted)', marginBottom: 4 }}>プレビュー</div>
-            <div style={{ background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--discord-text-normal)', lineHeight: 1.7, minHeight: 70 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>プレビュー</div>
+            <div style={{ background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 5, padding: '8px 10px', fontSize: 11, color: 'var(--text-default)', lineHeight: 1.7, minHeight: 70 }}>
               {'【サンプルイベント】\nキャスト出演情報\nキャストA\nキャストB\nキャストC'}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 5, marginTop: 5 }}>
-              <span style={{ padding: '3px 8px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>コピー</span>
+              <span style={{ padding: '3px 8px', background: 'var(--accent-primary)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>コピー</span>
             </div>
           </div>
         </div>
@@ -1142,19 +1142,19 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
       <Section title="テンプレート編集">
         <p>テキストエリアに投稿文のひな型を入力します。プレースホルダーを使うと、実際の値に自動置換されます。</p>
 
-        <h4 style={{ color: 'var(--discord-text-header)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>プレースホルダー一覧</h4>
+        <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>プレースホルダー一覧</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {([
             { ph: '{casts}',      desc: '出席中のキャスト名（改行区切り）' },
             { ph: '{event_name}', desc: '現在選択中のイベント名' },
           ] as const).map(({ ph, desc }) => (
-            <div key={ph} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 7, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)' }}>
-              <code style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--discord-accent-blue)', background: 'rgba(88,101,242,0.12)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{ph}</code>
-              <span style={{ fontSize: 13, color: 'var(--discord-text-normal)' }}>→ {desc}</span>
+            <div key={ph} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 7, background: 'var(--surface-panel)', border: '1px solid var(--border-default)' }}>
+              <code style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--accent-primary)', background: 'rgba(88,101,242,0.12)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{ph}</code>
+              <span style={{ fontSize: 13, color: 'var(--text-default)' }}>→ {desc}</span>
             </div>
           ))}
         </div>
-        <p style={{ marginTop: 10, fontSize: 13, color: 'var(--discord-text-muted)' }}>ボタンをクリックするとカーソル位置に自動挿入。テンプレートは自動保存されます。</p>
+        <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>ボタンをクリックするとカーソル位置に自動挿入。テンプレートは自動保存されます。</p>
       </Section>
 
       <Section title="プレビュー">
@@ -1216,17 +1216,17 @@ export const GuidePage: React.FC = () => {
       `}</style>
 
       {/* デバッグ通知 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', marginBottom: 20, borderRadius: 8, background: 'rgba(240, 178, 50, 0.18)', border: '1px solid rgba(240, 178, 50, 0.55)', fontSize: 12, color: 'var(--discord-accent-yellow, #f0b232)', fontWeight: 600 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', marginBottom: 20, borderRadius: 8, background: 'rgba(240, 178, 50, 0.18)', border: '1px solid rgba(240, 178, 50, 0.55)', fontSize: 12, color: 'var(--accent-warning, #f0b232)', fontWeight: 600 }}>
         🔧 デバッグ中です。更新は最新化を命令されたときに更新します
       </div>
 
       {/* タブ */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--discord-border)' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--border-default)' }}>
         {([
           { id: 'flow' as Tab,     label: '基本的な流れ' },
           { id: 'features' as Tab, label: '各機能について' },
         ] as const).map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '8px 20px', border: 'none', borderBottom: activeTab === tab.id ? '2px solid var(--discord-accent-blue)' : '2px solid transparent', background: 'none', color: activeTab === tab.id ? 'var(--discord-accent-blue)' : 'var(--discord-text-muted)', fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 14, cursor: 'pointer', borderRadius: '4px 4px 0 0', transition: 'color 0.15s, border-color 0.15s' }}>
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: '8px 20px', border: 'none', borderBottom: activeTab === tab.id ? '2px solid var(--accent-primary)' : '2px solid transparent', background: 'none', color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)', fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 14, cursor: 'pointer', borderRadius: '4px 4px 0 0', transition: 'color 0.15s, border-color 0.15s' }}>
             {tab.label}
           </button>
         ))}
@@ -1279,7 +1279,7 @@ export const GuidePage: React.FC = () => {
                     {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選へ進む」を選択'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-import)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
@@ -1287,12 +1287,12 @@ export const GuidePage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {[['ユーザー名', '名前'], ['X ID *', 'X/Twitter ID'], ['希望キャスト 1', '第一希望'], ['希望キャスト 2', '第二希望']].map(([l, v]) => (
                         <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ width: 90, fontSize: 10, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{l}</span>
-                          <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-accent-blue)' }}>{v}</span>
+                          <span style={{ width: 90, fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{l}</span>
+                          <span style={{ padding: '2px 7px', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 3, fontSize: 10, color: 'var(--accent-primary)' }}>{v}</span>
                         </div>
                       ))}
                       <div style={{ marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 5 }}>
-                        <span style={{ padding: '3px 8px', background: 'var(--discord-button-secondary)', color: 'var(--discord-text-normal)', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選だけ</span>
+                        <span style={{ padding: '3px 8px', background: 'var(--button-secondary-bg)', color: 'var(--text-default)', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選だけ</span>
                         <span style={{ padding: '3px 10px', background: 'var(--guide-accent-import)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>取り込む</span>
                       </div>
                     </div>
@@ -1311,17 +1311,17 @@ export const GuidePage: React.FC = () => {
                     {['「応募データ」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', 'NGキャストに一致する応募者は一覧と詳細で確認できる', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-primary-bg)', border: '1px solid var(--guide-accent-primary-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-primary)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
                   <ScreenSample title="応募データ">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['名前', 'X ID', '希望1'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                      <thead><tr style={{ borderBottom: '1px solid var(--border-default)' }}>{['名前', 'X ID', '希望1'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
                       <tbody>
-                        <tr style={{ borderBottom: '1px solid var(--discord-border)' }}><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>テストさん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-link, #00b0f4)' }}>@test</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストA</td></tr>
-                        <tr style={{ borderBottom: '1px solid var(--discord-border)', background: 'rgba(237,66,69,0.08)' }}><td style={{ padding: '4px 6px', color: '#ed4245', fontWeight: 600 }}>⚠ 問題さん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-muted)' }}>@bad</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストB</td></tr>
-                        <tr><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>花子さん</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-link, #00b0f4)' }}>@hanako</td><td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>キャストA</td></tr>
+                        <tr style={{ borderBottom: '1px solid var(--border-default)' }}><td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>テストさん</td><td style={{ padding: '4px 6px', color: 'var(--text-link, #00b0f4)' }}>@test</td><td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>キャストA</td></tr>
+                        <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'rgba(237,66,69,0.08)' }}><td style={{ padding: '4px 6px', color: '#ed4245', fontWeight: 600 }}>⚠ 問題さん</td><td style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>@bad</td><td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>キャストB</td></tr>
+                        <tr><td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>花子さん</td><td style={{ padding: '4px 6px', color: 'var(--text-link, #00b0f4)' }}>@hanako</td><td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>キャストA</td></tr>
                       </tbody>
                     </table>
                   </ScreenSample>
@@ -1339,7 +1339,7 @@ export const GuidePage: React.FC = () => {
                     {['「出席管理」タブを開き「出席設定」タブを選択する', '当日参加できないキャスト行をクリックして「待機」に移動する', '「全員出席」ボタンで一括設定も可能', '設定完了後「保存」をクリックして出席記録を保存する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-cast-bg)', border: '1px solid var(--guide-accent-cast-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-cast)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
@@ -1352,7 +1352,7 @@ export const GuidePage: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                    <div style={{ marginTop: 8, textAlign: 'right' }}><span style={{ padding: '3px 10px', background: 'var(--discord-accent-blue)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>保存</span></div>
+                    <div style={{ marginTop: 8, textAlign: 'right' }}><span style={{ padding: '3px 10px', background: 'var(--accent-primary)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>保存</span></div>
                   </ScreenSample>
                 </div>
               </div>
@@ -1368,7 +1368,7 @@ export const GuidePage: React.FC = () => {
                     {['「抽選」タブでマッチング方式を選ぶ', '当選人数・ローテーション回数・テーブル数などを設定する', '設定ステータスでエラーがないことを確認する', '「抽選実行」をクリックして当選者を決定する', '残したい結果は「抽選結果保存」でDBに保存する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-lottery)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
@@ -1376,8 +1376,8 @@ export const GuidePage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {[['形式', 'ランダム'], ['当選人数', '20 人'], ['ローテーション', '3 回'], ['テーブル数', '4']].map(([l, v]) => (
                         <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ width: 70, fontSize: 10, color: 'var(--discord-text-muted)', flexShrink: 0 }}>{l}</span>
-                          <span style={{ padding: '2px 7px', background: 'var(--discord-bg-secondary)', border: '1px solid var(--discord-border)', borderRadius: 3, fontSize: 10, color: 'var(--discord-text-header)', fontWeight: 600 }}>{v}</span>
+                          <span style={{ width: 70, fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{l}</span>
+                          <span style={{ padding: '2px 7px', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 3, fontSize: 10, color: 'var(--text-heading)', fontWeight: 600 }}>{v}</span>
                         </div>
                       ))}
                       <div style={{ marginTop: 4, padding: '5px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 5, fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700 }}>✓ 検証OK — 合計席数: 12席</div>
@@ -1398,20 +1398,20 @@ export const GuidePage: React.FC = () => {
                     {['「マッチング」タブで条件と探索モードを確認する', 'X ID固定のNG条件に該当する割り当ては自動除外される', '「マッチングを実行」をクリックしてキャストを割り当てる', '結果をキャスト別・テーブル別の表で確認する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-matching-bg)', border: '1px solid var(--guide-accent-matching-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-matching)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
                   <ScreenSample title="マッチング結果">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-                      <thead><tr style={{ borderBottom: '1px solid var(--discord-border)' }}>{['キャスト', 'R1', 'R2'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--discord-text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
+                      <thead><tr style={{ borderBottom: '1px solid var(--border-default)' }}>{['キャスト', 'R1', 'R2'].map(h => <th key={h} style={{ padding: '3px 6px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr></thead>
                       <tbody>
                         {[['キャストA', 'テストさん', '花子さん', 1, 2], ['キャストB', '太郎さん', 'テストさん', 0, 1], ['キャストC', '花子さん', '---', 3, 0]].map(([n, c1, c2, r1, r2], i) => (
-                          <tr key={i} style={{ borderBottom: '1px solid var(--discord-border)' }}>
-                            <td style={{ padding: '4px 6px', color: 'var(--discord-text-normal)' }}>{n}</td>
+                          <tr key={i} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                            <td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>{n}</td>
                             {[[c1, r1], [c2, r2]].map(([c, r], j) => (
                               <td key={j} style={{ padding: '4px 6px' }}>
-                                <span style={{ fontSize: 10, color: 'var(--discord-text-normal)' }}>{c as string}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-default)' }}>{c as string}</span>
                                 {(r as number) > 0 && <span style={{ marginLeft: 3, padding: '1px 4px', borderRadius: 3, background: (r as number) === 1 ? '#f5c400' : (r as number) === 2 ? '#a8a8a8' : '#ad6f2d', color: (r as number) === 2 ? '#000' : '#fff', fontSize: 9, fontWeight: 700 }}>{r as number}希</span>}
                               </td>
                             ))}
@@ -1434,7 +1434,7 @@ export const GuidePage: React.FC = () => {
                     {['抽選結果は「抽選結果保存」でDBに保存し、保存済み結果から再選択できる', 'キャスト別結果またはテーブル別結果をPNGで保存する', '「マッチング結果をTSVで保存」でキャスト別に応対する応募者を出力する', 'X投稿には「投稿テンプレ」タブでテンプレートを編集してコピーする'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-output-bg)', border: '1px solid var(--guide-accent-output-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-output)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.6 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
                       </div>
                     ))}
                   </div>
@@ -1446,7 +1446,7 @@ export const GuidePage: React.FC = () => {
                         { label: 'PNG出力（テーブル別）', color: 'var(--guide-accent-primary)', bg: 'var(--guide-accent-primary-bg)', border: 'var(--guide-accent-primary-border)' },
                         { label: 'マッチング結果をTSVで保存', color: 'var(--guide-accent-lottery)', bg: 'var(--guide-accent-lottery-bg)', border: 'var(--guide-accent-lottery-border)' },
                       ].map(({ label, color, bg, border }) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, background: bg, border: `1px solid ${border}`, fontSize: 11, color: 'var(--discord-text-normal)', fontWeight: 600 }}>
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, background: bg, border: `1px solid ${border}`, fontSize: 11, color: 'var(--text-default)', fontWeight: 600 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
                           {label}
                         </div>
@@ -1476,12 +1476,12 @@ export const GuidePage: React.FC = () => {
               ] as const).map(({ q, a }) => (
                 <div key={q} className={styles.guideCard} style={{ padding: '14px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
-                    <span style={{ background: 'var(--discord-accent-blue)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>Q</span>
-                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--discord-text-header)' }}>{q}</span>
+                    <span style={{ background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>Q</span>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-heading)' }}>{q}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <span style={{ background: 'var(--discord-accent-green, #3ba55d)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>A</span>
-                    <span style={{ fontSize: 13, color: 'var(--discord-text-normal)', lineHeight: 1.7 }}>{a}</span>
+                    <span style={{ background: 'var(--accent-success, #3ba55d)', color: '#fff', fontWeight: 800, fontSize: 11, padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>A</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.7 }}>{a}</span>
                   </div>
                 </div>
               ))}
@@ -1492,17 +1492,17 @@ export const GuidePage: React.FC = () => {
             <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
               <Sheet size={22} /> TSVを用意する（事前準備）
             </h2>
-            <p className={shared.pageHeaderSubtitle} style={{ marginBottom: 20, color: 'var(--discord-text-muted)' }}>
+            <p className={shared.pageHeaderSubtitle} style={{ marginBottom: 20, color: 'var(--text-muted)' }}>
               応募データがGoogleフォームで集まっている場合の、スプレッドシート化〜TSV出力までの手順です。
             </p>
             <div className={styles.guideStackVertical}>
               <div className={styles.guideCard}>
                 <div className={styles.guideSectionGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                   <div>
-                    <h3 style={{ color: 'var(--discord-text-header)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ color: 'var(--text-heading)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Sheet size={18} /> Step A. Googleフォームの回答をスプレッドシートに連携する
                     </h3>
-                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--discord-text-normal)', fontSize: 14, lineHeight: 1.9 }}>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-default)', fontSize: 14, lineHeight: 1.9 }}>
                       <li>① フォームを開き「回答」タブをクリック</li>
                       <li>② 緑色ボタン「スプレッドシートにリンク」をクリック</li>
                       <li>③「新しいスプレッドシートを作成」→「作成」をクリック</li>
@@ -1521,10 +1521,10 @@ export const GuidePage: React.FC = () => {
               <div className={styles.guideCard}>
                 <div className={styles.guideSectionGrid} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                   <div>
-                    <h3 style={{ color: 'var(--discord-text-header)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ color: 'var(--text-heading)', fontSize: 17, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Download size={18} /> Step B. スプレッドシートからTSVをダウンロードする
                     </h3>
-                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--discord-text-normal)', fontSize: 14, lineHeight: 1.9 }}>
+                    <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-default)', fontSize: 14, lineHeight: 1.9 }}>
                       <li>① 画面上部「ファイル」をクリック</li>
                       <li>②「ダウンロード」にマウスを乗せる</li>
                       <li>③「タブ区切り形式 (.tsv)」をクリック</li>
@@ -1555,7 +1555,7 @@ export const GuidePage: React.FC = () => {
                 <Settings size={22} /> STELLA RECORD 連携
               </h2>
               <div className={styles.guideCard} style={{ padding: '18px 22px' }}>
-                <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>
                   StellaRecord のランチャーに Stargazer を登録します。登録すると StellaRecord から直接起動できるようになります。
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1566,7 +1566,7 @@ export const GuidePage: React.FC = () => {
                       padding: '8px 20px',
                       border: 'none',
                       borderRadius: 6,
-                      background: stellaStatus === 'success' ? 'var(--discord-accent-green, #3ba55d)' : 'var(--discord-accent-blue)',
+                      background: stellaStatus === 'success' ? 'var(--accent-success, #3ba55d)' : 'var(--accent-primary)',
                       color: '#fff',
                       fontSize: 13,
                       fontWeight: 600,
@@ -1582,9 +1582,9 @@ export const GuidePage: React.FC = () => {
                   {stellaMessage && (
                     <span style={{
                       fontSize: 12,
-                      color: stellaStatus === 'success' ? 'var(--discord-accent-green, #3ba55d)'
+                      color: stellaStatus === 'success' ? 'var(--accent-success, #3ba55d)'
                         : stellaStatus === 'error' || stellaStatus === 'unavailable' ? '#ed4245'
-                        : 'var(--discord-text-muted)',
+                        : 'var(--text-muted)',
                     }}>
                       {stellaMessage}
                     </span>
@@ -1602,10 +1602,10 @@ export const GuidePage: React.FC = () => {
         <div style={{ display: 'flex', gap: 0, animation: 'fade-in 0.2s ease', minHeight: 500 }}>
 
           {/* 左ナビ */}
-          <nav style={{ width: 200, flexShrink: 0, background: 'var(--discord-bg-dark)', border: '1px solid var(--discord-border)', borderRadius: 10, padding: '12px 8px', marginRight: 16, alignSelf: 'flex-start' }}>
+          <nav style={{ width: 200, flexShrink: 0, background: 'var(--surface-panel)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '12px 8px', marginRight: 16, alignSelf: 'flex-start' }}>
             {NAV_GROUPS.map(group => (
               <div key={group.label} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--discord-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 10px 6px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 10px 6px' }}>
                   {group.label}
                 </div>
                 {group.items.map(item => (
@@ -1620,8 +1620,8 @@ export const GuidePage: React.FC = () => {
                       padding: '7px 10px',
                       border: 'none',
                       borderRadius: 6,
-                      background: selectedFeature === item.id ? 'var(--discord-bg-selected)' : 'transparent',
-                      color: selectedFeature === item.id ? 'var(--discord-text-header)' : 'var(--discord-text-normal)',
+                      background: selectedFeature === item.id ? 'var(--surface-selected)' : 'transparent',
+                      color: selectedFeature === item.id ? 'var(--text-heading)' : 'var(--text-default)',
                       fontSize: 13,
                       fontWeight: selectedFeature === item.id ? 600 : 400,
                       cursor: 'pointer',
@@ -1639,7 +1639,7 @@ export const GuidePage: React.FC = () => {
           </nav>
 
           {/* 右コンテンツ */}
-          <main style={{ flex: 1, minWidth: 0, background: 'var(--discord-bg-dark)', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--discord-border)' }}>
+          <main style={{ flex: 1, minWidth: 0, background: 'var(--surface-panel)', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--border-default)' }}>
             {FEATURE_CONTENT[selectedFeature]}
           </main>
 

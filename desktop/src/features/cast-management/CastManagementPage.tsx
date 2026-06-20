@@ -12,12 +12,12 @@ import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 const CONTACT_SITE_LINKS = [
-  { key: 'discord', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
+  { key: 'externalChat', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
   { key: 'x', label: 'X', marker: 'X', url: 'https://x.com/i/chat' },
   { key: 'vrchat', label: 'VRChat', marker: 'VRC', url: 'https://vrchat.com/home' },
 ] as const;
 
-type ContactMarkerKind = 'discord' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
+type ContactMarkerKind = 'externalChat' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
 
 function isHttpsContactUrl(url: string): boolean {
   return url.trim().toLowerCase().startsWith('https://');
@@ -37,6 +37,7 @@ function getOpenableContactUrl(url: string): string | null {
   return getXProfileUrl(trimmed);
 }
 
+// 入力値の種類を、小さなラベルと色分けに使う安定した内部分類へ変換する。
 function getContactMarker(url: string): { label: string; kind: ContactMarkerKind } {
   const trimmed = url.trim();
   const lowerUrl = trimmed.toLowerCase();
@@ -157,7 +158,7 @@ export const CastManagementPage: React.FC = () => {
 
   const getContactMarkerClassName = (kind: ContactMarkerKind) => {
     switch (kind) {
-      case 'discord': return `${styles.castContactMarker} ${styles.castContactMarkerDiscord}`;
+      case 'externalChat': return `${styles.castContactMarker} ${styles.castContactMarkerExternalChat}`;
       case 'vrchat':  return `${styles.castContactMarker} ${styles.castContactMarkerVrchat}`;
       case 'x':       return `${styles.castContactMarker} ${styles.castContactMarkerX}`;
       case 'https':   return `${styles.castContactMarker} ${styles.castContactMarkerHttps}`;

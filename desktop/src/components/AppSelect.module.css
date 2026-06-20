@@ -1,5 +1,6 @@
 /* =====================================================
    AppSelect CSS Module
+   Radix Select の共通表示を扱う。
    ===================================================== */
 
 .app-select__trigger {
@@ -13,27 +14,27 @@
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
-  color: var(--discord-text-header);
-  background-color: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  color: var(--text-heading);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
 
 .app-select__trigger:hover:not(:disabled) {
-  border-color: var(--discord-text-muted);
-  background-color: var(--discord-bg-secondary);
+  border-color: var(--text-muted);
+  background-color: var(--surface-panel-muted);
 }
 
 .app-select__trigger:focus {
   outline: none;
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
 }
 
 .app-select__trigger[data-placeholder] {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
 .app-select__trigger:disabled {
@@ -43,7 +44,7 @@
 
 .app-select__icon {
   flex-shrink: 0;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   pointer-events: none;
   transition: transform 0.2s ease;
 }
@@ -56,8 +57,8 @@
   overflow: hidden;
   width: var(--radix-select-trigger-width);
   min-width: var(--radix-select-trigger-width);
-  background-color: var(--discord-bg-dark);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
   z-index: 9999;
@@ -73,7 +74,7 @@
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
   border-radius: 4px;
   cursor: pointer;
   outline: none;
@@ -82,18 +83,18 @@
 
 .app-select__item:hover,
 .app-select__item[data-highlighted] {
-  background-color: var(--discord-bg-hover);
-  color: var(--discord-text-header);
+  background-color: var(--surface-hover);
+  color: var(--text-heading);
 }
 
 .app-select__item[data-state="checked"] {
   background-color: rgba(88, 101, 242, 0.15);
-  color: var(--discord-text-header);
+  color: var(--text-heading);
   font-weight: 600;
 }
 
 /* =====================================================
-   Dark theme: higher contrast
+   ダークテーマ: コントラスト補強
    ===================================================== */
 
 :global([data-theme="dark"]) .app-select__trigger {
@@ -129,7 +130,7 @@
 }
 
 /* =====================================================
-   Skyblue Theme
+   Skyblue テーマ
    ===================================================== */
 
 :global([data-theme="skyblue"]) .app-select__trigger {

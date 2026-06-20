@@ -1,6 +1,5 @@
 /* =====================================================
-   AppContainer CSS Module – layout/sidebar/app-container classes
-   Extracted from styles/layout.css
+   AppContainer CSS Module: アプリ外枠、サイドバー、メイン領域
    ===================================================== */
 
 .app-container {
@@ -63,26 +62,29 @@
   --color-switch: #2d8fd3;
   --cast-present-bg: #2f9f78;
   --cast-absent-bg: #a9c9dd;
-  --discord-accent-blue: #2d8fd3;
-  --discord-accent-green: #2f9f78;
-  --discord-accent-gold: #b99700;
-  --discord-bg-dark: rgba(255, 255, 255, 0.965);
-  --discord-bg-main: transparent;
-  --discord-bg-secondary: rgba(255, 255, 255, 0.91);
-  --discord-bg-hover: rgba(45, 143, 211, 0.10);
-  --discord-bg-selected: rgba(45, 143, 211, 0.16);
-  --discord-bg-alt: rgba(96, 165, 250, 0.08);
-  --discord-bg-sidebar: rgba(255, 255, 255, 0.92);
-  --discord-text-normal: #183a5f;
-  --discord-text-muted: rgba(24, 58, 95, 0.64);
-  --discord-text-link: #1b78be;
-  --discord-text-header: #102b49;
-  --discord-border: rgba(96, 165, 250, 0.32);
-  --discord-divider: rgba(96, 165, 250, 0.22);
-  --discord-button-primary: #2d8fd3;
-  --discord-button-primary-hover: #247cc0;
-  --discord-button-secondary: rgba(96, 165, 250, 0.16);
-  --discord-button-secondary-hover: rgba(96, 165, 250, 0.26);
+  --accent-primary: #2d8fd3;
+  --accent-success: #2f9f78;
+  --accent-gold: #b99700;
+  --surface-panel: rgba(255, 255, 255, 0.965);
+  --surface-page: transparent;
+  --surface-panel-muted: rgba(255, 255, 255, 0.91);
+  --surface-panel-elevated: rgba(255, 255, 255, 0.98);
+  --surface-hover: rgba(45, 143, 211, 0.10);
+  --surface-selected: rgba(45, 143, 211, 0.16);
+  --surface-tab-hover: var(--surface-hover);
+  --surface-subtle: rgba(96, 165, 250, 0.08);
+  --surface-sidebar: rgba(255, 255, 255, 0.92);
+  --text-default: #183a5f;
+  --text-muted: rgba(24, 58, 95, 0.64);
+  --text-link: #1b78be;
+  --text-heading: #102b49;
+  --border-default: rgba(96, 165, 250, 0.32);
+  --border-divider: rgba(96, 165, 250, 0.22);
+  --border-tab: var(--border-default);
+  --button-primary-bg: #2d8fd3;
+  --button-primary-hover-bg: #247cc0;
+  --button-secondary-bg: rgba(96, 165, 250, 0.16);
+  --button-secondary-hover-bg: rgba(96, 165, 250, 0.26);
   --db-sticky-bg: #f7fbff;
   --db-sticky-bg-alt: #f0f8ff;
   --db-sticky-bg-caution: #ffe7eb;
@@ -117,7 +119,7 @@
 .logo {
   font-weight: 800;
   font-size: 1.1rem;
-  color: var(--discord-text-normal);
+  color: var(--text-default);
 }
 
 .menu-toggle {
@@ -228,7 +230,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-bottom: 10px;
   letter-spacing: 0.04em;
 }
@@ -288,7 +290,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
   margin-bottom: 10px;
   letter-spacing: 0.04em;
 }
@@ -396,7 +398,7 @@
 }
 
 /* =====================================================
-   Skyblue theme overrides (must be in module scope to target hashed classes)
+   Skyblue テーマ上書き
    ===================================================== */
 
 :global([data-theme="skyblue"]) .sidebar {

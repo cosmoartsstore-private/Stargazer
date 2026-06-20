@@ -580,7 +580,7 @@ export const LotteryPage: React.FC = () => {
         <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 840 }}>
             <thead>
-              <tr style={{ backgroundColor: 'var(--discord-bg-secondary)' }}>
+              <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
                 <th className={shared.tableHeaderCell}>ユーザー</th>
                 <th className={shared.tableHeaderCell}>X ID</th>
                 <th className={shared.tableHeaderCell}>区分</th>

@@ -1,6 +1,6 @@
 /* =====================================================
-   Stargazer – Global styles (element-level only)
-   These cannot be CSS Modules: :root vars, element resets, theme overrides.
+   Stargazer グローバルスタイル
+   :root 変数、要素リセット、テーマ上書きなど CSS Modules に閉じられない指定を置く。
    ===================================================== */
 
 @import './tokens.css';
@@ -48,12 +48,12 @@ body {
 }
 
 body {
-  background-color: var(--discord-bg-main);
-  color: var(--discord-text-normal);
+  background-color: var(--surface-page);
+  color: var(--text-default);
 }
 
 a {
-  color: var(--discord-text-link);
+  color: var(--text-link);
   text-decoration: none;
   transition: color 0.17s ease;
 }
@@ -77,9 +77,9 @@ button:disabled {
 
 input,
 textarea {
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-normal);
-  border: 1px solid var(--discord-border);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-default);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 14px;
@@ -90,15 +90,15 @@ textarea {
 input:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--discord-accent-blue);
+  border-color: var(--accent-primary);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--discord-text-muted);
+  color: var(--text-muted);
 }
 
-/* Number input: remove default spin buttons */
+/* 数値入力の既定スピンボタンを非表示にする */
 input[type="number"] {
   -moz-appearance: textfield;
 }
@@ -118,35 +118,35 @@ textarea:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
-  background-color: var(--discord-bg-dark);
+  background-color: var(--surface-panel);
   border-radius: 8px;
 }
 
 thead th {
-  background-color: var(--discord-bg-secondary);
-  color: var(--discord-text-muted);
+  background-color: var(--surface-panel-muted);
+  color: var(--text-muted);
   padding: 12px 16px;
   text-align: left;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--border-default);
 }
 
 tbody td {
   padding: 12px 16px;
   font-size: 14px;
-  color: var(--discord-text-normal);
-  border-bottom: 1px solid var(--discord-border);
+  color: var(--text-default);
+  border-bottom: 1px solid var(--border-default);
 }
 
 tbody tr:hover {
-  background-color: var(--discord-bg-hover);
+  background-color: var(--surface-hover);
 }
 
 tbody tr:nth-child(even) {
-  background-color: var(--discord-bg-alt);
+  background-color: var(--surface-subtle);
 }
 
 /* ========================================
@@ -196,7 +196,7 @@ tbody tr:nth-child(even) {
 }
 
 /* ========================================
-   Portal root (must be global)
+   ポータルルート
    ======================================== */
 
 #modal-root {
@@ -211,7 +211,7 @@ tbody tr:nth-child(even) {
 }
 
 /* ========================================
-   Responsive body
+   レスポンシブ本文
    ======================================== */
 
 @media (max-width: 768px) {
@@ -226,7 +226,7 @@ tbody tr:nth-child(even) {
 }
 
 /* ========================================
-   Skyblue theme: element-level overrides (cannot be in modules)
+   Skyblue テーマ: 要素単位の上書き
    ======================================== */
 
 [data-theme="skyblue"] input[type="text"],
