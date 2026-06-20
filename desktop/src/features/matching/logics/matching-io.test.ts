@@ -45,6 +45,28 @@ describe('MatchingService.runMatching', () => {
     });
   });
 
+  it('順不同希望は50点として集計し、希望外には含めない', () => {
+    const result = MatchingService.runMatching(
+      [createUser('Alice', '@alice', ['Cast A', 'Cast B', 'Cast C', 'Cast D'], 'flat')],
+      [createCast('Cast D')],
+      'M002',
+      { rotationCount: 1, totalTables: 1 },
+      'accountId',
+      'exclude',
+    );
+
+    expect(result.userMap.get('@alice')?.[0]).toMatchObject({
+      cast: { name: 'Cast D' },
+      rank: 0,
+      score: 50,
+    });
+    expect(result.scoreSummary).toMatchObject({
+      totalScore: 50,
+      flatPreferenceCount: 1,
+      unpreferredCount: 0,
+    });
+  });
+
   it('出勤キャスト数やローテーション数が不足すると容量不足として失敗する', () => {
     const result = MatchingService.runMatching(
       [

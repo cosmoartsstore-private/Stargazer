@@ -45,6 +45,7 @@ export interface MatchingScoreSummary {
   firstChoiceCount: number;
   secondChoiceCount: number;
   thirdChoiceCount: number;
+  flatPreferenceCount: number;
   unpreferredCount: number;
   ngWarningCount: number;
   matchCount: number;
@@ -197,6 +198,7 @@ function evaluateMatchingResult(result: MatchingResult, winners: UserBean[]): Ma
     let firstChoiceCount = 0;
     let secondChoiceCount = 0;
     let thirdChoiceCount = 0;
+    let flatPreferenceCount = 0;
     let unpreferredCount = 0;
     let ngWarningCount = 0;
     let matchCount = 0;
@@ -216,6 +218,7 @@ function evaluateMatchingResult(result: MatchingResult, winners: UserBean[]): Ma
             if (match.rank === 1) firstChoiceCount += 1;
             else if (match.rank === 2) secondChoiceCount += 1;
             else if (match.rank === 3) thirdChoiceCount += 1;
+            else if (score > 0) flatPreferenceCount += 1;
             else unpreferredCount += 1;
 
             if (match.isNGWarning) {
@@ -231,6 +234,7 @@ function evaluateMatchingResult(result: MatchingResult, winners: UserBean[]): Ma
         firstChoiceCount,
         secondChoiceCount,
         thirdChoiceCount,
+        flatPreferenceCount,
         unpreferredCount,
         ngWarningCount,
         matchCount,

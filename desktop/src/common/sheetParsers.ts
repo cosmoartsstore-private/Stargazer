@@ -9,7 +9,7 @@ function getCell(row: unknown[] | null | undefined, colIndex: number): string {
 
 /** 1行を UserBean に変換するときのオプション（カスタム用） */
 export interface MapRowOptions {
-  /** この列をカンマ区切りで分割し希望1・2・3に充てる（-1のときは使わない） */
+  /** この列をカンマ区切りで分割し、順不同希望として保持する（-1のときは使わない）。 */
   splitCommaColumnIndex?: number;
 }
 

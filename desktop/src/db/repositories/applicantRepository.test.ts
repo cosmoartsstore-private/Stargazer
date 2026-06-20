@@ -12,6 +12,7 @@ const mockState = vi.hoisted(() => ({
   sessionDb: null as FakeDb | null,
   eventName: 'Sample Event' as string | null,
   timestamp: '20260618120000' as string | null,
+  storedPreferenceMode: 'flat' as 'flat' | 'ranked',
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -43,7 +44,7 @@ function createDb(): FakeDb {
         ] as T;
       }
       return [
-        { field_key: '__preference_mode', field_value: 'flat' },
+        { field_key: '__preference_mode', field_value: mockState.storedPreferenceMode },
         { field_key: '備考', field_value: 'メモ' },
       ] as T;
     }),
@@ -54,6 +55,7 @@ beforeEach(() => {
   mockState.sessionDb = createDb();
   mockState.eventName = 'Sample Event';
   mockState.timestamp = '20260618120000';
+  mockState.storedPreferenceMode = 'flat';
   invokeMock.mockReset();
 });
 
@@ -72,6 +74,17 @@ describe('loadApplicants', () => {
         raw_extra: [{ key: '備考', value: 'メモ' }],
       },
     ]);
+  });
+
+  it('順位あり希望は空欄の順位を詰めずに復元する', async () => {
+    mockState.storedPreferenceMode = 'ranked';
+
+    const users = await loadApplicants();
+
+    expect(users[0]).toMatchObject({
+      casts: ['Cast A', '', 'Cast C'],
+      preference_mode: 'ranked',
+    });
   });
 });
 

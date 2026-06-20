@@ -242,7 +242,7 @@ export const MatchingPage: React.FC = () => {
             <section className={shared.sectionBlock} style={{ marginTop: 16 }}>
               <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>スコアサマリー</h2>
               <p className={shared.pageHeaderSubtitle}>
-                総スコア {scoreSummary.totalScore} 点 / 平均 {scoreSummary.averageScore.toFixed(1)} 点 / 1位 {scoreSummary.firstChoiceCount} 件 / 2位 {scoreSummary.secondChoiceCount} 件 / 3位 {scoreSummary.thirdChoiceCount} 件 / 希望外 {scoreSummary.unpreferredCount} 件
+                総スコア {scoreSummary.totalScore} 点 / 平均 {scoreSummary.averageScore.toFixed(1)} 点 / 1位 {scoreSummary.firstChoiceCount} 件 / 2位 {scoreSummary.secondChoiceCount} 件 / 3位 {scoreSummary.thirdChoiceCount} 件 / 順不同希望 {scoreSummary.flatPreferenceCount} 件 / 希望外 {scoreSummary.unpreferredCount} 件
               </p>
               {scoreSummary.ngWarningCount > 0 && (
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(237, 66, 69, 0.14)', color: 'var(--text-danger)' }}>

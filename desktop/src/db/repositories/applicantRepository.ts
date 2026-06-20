@@ -65,13 +65,15 @@ export async function loadApplicants(): Promise<UserBean[]> {
       casts[p.preference_order] = p.cast_name;
     }
     const preferenceMode = extras.find((e) => e.field_key === '__preference_mode')?.field_value;
+    const normalizedPreferenceMode = preferenceMode === 'flat' ? 'flat' : 'ranked';
+    const rankedCasts = Array.from({ length: casts.length }, (_, index) => casts[index] ?? '');
     users.push({
       name: row.name ?? '',
       x_id: row.x_id,
       vrc_url: row.vrc_url ?? undefined,
       is_guaranteed: row.is_guaranteed === 1,
-      casts: casts.filter(Boolean),
-      preference_mode: preferenceMode === 'flat' ? 'flat' : 'ranked',
+      casts: normalizedPreferenceMode === 'flat' ? casts.filter(Boolean) : rankedCasts,
+      preference_mode: normalizedPreferenceMode,
       raw_extra: extras
         .filter((e) => e.field_key !== '__preference_mode')
         .map((e) => ({ key: e.field_key, value: e.field_value ?? '' })),

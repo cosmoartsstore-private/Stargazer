@@ -40,6 +40,10 @@ function getExtraMap(rawExtra: unknown[]): Map<string, string> {
   );
 }
 
+function formatCastList(casts: string[]): string {
+  return casts.filter(Boolean).join('、') || '—';
+}
+
 // ── 詳細モーダル ────────────────────────────────────────────────────────────────
 
 interface DetailModalProps {
@@ -52,6 +56,7 @@ interface DetailModalProps {
 
 const ApplicantDetailModal: React.FC<DetailModalProps> = ({ user, isCaution, ngCastNames, extraMap, onClose }) => {
   const hasNgCasts = ngCastNames.length > 0;
+  const isFlatPreference = user.preference_mode === 'flat';
   const title = (
     <>
       {user.name || '名前なし'}
@@ -84,13 +89,20 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({ user, isCaution, ngC
           </>
         )}
 
-        {user.casts.map((cast, i) =>
-          cast ? (
-            <React.Fragment key={i}>
-              <dt>希望 {i + 1}</dt>
-              <dd>{cast}</dd>
-            </React.Fragment>
-          ) : null,
+        {isFlatPreference ? (
+          <>
+            <dt>希望（順不同・各50点）</dt>
+            <dd>{formatCastList(user.casts)}</dd>
+          </>
+        ) : (
+          user.casts.map((cast, i) =>
+            cast ? (
+              <React.Fragment key={i}>
+                <dt>希望 {i + 1}</dt>
+                <dd>{cast}</dd>
+              </React.Fragment>
+            ) : null,
+          )
         )}
 
         {[...extraMap.entries()].map(([key, value]) => (
@@ -121,33 +133,49 @@ interface RowProps {
   onRemove: (xId: string) => void;
 }
 
-const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSelect, onRemove }) => (
-  <tr
-    className={`${styles.applicantRow}${isCaution || ngCastNames.length > 0 ? ` ${styles.applicantRowCaution}` : ''}`}
-    onClick={() => onSelect(user)}
-    style={{ cursor: 'pointer' }}
-  >
-    <td>{user.name || '未設定'}</td>
-    <td>{user.x_id || '未設定'}</td>
-    <td>{user.casts[0] || '—'}</td>
-    <td>{user.casts[1] || '—'}</td>
-    <td>{user.casts[2] || '—'}</td>
-    <td>
-      <NgCastCell ngCastNames={ngCastNames} />
-    </td>
-    <td>
-      <button
-        type="button"
-        className={styles.applicantDeleteButton}
-        onClick={(e) => { e.stopPropagation(); onRemove(user.x_id); }}
-        aria-label="応募データを削除"
-        title="削除"
-      >
-        ×
-      </button>
-    </td>
-  </tr>
-));
+const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, onSelect, onRemove }) => {
+  const isFlatPreference = user.preference_mode === 'flat';
+  const flatCastList = formatCastList(user.casts);
+
+  return (
+    <tr
+      className={`${styles.applicantRow}${isCaution || ngCastNames.length > 0 ? ` ${styles.applicantRowCaution}` : ''}`}
+      onClick={() => onSelect(user)}
+      style={{ cursor: 'pointer' }}
+    >
+      <td>{user.name || '未設定'}</td>
+      <td>{user.x_id || '未設定'}</td>
+      {isFlatPreference ? (
+        <td colSpan={3}>
+          <span className={styles.applicantFlatPreference} title={flatCastList}>
+            <span className={styles.applicantFlatPreference__label}>順不同</span>
+            {flatCastList}
+          </span>
+        </td>
+      ) : (
+        <>
+          <td>{user.casts[0] || '—'}</td>
+          <td>{user.casts[1] || '—'}</td>
+          <td>{user.casts[2] || '—'}</td>
+        </>
+      )}
+      <td>
+        <NgCastCell ngCastNames={ngCastNames} />
+      </td>
+      <td>
+        <button
+          type="button"
+          className={styles.applicantDeleteButton}
+          onClick={(e) => { e.stopPropagation(); onRemove(user.x_id); }}
+          aria-label="応募データを削除"
+          title="削除"
+        >
+          ×
+        </button>
+      </td>
+    </tr>
+  );
+});
 
 interface NgCastCellProps {
   ngCastNames: string[];
