@@ -141,15 +141,23 @@
 }
 
 .workflow-inline-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  min-width: 0;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--discord-text-normal);
+}
+
+.workflow-inline-card__winner-list {
   display: flex;
   min-width: 0;
   max-height: 48px;
   gap: 6px;
   flex-wrap: wrap;
   overflow: hidden;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--discord-text-normal);
 }
 
 .workflow-inline-card__winner-chip {

@@ -361,21 +361,23 @@ export const LotteryPage: React.FC = () => {
                     選択
                   </button>
                 </div>
-                <div className={styles.workflowInlineCard__body} title={guaranteedWinnerSummary || undefined}>
-                  {guaranteedWinners.length > 0
-                    ? visibleGuaranteedWinners.map((winner) => {
-                        const label = winner.name || winner.x_id;
-                        return (
-                          <span
-                            key={winner.x_id}
-                            className={styles.workflowInlineCard__winnerChip}
-                            title={`${label} (${winner.x_id})`}
-                          >
-                            {label}
-                          </span>
-                        );
-                      })
-                    : '未設定'}
+                <div className={styles.workflowInlineCard__body}>
+                  <div className={styles.workflowInlineCard__winnerList} title={guaranteedWinnerSummary || undefined}>
+                    {guaranteedWinners.length > 0
+                      ? visibleGuaranteedWinners.map((winner) => {
+                          const label = winner.name || winner.x_id;
+                          return (
+                            <span
+                              key={winner.x_id}
+                              className={styles.workflowInlineCard__winnerChip}
+                              title={`${label} (${winner.x_id})`}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })
+                      : '未設定'}
+                  </div>
                   {hiddenGuaranteedWinnerCount > 0 && (
                     <button
                       type="button"
