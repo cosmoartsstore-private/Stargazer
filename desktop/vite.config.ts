@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
@@ -20,6 +21,8 @@ export default defineConfig(async () => ({
   test: {
     coverage: {
       provider: 'v8',
+      // 外部ドライブ上でも安定して生成できるよう、coverage レポートは OS の一時領域へ出力する。
+      reportsDirectory: path.join(os.tmpdir(), 'stargazer-vitest-coverage'),
       include: [
         'src/common/csvParse.ts',
         'src/common/browserStorage.ts',
