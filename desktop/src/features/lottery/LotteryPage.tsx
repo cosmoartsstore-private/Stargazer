@@ -408,95 +408,97 @@ export const LotteryPage: React.FC = () => {
                 </div>
               </label>
 
-              {isLotteryOnlyMode ? (
-                <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowFormWide} ${styles.workflowLotteryOnlySlot}`}>
-                  <div className={styles.m003SettingsPlaceholder}>
-                    抽選のみ行うため、ラウンド数・テーブル数・キャスト割り当て条件は使用しません。
+              <div className={styles.workflowVariableSettings}>
+                {isLotteryOnlyMode ? (
+                  <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowLotteryOnlySlot}`}>
+                    <div className={styles.m003SettingsPlaceholder}>
+                      抽選のみ行うため、ラウンド数・テーブル数・キャスト割り当て条件は使用しません。
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <label className={shared.formGroup}>
-                    <span className={shared.formLabel}>ラウンド数</span>
-                    <CounterControl
-                      label="ラウンド数"
-                      value={rotationCount}
-                      min={1}
-                      onChange={handleRotationCountChange}
-                    />
-                  </label>
+                ) : (
+                  <>
+                    <label className={shared.formGroup}>
+                      <span className={shared.formLabel}>ラウンド数</span>
+                      <CounterControl
+                        label="ラウンド数"
+                        value={rotationCount}
+                        min={1}
+                        onChange={handleRotationCountChange}
+                      />
+                    </label>
 
-                  <label className={shared.formGroup}>
-                    <span className={shared.formLabel}>総テーブル数</span>
-                    <CounterControl
-                      label="総テーブル数"
-                      value={totalTables}
-                      min={1}
-                      onChange={handleTotalTablesChange}
-                    />
-                  </label>
+                    <label className={shared.formGroup}>
+                      <span className={shared.formLabel}>総テーブル数</span>
+                      <CounterControl
+                        label="総テーブル数"
+                        value={totalTables}
+                        min={1}
+                        onChange={handleTotalTablesChange}
+                      />
+                    </label>
 
-                  <div className={`${styles.m003SettingsSlot} ${styles.workflowFormWide}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
-                    {matchingTypeCode === 'M003' ? (
-                      <>
-                        <div className={styles.m003SettingsGrid}>
-                          <label className={shared.formGroup}>
-                            <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
-                            <CounterControl
-                              label="1テーブルあたりのゲスト数"
-                              value={usersPerTable}
-                              min={1}
-                              onChange={handleUsersPerTableChange}
-                            />
-                          </label>
+                    <div className={`${styles.m003SettingsSlot}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
+                      {matchingTypeCode === 'M003' ? (
+                        <>
+                          <div className={styles.m003SettingsGrid}>
+                            <label className={shared.formGroup}>
+                              <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
+                              <CounterControl
+                                label="1テーブルあたりのゲスト数"
+                                value={usersPerTable}
+                                min={1}
+                                onChange={handleUsersPerTableChange}
+                              />
+                            </label>
 
-                          <label className={shared.formGroup}>
-                            <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
-                            <CounterControl
-                              label="1ローテあたりのキャスト数"
-                              value={castsPerRotation}
-                              min={1}
-                              onChange={handleCastsPerRotationChange}
-                            />
-                          </label>
-                        </div>
-
-                        <div className={styles.sameDaySlotPanel}>
-                          <div className={shared.formGroup}>
-                            <span className={shared.formLabel}>当日枠を含める</span>
-                            <button
-                              type="button"
-                              className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
-                              role="switch"
-                              aria-checked={allowM003EmptySeats}
-                              onClick={handleAllowM003EmptySeatsToggle}
-                            >
-                              <span className={styles.workflowSwitch__knob} />
-                              <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
-                            </button>
+                            <label className={shared.formGroup}>
+                              <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
+                              <CounterControl
+                                label="1ローテあたりのキャスト数"
+                                value={castsPerRotation}
+                                min={1}
+                                onChange={handleCastsPerRotationChange}
+                              />
+                            </label>
                           </div>
 
-                          <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
-                            <span>当日枠数</span>
-                            <CounterControl
-                              label="当日枠数"
-                              value={m003SameDaySlotCount}
-                              min={allowM003EmptySeats ? 1 : 0}
-                              disabled={!allowM003EmptySeats}
-                              className={styles.sameDaySlotCounter}
-                              onChange={handleSameDaySlotCountChange}
-                            />
-                          </label>
+                          <div className={styles.sameDaySlotPanel}>
+                            <div className={shared.formGroup}>
+                              <span className={shared.formLabel}>当日枠を含める</span>
+                              <button
+                                type="button"
+                                className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
+                                role="switch"
+                                aria-checked={allowM003EmptySeats}
+                                onClick={handleAllowM003EmptySeatsToggle}
+                              >
+                                <span className={styles.workflowSwitch__knob} />
+                                <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
+                              </button>
+                            </div>
+
+                            <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
+                              <span>当日枠数</span>
+                              <CounterControl
+                                label="当日枠数"
+                                value={m003SameDaySlotCount}
+                                min={allowM003EmptySeats ? 1 : 0}
+                                disabled={!allowM003EmptySeats}
+                                className={styles.sameDaySlotCounter}
+                                onChange={handleSameDaySlotCountChange}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      ) : (
+                        <div className={styles.m003SettingsPlaceholder}>
+                          グループ制マッチングを選択すると、テーブル単位の詳細条件を編集できます。
                         </div>
-                      </>
-                    ) : (
-                      <div className={styles.m003SettingsPlaceholder}>
-                        グループ制マッチングを選択すると、テーブル単位の詳細条件を編集できます。
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

@@ -122,6 +122,20 @@
   grid-column: 1 / -1;
 }
 
+.workflow-variable-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  gap: 14px;
+  height: 298px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.workflow-variable-settings > .m003-settings-slot {
+  grid-column: 1 / -1;
+}
+
 .workflow-inline-card {
   min-height: 116px;
   padding: 16px;
@@ -232,7 +246,7 @@
 }
 
 .workflow-lottery-only-slot {
-  min-height: 284px;
+  min-height: 100%;
 }
 
 .m003-settings-slot--inactive {
@@ -827,9 +841,15 @@
 
 @media (max-width: 768px) {
   .workflow-form-grid,
+  .workflow-variable-settings,
   .m003-settings-grid,
   .same-day-slot-panel {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-variable-settings {
+    height: auto;
+    overflow: visible;
   }
 
   .import-two-pane {
