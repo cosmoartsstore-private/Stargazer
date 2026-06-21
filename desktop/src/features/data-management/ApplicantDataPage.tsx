@@ -44,12 +44,6 @@ function formatCastList(casts: string[]): string {
   return casts.filter(Boolean).join('、') || '—';
 }
 
-// カンマ区切り希望は件数が可変のため、表示列数は現在の応募者全体から決める。
-function getCastColumnCount(users: UserBean[]): number {
-  const maxCastCount = users.reduce((max, user) => Math.max(max, user.casts.length), 0);
-  return Math.max(3, maxCastCount);
-}
-
 // ── 詳細モーダル ────────────────────────────────────────────────────────────────
 
 interface DetailModalProps {
@@ -135,14 +129,12 @@ interface RowProps {
   user: UserBean;
   isCaution: boolean;
   ngCastNames: string[];
-  castColumnCount: number;
+  isFlatList: boolean;
   onSelect: (user: UserBean) => void;
   onRemove: (xId: string) => void;
 }
 
-const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, castColumnCount, onSelect, onRemove }) => {
-  const castColumnIndexes = Array.from({ length: castColumnCount }, (_, index) => index);
-
+const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, isFlatList, onSelect, onRemove }) => {
   return (
     <tr
       className={`${styles.applicantRow}${isCaution || ngCastNames.length > 0 ? ` ${styles.applicantRowCaution}` : ''}`}
@@ -151,11 +143,17 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, castC
     >
       <td className={styles.applicantListNameCell}>{user.name || '未設定'}</td>
       <td className={styles.applicantListIdCell}>{user.x_id || '未設定'}</td>
-      {castColumnIndexes.map((index) => (
-        <td key={index} className={styles.applicantListCastCell} title={user.casts[index] ?? ''}>
-          {user.casts[index] || '—'}
+      {isFlatList ? (
+        <td className={styles.applicantListFlatCastCell} title={formatCastList(user.casts)}>
+          {formatCastList(user.casts)}
         </td>
-      ))}
+      ) : (
+        <>
+          <td className={styles.applicantListCastCell}>{user.casts[0] || '—'}</td>
+          <td className={styles.applicantListCastCell}>{user.casts[1] || '—'}</td>
+          <td className={styles.applicantListCastCell}>{user.casts[2] || '—'}</td>
+        </>
+      )}
       <td className={styles.applicantListNgCell}>
         <NgCastCell ngCastNames={ngCastNames} />
       </td>
@@ -219,10 +217,10 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
       : applyUsers,
     [applyUsers, cautionUsers, filterMode],
   );
-  const castColumnCount = useMemo(() => getCastColumnCount(applyUsers), [applyUsers]);
-  const castColumnIndexes = useMemo(
-    () => Array.from({ length: castColumnCount }, (_, index) => index),
-    [castColumnCount],
+  // 1件でも順位なし希望が含まれる取込では、希望キャストを1列にまとめて全件を表示する。
+  const isFlatList = useMemo(
+    () => applyUsers.some((user) => user.preference_mode === 'flat'),
+    [applyUsers],
   );
 
   const rowDataMap = useMemo(() => {
@@ -347,22 +345,25 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
         <table className={styles.applicantListTable}>
           <thead>
             <tr>
-              <th rowSpan={2} className={styles.applicantListNameCell}>ユーザー名</th>
-              <th rowSpan={2} className={styles.applicantListIdCell}>X ID</th>
-              <th className={styles.applicantListCastGroupHeader} colSpan={castColumnCount}>希望キャスト</th>
-              <th rowSpan={2} className={styles.applicantListNgCell}>NGキャスト</th>
-              <th rowSpan={2} aria-label="操作"></th>
-            </tr>
-            <tr>
-              {castColumnIndexes.map((index) => (
-                <th key={index} className={styles.applicantListCastHeader}>{index + 1}</th>
-              ))}
+              <th className={styles.applicantListNameCell}>ユーザー名</th>
+              <th className={styles.applicantListIdCell}>X ID</th>
+              {isFlatList ? (
+                <th className={styles.applicantListFlatCastCell}>希望キャスト</th>
+              ) : (
+                <>
+                  <th className={styles.applicantListCastCell}>希望キャスト 1</th>
+                  <th className={styles.applicantListCastCell}>希望キャスト 2</th>
+                  <th className={styles.applicantListCastCell}>希望キャスト 3</th>
+                </>
+              )}
+              <th className={styles.applicantListNgCell}>NGキャスト</th>
+              <th aria-label="操作"></th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={castColumnCount + 4} style={{ textAlign: 'center' }}>該当するデータがありません</td>
+                <td colSpan={isFlatList ? 5 : 7} style={{ textAlign: 'center' }}>該当するデータがありません</td>
               </tr>
             )}
             {filteredUsers.map((user) => {
@@ -373,7 +374,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
                   user={user}
                   isCaution={rd.isCaution}
                   ngCastNames={rd.ngCastNames}
-                  castColumnCount={castColumnCount}
+                  isFlatList={isFlatList}
                   onSelect={handleSelect}
                   onRemove={handleRemoveClick}
                 />
