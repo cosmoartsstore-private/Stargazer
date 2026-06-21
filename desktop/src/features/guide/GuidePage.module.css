@@ -7,6 +7,10 @@
   --guide-accent-primary-soft: #5865f2bb;
   --guide-accent-primary-bg: #5865f222;
   --guide-accent-primary-border: #5865f266;
+  --guide-notice: #f0b232;
+  --guide-notice-bg: rgba(240, 178, 50, 0.12);
+  --guide-notice-body-bg: rgba(240, 178, 50, 0.08);
+  --guide-notice-border: rgba(240, 178, 50, 0.58);
   --guide-accent-import: #8b5cf6;
   --guide-accent-import-soft: #8b5cf6bb;
   --guide-accent-import-bg: #8b5cf622;
