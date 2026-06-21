@@ -298,7 +298,7 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
                   {item.label}
                 </span>
               ))}
-              <div className={styles.guidePreviewThemeButton}>テーマ</div>
+              <div className={styles.guidePreviewThemeButton}>テーマを変更する</div>
             </aside>
             <div className={styles.guidePreviewAppContent}>
               <div className={styles.guidePreviewPageTabs}>

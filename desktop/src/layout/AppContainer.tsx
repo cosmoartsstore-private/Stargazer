@@ -295,7 +295,6 @@ export const AppContainer: React.FC = () => {
             )}
             <div className={`${styles.sidebarBlock} ${styles.sidebarBlockPush}`} />
             <div className={`${styles.sidebarBlock} ${styles.sidebarThemeSlider}`}>
-              <span className={styles.sidebarBlockLabel}>{NAV.SETTINGS}</span>
               <ThemeSelector
                 themeId={themeId}
                 setThemeId={setThemeId!}

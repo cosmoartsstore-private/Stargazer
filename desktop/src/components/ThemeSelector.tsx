@@ -65,8 +65,6 @@ export const ThemeSelector: React.FC<{
     }));
   };
 
-  const activeThemeName = THEME_NAMES[themeId];
-
   return (
     <>
       <button
@@ -76,7 +74,7 @@ export const ThemeSelector: React.FC<{
         title="テーマカラーを編集"
       >
         <Palette size={16} />
-        <span>{activeThemeName}</span>
+        <span>テーマを変更する</span>
       </button>
 
       {open && (
