@@ -24,11 +24,8 @@ export function mapRowToUserBeanWithMapping(
   const splitCol = options?.splitCommaColumnIndex;
   const useSplitComma =
     splitCol !== undefined && splitCol >= 0 && mapping.cast1 === splitCol;
-  /** 希望キャストが1列（カンマ区切り or 単一列）のとき */
-  const useSingleCastColumn =
-    mapping.cast2 < 0 && mapping.cast3 < 0 && mapping.cast1 >= 0;
 
-  /** 複数指定可（カンマ区切り）のときの最大希望数。DB確認で希望キャスト1〜Nとして表示 */
+  /** 順位なしのカンマ区切り希望として取り込む最大希望数。 */
   const MAX_CAST_COMMA = 20;
   if (useSplitComma) {
     preferenceMode = 'flat';
@@ -41,19 +38,6 @@ export function mapRowToUserBeanWithMapping(
         .map((s) => s.trim())
         .filter(Boolean)
         .slice(0, MAX_CAST_COMMA);
-    }
-  } else if (useSingleCastColumn) {
-    preferenceMode = 'flat';
-    const cast1Val = getCell(row, mapping.cast1);
-    if (!cast1Val || mapping.cast1 < 0) {
-      casts = [];
-    } else {
-      casts = cast1Val
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, MAX_CAST_COMMA);
-      casts = Array.from(new Set(casts));
     }
   } else {
     const c1 = mapping.cast1 >= 0 ? getCell(row, mapping.cast1) : '';

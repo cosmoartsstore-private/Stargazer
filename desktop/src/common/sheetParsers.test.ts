@@ -37,14 +37,14 @@ describe('mapRowToUserBeanWithMapping', () => {
     expect(user.raw_extra).toEqual([{ key: '備考', value: 'memo value' }]);
   });
 
-  it('単一希望列は順不同希望として重複を除外する', () => {
+  it('順位ありで希望列を1列だけ指定した場合はカンマ区切りを分割しない', () => {
     const user = mapRowToUserBeanWithMapping(
       ['Alice', '@alice', 'Cast A, Cast B, Cast A, ,Cast C'],
       { name: 0, x_id: 1, vrc_url: -1, cast1: 2, cast2: -1, cast3: -1 },
     );
 
-    expect(user.preference_mode).toBe('flat');
-    expect(user.casts).toEqual(['Cast A', 'Cast B', 'Cast C']);
+    expect(user.preference_mode).toBe('ranked');
+    expect(user.casts).toEqual(['Cast A, Cast B, Cast A, ,Cast C', '', '']);
   });
 
   it('splitCommaColumnIndex 指定時は単一列を最大20件の順不同希望に変換する', () => {
