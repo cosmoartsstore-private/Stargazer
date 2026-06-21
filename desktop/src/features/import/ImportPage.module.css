@@ -267,8 +267,9 @@
 
 .import-preview-table {
   font-size: 12px;
-  table-layout: fixed;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
 }
 
 .import-preview-table th {
@@ -278,10 +279,20 @@
 
 .import-preview-table td {
   padding: 6px 10px;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 140px;
   white-space: nowrap;
+}
+
+.import-preview-name-cell {
+  min-width: 160px;
+}
+
+.import-preview-id-cell {
+  min-width: 150px;
+}
+
+.import-preview-cast-group-header {
+  text-align: center;
 }
 
 .import-preview-row--warn td {

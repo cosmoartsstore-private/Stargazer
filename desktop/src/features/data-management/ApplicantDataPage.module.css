@@ -228,28 +228,6 @@
   white-space: nowrap;
 }
 
-.applicant-flat-preference {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-default);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.applicant-flat-preference__label {
-  flex-shrink: 0;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(88, 101, 242, 0.16);
-  color: var(--accent-primary);
-  font-size: 11px;
-  font-weight: 800;
-}
-
 .applicant-delete-button {
   display: inline-flex;
   align-items: center;
@@ -276,6 +254,40 @@
 /* ========================================
    Applicant data table
    ======================================== */
+
+.applicant-list-table {
+  width: max-content !important;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.applicant-list-table th,
+.applicant-list-table td {
+  min-width: 150px;
+  white-space: nowrap;
+}
+
+.applicant-list-name-cell {
+  min-width: 160px;
+}
+
+.applicant-list-id-cell {
+  min-width: 150px;
+}
+
+.applicant-list-cast-header,
+.applicant-list-cast-cell {
+  min-width: 150px;
+}
+
+.applicant-list-ng-cell {
+  min-width: 150px;
+}
+
+.applicant-list-cast-group-header,
+.applicant-list-cast-header {
+  text-align: center;
+}
 
 .applicant-data-table-scroll {
   overflow: auto;

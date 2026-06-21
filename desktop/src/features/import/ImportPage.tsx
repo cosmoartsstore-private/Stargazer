@@ -91,21 +91,32 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
     [castInputType, mapping.cast1],
   );
 
-  const previewRows = useMemo(() => {
+  // プレビュー列数と件数検証で同じ変換結果を使い、カンマ区切り希望の4件目以降も列として扱う。
+  const mappedRows = useMemo(() => {
     if (!rows) return [];
-    return rows.slice(0, PREVIEW_MAX).map(
+    return rows.map(
       (row) => mapRowToUserBeanWithMapping(row as unknown[], effectiveMapping, mapOptions),
     );
   }, [rows, effectiveMapping, mapOptions]);
 
+  const previewRows = useMemo(() => mappedRows.slice(0, PREVIEW_MAX), [mappedRows]);
+
+  const previewCastColumnCount = useMemo(() => {
+    const maxCastCount = mappedRows.reduce((max, user) => Math.max(max, user.casts.length), 0);
+    return Math.max(3, maxCastCount);
+  }, [mappedRows]);
+
+  const previewCastColumnIndexes = useMemo(
+    () => Array.from({ length: previewCastColumnCount }, (_, index) => index),
+    [previewCastColumnCount],
+  );
+
   const { validCount, emptyIdCount } = useMemo(() => {
-    if (!rows) return { validCount: 0, emptyIdCount: 0 };
-    const all = rows.map((r) => mapRowToUserBeanWithMapping(r as unknown[], effectiveMapping, mapOptions));
     return {
-      validCount: all.filter((u) => u.x_id).length,
-      emptyIdCount: all.filter((u) => !u.x_id).length,
+      validCount: mappedRows.filter((u) => u.x_id).length,
+      emptyIdCount: mappedRows.filter((u) => !u.x_id).length,
     };
-  }, [rows, effectiveMapping, mapOptions]);
+  }, [mappedRows]);
 
   const canImport =
     rows !== null && rows.length > 0 &&
@@ -309,9 +320,14 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
             <table className={styles.importPreviewTable}>
               <thead>
                 <tr>
-                  <th>ユーザー名</th>
-                  <th>X ID</th>
-                  {[1, 2, 3].map((n) => <th key={n}>希望 {n}</th>)}
+                  <th rowSpan={2} className={styles.importPreviewNameCell}>ユーザー名</th>
+                  <th rowSpan={2} className={styles.importPreviewIdCell}>X ID</th>
+                  <th className={styles.importPreviewCastGroupHeader} colSpan={previewCastColumnCount}>希望キャスト</th>
+                </tr>
+                <tr>
+                  {previewCastColumnIndexes.map((index) => (
+                    <th key={index}>{index + 1}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -320,15 +336,15 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                     key={idx}
                     className={!u.x_id ? styles.importPreviewRowWarn : ''}
                   >
-                    <td title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
-                    <td>
+                    <td className={styles.importPreviewNameCell} title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
+                    <td className={styles.importPreviewIdCell}>
                       {u.x_id || (
                         <span className={styles.importCellWarn}>空</span>
                       )}
                     </td>
-                    {[0, 1, 2].map((i) => (
-                      <td key={i} title={u.casts[i] ?? ''}>
-                        {u.casts[i] || <span className={styles.importCellEmpty}>—</span>}
+                    {previewCastColumnIndexes.map((index) => (
+                      <td key={index} title={u.casts[index] ?? ''}>
+                        {u.casts[index] || <span className={styles.importCellEmpty}>—</span>}
                       </td>
                     ))}
                   </tr>
