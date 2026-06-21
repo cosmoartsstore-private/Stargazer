@@ -408,6 +408,17 @@
   white-space: nowrap;
 }
 
+.workflow-result-notice {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(240, 178, 50, 0.45);
+  border-radius: 7px;
+  background: rgba(240, 178, 50, 0.12);
+  color: var(--text-warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .workflow-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -638,7 +649,6 @@
   color: #fff;
 }
 
-.lottery-validation-badge--normal  { background: var(--accent-success); }
 .lottery-validation-badge--warning { background: var(--accent-warning); color: #1a1000; }
 .lottery-validation-badge--error   { background: var(--accent-danger); }
 .lottery-validation-badge--info    { background: var(--accent-primary); }

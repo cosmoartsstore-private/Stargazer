@@ -13,6 +13,7 @@ interface LotteryValidationPanelProps {
     description?: string;
     readySubtext?: string;
     runLabel?: string;
+    runDisabled?: boolean;
 }
 
 export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
@@ -22,6 +23,7 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
     description,
     readySubtext = '抽選を行う準備が完了しています',
     runLabel = '抽選開始',
+    runDisabled = false,
 }) => {
     const hasErrors   = validation.errors.length > 0;
     const hasWarnings = validation.warnings.length > 0;
@@ -45,7 +47,6 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                     {hasErrors   && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeError}`}>ERROR</span>}
                     {hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeWarning}`}>WARN</span>}
                     {hasInfo     && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeInfo}`}>INFO</span>}
-                    {!hasErrors && !hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeNormal}`}>実行可</span>}
                 </div>
 
                 <div className={`${styles.lotteryValidationContent} ${shared.customScrollbar}`}>
@@ -84,7 +85,7 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                     type="button"
                     onClick={onRunClick}
                     className={`${shared.btnPrimary} ${shared.btnPrimaryFull}`}
-                    disabled={hasErrors}
+                    disabled={hasErrors || runDisabled}
                 >
                     {runLabel}
                 </button>

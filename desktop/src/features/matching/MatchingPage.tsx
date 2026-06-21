@@ -62,6 +62,7 @@ export const MatchingPage: React.FC = () => {
     isMatchingLocked,
     setIsMatchingLocked,
     resetMatching,
+    isLotteryResultCurrent,
     matchingTypeCode,
     rotationCount,
     totalTables,
@@ -104,6 +105,13 @@ export const MatchingPage: React.FC = () => {
     allowM003EmptySeats,
     sameDaySlotCount: m003SameDaySlotCount,
   });
+  const effectiveValidation = isLotteryResultCurrent
+    ? validation
+    : {
+        errors: ['抽選条件またはマッチング条件が変更されています。抽選を再実行してください。'],
+        warnings: [],
+        info: validation.info,
+      };
 
   const [isComputing, setIsComputing] = useState(false);
 
@@ -123,6 +131,10 @@ export const MatchingPage: React.FC = () => {
   useEffect(() => () => stopWorker(), [stopWorker]);
 
   const handleRun = useCallback(() => {
+    if (!isLotteryResultCurrent) {
+      setGlobalMatchingError('抽選条件またはマッチング条件が変更されています。抽選を再実行してください。');
+      return;
+    }
     stopWorker();
     setIsComputing(true);
     setGlobalMatchingError(null);
@@ -192,7 +204,7 @@ export const MatchingPage: React.FC = () => {
       ngJudgmentType: FIXED_NG_JUDGMENT_TYPE,
       ngMatchingBehavior: 'exclude',
     });
-  }, [winners, casts, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount, effectiveMatchingTableCount, matchingSettings, setGlobalMatchingError, setGlobalMatchingResult, setGlobalTableSlots, setIsMatchingLocked, stopWorker]);
+  }, [winners, casts, isLotteryResultCurrent, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount, effectiveMatchingTableCount, matchingSettings, setGlobalMatchingError, setGlobalMatchingResult, setGlobalTableSlots, setIsMatchingLocked, stopWorker]);
 
   const resultRows = useMemo(
     () => buildResultRows(winners, globalMatchingResult),
@@ -255,12 +267,13 @@ export const MatchingPage: React.FC = () => {
 
         <aside className={styles.workflowTwoPane__side}>
           <LotteryValidationPanel
-            validation={validation}
+            validation={effectiveValidation}
             onRunClick={handleRun}
             title="マッチングステータス"
-            description="読み取り専用条件と出席状態をもとに実行可否を確認します。"
+            description="読み取り専用条件と出席状態をもとにエラーや警告を確認します。"
             readySubtext="マッチングを行う準備が完了しています"
             runLabel="マッチング開始"
+            runDisabled={!isLotteryResultCurrent}
           />
           {isMatchingLocked && (
             <button type="button" className={shared.btnDanger} style={{ width: '100%', marginTop: 12 }} onClick={resetMatching}>

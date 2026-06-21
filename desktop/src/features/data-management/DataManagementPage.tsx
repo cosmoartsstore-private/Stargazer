@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ApplicantDataPage } from '@/features/data-management/ApplicantDataPage';
 import { LotteryPage } from '@/features/lottery/LotteryPage';
 import { MatchingPage } from '@/features/matching/MatchingPage';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useAppContext, type PageType } from '@/stores/AppContext';
+import { getDisabledDataManagementTabs, getFallbackDataManagementTab } from './dataManagementNavigation';
 import shared from '@/styles/shared.module.css';
 import styles from './DataManagementPage.module.css';
 
@@ -43,6 +44,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     applicants,
     casts,
     currentWinners,
+    isLotteryResultCurrent,
     matchingTypeCode,
   } = useAppContext();
 
@@ -58,16 +60,19 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
   const hasApplyUsers = applicants.length > 0;
   const hasWinners = currentWinners.length > 0;
   const isLotteryOnly = matchingTypeCode === 'M000';
-
-  const disabledTabs = new Set<DataManagementTab>();
-  if (!hasApplyUsers) disabledTabs.add('lottery');
-  if (!hasWinners || isLotteryOnly) disabledTabs.add('matching');
+  const disabledTabs = useMemo(() => getDisabledDataManagementTabs({
+    hasApplyUsers,
+    hasWinners,
+    isLotteryOnly,
+    isLotteryResultCurrent,
+  }), [hasApplyUsers, hasWinners, isLotteryOnly, isLotteryResultCurrent]);
 
   useEffect(() => {
-    if (activeTab !== 'matching' || !isLotteryOnly) return;
-    setActiveTab('lottery');
-    setActivePage('lottery');
-  }, [activeTab, isLotteryOnly, setActivePage]);
+    if (activeTab !== 'matching' || !disabledTabs.has('matching')) return;
+    const fallbackTab = getFallbackDataManagementTab({ hasApplyUsers });
+    setActiveTab(fallbackTab);
+    setActivePage(fallbackTab as PageType);
+  }, [activeTab, disabledTabs, hasApplyUsers, setActivePage]);
 
   const tabs: Array<{ id: DataManagementTab; label: string }> = [
     { id: 'import',   label: 'データ取込' },
@@ -93,6 +98,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
   ];
 
   const handleTabClick = (tabId: DataManagementTab) => {
+    if (disabledTabs.has(tabId)) return;
     if (tabId === 'lottery' && activeTab !== 'lottery') {
       const checks = buildChecks();
       const anyIssues = checks.some(c => c.level !== 'ok');

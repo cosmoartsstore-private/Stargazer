@@ -38,6 +38,8 @@ export const LotteryPage: React.FC = () => {
     casts,
     currentWinners,
     setCurrentWinners,
+    isLotteryResultCurrent,
+    setIsLotteryResultCurrent,
     guaranteedWinners,
     setGuaranteedWinners,
     setGlobalMatchingResult,
@@ -71,6 +73,7 @@ export const LotteryPage: React.FC = () => {
         const restored = await restoreLotteryWinners(rows, applicants);
         if (restored.length > 0) {
           setCurrentWinners(restored);
+          setIsLotteryResultCurrent(true);
           setGuaranteedWinners(restored.filter((winner) => winner.is_guaranteed));
         }
       } catch (e) {
@@ -148,41 +151,54 @@ export const LotteryPage: React.FC = () => {
     setIsMatchingLocked,
   ]);
 
+  const markLotteryResultStale = useCallback(() => {
+    if (currentWinners.length > 0) {
+      setIsLotteryResultCurrent(false);
+    }
+    clearMatchingForConditionChange();
+  }, [clearMatchingForConditionChange, currentWinners.length, setIsLotteryResultCurrent]);
+
+  const handleLotteryCountChange = useCallback((value: number) => {
+    if (lotteryCount === value) return;
+    setLotteryCount(value);
+    markLotteryResultStale();
+  }, [lotteryCount, markLotteryResultStale]);
+
   const handleMatchingTypeChange = useCallback((code: MatchingTypeCode) => {
     if (matchingTypeCode === code) return;
     setMatchingTypeCode(code);
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, matchingTypeCode, setMatchingTypeCode]);
+    markLotteryResultStale();
+  }, [markLotteryResultStale, matchingTypeCode, setMatchingTypeCode]);
 
   const handleRotationCountChange = useCallback((value: number) => {
     if (rotationCount === value) return;
     setRotationCount(value);
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, rotationCount, setRotationCount]);
+    markLotteryResultStale();
+  }, [markLotteryResultStale, rotationCount, setRotationCount]);
 
   const handleTotalTablesChange = useCallback((value: number) => {
     if (totalTables === value) return;
     setTotalTables(value);
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, setTotalTables, totalTables]);
+    markLotteryResultStale();
+  }, [markLotteryResultStale, setTotalTables, totalTables]);
 
   const handleUsersPerTableChange = useCallback((value: number) => {
     if (usersPerTable === value) return;
     setUsersPerTable(value);
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, setUsersPerTable, usersPerTable]);
+    markLotteryResultStale();
+  }, [markLotteryResultStale, setUsersPerTable, usersPerTable]);
 
   const handleCastsPerRotationChange = useCallback((value: number) => {
     if (castsPerRotation === value) return;
     setCastsPerRotation(value);
-    clearMatchingForConditionChange();
-  }, [castsPerRotation, clearMatchingForConditionChange, setCastsPerRotation]);
+    markLotteryResultStale();
+  }, [castsPerRotation, markLotteryResultStale, setCastsPerRotation]);
 
   const handleSameDaySlotCountChange = useCallback((value: number) => {
     if (m003SameDaySlotCount === value) return;
     setM003SameDaySlotCount(value);
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, m003SameDaySlotCount, setM003SameDaySlotCount]);
+    markLotteryResultStale();
+  }, [markLotteryResultStale, m003SameDaySlotCount, setM003SameDaySlotCount]);
 
   const handleAllowM003EmptySeatsToggle = useCallback(() => {
     const next = !allowM003EmptySeats;
@@ -190,10 +206,10 @@ export const LotteryPage: React.FC = () => {
     if (next && m003SameDaySlotCount < 1) {
       setM003SameDaySlotCount(1);
     }
-    clearMatchingForConditionChange();
+    markLotteryResultStale();
   }, [
     allowM003EmptySeats,
-    clearMatchingForConditionChange,
+    markLotteryResultStale,
     m003SameDaySlotCount,
     setAllowM003EmptySeats,
     setM003SameDaySlotCount,
@@ -220,6 +236,7 @@ export const LotteryPage: React.FC = () => {
     ];
 
     setCurrentWinners(nextWinners);
+    setIsLotteryResultCurrent(nextWinners.length > 0);
     setGlobalMatchingResult(null);
     setGlobalTableSlots(undefined);
     setGlobalMatchingError(null);
@@ -250,9 +267,11 @@ export const LotteryPage: React.FC = () => {
     [casts, currentWinners, guaranteedIds],
   );
   const ngWinnerCount = resultRows.filter((row) => row.ngCastNames.length > 0).length;
+  const hasStaleLotteryResult = currentWinners.length > 0 && !isLotteryResultCurrent;
+  const canProceedToMatching = !isLotteryOnlyMode && resultRows.length > 0 && isLotteryResultCurrent && validation.errors.length === 0;
 
   const handleSaveLotteryRun = useCallback(async () => {
-    if (currentWinners.length === 0 || savingLotteryRun) return;
+    if (currentWinners.length === 0 || savingLotteryRun || !isLotteryResultCurrent) return;
     setSavingLotteryRun(true);
     try {
       const rows = await buildLotteryPersistenceRows(currentWinners);
@@ -280,6 +299,7 @@ export const LotteryPage: React.FC = () => {
     }
   }, [
     currentWinners,
+    isLotteryResultCurrent,
     matchingTypeCode,
     refreshSavedRuns,
     savingLotteryRun,
@@ -303,7 +323,12 @@ export const LotteryPage: React.FC = () => {
       setIsMatchingLocked(false);
       await replaceLotteryResults(await buildLotteryPersistenceRows(restored));
       const selected = savedRuns.find((run) => run.id === runId);
+      if (selected && MATCHING_TYPE_CODES_SELECTABLE.includes(selected.matching_type_code as MatchingTypeCode)) {
+        setMatchingTypeCode(selected.matching_type_code as MatchingTypeCode);
+        setLotteryCount(Math.max(1, selected.lottery_count));
+      }
       setLotteryMessage(`${selected?.label ?? '保存済み抽選結果'}を選択しました。`);
+      setIsLotteryResultCurrent(true);
     } catch (e) {
       console.error('保存済み抽選結果の選択に失敗しました:', e);
       setLotteryMessage('保存済み抽選結果の選択に失敗しました。');
@@ -317,6 +342,8 @@ export const LotteryPage: React.FC = () => {
     setGlobalMatchingResult,
     setGlobalTableSlots,
     setIsMatchingLocked,
+    setIsLotteryResultCurrent,
+    setMatchingTypeCode,
   ]);
 
   return (
@@ -332,7 +359,7 @@ export const LotteryPage: React.FC = () => {
         <div className={styles.workflowSectionHeader}>
           <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>抽選設定</h2>
           <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-            当選者数とマッチング条件をまとめて設定し、右側のステータスで実行可否を確認します。
+            当選者数とマッチング条件をまとめて設定し、右側のステータスでエラーや警告を確認します。
           </p>
         </div>
 
@@ -349,7 +376,7 @@ export const LotteryPage: React.FC = () => {
                   label="当選人数"
                   value={lotteryCount}
                   min={1}
-                  onChange={setLotteryCount}
+                  onChange={handleLotteryCountChange}
                 />
               </label>
 
@@ -559,7 +586,7 @@ export const LotteryPage: React.FC = () => {
             <button
               type="button"
               className={shared.btnPrimary}
-              disabled={resultRows.length === 0 || savingLotteryRun}
+              disabled={resultRows.length === 0 || savingLotteryRun || hasStaleLotteryResult}
               onClick={() => { void handleSaveLotteryRun(); }}
             >
               {savingLotteryRun ? '保存中...' : '抽選結果保存'}
@@ -568,7 +595,8 @@ export const LotteryPage: React.FC = () => {
               <button
                 type="button"
                 className={shared.btnPrimary}
-                disabled={resultRows.length === 0}
+                disabled={!canProceedToMatching}
+                title={hasStaleLotteryResult ? '条件変更後は抽選を再実行してください。' : undefined}
                 onClick={() => setActivePage('matching')}
               >
                 マッチングへ
@@ -576,6 +604,11 @@ export const LotteryPage: React.FC = () => {
             )}
           </div>
         </div>
+        {hasStaleLotteryResult && (
+          <p className={styles.workflowResultNotice}>
+            抽選条件またはマッチング条件が変更されています。現在の条件でマッチングへ進むには、抽選を再実行してください。
+          </p>
+        )}
 
         <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 840 }}>
@@ -638,6 +671,7 @@ export const LotteryPage: React.FC = () => {
                           ? guaranteedWinners.filter((winner) => winner.x_id !== user.x_id)
                           : [...guaranteedWinners, user];
                         setGuaranteedWinners(nextGuaranteed);
+                        markLotteryResultStale();
                     }}
                   >
                     <span className={styles.guaranteedSelectModalList__check}>{isSelected ? '選択中' : '未選択'}</span>

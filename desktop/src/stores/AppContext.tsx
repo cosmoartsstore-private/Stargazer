@@ -50,6 +50,8 @@ interface AppContextType {
   setApplicants: (users: UserBean[]) => void;
   currentWinners: UserBean[];
   setCurrentWinners: (winners: UserBean[]) => void;
+  isLotteryResultCurrent: boolean;
+  setIsLotteryResultCurrent: (val: boolean) => void;
   guaranteedWinners: UserBean[];
   setGuaranteedWinners: (winners: UserBean[]) => void;
   matchingTypeCode: MatchingTypeCode;
@@ -107,7 +109,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activePage, setActivePage] = useState<PageType>('dataManagement');
   const [casts, setCasts] = useState<CastBean[]>([]);
   const [applicantsState, setApplicantsState] = useState<UserBean[]>([]);
-  const [currentWinners, setCurrentWinners] = useState<UserBean[]>(initialSession?.winners ?? []);
+  const [currentWinners, setCurrentWinnersState] = useState<UserBean[]>(initialSession?.winners ?? []);
+  const [isLotteryResultCurrent, setIsLotteryResultCurrent] = useState<boolean>(
+    initialSession?.isLotteryResultCurrent ?? ((initialSession?.winners.length ?? 0) > 0),
+  );
   const [guaranteedWinners, setGuaranteedWinners] = useState<UserBean[]>([]);
   const [matchingTypeCode, setMatchingTypeCode] = useState<MatchingTypeCode>(initialSession?.matchingTypeCode ?? 'M001');
   const [rotationCount, setRotationCount] = useState<number>(initialSession?.rotationCount ?? DEFAULT_ROTATION_COUNT);
@@ -137,6 +142,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setApplicantsState(users);
   };
 
+  const setCurrentWinners = (winners: UserBean[]) => {
+    setCurrentWinnersState(winners);
+    if (winners.length === 0) {
+      setIsLotteryResultCurrent(false);
+    }
+  };
+
   const resetMatching = () => {
     setIsMatchingLocked(false);
     setGlobalMatchingResult(null);
@@ -164,6 +176,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const session: PersistedSession = {
       winners: currentWinners,
+      isLotteryResultCurrent,
       matchingTypeCode,
       rotationCount,
       totalTables,
@@ -173,7 +186,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       m003SameDaySlotCount,
     };
     persistSession(session);
-  }, [currentWinners, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount]);
+  }, [currentWinners, isLotteryResultCurrent, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount]);
 
   useEffect(() => {
     persistTheme(themeId);
@@ -189,6 +202,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSessions([]);
     setApplicantsState([]);
     setCurrentWinners([]);
+    setIsLotteryResultCurrent(false);
     removeStoredSession();
     resetMatching();
     try {
@@ -218,6 +232,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     saveLastUsedSession(timestamp);
     setCurrentSessionTimestamp(timestamp);
     setCurrentWinners([]);
+    setIsLotteryResultCurrent(false);
     removeStoredSession();
     resetMatching();
     bumpDataReload();
@@ -264,6 +279,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setApplicants,
       currentWinners,
       setCurrentWinners,
+      isLotteryResultCurrent,
+      setIsLotteryResultCurrent,
       guaranteedWinners,
       setGuaranteedWinners,
       matchingTypeCode,

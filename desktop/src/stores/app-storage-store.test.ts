@@ -45,6 +45,7 @@ function sampleSession(): PersistedSession {
         raw_extra: [],
       },
     ],
+    isLotteryResultCurrent: true,
     matchingTypeCode: 'M002',
     rotationCount: 3,
     totalTables: 12,
@@ -92,6 +93,7 @@ describe('getInitialSession', () => {
     expect(getInitialSession()).toEqual({
       winners: sampleSession().winners,
       matchingTypeCode: 'M001',
+      isLotteryResultCurrent: true,
       rotationCount: DEFAULT_ROTATION_COUNT,
       totalTables: 15,
       usersPerTable: 2,
@@ -107,6 +109,17 @@ describe('getInitialSession', () => {
     }));
 
     expect(getInitialSession()?.matchingTypeCode).toBe('M002');
+  });
+
+  it('抽選結果が現在条件と一致しない状態も復元する', () => {
+    installWindowWithStorage(createStorage({
+      [STORAGE_KEYS.SESSION]: JSON.stringify({
+        ...sampleSession(),
+        isLotteryResultCurrent: false,
+      }),
+    }));
+
+    expect(getInitialSession()?.isLotteryResultCurrent).toBe(false);
   });
 
   it('winners が配列でない場合はセッションを復元しない', () => {

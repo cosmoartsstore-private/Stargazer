@@ -23,6 +23,7 @@ const VALID_MATCHING_CODES: readonly string[] = [...MATCHING_TYPE_CODES];
 
 export interface PersistedSession {
   winners: UserBean[];
+  isLotteryResultCurrent: boolean;
   matchingTypeCode: MatchingTypeCode;
   rotationCount: number;
   totalTables: number;
@@ -61,6 +62,9 @@ function normalizePersistedSession(value: Record<string, unknown>): PersistedSes
   if (!Array.isArray(value.winners)) return null;
   return {
     winners: value.winners as UserBean[],
+    isLotteryResultCurrent: typeof value.isLotteryResultCurrent === 'boolean'
+      ? value.isLotteryResultCurrent
+      : value.winners.length > 0,
     matchingTypeCode: normalizeMatchingTypeCode(value.matchingTypeCode),
     rotationCount: numberAtLeast(value.rotationCount, 1, DEFAULT_ROTATION_COUNT),
     totalTables: numberAtLeast(value.totalTables, 1, 15),
