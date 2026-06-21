@@ -86,9 +86,9 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ border: `1px solid ${isNotice ? 'var(--guide-notice)' : 'var(--border-default)'}`, borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--surface-hover)', borderBottom: `1px solid ${isNotice ? 'var(--guide-notice)' : 'var(--border-default)'}` }}>
-          <div style={{ width: 3, height: 12, background: isNotice ? 'var(--guide-notice)' : 'var(--accent-primary)', borderRadius: 2, flexShrink: 0 }} />
-          <h3 style={{ fontSize: 11, fontWeight: 700, color: isNotice ? 'var(--guide-notice)' : 'var(--text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: isNotice ? 'var(--guide-notice)' : 'var(--surface-hover)', borderBottom: `1px solid ${isNotice ? 'var(--guide-notice)' : 'var(--border-default)'}` }}>
+          {!isNotice && <div style={{ width: 3, height: 12, background: 'var(--accent-primary)', borderRadius: 2, flexShrink: 0 }} />}
+          <h3 style={{ fontSize: 11, fontWeight: isNotice ? 900 : 700, color: isNotice ? '#1a1000' : 'var(--text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
             {title}
           </h3>
         </div>
