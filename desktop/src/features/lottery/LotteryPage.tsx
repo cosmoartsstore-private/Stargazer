@@ -618,7 +618,7 @@ export const LotteryPage: React.FC = () => {
           title="確定当選者の選択"
           message={`現在 ${guaranteedWinners.length} 名を確定当選者として設定しています。合計当選者数は ${totalWinners} 名です。`}
           confirmLabel="閉じる"
-          size="wide"
+          size="extraWide"
           onConfirm={() => setShowGuaranteedSelect(false)}
         >
           <div className={styles.guaranteedSelectModalList}>

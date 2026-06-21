@@ -6,6 +6,10 @@
   max-width: 680px;
 }
 
+.modal-content--extra-wide {
+  max-width: 760px;
+}
+
 .modal-message {
   color: var(--text-default);
   font-size: 15px;

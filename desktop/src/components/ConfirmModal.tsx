@@ -14,13 +14,19 @@ interface ConfirmModalProps {
   cancelLabel?: string;
   type?: 'confirm' | 'alert';
   confirmDisabled?: boolean;
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'extraWide';
   /** message の下に追加で表示するカスタムコンテンツ */
   children?: React.ReactNode;
 }
 
 const DEFAULT_TITLE_ALERT = 'お知らせ';
 const DEFAULT_TITLE_CONFIRM = '確認';
+
+function getModalContentClass(size: ConfirmModalProps['size']): string {
+  if (size === 'extraWide') return styles.modalContentExtraWide;
+  if (size === 'wide') return styles.modalContentWide;
+  return '';
+}
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
@@ -53,7 +59,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       title={displayTitle}
       description={message}
       descriptionClassName={styles.modalMessage}
-      className={size === 'wide' ? styles.modalContentWide : ''}
+      className={getModalContentClass(size)}
     >
       {children}
       <div className={styles.modalButtons}>
