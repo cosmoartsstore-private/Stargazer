@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, Users, Settings, CalendarDays, HelpCircle, Terminal } from '@/common/icons';
 import { DataManagementPage } from '@/features/data-management/DataManagementPage';
 import { InternalManagementPage } from '@/features/internal-management/InternalManagementPage';
@@ -13,6 +13,7 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAppContext, type PageType } from '@/stores/AppContext';
 import { removeStoredSession } from '@/stores/app-storage-store';
 import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
+import { buildThemeCssVariables } from '@/common/themeCustomization';
 import { IMPORT_OVERWRITE, NAV } from '@/common/copy';
 import { getVisiblePage, isSidebarPageDisabled } from './appNavigation';
 import {
@@ -39,6 +40,8 @@ export const AppContainer: React.FC = () => {
     setCurrentWinners,
     themeId,
     setThemeId,
+    themeCustomization,
+    setThemeCustomization,
     isDbReady,
     currentEventName,
     currentSessionTimestamp,
@@ -52,6 +55,10 @@ export const AppContainer: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const themeCssVariables = useMemo(
+    () => buildThemeCssVariables(themeId, themeCustomization),
+    [themeId, themeCustomization],
+  );
   const [pendingImport, setPendingImport] = useState<{
     rows: string[][];
     mapping: import('@/common/importFormat').ColumnMapping;
@@ -61,19 +68,22 @@ export const AppContainer: React.FC = () => {
 
   useEffect(() => {
     document.body.dataset.theme = themeId;
+    Object.entries(themeCssVariables).forEach(([key, value]) => {
+      document.body.style.setProperty(key, value);
+    });
     return () => {
       delete document.body.dataset.theme;
+      Object.keys(themeCssVariables).forEach((key) => {
+        document.body.style.removeProperty(key);
+      });
     };
-  }, [themeId]);
+  }, [themeId, themeCssVariables]);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Data load effect.
-  //  - Casts (and caution users) live in the event-shared DB → reload whenever
-  //    the event changes.
-  //  - Applicants live in the session DB → only reload when the session
-  //    changes; if no session is open, applicants are empty.
-  // dataReloadCounter is a manual escape hatch for callers that need to
-  // refresh the current hidden import session without changing the keys.
+  // データ再読込。
+  //  - キャストと要注意人物はイベント共有DBに属するため、イベント切り替え時に読み直す。
+  //  - 応募者は取込セッションDBに属するため、セッション切り替え時だけ読み直す。
+  // dataReloadCounter は、キーを変えずに現在セッションを再読込するための明示的な更新トリガー。
   // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isDbReady) return;
@@ -228,7 +238,7 @@ export const AppContainer: React.FC = () => {
   return (
     <ErrorBoundary>
       <ClickEffect />
-      <div className={styles.appContainer} data-theme={themeId}>
+      <div className={styles.appContainer} data-theme={themeId} style={themeCssVariables as React.CSSProperties}>
         <div className={styles.mobileHeader} data-context="mobile-header">
           <HeaderLogo />
           <button className={styles.menuToggle} onClick={() => setIsMenuOpen(!isMenuOpen)}>
@@ -286,7 +296,12 @@ export const AppContainer: React.FC = () => {
             <div className={`${styles.sidebarBlock} ${styles.sidebarBlockPush}`} />
             <div className={`${styles.sidebarBlock} ${styles.sidebarThemeSlider}`}>
               <span className={styles.sidebarBlockLabel}>{NAV.SETTINGS}</span>
-              <ThemeSelector themeId={themeId} setThemeId={setThemeId!} />
+              <ThemeSelector
+                themeId={themeId}
+                setThemeId={setThemeId!}
+                customization={themeCustomization}
+                setCustomization={setThemeCustomization}
+              />
             </div>
           </div>
         </aside>

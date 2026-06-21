@@ -25,6 +25,7 @@
 - **Attendance** — イベントごとの出席履歴と出席回数管理
 - **NG Management** — ブロックユーザー・要注意ユーザー管理
 - **Post Template** — 投稿文テンプレート作成・コピー
+- **Theme Customization** — デフォルトテーマのカスタムカラー調整、チェックテーマの色相調整
 - **STELLA RECORD 連携** — 外部アプリ登録・解除
 
 ## Project Structure

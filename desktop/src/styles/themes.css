@@ -182,38 +182,38 @@
 
 /* ========== チェックテーマ（アイスリボンチェック基準） ========== */
 [data-theme="skyblue"] {
-  --cast-present-bg: #2f9f78;
-  --cast-absent-bg: #a9c9dd;
-  --accent-primary: #2d8fd3;
-  --accent-success: #2f9f78;
-  --accent-gold: #b99700;
+  --cast-present-bg: var(--theme-check-success, #2f9f78);
+  --cast-absent-bg: hsl(var(--theme-check-hue, 204) 45% 76%);
+  --accent-primary: var(--theme-check-accent, #2d8fd3);
+  --accent-success: var(--theme-check-success, #2f9f78);
+  --accent-gold: var(--theme-check-gold, #b99700);
   --surface-panel: rgba(255, 255, 255, 0.965);
   --surface-page: transparent;
   --surface-panel-muted: rgba(255, 255, 255, 0.91);
   --surface-panel-elevated: rgba(255, 255, 255, 0.98);
-  --surface-hover: rgba(45, 143, 211, 0.10);
-  --surface-selected: rgba(45, 143, 211, 0.16);
+  --surface-hover: hsl(var(--theme-check-hue, 204) 65% 50% / 0.10);
+  --surface-selected: hsl(var(--theme-check-hue, 204) 65% 50% / 0.16);
   --surface-tab-hover: var(--surface-hover);
-  --surface-subtle: rgba(96, 165, 250, 0.08);
+  --surface-subtle: hsl(var(--theme-check-hue, 204) 82% 68% / 0.08);
   --surface-sidebar: rgba(255, 255, 255, 0.92);
-  --text-default: #183a5f;
-  --text-muted: rgba(24, 58, 95, 0.64);
-  --text-link: #1b78be;
-  --text-heading: #102b49;
-  --border-default: rgba(96, 165, 250, 0.32);
-  --border-divider: rgba(96, 165, 250, 0.22);
+  --text-default: var(--theme-check-deep-text, #183a5f);
+  --text-muted: var(--theme-check-muted-text, rgba(24, 58, 95, 0.64));
+  --text-link: var(--theme-check-link, #1b78be);
+  --text-heading: hsl(var(--theme-check-hue, 204) 64% 18%);
+  --border-default: hsl(var(--theme-check-hue, 204) 82% 68% / 0.32);
+  --border-divider: hsl(var(--theme-check-hue, 204) 82% 68% / 0.22);
   --border-tab: var(--border-default);
-  --button-primary-bg: #2d8fd3;
-  --button-primary-hover-bg: #247cc0;
-  --button-secondary-bg: rgba(96, 165, 250, 0.16);
-  --button-secondary-hover-bg: rgba(96, 165, 250, 0.26);
+  --button-primary-bg: var(--theme-check-accent, #2d8fd3);
+  --button-primary-hover-bg: var(--theme-check-accent-hover, #247cc0);
+  --button-secondary-bg: hsl(var(--theme-check-hue, 204) 82% 68% / 0.16);
+  --button-secondary-hover-bg: hsl(var(--theme-check-hue, 204) 82% 68% / 0.26);
 
-  /* sticky elements */
+  /* 固定表示セル */
   --db-sticky-bg: #f7fbff;
-  --db-sticky-bg-alt: #f0f8ff;
+  --db-sticky-bg-alt: hsl(var(--theme-check-hue, 204) 100% 97%);
   --db-sticky-bg-caution: #ffe7eb;
-  --db-sticky-shadow-right: 4px 0 12px rgba(25, 83, 130, 0.14);
-  --db-sticky-shadow-bottom: 0 4px 12px rgba(25, 83, 130, 0.14);
+  --db-sticky-shadow-right: 4px 0 12px hsl(var(--theme-check-hue, 204) 68% 30% / 0.14);
+  --db-sticky-shadow-bottom: 0 4px 12px hsl(var(--theme-check-hue, 204) 68% 30% / 0.14);
 }
 
 .sidebar-theme-pill {

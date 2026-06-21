@@ -11,6 +11,11 @@ import {
   writeBrowserStorageItem,
 } from '@/common/browserStorage';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
+import {
+  DEFAULT_THEME_CUSTOMIZATION,
+  normalizeThemeCustomization,
+  type ThemeCustomizationState,
+} from '@/common/themeCustomization';
 import type { UserBean } from '@/common/types/entities';
 import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 
@@ -80,6 +85,12 @@ export function getInitialThemeId(): ThemeId {
   return THEME_IDS.includes(id as ThemeId) ? (id as ThemeId) : DEFAULT_THEME_ID;
 }
 
+/** localStorage からテーマカラー設定を復元する。壊れた値は既定設定に戻す。 */
+export function getInitialThemeCustomization(): ThemeCustomizationState {
+  const stored = parseStoredObject(readBrowserStorageItem(STORAGE_KEYS.THEME_CUSTOMIZATION));
+  return stored ? normalizeThemeCustomization(stored) : DEFAULT_THEME_CUSTOMIZATION;
+}
+
 /** 抽選・マッチング一時セッションを localStorage に保存する。 */
 export function persistSession(session: PersistedSession): void {
   writeBrowserStorageItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
@@ -88,6 +99,11 @@ export function persistSession(session: PersistedSession): void {
 /** テーマ選択を localStorage に保存する。 */
 export function persistTheme(themeId: ThemeId): void {
   writeBrowserStorageItem(STORAGE_KEYS.THEME, themeId);
+}
+
+/** テーマカラー設定を localStorage に保存する。 */
+export function persistThemeCustomization(customization: ThemeCustomizationState): void {
+  writeBrowserStorageItem(STORAGE_KEYS.THEME_CUSTOMIZATION, JSON.stringify(normalizeThemeCustomization(customization)));
 }
 
 /** 保存済みの抽選・マッチング一時セッションを削除する。 */

@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import { STORAGE_KEYS } from '@/common/config';
 import {
+  getInitialThemeCustomization,
   getInitialSession,
   getInitialThemeId,
+  persistThemeCustomization,
   persistSession,
   persistTheme,
   removeStoredSession,
   type PersistedSession,
 } from './app-storage-store';
+import { DEFAULT_THEME_CUSTOMIZATION } from '@/common/themeCustomization';
 
 function createStorage(initial: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(initial));
@@ -155,6 +158,30 @@ describe('getInitialThemeId', () => {
   });
 });
 
+describe('getInitialThemeCustomization', () => {
+  it('保存済みテーマカラー設定を復元する', () => {
+    installWindowWithStorage(createStorage({
+      [STORAGE_KEYS.THEME_CUSTOMIZATION]: JSON.stringify({
+        dark: { colors: ['#123456'], direction: 90, intensity: 42 },
+        skyblue: { hue: 180 },
+      }),
+    }));
+
+    expect(getInitialThemeCustomization()).toEqual({
+      dark: { accent: DEFAULT_THEME_CUSTOMIZATION.dark.accent, colors: ['#123456'], direction: 90, intensity: 42 },
+      skyblue: { hue: 180 },
+    });
+  });
+
+  it('保存値が壊れている場合は既定設定を返す', () => {
+    installWindowWithStorage(createStorage({
+      [STORAGE_KEYS.THEME_CUSTOMIZATION]: '{invalid',
+    }));
+
+    expect(getInitialThemeCustomization()).toEqual(DEFAULT_THEME_CUSTOMIZATION);
+  });
+});
+
 describe('persistSession', () => {
   it('セッションを保存キーへ JSON として書き込む', () => {
     const storage = createStorage();
@@ -196,6 +223,19 @@ describe('persistTheme', () => {
     installWindowWithStorage(storage);
 
     expect(() => persistTheme('skyblue')).not.toThrow();
+  });
+});
+
+describe('persistThemeCustomization', () => {
+  it('テーマカラー設定を保存キーへ JSON として書き込む', () => {
+    const storage = createStorage();
+    installWindowWithStorage(storage);
+
+    persistThemeCustomization(DEFAULT_THEME_CUSTOMIZATION);
+
+    const setItem = storage.setItem as ReturnType<typeof vi.fn>;
+    expect(setItem.mock.calls[0][0]).toBe(STORAGE_KEYS.THEME_CUSTOMIZATION);
+    expect(JSON.parse(setItem.mock.calls[0][1])).toEqual(DEFAULT_THEME_CUSTOMIZATION);
   });
 });
 

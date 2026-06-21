@@ -15,6 +15,8 @@ interface ConfirmModalProps {
   type?: 'confirm' | 'alert';
   confirmDisabled?: boolean;
   size?: 'default' | 'wide' | 'extraWide';
+  /** 特定機能だけでモーダル本体の寸法や余白を調整するための追加クラス。 */
+  contentClassName?: string;
   /** message の下に追加で表示するカスタムコンテンツ */
   children?: React.ReactNode;
 }
@@ -38,6 +40,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   type = 'confirm',
   confirmDisabled = false,
   size = 'default',
+  contentClassName = '',
   children,
 }) => {
   const displayTitle = title ?? (type === 'alert' ? DEFAULT_TITLE_ALERT : DEFAULT_TITLE_CONFIRM);
@@ -59,7 +62,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       title={displayTitle}
       description={message}
       descriptionClassName={styles.modalMessage}
-      className={getModalContentClass(size)}
+      className={`${getModalContentClass(size)}${contentClassName ? ` ${contentClassName}` : ''}`}
     >
       {children}
       <div className={styles.modalButtons}>

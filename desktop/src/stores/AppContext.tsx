@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { UserBean, CastBean } from '@/common/types/entities';
 import type { ThemeId } from '@/common/themes';
+import type { ThemeCustomizationState } from '@/common/themeCustomization';
 import {
   getInitialMatchingSettings,
   normalizeMatchingSettingsState,
@@ -12,9 +13,11 @@ import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import type { MatchedCast, TableSlot } from '@/features/matching/logics/matching-io';
 import {
   getInitialSession,
+  getInitialThemeCustomization,
   getInitialThemeId,
   persistSession,
   persistTheme,
+  persistThemeCustomization,
   removeStoredSession,
   type PersistedSession,
 } from '@/stores/app-storage-store';
@@ -55,6 +58,8 @@ interface AppContextType {
   setRotationCount: (n: number) => void;
   themeId: ThemeId;
   setThemeId: (id: ThemeId) => void;
+  themeCustomization: ThemeCustomizationState;
+  setThemeCustomization: (customization: ThemeCustomizationState | ((prev: ThemeCustomizationState) => ThemeCustomizationState)) => void;
   totalTables: number;
   setTotalTables: (n: number) => void;
   usersPerTable: number;
@@ -107,6 +112,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [matchingTypeCode, setMatchingTypeCode] = useState<MatchingTypeCode>(initialSession?.matchingTypeCode ?? 'M001');
   const [rotationCount, setRotationCount] = useState<number>(initialSession?.rotationCount ?? DEFAULT_ROTATION_COUNT);
   const [themeId, setThemeId] = useState<ThemeId>(() => getInitialThemeId());
+  const [themeCustomization, setThemeCustomizationState] = useState<ThemeCustomizationState>(() => getInitialThemeCustomization());
   const [totalTables, setTotalTables] = useState<number>(initialSession?.totalTables ?? 15);
   const [usersPerTable, setUsersPerTable] = useState<number>(initialSession?.usersPerTable ?? 1);
   const [castsPerRotation, setCastsPerRotation] = useState<number>(initialSession?.castsPerRotation ?? 1);
@@ -143,6 +149,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const rawNext = typeof stateOrUpdater === 'function' ? stateOrUpdater(prev) : stateOrUpdater;
       const next = normalizeMatchingSettingsState(rawNext);
       persistMatchingSettings(next);
+      return next;
+    });
+  };
+
+  const setThemeCustomization = (stateOrUpdater: ThemeCustomizationState | ((prev: ThemeCustomizationState) => ThemeCustomizationState)) => {
+    setThemeCustomizationState((prev) => {
+      const next = typeof stateOrUpdater === 'function' ? stateOrUpdater(prev) : stateOrUpdater;
+      persistThemeCustomization(next);
       return next;
     });
   };
@@ -258,6 +272,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setRotationCount,
       themeId,
       setThemeId,
+      themeCustomization,
+      setThemeCustomization,
       totalTables,
       setTotalTables,
       usersPerTable,

@@ -309,6 +309,86 @@
   gap: 24px;
 }
 
+.guide-features-layout {
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fade-in 0.2s ease;
+}
+
+.guide-feature-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-panel);
+}
+
+.guide-feature-picker-group {
+  min-width: 0;
+}
+
+.guide-feature-picker-label {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.guide-feature-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.guide-feature-picker-button {
+  min-width: 0;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.guide-feature-picker-button:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-heading);
+}
+
+.guide-feature-picker-button--active {
+  border-color: var(--accent-primary);
+  background: var(--surface-selected);
+  color: var(--text-heading);
+}
+
+.guide-feature-picker-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--accent-primary);
+}
+
+.guide-feature-content {
+  min-width: 0;
+  padding: 20px 24px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-panel);
+}
+
 .guide-mode-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -407,7 +487,7 @@
 
 .guidePreviewAppWorkspace {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 132px minmax(0, 1fr);
   min-height: 365px;
 }
 
@@ -420,10 +500,35 @@
   background: color-mix(in srgb, var(--surface-panel) 76%, #000 24%);
 }
 
+.guidePreviewAppLogo {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  margin-bottom: 8px;
+  padding: 5px 3px 10px;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-heading);
+  text-align: center;
+}
+
+.guidePreviewAppLogo strong {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  line-height: 1.1;
+}
+
+.guidePreviewAppLogo span {
+  color: var(--text-muted);
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+}
+
 .guidePreviewAppSidebarItem {
   min-height: 24px;
   display: flex;
   align-items: center;
+  gap: 6px;
   padding: 0 8px;
   border-radius: 5px;
   color: var(--text-muted);
@@ -437,9 +542,55 @@
   box-shadow: inset 2px 0 0 var(--accent-primary);
 }
 
+.guidePreviewThemeButton {
+  margin-top: auto;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--border-default);
+  padding-top: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
 .guidePreviewAppContent {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-panel);
+}
+
+.guidePreviewPageTabs {
+  display: flex;
+  align-items: flex-end;
+  min-height: 38px;
+  padding: 0 12px;
+  border-bottom: 2px solid var(--border-tab, var(--border-default));
+  gap: 0;
+}
+
+.guidePreviewPageTabs span {
+  min-width: 76px;
+  padding: 10px 12px 8px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: -2px;
+}
+
+.guidePreviewPageTabActive {
+  color: var(--accent-primary) !important;
+  border-bottom-color: var(--accent-primary) !important;
+}
+
+.guidePreviewScreenSurface {
   position: relative;
   min-width: 0;
+  flex: 1;
   padding: 14px;
   background: var(--surface-panel);
 }
@@ -1012,8 +1163,12 @@
     flex-direction: column;
   }
 
+  .guide-feature-picker {
+    grid-template-columns: 1fr;
+  }
+
   .guidePreviewAppWorkspace {
-    grid-template-columns: 92px minmax(0, 1fr);
+    grid-template-columns: 112px minmax(0, 1fr);
   }
 
   .guidePreviewMetricGrid {

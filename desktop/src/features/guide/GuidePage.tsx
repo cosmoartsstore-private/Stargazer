@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   FileText, Database, Users, Settings, CheckCircle, BarChart3,
-  Sheet, Download, Calendar, UserX, HelpCircle,
+  Sheet, Download, Calendar, CalendarDays, UserX, HelpCircle,
 } from '@/common/icons';
 import { invoke, isTauri } from '@/tauri';
 import styles from './GuidePage.module.css';
@@ -28,7 +28,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: '応募管理',
     items: [
       { id: 'applicant-data', label: '応募データ',   icon: <Database size={15} /> },
-      { id: 'import',         label: 'データ読取',   icon: <FileText  size={15} /> },
+      { id: 'import',         label: 'データ取込',   icon: <FileText  size={15} /> },
       { id: 'lottery',        label: '抽選',         icon: <CheckCircle size={15} /> },
       { id: 'matching',       label: 'マッチング',   icon: <BarChart3 size={15} /> },
     ],
@@ -164,7 +164,7 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   'applicant-data': {
     title: '応募データの確認画面',
     summary: '取り込んだ応募者を一覧で確認し、要注意・NGキャスト・詳細・削除の入口を同じ画面で扱います。',
-    activeNav: '応募データ',
+    activeNav: 'データ取込',
     points: [
       { number: 1, title: 'データ状態と操作', description: '読み込んだファイル名、件数、再取り込み、元ログ削除を確認します。', x: 70, y: 17 },
       { number: 2, title: '表示切り替え', description: '全件と要注意を切り替えて、確認対象を絞り込みます。', x: 20, y: 31 },
@@ -176,7 +176,7 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   import: {
     title: 'TSV読取と列マッピング',
     summary: 'ファイル選択、列の対応付け、プレビュー、取り込み先の選択を一連の流れで確認します。',
-    activeNav: 'データ読取',
+    activeNav: 'データ取込',
     points: [
       { number: 1, title: 'ファイル選択', description: 'TSVファイルを選択し、検出行数と有効件数を確認します。', x: 26, y: 22 },
       { number: 2, title: '列マッピング', description: 'ユーザー名、X ID、希望キャストなどを読み込んだ列に対応付けます。', x: 36, y: 47 },
@@ -261,6 +261,10 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
 
 const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
   const meta = FEATURE_SAMPLE_META[feature];
+  const mainNav = ['applicant-data', 'import', 'lottery', 'matching'].includes(feature) ? '応募管理' : '内部管理';
+  const pageTabs = mainNav === '応募管理'
+    ? ['データ取込', '抽選', 'マッチング']
+    : ['キャスト名簿', 'NG管理', '投稿テンプレ', '出席管理'];
 
   return (
     <section className={styles.featureGuideSample}>
@@ -274,36 +278,47 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
 
       <div className={styles.featureGuideSampleLayout}>
         <div className={styles.guidePreviewAppFrame}>
-          <div className={styles.guidePreviewAppTopbar}>
-            <div>
-              <strong>Manual Test Event</strong>
-              <span>Stargazer</span>
-            </div>
-            <div className={styles.guidePreviewTopbarStatus}>DB接続中</div>
-          </div>
           <div className={styles.guidePreviewAppWorkspace}>
             <aside className={styles.guidePreviewAppSidebar} aria-label="サンプル画面ナビゲーション">
-              {['応募データ', 'データ読取', '抽選', 'マッチング', 'キャスト名簿', 'NG管理', '出席管理', '投稿テンプレ'].map(label => (
+              <div className={styles.guidePreviewAppLogo}>
+                <strong>STARGAZER</strong>
+                <span>MATCHING & LOTTERY</span>
+              </div>
+              {[
+                { label: '応募管理', icon: <Users size={12} /> },
+                { label: '内部管理', icon: <Settings size={12} /> },
+                { label: 'イベント切り替え', icon: <CalendarDays size={12} /> },
+                { label: 'ヘルプ', icon: <HelpCircle size={12} /> },
+              ].map(item => (
                 <span
-                  key={label}
-                  className={`${styles.guidePreviewAppSidebarItem}${meta.activeNav === label ? ` ${styles.guidePreviewAppSidebarItemActive}` : ''}`}
+                  key={item.label}
+                  className={`${styles.guidePreviewAppSidebarItem}${mainNav === item.label ? ` ${styles.guidePreviewAppSidebarItemActive}` : ''}`}
                 >
-                  {label}
+                  {item.icon}
+                  {item.label}
                 </span>
               ))}
+              <div className={styles.guidePreviewThemeButton}>テーマ</div>
             </aside>
             <div className={styles.guidePreviewAppContent}>
-              {renderFeatureSampleScreen(feature)}
-              {meta.points.map(point => (
-                <span
-                  key={point.number}
-                  className={styles.featureGuideMarker}
-                  style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                  aria-label={`${point.number}. ${point.title}`}
-                >
-                  {point.number}
-                </span>
-              ))}
+              <div className={styles.guidePreviewPageTabs}>
+                {pageTabs.map(tab => (
+                  <span key={tab} className={meta.activeNav === tab ? styles.guidePreviewPageTabActive : ''}>{tab}</span>
+                ))}
+              </div>
+              <div className={styles.guidePreviewScreenSurface}>
+                {renderFeatureSampleScreen(feature)}
+                {meta.points.map(point => (
+                  <span
+                    key={point.number}
+                    className={styles.featureGuideMarker}
+                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                    aria-label={`${point.number}. ${point.title}`}
+                  >
+                    {point.number}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -323,7 +338,6 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
     </section>
   );
 };
-
 function renderFeatureSampleScreen(feature: FeatureId): React.ReactNode {
   switch (feature) {
     case 'applicant-data':
@@ -394,7 +408,7 @@ const ApplicantDataSampleScreen: React.FC = () => (
 
 const ImportSampleScreen: React.FC = () => (
   <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="データ読取" description="TSVファイルを読み込み、列を対応付けます。" actions={<GuidePreviewButton variant="primary">TSVファイルを選択</GuidePreviewButton>} />
+    <GuidePreviewHeader title="データ取込" description="TSVファイルを読み込み、列を対応付けます。" actions={<GuidePreviewButton variant="primary">TSVファイルを選択</GuidePreviewButton>} />
     <div className={styles.guidePreviewImportGrid}>
       <div className={styles.guidePreviewPanel}>
         <div className={styles.guidePreviewFileStrip}>responses_20260617.tsv / 42行 / 有効 41件</div>
@@ -643,10 +657,10 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
 
   'import': (
     <div>
-      <FeatureHeader icon={<FileText size={26} />} title="データ読取" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="var(--guide-accent-import)" colorSoft="var(--guide-accent-import-soft)" />
+      <FeatureHeader icon={<FileText size={26} />} title="データ取込" description="TSVファイルを選択し、列のマッピングを設定して応募データを取り込む画面です。" color="var(--guide-accent-import)" colorSoft="var(--guide-accent-import-soft)" />
       <FeatureGuideSample feature="import" />
 
-      <ScreenSample title="データ読取 — 列マッピング">
+      <ScreenSample title="データ取込 — 列マッピング">
         <div style={{ marginBottom: 10, padding: '6px 10px', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' }}>
           📄 responses.tsv &nbsp;|&nbsp; 42行 検出 &nbsp;|&nbsp; 有効: 41件
         </div>
@@ -1215,11 +1229,6 @@ export const GuidePage: React.FC = () => {
         }
       `}</style>
 
-      {/* デバッグ通知 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', marginBottom: 20, borderRadius: 8, background: 'rgba(240, 178, 50, 0.18)', border: '1px solid rgba(240, 178, 50, 0.55)', fontSize: 12, color: 'var(--accent-warning, #f0b232)', fontWeight: 600 }}>
-        🔧 デバッグ中です。更新は最新化を命令されたときに更新します
-      </div>
-
       {/* タブ */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--border-default)' }}>
         {([
@@ -1244,7 +1253,7 @@ export const GuidePage: React.FC = () => {
             <div className={styles.guideFlowBox}>
               <div className={styles.guideFlowGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
                 {[
-                  { icon: FileText,    text: 'データ読取',     desc: 'TSVで応募データを取り込む' },
+                  { icon: FileText,    text: 'データ取込',     desc: 'TSVで応募データを取り込む' },
                   { icon: Database,    text: '応募データ確認', desc: '取り込んだデータを確認' },
                   { icon: Users,       text: 'キャスト出席設定', desc: '当日の出席状態を設定' },
                   { icon: Settings,    text: '抽選設定・実行', desc: '条件を設定して当選者を決定' },
@@ -1261,6 +1270,39 @@ export const GuidePage: React.FC = () => {
             </div>
           </section>
 
+          <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
+              <Database size={22} /> 応募管理で行うこと
+            </h2>
+            <div className={styles.guideSectionGrid}>
+              {[
+                {
+                  title: 'データ取込',
+                  body: '応募者TSVを読み込み、列マッピングと一覧確認を行います。応募データが未選択の間は、抽選とマッチングには進めません。',
+                  accent: 'var(--guide-accent-import)',
+                },
+                {
+                  title: '抽選',
+                  body: '当選人数、確定当選者、マッチング方式を設定し、当選者を決めます。保存済み抽選結果を開き直す操作もここで行います。',
+                  accent: 'var(--guide-accent-lottery)',
+                },
+                {
+                  title: 'マッチング',
+                  body: '抽選結果と出席キャストを使って割り当てを作成します。抽選のみの方式を選んだ場合、このタブは使いません。',
+                  accent: 'var(--guide-accent-matching)',
+                },
+              ].map((item) => (
+                <div key={item.title} className={styles.guideCard} style={{ padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.accent, flexShrink: 0 }} />
+                    <h3 style={{ margin: 0, color: 'var(--text-heading)', fontSize: 16, fontWeight: 800 }}>{item.title}</h3>
+                  </div>
+                  <p style={{ margin: 0, color: 'var(--text-default)', fontSize: 13, lineHeight: 1.75 }}>{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* 各ステップの詳細 */}
           <section className={styles.guideSection} style={{ marginBottom: 40 }}>
             <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}>
@@ -1272,11 +1314,11 @@ export const GuidePage: React.FC = () => {
               <div className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'linear-gradient(135deg, var(--guide-accent-import) 0%, var(--guide-accent-import-soft) 100%)' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>1</div>
-                  <FileText size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>データ読取</span>
+                  <FileText size={18} color="#fff" /><span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>データ取込</span>
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ読取」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選へ進む」を選択'].map((s, i) => (
+                    {['Googleフォームの回答をスプレッドシートに連携し、TSV形式でダウンロードする', 'アプリの「データ取込」タブを開き「TSVファイルを選択」からファイルを選ぶ', '自動解析された列マッピングを確認・修正する', '一覧確認は「取り込む」、すぐ抽選へ進む場合は「抽選へ進む」を選択'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-import-bg)', border: '1px solid var(--guide-accent-import-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-import)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
@@ -1308,7 +1350,7 @@ export const GuidePage: React.FC = () => {
                 </div>
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['「応募データ」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', 'NGキャストに一致する応募者は一覧と詳細で確認できる', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
+                    {['「データ取込」タブで取り込んだ応募者一覧を確認する', 'X IDをクリックするとXのユーザーページをブラウザで開いて本人確認できる', 'NGキャストに一致する応募者は一覧と詳細で確認できる', '問題があれば「再取り込み」または個別削除で対応する'].map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--guide-accent-primary-bg)', border: '1px solid var(--guide-accent-primary-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--guide-accent-primary)', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
                         <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
@@ -1466,6 +1508,8 @@ export const GuidePage: React.FC = () => {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {([
+                { q: '応募管理の抽選・マッチングタブが押せない', a: 'イベントを開いてから応募データを取り込むと抽選タブが有効になります。マッチングタブは抽選結果がある場合に有効になります。' },
+                { q: '応募データはどこから確認する？', a: '「応募管理」→「データ取込」で取り込み済み応募者を確認します。再取り込み、詳細確認、個別削除も同じ画面で行います。' },
                 { q: '抽選をやり直したい',           a: '抽選タブで再度「抽選実行」をクリックします。上書き確認ダイアログが表示されます。マッチングも再実行が必要です。' },
                 { q: '前に保存した抽選結果を使いたい', a: '抽選タブの「保存済み抽選結果」から結果を選び、「保存済み結果を開く」をクリックします。' },
                 { q: 'NGを追加したい',               a: 'NG管理タブでキャストのNGユーザーを追加します。追加後はマッチングタブで「解除」→再実行してください。' },
@@ -1599,50 +1643,30 @@ export const GuidePage: React.FC = () => {
 
       {/* ── TAB 2: 各機能について ── */}
       {activeTab === 'features' && (
-        <div style={{ display: 'flex', gap: 0, animation: 'fade-in 0.2s ease', minHeight: 500 }}>
-
-          {/* 左ナビ */}
-          <nav style={{ width: 200, flexShrink: 0, background: 'var(--surface-panel)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '12px 8px', marginRight: 16, alignSelf: 'flex-start' }}>
+        <div className={styles.guideFeaturesLayout}>
+          <nav className={styles.guideFeaturePicker} aria-label="機能選択">
             {NAV_GROUPS.map(group => (
-              <div key={group.label} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 10px 6px' }}>
-                  {group.label}
+              <div key={group.label} className={styles.guideFeaturePickerGroup}>
+                <div className={styles.guideFeaturePickerLabel}>{group.label}</div>
+                <div className={styles.guideFeaturePickerGrid}>
+                  {group.items.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => setSelectedFeature(item.id)}
+                      className={`${styles.guideFeaturePickerButton}${selectedFeature === item.id ? ` ${styles.guideFeaturePickerButtonActive}` : ''}`}
+                    >
+                      <span className={styles.guideFeaturePickerIcon}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
-                {group.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelectedFeature(item.id)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '7px 10px',
-                      border: 'none',
-                      borderRadius: 6,
-                      background: selectedFeature === item.id ? 'var(--surface-selected)' : 'transparent',
-                      color: selectedFeature === item.id ? 'var(--text-heading)' : 'var(--text-default)',
-                      fontSize: 13,
-                      fontWeight: selectedFeature === item.id ? 600 : 400,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background 0.12s, color 0.12s',
-                      marginBottom: 2,
-                    }}
-                  >
-                    <span style={{ opacity: 0.7, flexShrink: 0 }}>{item.icon}</span>
-                    {item.label}
-                  </button>
-                ))}
               </div>
             ))}
           </nav>
 
-          {/* 右コンテンツ */}
-          <main style={{ flex: 1, minWidth: 0, background: 'var(--surface-panel)', borderRadius: 10, padding: '20px 24px', border: '1px solid var(--border-default)' }}>
+          <main className={styles.guideFeatureContent}>
             {FEATURE_CONTENT[selectedFeature]}
           </main>
-
         </div>
       )}
     </div>

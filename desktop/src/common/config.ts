@@ -6,5 +6,6 @@
 export const STORAGE_KEYS = {
   SESSION: 'stargazer_session',
   THEME: 'stargazer_theme_id',
+  THEME_CUSTOMIZATION: 'stargazer_theme_customization',
   MATCHING_SETTINGS: 'stargazer_matching_settings',
 } as const;

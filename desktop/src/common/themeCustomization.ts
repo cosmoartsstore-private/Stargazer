@@ -1,0 +1,226 @@
+import type { ThemeId } from './themes';
+
+export const CUSTOM_THEME_MAX_COLORS = 5;
+export const CUSTOM_THEME_MIN_COLORS = 1;
+
+export interface DefaultThemeCustomization {
+  accent: string;
+  colors: string[];
+  direction: number;
+  intensity: number;
+}
+
+export interface CheckThemeCustomization {
+  hue: number;
+}
+
+export interface ThemeCustomizationState {
+  dark: DefaultThemeCustomization;
+  skyblue: CheckThemeCustomization;
+}
+
+interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomizationState = {
+  dark: {
+    accent: '#5865F2',
+    colors: ['#1A0A1A', '#05121B'],
+    direction: 135,
+    intensity: 70,
+  },
+  skyblue: {
+    hue: 204,
+  },
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function numberInRange(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? clamp(Math.round(value), min, max)
+    : fallback;
+}
+
+export function isHexColor(value: string): boolean {
+  return /^#?[0-9a-fA-F]{6}$/.test(value.trim()) || /^#?[0-9a-fA-F]{3}$/.test(value.trim());
+}
+
+/** CSS に渡す Hex 色を #RRGGBB 形式へ正規化する。 */
+export function normalizeHexColor(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const raw = value.trim();
+  if (!isHexColor(raw)) return fallback;
+  const hex = raw.startsWith('#') ? raw.slice(1) : raw;
+  const expanded = hex.length === 3
+    ? hex.split('').map((char) => `${char}${char}`).join('')
+    : hex;
+  return `#${expanded.toUpperCase()}`;
+}
+
+function normalizeDefaultThemeCustomization(value: unknown): DefaultThemeCustomization {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const colors = Array.isArray(source.colors)
+    ? source.colors
+        .map((color, index) => normalizeHexColor(color, DEFAULT_THEME_CUSTOMIZATION.dark.colors[index] ?? DEFAULT_THEME_CUSTOMIZATION.dark.colors[0]))
+        .filter((color, index, list) => color && list.indexOf(color) === index)
+        .slice(0, CUSTOM_THEME_MAX_COLORS)
+    : DEFAULT_THEME_CUSTOMIZATION.dark.colors;
+
+  return {
+    accent: normalizeHexColor(source.accent, DEFAULT_THEME_CUSTOMIZATION.dark.accent),
+    colors: colors.length >= CUSTOM_THEME_MIN_COLORS ? colors : DEFAULT_THEME_CUSTOMIZATION.dark.colors,
+    direction: numberInRange(source.direction, DEFAULT_THEME_CUSTOMIZATION.dark.direction, 0, 360),
+    intensity: numberInRange(source.intensity, DEFAULT_THEME_CUSTOMIZATION.dark.intensity, 0, 100),
+  };
+}
+
+function normalizeCheckThemeCustomization(value: unknown): CheckThemeCustomization {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return {
+    hue: numberInRange(source.hue, DEFAULT_THEME_CUSTOMIZATION.skyblue.hue, 0, 360),
+  };
+}
+
+/** 保存済みテーマ設定を現在のスキーマへ正規化する。 */
+export function normalizeThemeCustomization(value: unknown): ThemeCustomizationState {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return {
+    dark: normalizeDefaultThemeCustomization(source.dark),
+    skyblue: normalizeCheckThemeCustomization(source.skyblue),
+  };
+}
+
+function parseHexColor(hex: string): RgbColor {
+  const normalized = normalizeHexColor(hex, '#000000').slice(1);
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex({ r, g, b }: RgbColor): string {
+  return `#${[r, g, b].map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function rgba(color: RgbColor, alpha: number): string {
+  return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha.toFixed(3)})`;
+}
+
+function mixRgb(base: RgbColor, overlay: RgbColor, ratio: number): RgbColor {
+  const clampedRatio = clamp(ratio, 0, 1);
+  return {
+    r: base.r + (overlay.r - base.r) * clampedRatio,
+    g: base.g + (overlay.g - base.g) * clampedRatio,
+    b: base.b + (overlay.b - base.b) * clampedRatio,
+  };
+}
+
+function shadeHex(hex: string, ratio: number): string {
+  const color = parseHexColor(hex);
+  const target = ratio >= 0 ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
+  return rgbToHex(mixRgb(color, target, Math.abs(ratio)));
+}
+
+function hslToRgb(hue: number, saturation: number, lightness: number): RgbColor {
+  const h = ((hue % 360) + 360) % 360 / 360;
+  const s = clamp(saturation, 0, 100) / 100;
+  const l = clamp(lightness, 0, 100) / 100;
+
+  if (s === 0) {
+    const value = l * 255;
+    return { r: value, g: value, b: value };
+  }
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const convert = (t: number) => {
+    let next = t;
+    if (next < 0) next += 1;
+    if (next > 1) next -= 1;
+    if (next < 1 / 6) return p + (q - p) * 6 * next;
+    if (next < 1 / 2) return q;
+    if (next < 2 / 3) return p + (q - p) * (2 / 3 - next) * 6;
+    return p;
+  };
+
+  return {
+    r: convert(h + 1 / 3) * 255,
+    g: convert(h) * 255,
+    b: convert(h - 1 / 3) * 255,
+  };
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number): string {
+  return rgbToHex(hslToRgb(hue, saturation, lightness));
+}
+
+function rgbTriplet(color: RgbColor): string {
+  return `${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)}`;
+}
+
+function buildGradient(colors: readonly string[], direction: number, intensity: number): string {
+  const alpha = 0.22 + (clamp(intensity, 0, 100) / 100) * 0.58;
+  const stops = colors.map((color, index) => {
+    const rgb = parseHexColor(color);
+    const position = colors.length === 1 ? 0 : Math.round((index / (colors.length - 1)) * 100);
+    return `${rgba(rgb, alpha)} ${position}%`;
+  });
+  return `linear-gradient(${direction}deg, ${stops.join(', ')}), #0d0b1e`;
+}
+
+function buildDarkVariables(customization: DefaultThemeCustomization): Record<string, string> {
+  const accent = customization.accent;
+  const accentRgb = parseHexColor(accent);
+  return {
+    '--theme-dark-background': buildGradient(customization.colors, customization.direction, customization.intensity),
+    '--theme-dark-accent': accent,
+    '--theme-dark-accent-hover': shadeHex(accent, -0.18),
+    '--theme-accent-rgb': rgbTriplet(accentRgb),
+    '--theme-dark-hover': rgba(accentRgb, 0.12),
+    '--theme-dark-selected': rgba(accentRgb, 0.18),
+    '--theme-dark-border': rgba(accentRgb, 0.34),
+    '--theme-dark-link': shadeHex(accent, 0.24),
+  };
+}
+
+function buildCheckVariables(customization: CheckThemeCustomization): Record<string, string> {
+  const hue = customization.hue;
+  const accent = hslToHex(hue, 65, 50);
+  const accentRgb = hslToRgb(hue, 65, 50);
+  return {
+    '--theme-check-hue': `${hue}`,
+    '--theme-check-accent': accent,
+    '--theme-check-accent-hover': hslToHex(hue, 65, 43),
+    '--theme-check-soft': hslToHex(hue, 72, 72),
+    '--theme-check-deep-text': hslToHex(hue, 54, 23),
+    '--theme-check-muted-text': rgba(hslToRgb(hue, 44, 34), 0.66),
+    '--theme-check-link': hslToHex(hue, 72, 41),
+    '--theme-check-success': hslToHex((hue + 136) % 360, 43, 41),
+    '--theme-check-gold': hslToHex((hue + 62) % 360, 72, 38),
+    '--theme-check-danger': hslToHex((hue + 162) % 360, 61, 58),
+    '--theme-accent-rgb': rgbTriplet(accentRgb),
+  };
+}
+
+/** 選択中テーマへ適用する CSS カスタムプロパティを返す。 */
+export function buildThemeCssVariables(
+  themeId: ThemeId,
+  customization: ThemeCustomizationState,
+): Record<string, string> {
+  return themeId === 'skyblue'
+    ? buildCheckVariables(customization.skyblue)
+    : buildDarkVariables(customization.dark);
+}

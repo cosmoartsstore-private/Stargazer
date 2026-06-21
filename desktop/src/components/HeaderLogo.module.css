@@ -83,9 +83,9 @@
    ======================================== */
 
 :global([data-theme="skyblue"]) .header-logo__title {
-  color: #152942;
+  color: hsl(var(--theme-check-hue, 204) 52% 17%);
 }
 
 :global([data-theme="skyblue"]) .header-logo__tagline {
-  color: rgba(30, 58, 95, 0.6);
+  color: hsl(var(--theme-check-hue, 204) 52% 24% / 0.6);
 }

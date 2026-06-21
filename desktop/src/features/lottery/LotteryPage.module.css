@@ -725,6 +725,10 @@
   margin-bottom: 8px;
 }
 
+.guaranteed-select-modal-content.guaranteed-select-modal-content {
+  max-width: 860px;
+}
+
 .guaranteed-select-modal-list__scroll {
   max-height: 50vh;
   overflow-y: auto;

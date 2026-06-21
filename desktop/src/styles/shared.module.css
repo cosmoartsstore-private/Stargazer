@@ -523,7 +523,7 @@
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(88, 101, 242, 0.55) rgba(255, 255, 255, 0.06);
+  scrollbar-color: rgba(var(--theme-accent-rgb, 88, 101, 242), 0.55) rgba(255, 255, 255, 0.06);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -537,14 +537,14 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(88, 101, 242, 0.85), rgba(88, 101, 242, 0.45));
+  background: linear-gradient(180deg, rgba(var(--theme-accent-rgb, 88, 101, 242), 0.85), rgba(var(--theme-accent-rgb, 88, 101, 242), 0.45));
   border-radius: 999px;
   border: 2px solid rgba(0, 0, 0, 0);
   background-clip: padding-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(88, 101, 242, 1), rgba(88, 101, 242, 0.62));
+  background: linear-gradient(180deg, rgba(var(--theme-accent-rgb, 88, 101, 242), 1), rgba(var(--theme-accent-rgb, 88, 101, 242), 0.62));
   background-clip: padding-box;
 }
 
@@ -924,22 +924,22 @@
 
 /* チェックテーマ: CSS Modules の共通Radixモーダルにも直接適用する */
 :global([data-theme="skyblue"]) .modal-overlay {
-  background-color: rgba(25, 83, 130, 0.2);
+  background-color: hsl(var(--theme-check-hue, 204) 68% 30% / 0.2);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 :global([data-theme="skyblue"]) .modal-content {
   background-color: #ffffff;
-  border-color: rgba(96, 165, 250, 0.32);
-  color: #183a5f;
+  border-color: hsl(var(--theme-check-hue, 204) 82% 68% / 0.32);
+  color: var(--theme-check-deep-text, #183a5f);
   box-shadow:
-    0 20px 60px rgba(25, 83, 130, 0.15),
+    0 20px 60px hsl(var(--theme-check-hue, 204) 68% 30% / 0.15),
     0 0 0 1px rgba(255, 255, 255, 0.65);
 }
 
 :global([data-theme="skyblue"]) .modal-title {
-  color: #102b49;
+  color: hsl(var(--theme-check-hue, 204) 64% 18%);
 }
 
 /* ========================================
