@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Palette, Plus, Trash2 } from '@/common/icons';
+import { Plus, Trash2 } from '@/common/icons';
 import { THEME_NAMES, type ThemeId } from '@/common/themes';
 import {
   CUSTOM_THEME_MAX_COLORS,
@@ -73,7 +73,6 @@ export const ThemeSelector: React.FC<{
         onClick={() => setOpen(true)}
         title="テーマカラーを編集"
       >
-        <Palette size={16} />
         <span>テーマを変更する</span>
       </button>
 

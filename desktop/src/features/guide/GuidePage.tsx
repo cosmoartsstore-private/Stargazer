@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   FileText, Database, Users, Settings, CheckCircle, BarChart3,
-  Sheet, Download, Calendar, CalendarDays, UserX, HelpCircle,
+  Sheet, Download, Calendar, CalendarDays, UserX, HelpCircle, Terminal,
 } from '@/common/icons';
 import { invoke, isTauri } from '@/tauri';
 import styles from './GuidePage.module.css';
@@ -289,6 +289,7 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
                 { label: '内部管理', icon: <Settings size={12} /> },
                 { label: 'イベント切り替え', icon: <CalendarDays size={12} /> },
                 { label: 'ヘルプ', icon: <HelpCircle size={12} /> },
+                { label: 'Debug', icon: <Terminal size={12} /> },
               ].map(item => (
                 <span
                   key={item.label}
@@ -387,22 +388,39 @@ const GuidePreviewBadge: React.FC<{ children: React.ReactNode; tone?: 'blue' | '
 
 const ApplicantDataSampleScreen: React.FC = () => (
   <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader
-      title="応募データ"
-      description="responses_20260617.tsv / 42件"
-      actions={<><GuidePreviewButton>再取り込み</GuidePreviewButton><GuidePreviewButton variant="danger">元ログ削除</GuidePreviewButton></>}
-    />
-    <GuidePreviewTabs tabs={['全件 42', '要注意 2']} />
-    <table className={styles.guidePreviewTable}>
-      <thead>
-        <tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>NGキャスト</th><th>操作</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>サンプル太郎</td><td>@sample_vrc</td><td><GuidePreviewBadge>キャストA</GuidePreviewBadge><GuidePreviewBadge tone="gray">キャストB</GuidePreviewBadge></td><td>なし</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-        <tr className={styles.guidePreviewTableWarning}><td>問題ユーザー</td><td>@problem_123</td><td><GuidePreviewBadge tone="green">キャストC</GuidePreviewBadge></td><td>2名のキャストがNG</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-        <tr><td>ゲスト花子</td><td>@guest_hanako</td><td><GuidePreviewBadge>キャストB</GuidePreviewBadge><GuidePreviewBadge tone="gray">キャストD</GuidePreviewBadge></td><td>キャストA</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-      </tbody>
-    </table>
+    <div className={styles.guidePreviewApplicantHeader}>
+      <div className={styles.guidePreviewApplicantStats}>
+        <span className={styles.guidePreviewApplicantCount}>48 件</span>
+      </div>
+      <div className={styles.guidePreviewApplicantFilterTabs}>
+        <span className={styles.guidePreviewApplicantFilterTabActive}>全件 (48)</span>
+      </div>
+      <div className={styles.guidePreviewApplicantActions}>
+        <GuidePreviewButton>TSV再取り込み</GuidePreviewButton>
+        <GuidePreviewButton variant="danger">元ログ削除</GuidePreviewButton>
+      </div>
+    </div>
+    <div className={styles.guidePreviewTableFrame}>
+      <table className={styles.guidePreviewTable}>
+        <thead>
+          <tr>
+            <th>ユーザー名</th>
+            <th>X ID</th>
+            <th>希望キャスト 1</th>
+            <th>希望キャスト 2</th>
+            <th>希望キャスト 3</th>
+            <th>NGキャスト</th>
+            <th aria-label="操作"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>応募者001</td><td>user_001</td><td>いざし〜</td><td>たくる</td><td>そいる, なりむ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+          <tr><td>応募者002</td><td>user_002</td><td>こなちゃ</td><td>だいふく</td><td>そに, なんこつ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+          <tr><td>応募者003</td><td>user_003</td><td>しらす</td><td>ちるちる</td><td>たくる, にた</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+          <tr><td>応募者004</td><td>user_004</td><td>しろん</td><td>なゆたの</td><td>だいふく, ぬうあ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 );
 

@@ -445,7 +445,10 @@
   min-width: 0;
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--surface-panel);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(26, 10, 26, 1) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(5, 18, 27, 1) 0%, transparent 50%),
+    #0d0b1e;
   overflow: hidden;
 }
 
@@ -487,26 +490,26 @@
 
 .guidePreviewAppWorkspace {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  min-height: 365px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  min-height: 390px;
 }
 
 .guidePreviewAppSidebar {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 8px;
-  border-right: 1px solid var(--border-default);
-  background: color-mix(in srgb, var(--surface-panel) 76%, #000 24%);
+  padding: 12px 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 31, 34, 0.6);
 }
 
 .guidePreviewAppLogo {
   display: grid;
   gap: 3px;
   justify-items: center;
-  margin-bottom: 8px;
-  padding: 5px 3px 10px;
-  border-bottom: 1px solid var(--border-default);
+  margin: -4px 0 8px;
+  padding: 4px 4px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-heading);
   text-align: center;
 }
@@ -525,34 +528,46 @@
 }
 
 .guidePreviewAppSidebarItem {
-  min-height: 24px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
-  border-radius: 5px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: #949ba4;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .guidePreviewAppSidebarItemActive {
-  color: var(--text-heading);
-  background: var(--surface-selected);
-  box-shadow: inset 2px 0 0 var(--accent-primary);
+  color: #ffffff;
+  background: rgba(88, 101, 242, 0.18);
+  font-weight: 700;
 }
 
 .guidePreviewThemeButton {
+  position: relative;
   margin-top: auto;
-  min-height: 24px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid var(--border-default);
-  padding-top: 8px;
-  color: var(--text-muted);
-  font-size: 9px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--button-secondary-bg);
+  color: var(--text-default);
+  font-size: 10px;
   font-weight: 800;
+}
+
+.guidePreviewThemeButton::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .guidePreviewAppContent {
@@ -565,21 +580,22 @@
 .guidePreviewPageTabs {
   display: flex;
   align-items: flex-end;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 16px;
   border-bottom: 2px solid var(--border-tab, var(--border-default));
   gap: 0;
 }
 
 .guidePreviewPageTabs span {
-  min-width: 76px;
-  padding: 10px 12px 8px;
+  min-width: 128px;
+  padding: 12px 20px;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
   text-align: center;
   margin-bottom: -2px;
+  border-radius: 4px 4px 0 0;
 }
 
 .guidePreviewPageTabActive {
@@ -591,8 +607,8 @@
   position: relative;
   min-width: 0;
   flex: 1;
-  padding: 14px;
-  background: var(--surface-panel);
+  padding: 24px 16px;
+  background: transparent;
 }
 
 .featureGuideMarker {
@@ -727,6 +743,47 @@
   color: #fff;
 }
 
+.guidePreviewApplicantHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.guidePreviewApplicantStats {
+  flex: 1;
+  min-width: 0;
+}
+
+.guidePreviewApplicantCount {
+  color: var(--text-heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guidePreviewApplicantFilterTabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--surface-panel-muted);
+}
+
+.guidePreviewApplicantFilterTabActive {
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--text-default);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.guidePreviewApplicantActions {
+  display: flex;
+  gap: 8px;
+}
+
 .guidePreviewTabs {
   display: flex;
   gap: 4px;
@@ -791,10 +848,18 @@
   font-size: 11px;
 }
 
+.guidePreviewTableFrame {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-panel);
+}
+
 .guidePreviewTable th,
 .guidePreviewTable td {
-  padding: 7px 8px;
-  border: 1px solid var(--border-default);
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-default);
   color: var(--text-default);
   text-align: left;
   vertical-align: middle;
@@ -804,6 +869,10 @@
   color: var(--text-muted);
   background: var(--surface-panel-muted);
   font-weight: 800;
+}
+
+.guidePreviewTable tr:last-child td {
+  border-bottom: 0;
 }
 
 .guidePreviewTableWarning {
