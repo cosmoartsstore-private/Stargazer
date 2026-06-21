@@ -49,6 +49,10 @@ function getCastColumnCount(users: UserBean[]): number {
   return Math.max(1, maxCastCount);
 }
 
+function getCastGridStyle(columnCount: number): React.CSSProperties {
+  return { gridTemplateColumns: `repeat(${columnCount}, minmax(128px, 128px))` };
+}
+
 // ── 詳細モーダル ────────────────────────────────────────────────────────────────
 
 interface DetailModalProps {
@@ -136,11 +140,12 @@ interface RowProps {
   ngCastNames: string[];
   isFlatList: boolean;
   flatCastColumnCount: number;
+  flatCastGridStyle: React.CSSProperties;
   onSelect: (user: UserBean) => void;
   onRemove: (xId: string) => void;
 }
 
-const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, isFlatList, flatCastColumnCount, onSelect, onRemove }) => {
+const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, isFlatList, flatCastColumnCount, flatCastGridStyle, onSelect, onRemove }) => {
   const flatCastColumnIndexes = Array.from({ length: flatCastColumnCount }, (_, index) => index);
 
   return (
@@ -152,11 +157,22 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, ngCastNames, isFla
       <td className={styles.applicantListNameCell}>{user.name || '未設定'}</td>
       <td className={styles.applicantListIdCell}>{user.x_id || '未設定'}</td>
       {isFlatList ? (
-        flatCastColumnIndexes.map((index) => (
-          <td key={index} className={styles.applicantListCastCell} title={user.casts[index] ?? ''}>
-            {user.casts[index] || '—'}
-          </td>
-        ))
+        <td className={styles.applicantListFlatCastCell} title={formatCastList(user.casts)}>
+          <div className={styles.applicantListCastGrid} style={flatCastGridStyle}>
+            {flatCastColumnIndexes.map((index) => {
+              const cast = user.casts[index] ?? '';
+              return (
+                <span
+                  key={index}
+                  className={`${styles.applicantListCastGridItem}${cast ? '' : ` ${styles.applicantListCastGridItemEmpty}`}`}
+                  title={cast}
+                >
+                  {cast}
+                </span>
+              );
+            })}
+          </div>
+        </td>
       ) : (
         <>
           <td className={styles.applicantListCastCell}>{user.casts[0] || '—'}</td>
@@ -227,16 +243,13 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
       : applyUsers,
     [applyUsers, cautionUsers, filterMode],
   );
-  // 順位なし希望では、取り込んだ最大希望数に合わせて希望キャスト列を増やす。
+  // 順位なし希望では、希望キャスト欄の内部グリッドを最大希望数に合わせる。
   const isFlatList = useMemo(
     () => applyUsers.some((user) => user.preference_mode === 'flat'),
     [applyUsers],
   );
   const flatCastColumnCount = useMemo(() => getCastColumnCount(applyUsers), [applyUsers]);
-  const flatCastColumnIndexes = useMemo(
-    () => Array.from({ length: flatCastColumnCount }, (_, index) => index),
-    [flatCastColumnCount],
-  );
+  const flatCastGridStyle = useMemo(() => getCastGridStyle(flatCastColumnCount), [flatCastColumnCount]);
 
   const rowDataMap = useMemo(() => {
     const map = new Map<string, { isCaution: boolean; ngCastNames: string[]; extraMap: Map<string, string> }>();
@@ -360,10 +373,10 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
         <table className={styles.applicantListTable}>
           <thead>
             <tr>
-              <th className={styles.applicantListNameCell} rowSpan={isFlatList ? 2 : undefined}>ユーザー名</th>
-              <th className={styles.applicantListIdCell} rowSpan={isFlatList ? 2 : undefined}>X ID</th>
+              <th className={styles.applicantListNameCell}>ユーザー名</th>
+              <th className={styles.applicantListIdCell}>X ID</th>
               {isFlatList ? (
-                <th className={styles.applicantListCastGroupHeader} colSpan={flatCastColumnCount}>希望キャスト</th>
+                <th className={styles.applicantListFlatCastCell}>希望キャスト</th>
               ) : (
                 <>
                   <th className={styles.applicantListCastCell}>希望キャスト 1</th>
@@ -371,21 +384,14 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
                   <th className={styles.applicantListCastCell}>希望キャスト 3</th>
                 </>
               )}
-              <th className={styles.applicantListNgCell} rowSpan={isFlatList ? 2 : undefined}>NGキャスト</th>
-              <th aria-label="操作" rowSpan={isFlatList ? 2 : undefined}></th>
+              <th className={styles.applicantListNgCell}>NGキャスト</th>
+              <th aria-label="操作"></th>
             </tr>
-            {isFlatList && (
-              <tr>
-                {flatCastColumnIndexes.map((index) => (
-                  <th key={index} className={styles.applicantListCastHeader}>{index + 1}</th>
-                ))}
-              </tr>
-            )}
           </thead>
           <tbody>
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={isFlatList ? flatCastColumnCount + 4 : 7} style={{ textAlign: 'center' }}>該当するデータがありません</td>
+                <td colSpan={isFlatList ? 5 : 7} style={{ textAlign: 'center' }}>該当するデータがありません</td>
               </tr>
             )}
             {filteredUsers.map((user) => {
@@ -398,6 +404,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
                   ngCastNames={rd.ngCastNames}
                   isFlatList={isFlatList}
                   flatCastColumnCount={flatCastColumnCount}
+                  flatCastGridStyle={flatCastGridStyle}
                   onSelect={handleSelect}
                   onRemove={handleRemoveClick}
                 />

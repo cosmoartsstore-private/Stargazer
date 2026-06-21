@@ -32,6 +32,10 @@ function getCastColumnCount(users: Array<{ casts: string[] }>): number {
   return Math.max(1, maxCastCount);
 }
 
+function getCastGridStyle(columnCount: number): React.CSSProperties {
+  return { gridTemplateColumns: `repeat(${columnCount}, minmax(128px, 128px))` };
+}
+
 function autoDetect(headers: string[]): { mapping: ColumnMapping; castInputType: CastInputType } {
   const m = createEmptyColumnMapping();
   let castInputType: CastInputType = 'separate';
@@ -110,6 +114,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
     () => Array.from({ length: previewCastColumnCount }, (_, index) => index),
     [previewCastColumnCount],
   );
+  const previewCastGridStyle = useMemo(() => getCastGridStyle(previewCastColumnCount), [previewCastColumnCount]);
 
   const { validCount, emptyIdCount } = useMemo(() => {
     return {
@@ -320,10 +325,10 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
             <table className={styles.importPreviewTable}>
               <thead>
                 <tr>
-                  <th className={styles.importPreviewNameCell} rowSpan={castInputType === 'comma' ? 2 : undefined}>ユーザー名</th>
-                  <th className={styles.importPreviewIdCell} rowSpan={castInputType === 'comma' ? 2 : undefined}>X ID</th>
+                  <th className={styles.importPreviewNameCell}>ユーザー名</th>
+                  <th className={styles.importPreviewIdCell}>X ID</th>
                   {castInputType === 'comma' ? (
-                    <th className={styles.importPreviewCastGroupHeader} colSpan={previewCastColumnCount}>希望キャスト</th>
+                    <th className={styles.importPreviewFlatCastCell}>希望キャスト</th>
                   ) : (
                     <>
                       <th>希望キャスト 1</th>
@@ -332,13 +337,6 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                     </>
                   )}
                 </tr>
-                {castInputType === 'comma' && (
-                  <tr>
-                    {previewCastColumnIndexes.map((index) => (
-                      <th key={index} className={styles.importPreviewCastHeader}>{index + 1}</th>
-                    ))}
-                  </tr>
-                )}
               </thead>
               <tbody>
                 {previewRows.map((u, idx) => (
@@ -353,11 +351,22 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                       )}
                     </td>
                     {castInputType === 'comma' ? (
-                      previewCastColumnIndexes.map((index) => (
-                        <td key={index} title={u.casts[index] ?? ''}>
-                          {u.casts[index] || <span className={styles.importCellEmpty}>—</span>}
-                        </td>
-                      ))
+                      <td className={styles.importPreviewFlatCastCell}>
+                        <div className={styles.importPreviewCastGrid} style={previewCastGridStyle}>
+                          {previewCastColumnIndexes.map((index) => {
+                            const cast = u.casts[index] ?? '';
+                            return (
+                              <span
+                                key={index}
+                                className={`${styles.importPreviewCastGridItem}${cast ? '' : ` ${styles.importPreviewCastGridItemEmpty}`}`}
+                                title={cast}
+                              >
+                                {cast}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
                     ) : (
                       [0, 1, 2].map((index) => (
                         <td key={index} title={u.casts[index] ?? ''}>

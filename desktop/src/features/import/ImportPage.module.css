@@ -291,13 +291,27 @@
   min-width: 150px;
 }
 
-.import-preview-cast-header {
-  min-width: 140px;
+.import-preview-flat-cast-cell {
+  min-width: 420px;
 }
 
-.import-preview-cast-group-header,
-.import-preview-cast-header {
-  text-align: center;
+.import-preview-cast-grid {
+  display: grid;
+  column-gap: 12px;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
+}
+
+.import-preview-cast-grid-item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-preview-cast-grid-item-empty {
+  visibility: hidden;
 }
 
 .import-preview-row--warn td {
