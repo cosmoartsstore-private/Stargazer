@@ -279,12 +279,17 @@
   min-width: 150px;
 }
 
-.applicant-list-flat-cast-cell {
-  min-width: 480px;
+.applicant-list-cast-header {
+  min-width: 150px;
 }
 
 .applicant-list-ng-cell {
   min-width: 150px;
+}
+
+.applicant-list-cast-group-header,
+.applicant-list-cast-header {
+  text-align: center;
 }
 
 .applicant-data-table-scroll {

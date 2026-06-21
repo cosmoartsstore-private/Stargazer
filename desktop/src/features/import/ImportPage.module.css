@@ -291,8 +291,13 @@
   min-width: 150px;
 }
 
-.import-preview-flat-cast-cell {
-  min-width: 480px;
+.import-preview-cast-header {
+  min-width: 140px;
+}
+
+.import-preview-cast-group-header,
+.import-preview-cast-header {
+  text-align: center;
 }
 
 .import-preview-row--warn td {

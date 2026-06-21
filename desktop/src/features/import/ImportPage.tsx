@@ -27,8 +27,9 @@ type CastInputType = 'separate' | 'comma';
 const NONE = '__none__';
 const PREVIEW_MAX = 5;
 
-function formatCastList(casts: string[]): string {
-  return casts.filter(Boolean).join('、');
+function getCastColumnCount(users: Array<{ casts: string[] }>): number {
+  const maxCastCount = users.reduce((max, user) => Math.max(max, user.casts.length), 0);
+  return Math.max(1, maxCastCount);
 }
 
 function autoDetect(headers: string[]): { mapping: ColumnMapping; castInputType: CastInputType } {
@@ -95,7 +96,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
     [castInputType, mapping.cast1],
   );
 
-  // プレビューと件数検証で同じ変換結果を使い、順位なし希望の全件を1列にまとめて表示する。
+  // プレビューと件数検証で同じ変換結果を使い、順位なし希望の最大希望数を列数に反映する。
   const mappedRows = useMemo(() => {
     if (!rows) return [];
     return rows.map(
@@ -104,6 +105,11 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
   }, [rows, effectiveMapping, mapOptions]);
 
   const previewRows = useMemo(() => mappedRows.slice(0, PREVIEW_MAX), [mappedRows]);
+  const previewCastColumnCount = useMemo(() => getCastColumnCount(mappedRows), [mappedRows]);
+  const previewCastColumnIndexes = useMemo(
+    () => Array.from({ length: previewCastColumnCount }, (_, index) => index),
+    [previewCastColumnCount],
+  );
 
   const { validCount, emptyIdCount } = useMemo(() => {
     return {
@@ -314,10 +320,10 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
             <table className={styles.importPreviewTable}>
               <thead>
                 <tr>
-                  <th className={styles.importPreviewNameCell}>ユーザー名</th>
-                  <th className={styles.importPreviewIdCell}>X ID</th>
+                  <th className={styles.importPreviewNameCell} rowSpan={castInputType === 'comma' ? 2 : undefined}>ユーザー名</th>
+                  <th className={styles.importPreviewIdCell} rowSpan={castInputType === 'comma' ? 2 : undefined}>X ID</th>
                   {castInputType === 'comma' ? (
-                    <th className={styles.importPreviewFlatCastCell}>希望キャスト</th>
+                    <th className={styles.importPreviewCastGroupHeader} colSpan={previewCastColumnCount}>希望キャスト</th>
                   ) : (
                     <>
                       <th>希望キャスト 1</th>
@@ -326,35 +332,41 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUserRows }) => {
                     </>
                   )}
                 </tr>
+                {castInputType === 'comma' && (
+                  <tr>
+                    {previewCastColumnIndexes.map((index) => (
+                      <th key={index} className={styles.importPreviewCastHeader}>{index + 1}</th>
+                    ))}
+                  </tr>
+                )}
               </thead>
               <tbody>
-                {previewRows.map((u, idx) => {
-                  const castList = formatCastList(u.casts);
-                  return (
-                    <tr
-                      key={idx}
-                      className={!u.x_id ? styles.importPreviewRowWarn : ''}
-                    >
-                      <td className={styles.importPreviewNameCell} title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
-                      <td className={styles.importPreviewIdCell}>
-                        {u.x_id || (
-                          <span className={styles.importCellWarn}>空</span>
-                        )}
-                      </td>
-                      {castInputType === 'comma' ? (
-                        <td className={styles.importPreviewFlatCastCell} title={castList}>
-                          {castList || <span className={styles.importCellEmpty}>—</span>}
-                        </td>
-                      ) : (
-                        [0, 1, 2].map((index) => (
-                          <td key={index} title={u.casts[index] ?? ''}>
-                            {u.casts[index] || <span className={styles.importCellEmpty}>—</span>}
-                          </td>
-                        ))
+                {previewRows.map((u, idx) => (
+                  <tr
+                    key={idx}
+                    className={!u.x_id ? styles.importPreviewRowWarn : ''}
+                  >
+                    <td className={styles.importPreviewNameCell} title={u.name}>{u.name || <span className={styles.importCellEmpty}>—</span>}</td>
+                    <td className={styles.importPreviewIdCell}>
+                      {u.x_id || (
+                        <span className={styles.importCellWarn}>空</span>
                       )}
-                    </tr>
-                  );
-                })}
+                    </td>
+                    {castInputType === 'comma' ? (
+                      previewCastColumnIndexes.map((index) => (
+                        <td key={index} title={u.casts[index] ?? ''}>
+                          {u.casts[index] || <span className={styles.importCellEmpty}>—</span>}
+                        </td>
+                      ))
+                    ) : (
+                      [0, 1, 2].map((index) => (
+                        <td key={index} title={u.casts[index] ?? ''}>
+                          {u.casts[index] || <span className={styles.importCellEmpty}>—</span>}
+                        </td>
+                      ))
+                    )}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
