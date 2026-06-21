@@ -18,6 +18,8 @@ interface AppDialogProps {
   closeClassName?: string;
   showClose?: boolean;
   useDefaultContentClass?: boolean;
+  /** OSの色選択など、モーダル外部の補助UIを操作する画面だけ外部操作で閉じないようにする。 */
+  closeOnInteractOutside?: boolean;
 }
 
 export function AppDialog({
@@ -34,6 +36,7 @@ export function AppDialog({
   closeClassName = '',
   showClose = false,
   useDefaultContentClass = true,
+  closeOnInteractOutside = true,
 }: AppDialogProps) {
   const modalContainer =
     typeof document !== 'undefined' ? (document.getElementById('modal-root') ?? document.body) : undefined;
@@ -55,6 +58,7 @@ export function AppDialog({
           <Dialog.Content
             className={contentClassName}
             style={contentStyle}
+            onInteractOutside={closeOnInteractOutside ? undefined : (event) => event.preventDefault()}
             {...descriptionProps}
           >
             {showClose ? (

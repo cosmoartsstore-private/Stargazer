@@ -193,7 +193,7 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
       { number: 1, title: '当選人数', description: '抽選で選ぶ人数と確定当選者を合わせた合計当選者数を確認します。', x: 24, y: 28 },
       { number: 2, title: 'マッチング方式', description: '抽選のみ、ランダム、ローテーション、グループ制マッチングから選びます。', x: 40, y: 44 },
       { number: 3, title: '当日枠を含める', description: 'グループ制マッチングでは当日枠分の席数を追加し、合計席数を確認します。', x: 35, y: 65 },
-      { number: 4, title: '設定ステータス', description: '条件設定の一部として、ERROR、WARN、INFO、OKで妥当性と合計席数を表示します。', x: 73, y: 36 },
+      { number: 4, title: '設定ステータス', description: '条件設定の一部として、ERROR、WARN、INFO、実行可で妥当性と合計席数を表示します。', x: 73, y: 36 },
       { number: 5, title: '抽選結果保存', description: '実行後の結果をDBに保存し、後から選択し直せるようにします。', x: 75, y: 73 },
     ],
   },
@@ -475,7 +475,7 @@ const LotterySampleScreen: React.FC = () => (
         <div className={styles.guidePreviewSettingLine}><span>合計席数</span><strong>26席</strong></div>
       </div>
       <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">OK</GuidePreviewBadge><p>設定に問題はありません。</p><small>INFO: 合計席数 26席、合計当選者数 23名</small></div>
+        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">実行可</GuidePreviewBadge><p>設定に問題はありません。</p><small>INFO: 合計席数 26席、合計当選者数 23名</small></div>
         <div className={styles.guidePreviewSavedRun}><strong>保存済み抽選結果</strong><span>2026-06-17 グループ制 / 23名</span></div>
         <div className={styles.guidePreviewFooterActions}><GuidePreviewButton variant="primary">抽選実行</GuidePreviewButton><GuidePreviewButton>抽選結果保存</GuidePreviewButton></div>
       </div>
@@ -498,7 +498,7 @@ const MatchingSampleScreen: React.FC = () => (
         <div className={styles.guidePreviewOptionGrid}><span>読み取り専用</span><span className={styles.guidePreviewOptionSelected}>品質モード</span><span>X IDでNG除外</span></div>
       </div>
       <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">OK</GuidePreviewBadge><p>マッチング準備が完了しています。</p></div>
+        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="green">実行可</GuidePreviewBadge><p>マッチング準備が完了しています。</p></div>
       </div>
     </div>
     <table className={styles.guidePreviewTable}>
@@ -761,7 +761,7 @@ const FEATURE_CONTENT: Record<FeatureId, React.ReactNode> = {
             ))}
           </div>
           <div style={{ width: 130, padding: '10px 12px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 6 }}>
-            <div style={{ fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700, marginBottom: 4 }}>✓ 検証OK</div>
+            <div style={{ fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700, marginBottom: 4 }}>✓ 実行可</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>合計席数: 12席</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>出席キャスト: 4</div>
             <div style={{ marginTop: 8, padding: '4px 0', background: 'var(--guide-accent-lottery)', color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, textAlign: 'center' }}>抽選実行</div>
@@ -1440,7 +1440,7 @@ export const GuidePage: React.FC = () => {
                           <span style={{ padding: '2px 7px', background: 'var(--surface-panel-muted)', border: '1px solid var(--border-default)', borderRadius: 3, fontSize: 10, color: 'var(--text-heading)', fontWeight: 600 }}>{v}</span>
                         </div>
                       ))}
-                      <div style={{ marginTop: 4, padding: '5px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 5, fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700 }}>✓ 検証OK — 合計席数: 12席</div>
+                      <div style={{ marginTop: 4, padding: '5px', background: 'var(--guide-accent-lottery-bg)', border: '1px solid var(--guide-accent-lottery-border)', borderRadius: 5, fontSize: 10, color: 'var(--guide-accent-lottery)', fontWeight: 700 }}>✓ 実行可 — 合計席数: 12席</div>
                       <div style={{ textAlign: 'right' }}><span style={{ padding: '3px 10px', background: 'var(--guide-accent-lottery)', color: '#fff', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>抽選実行</span></div>
                     </div>
                   </ScreenSample>

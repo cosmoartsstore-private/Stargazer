@@ -634,6 +634,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: #fff;
 }
 
@@ -733,8 +734,7 @@
   max-height: 50vh;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(3, 196px);
-  justify-content: center;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
   gap: 8px;
   padding: 2px;
 }
@@ -845,10 +845,6 @@
 }
 
 @media (max-width: 768px) {
-  .guaranteed-select-modal-list__scroll {
-    grid-template-columns: repeat(2, 196px);
-  }
-
   .workflow-form-grid,
   .workflow-variable-settings,
   .m003-settings-grid,
@@ -863,11 +859,5 @@
 
   .import-two-pane {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 500px) {
-  .guaranteed-select-modal-list__scroll {
-    grid-template-columns: 196px;
   }
 }

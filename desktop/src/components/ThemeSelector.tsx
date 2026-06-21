@@ -84,6 +84,7 @@ export const ThemeSelector: React.FC<{
           description="表示テーマとカラーを調整します。"
           className={styles.themeDialog}
           showClose
+          closeOnInteractOutside={false}
         >
           <div className={styles.themeModeSwitch} role="group" aria-label="テーマ">
             {(['dark', 'skyblue'] as const).map((id) => (
@@ -125,7 +126,7 @@ export const ThemeSelector: React.FC<{
                 </div>
                 <div className={styles.themeColorList}>
                   {customization.dark.colors.map((color, index) => (
-                    <div key={`${index}-${color}`} className={styles.themeColorRow}>
+                    <div key={`theme-color-${index}`} className={styles.themeColorRow}>
                       <input
                         type="color"
                         value={color}

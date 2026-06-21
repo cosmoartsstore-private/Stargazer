@@ -45,7 +45,7 @@ export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
                     {hasErrors   && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeError}`}>ERROR</span>}
                     {hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeWarning}`}>WARN</span>}
                     {hasInfo     && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeInfo}`}>INFO</span>}
-                    {!hasErrors && !hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeNormal}`}>OK</span>}
+                    {!hasErrors && !hasWarnings && <span className={`${styles.lotteryValidationBadge} ${styles.lotteryValidationBadgeNormal}`}>実行可</span>}
                 </div>
 
                 <div className={`${styles.lotteryValidationContent} ${shared.customScrollbar}`}>
