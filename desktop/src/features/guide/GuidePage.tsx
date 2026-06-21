@@ -92,7 +92,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
             {title}
           </h3>
         </div>
-        <div style={{ padding: '14px 16px', fontSize: 14, color: isNotice ? '#1a1000' : 'var(--text-default)', lineHeight: 1.8, background: isNotice ? 'var(--guide-notice)' : 'var(--surface-panel-muted)' }}>
+        <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
           {children}
         </div>
       </div>
@@ -127,8 +127,8 @@ const StepList: React.FC<{ items: string[] }> = ({ items }) => (
 const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
     {items.map((item, i) => (
-      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#1a1000', lineHeight: 1.6 }}>
-        <span style={{ color: '#1a1000', flexShrink: 0, fontWeight: 700 }}>•</span>
+      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>
+        <span style={{ color: 'var(--guide-notice)', flexShrink: 0, fontWeight: 700 }}>•</span>
         {item}
       </div>
     ))}
