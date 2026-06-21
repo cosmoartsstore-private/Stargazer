@@ -48,9 +48,14 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
       return;
     }
 
-    const data = await loadAttendanceHistoryData();
-    setHistory(data.history);
-    setSummary(data.summary);
+    try {
+      const data = await loadAttendanceHistoryData();
+      setHistory(data.history);
+      setSummary(data.summary);
+    } catch {
+      setHistory([]);
+      setSummary([]);
+    }
   }, [currentEventName]);
 
   useEffect(() => {

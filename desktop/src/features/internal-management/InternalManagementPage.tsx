@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CastManagementPage } from '@/features/cast-management/CastManagementPage';
 import { NGUserManagementPage } from '@/features/ng-management/NGUserManagementPage';
 import { TweetPage } from '@/features/tweet/TweetPage';
 import { AttendancePage } from '@/features/attendance/AttendancePage';
+import { useAppContext, type PageType } from '@/stores/AppContext';
 import shared from '@/styles/shared.module.css';
 
 type InternalTab = 'cast' | 'ngManagement' | 'tweet' | 'attendance';
 
+function toInternalTab(page: PageType): InternalTab {
+  if (page === 'ngManagement' || page === 'tweet' || page === 'attendance') return page;
+  return 'cast';
+}
+
 export const InternalManagementPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<InternalTab>('cast');
+  const { activePage, setActivePage } = useAppContext();
+  const [activeTab, setActiveTab] = useState<InternalTab>(() => toInternalTab(activePage));
+
+  useEffect(() => {
+    setActiveTab(toInternalTab(activePage));
+  }, [activePage]);
 
   const tabs: { id: InternalTab; label: string }[] = [
     { id: 'cast',         label: 'キャスト名簿' },
@@ -34,7 +45,10 @@ export const InternalManagementPage: React.FC = () => {
           <button
             key={tab.id}
             className={`${shared.pageTab} ${activeTab === tab.id ? shared.pageTabActive : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setActivePage(tab.id);
+            }}
           >
             {tab.label}
           </button>

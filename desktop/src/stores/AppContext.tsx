@@ -41,7 +41,7 @@ export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'even
 export type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 export type { ThemeId } from '@/common/themes';
 
-interface AppContextType {
+export interface AppContextType {
   activePage: PageType;
   setActivePage: (page: PageType) => void;
   casts: CastBean[];
@@ -102,7 +102,7 @@ interface AppContextType {
   bumpDataReload: () => void;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const initialSession = useState(() => getInitialSession())[0];

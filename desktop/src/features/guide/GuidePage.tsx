@@ -1,11 +1,21 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useLayoutEffect, useRef } from 'react';
 import {
   FileText, Database, Users, Settings, CheckCircle, BarChart3,
   Sheet, Download, Calendar, CalendarDays, UserX, HelpCircle, Terminal,
 } from '@/common/icons';
 import { invoke, isTauri } from '@/tauri';
+import { HeaderLogo } from '@/components/HeaderLogo';
+import { ThemeSelector } from '@/components/ThemeSelector';
+import { DataManagementPage } from '@/features/data-management/DataManagementPage';
+import { InternalManagementPage } from '@/features/internal-management/InternalManagementPage';
+import { AppContext, type AppContextType, type PageType } from '@/stores/AppContext';
+import type { UserBean, CastBean } from '@/common/types/entities';
+import { DEFAULT_THEME_CUSTOMIZATION, buildThemeCssVariables } from '@/common/themeCustomization';
+import type { MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
+import type { MatchedCast, TableSlot } from '@/features/matching/logics/matching-io';
 import styles from './GuidePage.module.css';
 import shared from '@/styles/shared.module.css';
+import appStyles from '@/layout/AppContainer.module.css';
 
 
 type Tab = 'flow' | 'features';
@@ -43,6 +53,105 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+const GUIDE_SAMPLE_CASTS: CastBean[] = [
+  {
+    name: 'キャストA',
+    is_present: true,
+    group_name: 'グループ1',
+    memo: 'プロフィールをここに入力します。',
+    contact_urls: ['@cast_a'],
+    ng_entries: [{ username: '応募者001', accountId: 'sample_user_001' }],
+  },
+  {
+    name: 'キャストB',
+    is_present: true,
+    group_name: 'グループ1',
+    contact_urls: ['@cast_b'],
+  },
+  {
+    name: 'キャストC',
+    is_present: true,
+    group_name: 'グループ2',
+    contact_urls: ['https://vrchat.com/home/user/usr_sample_cast_c'],
+  },
+  {
+    name: 'キャストD',
+    is_present: false,
+    group_name: 'グループ2',
+    contact_urls: ['@cast_d'],
+  },
+  {
+    name: 'キャストE',
+    is_present: true,
+    group_name: 'グループ3',
+    contact_urls: ['@cast_e'],
+    ng_entries: [{ username: '応募者001', accountId: 'sample_user_001' }],
+  },
+];
+
+const GUIDE_SAMPLE_USERS: UserBean[] = [
+  { name: '応募者001', x_id: 'sample_user_001', casts: ['キャストA', 'キャストB', 'キャストC'], raw_extra: [] },
+  { name: '応募者002', x_id: 'sample_user_002', casts: ['キャストB', 'キャストC', 'キャストE'], raw_extra: [] },
+  { name: '応募者003', x_id: 'sample_user_003', casts: ['キャストC', 'キャストA', 'キャストB'], raw_extra: [] },
+  { name: '応募者004', x_id: 'sample_user_004', casts: ['キャストE', 'キャストB', 'キャストA'], raw_extra: [] },
+  { name: '応募者005', x_id: 'sample_user_005', casts: ['キャストA', 'キャストC', 'キャストE'], raw_extra: [] },
+  { name: '応募者006', x_id: 'sample_user_006', casts: ['キャストB', 'キャストE', 'キャストC'], raw_extra: [] },
+  { name: '応募者007', x_id: 'sample_user_007', casts: ['キャストC', 'キャストB', 'キャストA'], raw_extra: [] },
+  { name: '応募者008', x_id: 'sample_user_008', casts: ['キャストE', 'キャストA', 'キャストB'], raw_extra: [] },
+];
+
+const GUIDE_SAMPLE_WINNERS: UserBean[] = GUIDE_SAMPLE_USERS.slice(0, 5).map((user, index) => ({
+  ...user,
+  is_guaranteed: index === 0,
+}));
+
+const GUIDE_SAMPLE_MATCHING_RESULT: Map<string, MatchedCast[]> = new Map([
+  ['sample_user_001', [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 0, score: 100 }]],
+  ['sample_user_002', [{ cast: GUIDE_SAMPLE_CASTS[1], rank: 1, rotationIndex: 0, score: 100 }]],
+  ['sample_user_003', [{ cast: GUIDE_SAMPLE_CASTS[2], rank: 1, rotationIndex: 0, score: 100 }]],
+  ['sample_user_004', [{ cast: GUIDE_SAMPLE_CASTS[4], rank: 1, rotationIndex: 0, score: 100 }]],
+  ['sample_user_005', [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 1, score: 100 }]],
+]);
+
+const GUIDE_SAMPLE_TABLE_SLOTS: TableSlot[] = GUIDE_SAMPLE_WINNERS.map((user, index) => ({
+  user,
+  tableIndex: index + 1,
+  matches: GUIDE_SAMPLE_MATCHING_RESULT.get(user.x_id) ?? [],
+}));
+
+const GUIDE_SAMPLE_MATCHING_SETTINGS: MatchingSettingsState = {
+  ngJudgmentType: 'accountId',
+  ngMatchingBehavior: 'exclude',
+  searchMode: 'efficiency',
+  caution: {
+    autoRegisterThreshold: 2,
+    cautionUsers: [
+      {
+        username: '応募者001',
+        accountId: 'sample_user_001',
+        registrationType: 'auto',
+        registeredAt: '2026-06-01T00:00:00.000Z',
+        ngCastCount: 2,
+      },
+    ],
+  },
+  ngExceptions: { exceptions: [] },
+};
+
+const GUIDE_FEATURE_PAGE: Record<FeatureId, PageType> = {
+  'applicant-data': 'import',
+  import: 'import',
+  lottery: 'lottery',
+  matching: 'matching',
+  cast: 'cast',
+  ng: 'ngManagement',
+  attendance: 'attendance',
+  tweet: 'tweet',
+};
+
+const GUIDE_PREVIEW_WIDTH = 1920;
+const GUIDE_PREVIEW_HEIGHT = 1080;
 
 /* ── 補助コンポーネント ── */
 
@@ -260,12 +369,184 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   },
 };
 
+function noop(): void {}
+async function noopAsync(): Promise<void> {}
+function noopSetState<T>(_value: React.SetStateAction<T>): void {}
+
+function createGuideSampleContext(feature: FeatureId): AppContextType {
+  const activePage = GUIDE_FEATURE_PAGE[feature];
+  const applicants = feature === 'import' ? [] : GUIDE_SAMPLE_USERS;
+  const currentWinners = feature === 'matching' || feature === 'lottery' ? GUIDE_SAMPLE_WINNERS : [];
+  const isMatchingPreview = feature === 'matching';
+
+  return {
+    activePage,
+    setActivePage: noop,
+    casts: GUIDE_SAMPLE_CASTS,
+    setCasts: noopSetState,
+    applicants,
+    setApplicants: noop,
+    currentWinners,
+    setCurrentWinners: noop,
+    isLotteryResultCurrent: true,
+    setIsLotteryResultCurrent: noop,
+    guaranteedWinners: GUIDE_SAMPLE_WINNERS.filter((winner) => winner.is_guaranteed),
+    setGuaranteedWinners: noop,
+    matchingTypeCode: 'M003',
+    setMatchingTypeCode: noop,
+    rotationCount: 2,
+    setRotationCount: noop,
+    themeId: 'dark',
+    setThemeId: noop,
+    themeCustomization: DEFAULT_THEME_CUSTOMIZATION,
+    setThemeCustomization: noop,
+    totalTables: 5,
+    setTotalTables: noop,
+    usersPerTable: 1,
+    setUsersPerTable: noop,
+    castsPerRotation: 1,
+    setCastsPerRotation: noop,
+    matchingSettings: GUIDE_SAMPLE_MATCHING_SETTINGS,
+    setMatchingSettings: noop,
+    globalMatchingResult: isMatchingPreview ? GUIDE_SAMPLE_MATCHING_RESULT : null,
+    setGlobalMatchingResult: noop,
+    globalTableSlots: isMatchingPreview ? GUIDE_SAMPLE_TABLE_SLOTS : undefined,
+    setGlobalTableSlots: noop,
+    globalMatchingError: null,
+    setGlobalMatchingError: noop,
+    allowM003EmptySeats: false,
+    setAllowM003EmptySeats: noop,
+    m003SameDaySlotCount: 0,
+    setM003SameDaySlotCount: noop,
+    isMatchingLocked: isMatchingPreview,
+    setIsMatchingLocked: noop,
+    resetMatching: noop,
+    isDbReady: true,
+    currentEventName: 'サンプルイベント',
+    setCurrentEventName: noop,
+    currentSessionTimestamp: null,
+    setCurrentSessionTimestamp: noop,
+    events: ['サンプルイベント'],
+    setEvents: noopSetState,
+    sessions: [],
+    setSessions: noopSetState,
+    switchEvent: noopAsync,
+    switchSession: noopAsync,
+    dataReloadCounter: 0,
+    bumpDataReload: noop,
+  };
+}
+
+function isApplicationFeature(feature: FeatureId): boolean {
+  return feature === 'applicant-data' || feature === 'import' || feature === 'lottery' || feature === 'matching';
+}
+
+const GuideScaledAppFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(0.5);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+
+    // 実画面を固定サイズで組み立て、表示領域に合わせて縮小する。
+    // これによりヘルプ枠の幅でタブや表が再配置されることを防ぐ。
+    const updateScale = () => {
+      setScale(frame.clientWidth / GUIDE_PREVIEW_WIDTH);
+    };
+    updateScale();
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={frameRef}
+      className={styles.guideScaledViewport}
+      style={{ height: GUIDE_PREVIEW_HEIGHT * scale }}
+    >
+      <div
+        className={styles.guideScaledCanvas}
+        style={{ transform: `scale(${scale})` }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const GuideActualSampleScreen: React.FC<{ feature: FeatureId }> = ({ feature }) => {
+  const context = useMemo(() => createGuideSampleContext(feature), [feature]);
+  const themeCssVariables = useMemo(
+    () => buildThemeCssVariables('dark', DEFAULT_THEME_CUSTOMIZATION),
+    [],
+  );
+  const mainNav = isApplicationFeature(feature) ? '応募管理' : '内部管理';
+
+  const sidebarButtons: { text: string; page: PageType; icon: React.ReactNode }[] = [
+    { text: '応募管理', page: 'dataManagement', icon: <Users size={18} /> },
+    { text: '内部管理', page: 'internalManagement', icon: <Settings size={18} /> },
+    { text: 'イベント切り替え', page: 'eventManagement', icon: <CalendarDays size={18} /> },
+    { text: 'ヘルプ', page: 'guide', icon: <HelpCircle size={18} /> },
+  ];
+
+  return (
+    <AppContext.Provider value={context}>
+      <div
+        className={`${appStyles.appContainer} ${styles.guideActualAppShell}`}
+        data-theme="dark"
+        style={themeCssVariables as React.CSSProperties}
+      >
+        <aside className={appStyles.sidebar}>
+          <div className={appStyles.sidebarInner}>
+            <div className={appStyles.sidebarTitle}>
+              <HeaderLogo />
+            </div>
+            {sidebarButtons.map((button) => {
+              const active = button.text === mainNav;
+              return (
+                <button
+                  key={button.text}
+                  type="button"
+                  className={`${appStyles.sidebarButton}${active ? ` ${appStyles.active}` : ''}`}
+                  tabIndex={-1}
+                >
+                  {button.icon}
+                  <span className={appStyles.sidebarButtonLabel}>{button.text}</span>
+                </button>
+              );
+            })}
+            <button type="button" className={appStyles.sidebarButton} tabIndex={-1}>
+              <Terminal size={18} />
+              <span className={appStyles.sidebarButtonLabel}>Debug</span>
+            </button>
+            <div className={`${appStyles.sidebarBlock} ${appStyles.sidebarBlockPush}`} />
+            <div className={`${appStyles.sidebarBlock} ${appStyles.sidebarThemeSlider}`}>
+              <ThemeSelector
+                themeId="dark"
+                setThemeId={noop}
+                customization={DEFAULT_THEME_CUSTOMIZATION}
+                setCustomization={noop}
+              />
+            </div>
+          </div>
+        </aside>
+        <main className={appStyles.mainContent}>
+          <div className={`${appStyles.mainContentScroll} ${shared.customScrollbar} ${styles.guideActualMainScroll}`}>
+            {isApplicationFeature(feature)
+              ? <DataManagementPage onImportUserRows={noop} />
+              : <InternalManagementPage />}
+          </div>
+        </main>
+      </div>
+    </AppContext.Provider>
+  );
+};
+
 const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
   const meta = FEATURE_SAMPLE_META[feature];
-  const mainNav = ['applicant-data', 'import', 'lottery', 'matching'].includes(feature) ? '応募管理' : '内部管理';
-  const pageTabs = mainNav === '応募管理'
-    ? ['データ取込', '抽選', 'マッチング']
-    : ['キャスト名簿', 'NG管理', '投稿テンプレ', '出席管理'];
 
   return (
     <section className={styles.featureGuideSample}>
@@ -279,50 +560,9 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
 
       <div className={styles.featureGuideSampleLayout}>
         <div className={styles.guidePreviewAppFrame}>
-          <div className={styles.guidePreviewAppWorkspace}>
-            <aside className={styles.guidePreviewAppSidebar} aria-label="サンプル画面ナビゲーション">
-              <div className={styles.guidePreviewAppLogo}>
-                <strong>STARGAZER</strong>
-                <span>MATCHING & LOTTERY</span>
-              </div>
-              {[
-                { label: '応募管理', icon: <Users size={12} /> },
-                { label: '内部管理', icon: <Settings size={12} /> },
-                { label: 'イベント切り替え', icon: <CalendarDays size={12} /> },
-                { label: 'ヘルプ', icon: <HelpCircle size={12} /> },
-                { label: 'Debug', icon: <Terminal size={12} /> },
-              ].map(item => (
-                <span
-                  key={item.label}
-                  className={`${styles.guidePreviewAppSidebarItem}${mainNav === item.label ? ` ${styles.guidePreviewAppSidebarItemActive}` : ''}`}
-                >
-                  {item.icon}
-                  {item.label}
-                </span>
-              ))}
-              <div className={styles.guidePreviewThemeButton}>テーマを変更する</div>
-            </aside>
-            <div className={styles.guidePreviewAppContent}>
-              <div className={styles.guidePreviewPageTabs}>
-                {pageTabs.map(tab => (
-                  <span key={tab} className={meta.activeNav === tab ? styles.guidePreviewPageTabActive : ''}>{tab}</span>
-                ))}
-              </div>
-              <div className={styles.guidePreviewScreenSurface}>
-                {renderFeatureSampleScreen(feature)}
-                {meta.points.map(point => (
-                  <span
-                    key={point.number}
-                    className={styles.featureGuideMarker}
-                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                    aria-label={`${point.number}. ${point.title}`}
-                  >
-                    {point.number}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+          <GuideScaledAppFrame>
+            <GuideActualSampleScreen feature={feature} />
+          </GuideScaledAppFrame>
         </div>
 
         <ol className={styles.featureGuideLegend}>
@@ -340,272 +580,6 @@ const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
     </section>
   );
 };
-function renderFeatureSampleScreen(feature: FeatureId): React.ReactNode {
-  switch (feature) {
-    case 'applicant-data':
-      return <ApplicantDataSampleScreen />;
-    case 'import':
-      return <ImportSampleScreen />;
-    case 'lottery':
-      return <LotterySampleScreen />;
-    case 'matching':
-      return <MatchingSampleScreen />;
-    case 'cast':
-      return <CastSampleScreen />;
-    case 'ng':
-      return <NgSampleScreen />;
-    case 'attendance':
-      return <AttendanceSampleScreen />;
-    case 'tweet':
-      return <TweetSampleScreen />;
-  }
-}
-
-const GuidePreviewHeader: React.FC<{ title: string; description?: string; actions?: React.ReactNode }> = ({ title, description, actions }) => (
-  <div className={styles.guidePreviewHeader}>
-    <div>
-      <h4>{title}</h4>
-      {description && <p>{description}</p>}
-    </div>
-    {actions && <div className={styles.guidePreviewActions}>{actions}</div>}
-  </div>
-);
-
-const GuidePreviewButton: React.FC<{ children: React.ReactNode; variant?: 'primary' | 'secondary' | 'danger' }> = ({ children, variant = 'secondary' }) => (
-  <span className={`${styles.guidePreviewButton} ${styles[`guidePreviewButton${variant[0].toUpperCase()}${variant.slice(1)}`]}`}>{children}</span>
-);
-
-const GuidePreviewTabs: React.FC<{ tabs: string[]; activeIndex?: number }> = ({ tabs, activeIndex = 0 }) => (
-  <div className={styles.guidePreviewTabs}>
-    {tabs.map((tab, index) => (
-      <span key={tab} className={`${styles.guidePreviewTab}${activeIndex === index ? ` ${styles.guidePreviewTabActive}` : ''}`}>{tab}</span>
-    ))}
-  </div>
-);
-
-const GuidePreviewBadge: React.FC<{ children: React.ReactNode; tone?: 'blue' | 'green' | 'red' | 'gray' | 'yellow' }> = ({ children, tone = 'blue' }) => (
-  <span className={`${styles.guidePreviewBadge} ${styles[`guidePreviewBadge${tone[0].toUpperCase()}${tone.slice(1)}`]}`}>{children}</span>
-);
-
-const ApplicantDataSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <div className={styles.guidePreviewApplicantHeader}>
-      <div className={styles.guidePreviewApplicantStats}>
-        <span className={styles.guidePreviewApplicantCount}>48 件</span>
-      </div>
-      <div className={styles.guidePreviewApplicantFilterTabs}>
-        <span className={styles.guidePreviewApplicantFilterTabActive}>全件 (48)</span>
-      </div>
-      <div className={styles.guidePreviewApplicantActions}>
-        <GuidePreviewButton>TSV再取り込み</GuidePreviewButton>
-        <GuidePreviewButton variant="danger">元ログ削除</GuidePreviewButton>
-      </div>
-    </div>
-    <div className={styles.guidePreviewTableFrame}>
-      <table className={styles.guidePreviewTable}>
-        <thead>
-          <tr>
-            <th>ユーザー名</th>
-            <th>X ID</th>
-            <th>希望キャスト 1</th>
-            <th>希望キャスト 2</th>
-            <th>希望キャスト 3</th>
-            <th>NGキャスト</th>
-            <th aria-label="操作"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>応募者001</td><td>user_001</td><td>いざし〜</td><td>たくる</td><td>そいる, なりむ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-          <tr><td>応募者002</td><td>user_002</td><td>こなちゃ</td><td>だいふく</td><td>そに, なんこつ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-          <tr><td>応募者003</td><td>user_003</td><td>しらす</td><td>ちるちる</td><td>たくる, にた</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-          <tr><td>応募者004</td><td>user_004</td><td>しろん</td><td>なゆたの</td><td>だいふく, ぬうあ</td><td>—</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
-
-const ImportSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="データ取込" description="TSVファイルを読み込み、列を対応付けます。" actions={<GuidePreviewButton variant="primary">TSVファイルを選択</GuidePreviewButton>} />
-    <div className={styles.guidePreviewImportGrid}>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewFileStrip}>responses_20260617.tsv / 42行 / 有効 41件</div>
-        {[
-          ['ユーザー名', '名前'],
-          ['X ID', 'X/Twitter ID'],
-          ['VRC URL', 'VRChat URL'],
-          ['希望キャスト', '第一希望, 第二希望, 第三希望'],
-        ].map(([label, value]) => (
-          <div key={label} className={styles.guidePreviewMappingRow}>
-            <span>{label}</span><b>→</b><em>{value}</em>
-          </div>
-        ))}
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>プレビュー</div>
-        <table className={styles.guidePreviewTable}>
-          <tbody>
-            <tr><td>サンプル太郎</td><td>@sample_vrc</td><td>キャストA</td></tr>
-            <tr><td>ゲスト花子</td><td>@guest_hanako</td><td>キャストB</td></tr>
-            <tr><td>問題ユーザー</td><td>@problem_123</td><td>キャストC</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div className={styles.guidePreviewFooterActions}><GuidePreviewButton>抽選へ進む</GuidePreviewButton><GuidePreviewButton variant="primary">41件を取り込む</GuidePreviewButton></div>
-  </div>
-);
-
-const LotterySampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="抽選設定" description="確定当選者と当選人数を設定し、抽選結果を保存できます。" />
-    <div className={styles.guidePreviewLotteryGrid}>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewMetricGrid}>
-          <div><span>当選人数</span><strong>20</strong></div>
-          <div><span>確定当選者</span><strong>3</strong></div>
-          <div><span>合計当選者数</span><strong>23</strong></div>
-        </div>
-        <div className={styles.guidePreviewOptionGrid}>
-          {['抽選のみ行う', 'ランダム', 'ローテーション', 'グループ制マッチング'].map((item, index) => (
-            <span key={item} className={index === 3 ? styles.guidePreviewOptionSelected : ''}>{item}</span>
-          ))}
-        </div>
-        <div className={styles.guidePreviewSettingLine}><span>当日枠を含める</span><strong>ON / 2席</strong></div>
-        <div className={styles.guidePreviewSettingLine}><span>合計席数</span><strong>26席</strong></div>
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="blue">INFO</GuidePreviewBadge><p>設定に問題はありません。</p><small>合計席数 26席、合計当選者数 23名</small></div>
-        <div className={styles.guidePreviewSavedRun}><strong>保存済み抽選結果</strong><span>2026-06-17 グループ制 / 23名</span></div>
-        <div className={styles.guidePreviewFooterActions}><GuidePreviewButton variant="primary">抽選実行</GuidePreviewButton><GuidePreviewButton>抽選結果保存</GuidePreviewButton></div>
-      </div>
-    </div>
-  </div>
-);
-
-const MatchingSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="マッチング" description="抽選結果からキャスト割り当てを作成します。" actions={<GuidePreviewButton variant="primary">マッチング開始</GuidePreviewButton>} />
-    <div className={styles.guidePreviewMetricGrid}>
-      <div><span>方式</span><strong>グループ制</strong></div>
-      <div><span>当選者</span><strong>23名</strong></div>
-      <div><span>合計席数</span><strong>26席</strong></div>
-      <div><span>出席キャスト</span><strong>8名</strong></div>
-    </div>
-    <div className={styles.guidePreviewMatchingGrid}>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>実行条件</div>
-        <div className={styles.guidePreviewOptionGrid}><span>読み取り専用</span><span className={styles.guidePreviewOptionSelected}>品質モード</span><span>X IDでNG除外</span></div>
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewValidation}><GuidePreviewBadge tone="blue">INFO</GuidePreviewBadge><p>マッチング準備が完了しています。</p></div>
-      </div>
-    </div>
-    <table className={styles.guidePreviewTable}>
-      <thead><tr><th>キャスト</th><th>R1</th><th>R2</th><th>R3</th><th>合計</th></tr></thead>
-      <tbody>
-        <tr><td>キャストA</td><td>サンプル太郎 <GuidePreviewBadge tone="yellow">1希</GuidePreviewBadge></td><td>ゲスト花子</td><td>なし</td><td>2</td></tr>
-        <tr><td>キャストB</td><td>ゲスト花子 <GuidePreviewBadge tone="yellow">1希</GuidePreviewBadge></td><td>サンプル太郎</td><td>問題ユーザー</td><td>3</td></tr>
-      </tbody>
-    </table>
-    <div className={styles.guidePreviewFooterActions}><GuidePreviewButton>PNG出力</GuidePreviewButton><GuidePreviewButton>マッチング結果をTSVで保存</GuidePreviewButton></div>
-  </div>
-);
-
-const CastSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewTwoPane}>
-    <div className={styles.guidePreviewPanel}>
-      <div className={styles.guidePreviewPanelTitle}>キャスト一覧</div>
-      {['キャストA / グループ1', 'キャストB / グループ1', 'キャストC / グループ2'].map((cast, index) => (
-        <div key={cast} className={`${styles.guidePreviewListRow}${index === 0 ? ` ${styles.guidePreviewListRowActive}` : ''}`}>{cast}</div>
-      ))}
-      <div className={styles.guidePreviewQuickInput}>キャストD を追加</div>
-    </div>
-    <div className={styles.guidePreviewPanel}>
-      <GuidePreviewHeader title="キャストA" description="グループ1 / 出席対象" />
-      <div className={styles.guidePreviewProfileGrid}>
-        <div>
-          <div className={styles.guidePreviewAvatar}>写真</div>
-          <div style={{ marginTop: 8 }}><GuidePreviewButton variant="danger">キャストを削除</GuidePreviewButton></div>
-        </div>
-        <div className={styles.guidePreviewFieldStack}><span>名前: キャストA</span><span>グループ: グループ1</span><span>メモ: 接客メモを入力</span></div>
-      </div>
-      <div className={styles.guidePreviewExternalLinks}><GuidePreviewButton>Discord</GuidePreviewButton><GuidePreviewButton>X</GuidePreviewButton><GuidePreviewButton>VRChat</GuidePreviewButton></div>
-    </div>
-  </div>
-);
-
-const NgSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="NG管理" description="キャストNGと要注意人物を管理します。" />
-    <GuidePreviewTabs tabs={['キャストNG', '要注意人物']} />
-    <div className={styles.guidePreviewTwoPane}>
-      <div className={styles.guidePreviewPanel}>
-        {[
-          ['キャストA', '2'],
-          ['キャストB', '0'],
-          ['キャストC', '1'],
-        ].map(([name, count], index) => (
-          <div key={name} className={`${styles.guidePreviewListRow}${index === 0 ? ` ${styles.guidePreviewListRowActive}` : ''}`}>
-            <span>{name}</span>{count !== '0' && <GuidePreviewBadge tone="red">{count}</GuidePreviewBadge>}
-          </div>
-        ))}
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>キャストA のNG一覧</div>
-        <table className={styles.guidePreviewTable}><tbody><tr><td>問題ユーザー</td><td>@problem_123</td><td>リンク</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr><tr><td>別名ユーザー</td><td>@bad_user</td><td>リンク</td><td><span className={styles.guidePreviewDeleteMark}>×</span></td></tr></tbody></table>
-        <div className={styles.guidePreviewCautionGrid}>
-          <div><strong>要注意候補</strong><span>@problem_123 / 2名のキャストがNG</span></div>
-          <div><strong>登録済み</strong><span>@manual_user / 手動登録</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const AttendanceSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="出席管理" description="出席中・待機の切り替えと履歴を保存します。" actions={<GuidePreviewButton variant="primary">出席を記録</GuidePreviewButton>} />
-    <GuidePreviewTabs tabs={['出席設定', '出席履歴']} />
-    <div className={styles.guidePreviewAttendanceGrid}>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>出席中 3名</div>
-        {['キャストA', 'キャストB', 'キャストC'].map(cast => <div key={cast} className={`${styles.guidePreviewAttendanceRow} ${styles.guidePreviewAttendanceRowPresent}`}>{cast}</div>)}
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>待機 2名</div>
-        {['キャストD', 'キャストE'].map(cast => <div key={cast} className={`${styles.guidePreviewAttendanceRow} ${styles.guidePreviewAttendanceRowStandby}`}>{cast}</div>)}
-      </div>
-      <div className={styles.guidePreviewModalPreview}>
-        <div><span>記録日</span><strong>2026-06-17</strong></div>
-        <div><span>出席人数</span><strong>3名</strong></div>
-        <p>キャストA / キャストB / キャストC</p>
-      </div>
-    </div>
-    <table className={styles.guidePreviewTable}>
-      <tbody><tr><th>キャスト名</th><th>出席回数</th><th>06/15</th><th>06/16</th><th>06/17</th></tr><tr><td>キャストA</td><td>3</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>キャストD</td><td>1</td><td>-</td><td>✓</td><td>-</td></tr></tbody>
-    </table>
-  </div>
-);
-
-const TweetSampleScreen: React.FC = () => (
-  <div className={styles.guidePreviewScreenStack}>
-    <GuidePreviewHeader title="投稿テンプレ" description="出席キャストを使った投稿文を作成します。" />
-    <div className={styles.guidePreviewTwoPane}>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>テンプレート編集</div>
-        <div className={styles.guidePreviewTextArea}>【{'{event_name}'}】<br />本日の出演キャスト<br />{'{casts}'}</div>
-        <div className={styles.guidePreviewExternalLinks}><GuidePreviewBadge>{'{casts}'}</GuidePreviewBadge><GuidePreviewBadge>{'{event_name}'}</GuidePreviewBadge></div>
-      </div>
-      <div className={styles.guidePreviewPanel}>
-        <div className={styles.guidePreviewPanelTitle}>プレビュー</div>
-        <div className={styles.guidePreviewTextArea}>【Manual Test Event】<br />本日の出演キャスト<br />キャストA<br />キャストB<br />キャストC</div>
-        <div className={styles.guidePreviewFooterActions}><span className={styles.guidePreviewCharacterCount}>57 / 280</span><GuidePreviewButton variant="primary">コピー</GuidePreviewButton></div>
-      </div>
-    </div>
-  </div>
-);
 
 /* ── 各機能の詳細コンテンツ ── */
 
