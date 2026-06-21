@@ -219,20 +219,10 @@
   gap: 4px;
 }
 
-/* 一番下のテーマ設定：モダンなピル型トグル */
 .sidebar-theme-slider {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-theme-slider .sidebar-block-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-  letter-spacing: 0.04em;
 }
 
 /* NOTE: .btn-toggle-group/.btn-toggle rules removed – ThemeSelector uses shared module classes */
