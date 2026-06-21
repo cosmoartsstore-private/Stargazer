@@ -85,14 +85,14 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ border: `1px solid ${isNotice ? 'var(--guide-notice-border)' : 'var(--border-default)'}`, borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: isNotice ? 'var(--guide-notice-bg)' : 'var(--surface-hover)', borderBottom: `1px solid ${isNotice ? 'var(--guide-notice-border)' : 'var(--border-default)'}` }}>
+      <div style={{ border: `1px solid ${isNotice ? 'var(--guide-notice)' : 'var(--border-default)'}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--surface-hover)', borderBottom: `1px solid ${isNotice ? 'var(--guide-notice)' : 'var(--border-default)'}` }}>
           <div style={{ width: 3, height: 12, background: isNotice ? 'var(--guide-notice)' : 'var(--accent-primary)', borderRadius: 2, flexShrink: 0 }} />
           <h3 style={{ fontSize: 11, fontWeight: 700, color: isNotice ? 'var(--guide-notice)' : 'var(--text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
             {title}
           </h3>
         </div>
-        <div style={{ padding: '14px 16px', fontSize: 14, color: isNotice ? 'var(--guide-notice)' : 'var(--text-default)', lineHeight: 1.8, background: isNotice ? 'var(--guide-notice-body-bg)' : 'var(--surface-panel-muted)' }}>
+        <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
           {children}
         </div>
       </div>
@@ -125,19 +125,13 @@ const StepList: React.FC<{ items: string[] }> = ({ items }) => (
 );
 
 const NoteList: React.FC<{ items: string[] }> = ({ items }) => (
-  <div style={{ background: 'var(--guide-notice-bg)', border: '1px solid var(--guide-notice-border)', borderRadius: 8, padding: '12px 16px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, color: 'var(--guide-notice)', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      <span style={{ width: 16, height: 16, border: '1px solid var(--guide-notice)', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>!</span>
-      <span>注意事項</span>
-    </div>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      {items.map((item, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--guide-notice)', lineHeight: 1.6 }}>
-          <span style={{ color: 'var(--guide-notice)', flexShrink: 0, fontWeight: 700 }}>•</span>
-          {item}
-        </div>
-      ))}
-    </div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+    {items.map((item, i) => (
+      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>
+        <span style={{ color: 'var(--guide-notice)', flexShrink: 0, fontWeight: 700 }}>•</span>
+        {item}
+      </div>
+    ))}
   </div>
 );
 
