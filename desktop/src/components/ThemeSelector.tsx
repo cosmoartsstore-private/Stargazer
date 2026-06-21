@@ -1,24 +1,25 @@
 import React from 'react';
+import { Palette } from '@/common/icons';
 import type { ThemeId } from '@/common/themes';
+import shared from '@/styles/shared.module.css';
 
 export const ThemeSelector: React.FC<{
   themeId: ThemeId;
   setThemeId: (id: ThemeId) => void;
-}> = ({ themeId, setThemeId }) => (
-  <div className="sidebar-theme-pills" role="group" aria-label="テーマ">
+}> = ({ themeId, setThemeId }) => {
+  const toggleTheme = () => {
+    setThemeId(themeId === 'dark' ? 'skyblue' : 'dark');
+  };
+
+  return (
     <button
       type="button"
-      className={`sidebar-theme-pill${themeId === 'dark' ? ' active' : ''}`}
-      onClick={() => setThemeId('dark')}
+      className={shared.btnSecondary}
+      onClick={toggleTheme}
+      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px' }}
     >
-      デフォルト
+      <Palette size={16} />
+      <span>{themeId === 'dark' ? 'デフォルト' : 'チェック'}</span>
     </button>
-    <button
-      type="button"
-      className={`sidebar-theme-pill${themeId === 'skyblue' ? ' active' : ''}`}
-      onClick={() => setThemeId('skyblue')}
-    >
-      チェック
-    </button>
-  </div>
-);
+  );
+};
