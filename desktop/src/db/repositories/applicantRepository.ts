@@ -1,9 +1,22 @@
-// 応募者と行単位データ（希望キャスト、追加列）は取込セッションごとの揮発状態として扱う。
-// CSV を再取込した場合は新しいセッション DB を作成し、この repository はセッション DB のみを対象にする。
+// 応募者と行単位データ（希望キャスト、追加列）は取込セッションDBへ保存する。
+// 希望名の表示だけは、安定IDを使ってイベント共有DBの現在名へ解決する。
 import { invoke } from '@tauri-apps/api/core';
-import { getSessionDb } from '../database';
+import { getSessionDb, getSharedDb } from '../database';
 import type { UserBean } from '@/common/types/entities';
-import { getRequiredSessionContext } from './commandContext';
+import { getMsg } from '@/messages/getMsg';
+import {
+  enqueueSessionWrite,
+  waitForSessionWritesToSettle,
+  type SessionCommandContext,
+} from './commandContext';
+import { groupRowsBy } from './groupRowsBy';
+
+const PREFERENCE_MODE_EXTRA_KEY = '__preference_mode';
+
+/** 呼出済みの応募者更新が終わるまで待つ。後続の再取込を含む操作順確認に使用する。 */
+export async function flushApplicantWrites(context: SessionCommandContext): Promise<void> {
+  await waitForSessionWritesToSettle(context);
+}
 
 interface ApplicantRow {
   id: number;
@@ -14,88 +27,138 @@ interface ApplicantRow {
 }
 
 interface CastPrefRow {
+  applicant_id: number;
   preference_order: number;
   cast_name: string;
+  cast_id: number | null;
+}
+
+interface SharedCastRow {
+  id: number;
+  name: string;
 }
 
 interface ExtraRow {
+  applicant_id: number;
   field_key: string;
   field_value: string | null;
 }
 
-interface RawExtraPayload {
-  key: string;
-  value: string | null;
-}
-
-/** 追加列として保存できる key/value 形式かを判定する。 */
-function isRawExtraRecord(value: unknown): value is { key: unknown; value?: unknown } {
-  return typeof value === 'object' && value !== null && 'key' in value;
-}
-
-/** 追加列は任意入力由来のため、DB command に渡す直前で保存可能な形へ正規化する。 */
-function normalizeRawExtra(rawExtra: unknown[]): RawExtraPayload[] {
-  return rawExtra
-    .filter(isRawExtraRecord)
-    .filter((entry) => typeof entry.key === 'string' && entry.key.length > 0)
-    .map((entry) => ({
-      key: entry.key as string,
-      value: entry.value == null ? null : String(entry.value),
-    }));
-}
-
 /** 現在の取込セッション DB から応募者と希望キャスト・追加列を読み込む。 */
 export async function loadApplicants(): Promise<UserBean[]> {
-  const db = getSessionDb();
-  const rows = await db.select<ApplicantRow[]>(
-    'SELECT * FROM applicants ORDER BY id',
-  );
-  const users: UserBean[] = [];
-  for (const row of rows) {
-    const castPrefs = await db.select<CastPrefRow[]>(
-      'SELECT preference_order, cast_name FROM applicant_casts WHERE applicant_id = ? ORDER BY preference_order',
-      [row.id],
+  const sessionDb = getSessionDb();
+  const sharedDb = getSharedDb();
+  const [sharedCasts, rows, castPrefs, extras] = await Promise.all([
+    sharedDb.select<SharedCastRow[]>('SELECT id, name FROM casts'),
+    sessionDb.select<ApplicantRow[]>(
+      'SELECT id, x_id, name, vrc_url, is_guaranteed FROM applicants ORDER BY id',
+    ),
+    sessionDb.select<CastPrefRow[]>(
+      `SELECT applicant_id, preference_order, cast_name, cast_id
+       FROM applicant_casts
+       ORDER BY applicant_id, preference_order, id`,
+    ),
+    sessionDb.select<ExtraRow[]>(
+      `SELECT applicant_id, field_key, field_value
+       FROM applicant_extra
+       ORDER BY applicant_id, id`,
+    ),
+  ]);
+  const currentCastNameById = new Map(sharedCasts.map((cast) => [cast.id, cast.name]));
+
+  const castPrefsByApplicantId = groupRowsBy(castPrefs, (row) => row.applicant_id);
+  const extrasByApplicantId = groupRowsBy(extras, (row) => row.applicant_id);
+
+  return rows.map((row) => {
+    const applicantCastPrefs = castPrefsByApplicantId.get(row.id) ?? [];
+    const applicantExtras = extrasByApplicantId.get(row.id) ?? [];
+    const preferenceLength = applicantCastPrefs.reduce(
+      (length, preference) => Math.max(length, preference.preference_order + 1),
+      0,
     );
-    const extras = await db.select<ExtraRow[]>(
-      'SELECT field_key, field_value FROM applicant_extra WHERE applicant_id = ?',
-      [row.id],
-    );
-    const casts: string[] = [];
-    for (const p of castPrefs) {
-      casts[p.preference_order] = p.cast_name;
+    const rankedCasts = Array<string>(preferenceLength).fill('');
+    const rankedCastIds = Array<number | null>(preferenceLength).fill(null);
+    for (const preference of applicantCastPrefs) {
+      rankedCasts[preference.preference_order] =
+        (preference.cast_id === null
+          ? undefined
+          : currentCastNameById.get(preference.cast_id)) ?? preference.cast_name;
+      rankedCastIds[preference.preference_order] = preference.cast_id;
     }
-    const preferenceMode = extras.find((e) => e.field_key === '__preference_mode')?.field_value;
+    const preferenceMode = applicantExtras.find(
+      (extra) => extra.field_key === PREFERENCE_MODE_EXTRA_KEY,
+    )?.field_value;
     const normalizedPreferenceMode = preferenceMode === 'flat' ? 'flat' : 'ranked';
-    const rankedCasts = Array.from({ length: casts.length }, (_, index) => casts[index] ?? '');
-    users.push({
+    const activePreferenceIndexes = rankedCasts.flatMap(
+      (castName, index) => castName ? [index] : [],
+    );
+    return {
+      id: row.id,
       name: row.name ?? '',
       x_id: row.x_id,
       vrc_url: row.vrc_url ?? undefined,
       is_guaranteed: row.is_guaranteed === 1,
-      casts: normalizedPreferenceMode === 'flat' ? casts.filter(Boolean) : rankedCasts,
+      casts: normalizedPreferenceMode === 'flat'
+        ? activePreferenceIndexes.map((index) => rankedCasts[index])
+        : rankedCasts,
+      cast_ids: normalizedPreferenceMode === 'flat'
+        ? activePreferenceIndexes.map((index) => rankedCastIds[index])
+        : rankedCastIds,
       preference_mode: normalizedPreferenceMode,
-      raw_extra: extras
-        .filter((e) => e.field_key !== '__preference_mode')
-        .map((e) => ({ key: e.field_key, value: e.field_value ?? '' })),
-    });
-  }
-  return users;
+      raw_extra: applicantExtras
+        .filter((extra) => extra.field_key !== PREFERENCE_MODE_EXTRA_KEY)
+        .map((extra) => ({ key: extra.field_key, value: extra.field_value ?? '' })),
+    };
+  });
 }
 
 /** 応募者一覧をセッション DB に全置換する。途中失敗時は既存応募者を残す。 */
-export async function persistApplicants(users: UserBean[]): Promise<void> {
-  const { eventName, timestamp } = getRequiredSessionContext();
-  await invoke('persist_applicants_atomic', {
-    eventName,
-    timestamp,
+export async function persistApplicants(
+  users: UserBean[],
+  context: SessionCommandContext,
+): Promise<void> {
+  const userWithoutCastIds = users.find((user) => user.cast_ids === undefined);
+  if (userWithoutCastIds) {
+    throw new Error(getMsg('applicantRepository.castIdUnresolved', {
+      xId: userWithoutCastIds.x_id,
+    }));
+  }
+  await enqueueSessionWrite(context, () => invoke('persist_applicants_atomic', {
+    eventName: context.eventName,
+    timestamp: context.timestamp,
     users: users.map((user) => ({
       name: user.name || null,
       x_id: user.x_id,
       vrc_url: user.vrc_url ?? null,
       casts: user.casts,
+      cast_ids: user.cast_ids,
       preference_mode: user.preference_mode ?? 'ranked',
       is_guaranteed: user.is_guaranteed === true,
-      raw_extra: normalizeRawExtra(user.raw_extra),
+      raw_extra: user.raw_extra,
     })),
-  });
+  }));
+}
+
+/** 応募者1件を安定IDで削除する。不正なX IDが複数残っていても1件ずつ解消できる。 */
+export async function deleteApplicant(
+  applicantId: number,
+  context: SessionCommandContext,
+): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('delete_applicant_atomic', {
+    eventName: context.eventName,
+    timestamp: context.timestamp,
+    applicantId,
+  }));
+}
+
+/** 抽選前に選択した確定当選者を保存し、既存抽選結果を条件不一致として扱う。 */
+export async function replaceApplicantGuarantees(
+  guaranteedXIds: string[],
+  context: SessionCommandContext,
+): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('replace_applicant_guarantees_atomic', {
+    eventName: context.eventName,
+    timestamp: context.timestamp,
+    guaranteedXIds,
+  }));
 }

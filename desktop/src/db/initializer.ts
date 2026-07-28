@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
-  readBrowserStorageItem,
   readBrowserStorageItemResult,
   removeBrowserStorageItem,
   writeBrowserStorageItem,
@@ -11,63 +10,121 @@ import {
  * 最終使用情報は localStorage の補助情報であり、実体の有無は Tauri command で確認する。
  */
 
-const LAST_EVENT_KEY = 'stargazer:lastEvent';
-const LAST_SESSION_KEY = 'stargazer:lastSession';
+const LAST_LOCATION_KEY = 'stargazer:lastLocation';
+const LEGACY_LAST_EVENT_KEY = 'stargazer:lastEvent';
+const LEGACY_LAST_SESSION_KEY = 'stargazer:lastSession';
+
+interface LastLocation {
+  version: 1;
+  eventName: string;
+  sessionTimestamp: string | null;
+}
+
+type LastLocationReadResult =
+  | { ok: true; value: LastLocation | null }
+  | { ok: false; value: null };
+
+function isLastLocation(value: unknown): value is LastLocation {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<LastLocation>;
+  return candidate.version === 1
+    && typeof candidate.eventName === 'string'
+    && (candidate.sessionTimestamp === null || typeof candidate.sessionTimestamp === 'string');
+}
+
+/** 新形式を優先し、未移行の場合だけ旧2キーを一組として読み込む。 */
+function readLastLocation(): LastLocationReadResult {
+  const current = readBrowserStorageItemResult(LAST_LOCATION_KEY);
+  if (!current.ok) return { ok: false, value: null };
+  if (current.value !== null) {
+    try {
+      const parsed: unknown = JSON.parse(current.value);
+      return {
+        ok: true,
+        value: isLastLocation(parsed) ? parsed : null,
+      };
+    } catch {
+      return { ok: true, value: null };
+    }
+  }
+
+  const legacyEvent = readBrowserStorageItemResult(LEGACY_LAST_EVENT_KEY);
+  const legacySession = readBrowserStorageItemResult(LEGACY_LAST_SESSION_KEY);
+  if (!legacyEvent.ok || !legacySession.ok) return { ok: false, value: null };
+  if (!legacyEvent.value) return { ok: true, value: null };
+  return {
+    ok: true,
+    value: {
+      version: 1,
+      eventName: legacyEvent.value,
+      sessionTimestamp: legacySession.value,
+    },
+  };
+}
+
+/** 最終使用位置を単一キーへ保存し、成功後だけ旧2キーを削除する。 */
+function writeLastLocation(location: LastLocation): boolean {
+  const saved = writeBrowserStorageItem(LAST_LOCATION_KEY, JSON.stringify(location));
+  if (saved) {
+    removeBrowserStorageItem(LEGACY_LAST_EVENT_KEY);
+    removeBrowserStorageItem(LEGACY_LAST_SESSION_KEY);
+  }
+  return saved;
+}
 
 export interface InitializeResult {
   events: string[];
   lastUsedEvent: string | null;
-  /** 保存済みセッションが保存済みイベント内に存在する場合だけ設定する。 */
+  /** 保存済みセッション候補。実在確認はイベントを開いた後のセッション一覧で行う。 */
   lastUsedSession: string | null;
 }
 
 /** イベント一覧を取得し、保存済みの最終イベント・セッションが現在も有効なら復元する。 */
 export async function initializeApp(): Promise<InitializeResult> {
   const events = await invoke<string[]>('list_events');
-  const storedEventResult = readBrowserStorageItemResult(LAST_EVENT_KEY);
-  const storedEvent = storedEventResult.ok ? storedEventResult.value : null;
+  const storedLocationResult = readLastLocation();
+  const storedLocation = storedLocationResult.ok ? storedLocationResult.value : null;
+  const storedEvent = storedLocation?.eventName ?? null;
   const lastUsedEvent =
     storedEvent && events.includes(storedEvent) ? storedEvent : null;
 
-  let lastUsedSession: string | null = null;
-  if (lastUsedEvent) {
-    const storedSession = readBrowserStorageItem(LAST_SESSION_KEY);
-    if (storedSession) {
-      try {
-        const sessions = await invoke<{ timestamp: string }[]>('list_sessions', {
-          eventName: lastUsedEvent,
-        });
-        if (sessions.some((s) => s.timestamp === storedSession)) {
-          lastUsedSession = storedSession;
-        }
-      } catch {
-        lastUsedSession = null;
-      }
-    }
-  } else if (storedEventResult.ok) {
+  const lastUsedSession =
+    lastUsedEvent === null ? null : (storedLocation?.sessionTimestamp ?? null);
+  if (lastUsedEvent === null && storedLocationResult.ok && storedLocation !== null) {
     // 保存済みイベントが存在しない場合、保存済みセッションは別イベント由来なので破棄する。
-    clearLastUsedSession();
+    clearSavedLocation();
   }
 
-  return { events, lastUsedEvent, lastUsedSession };
+  if (storedLocationResult.ok && lastUsedEvent !== null) {
+    writeLastLocation({
+      version: 1,
+      eventName: lastUsedEvent,
+      sessionTimestamp: lastUsedSession,
+    });
+  }
+
+  return {
+    events,
+    lastUsedEvent,
+    lastUsedSession,
+  };
 }
 
-/** 最後に使用したイベント名を保存する。保存できない環境では何もしない。 */
-export function saveLastUsedEvent(name: string): void {
-  writeBrowserStorageItem(LAST_EVENT_KEY, name);
+/** 最後に使用したイベントとセッションを一組で保存する。 */
+export function saveLastLocation(
+  eventName: string,
+  sessionTimestamp: string | null,
+): void {
+  writeLastLocation({
+    version: 1,
+    eventName,
+    sessionTimestamp,
+  });
 }
 
-/** 最後に使用したセッション timestamp を保存する。保存できない環境では何もしない。 */
-export function saveLastUsedSession(timestamp: string): void {
-  writeBrowserStorageItem(LAST_SESSION_KEY, timestamp);
-}
-
-/** 保存済みの最終イベント名を削除する。削除できない環境では何もしない。 */
-export function clearLastUsedEvent(): void {
-  removeBrowserStorageItem(LAST_EVENT_KEY);
-}
-
-/** 保存済みの最終セッション timestamp を削除する。削除できない環境では何もしない。 */
-export function clearLastUsedSession(): void {
-  removeBrowserStorageItem(LAST_SESSION_KEY);
+/** 保存済みの最終使用位置を削除する。 */
+export function clearSavedLocation(): void {
+  removeBrowserStorageItem(LAST_LOCATION_KEY);
+  removeBrowserStorageItem(LEGACY_LAST_EVENT_KEY);
+  removeBrowserStorageItem(LEGACY_LAST_SESSION_KEY);
 }

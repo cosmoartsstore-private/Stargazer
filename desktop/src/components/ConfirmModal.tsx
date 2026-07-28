@@ -1,80 +1,98 @@
-import React from 'react';
-import { AppDialog } from '@/components/AppDialog';
-import styles from './ConfirmModal.module.css';
-import shared from '@/styles/shared.module.css';
+// 通知と確認を、操作結果の異なるメッセージダイアログとして提供する。
 
-/** ポップアップメッセージ用モーダル（alert / confirm でUI統一）。Radix Dialog ベースでフォーカス管理・Esc 閉じを提供。 */
-interface ConfirmModalProps {
+import type { ReactNode } from 'react';
+import { AppDialog } from '@/components/AppDialog';
+import { getMsg } from '@/messages/getMsg';
+import shared from '@/styles/shared.module.css';
+import styles from './ConfirmModal.module.css';
+
+interface MessageDialogProps {
+  title: string;
+  message: string;
+  onOpenChange: (open: boolean) => void;
+  actions: ReactNode;
+}
+
+interface NoticeDialogProps {
+  title: string;
+  message: string;
+  onClose: () => void;
+  closeLabel?: string;
+}
+
+interface ConfirmDialogProps {
+  title: string;
   message: string;
   onConfirm: () => void;
-  onCancel?: () => void;
-  /** 省略時: type=alert → 「お知らせ」、type=confirm → 「確認」 */
-  title?: string;
+  onCancel: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
-  type?: 'confirm' | 'alert';
   confirmDisabled?: boolean;
-  size?: 'default' | 'wide' | 'extraWide';
-  /** 特定機能だけでモーダル本体の寸法や余白を調整するための追加クラス。 */
-  contentClassName?: string;
-  /** message の下に追加で表示するカスタムコンテンツ */
-  children?: React.ReactNode;
+  intent?: 'default' | 'danger';
 }
 
-const DEFAULT_TITLE_ALERT = 'お知らせ';
-const DEFAULT_TITLE_CONFIRM = '確認';
-
-function getModalContentClass(size: ConfirmModalProps['size']): string {
-  if (size === 'extraWide') return styles.modalContentExtraWide;
-  if (size === 'wide') return styles.modalContentWide;
-  return '';
+function MessageDialog({ title, message, onOpenChange, actions }: MessageDialogProps) {
+  return (
+    <AppDialog
+      open
+      onOpenChange={onOpenChange}
+      title={title}
+      description={message}
+      descriptionClassName={styles.modalMessage}
+    >
+      <footer className={styles.modalButtons}>{actions}</footer>
+    </AppDialog>
+  );
 }
 
-export const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  message,
-  onConfirm,
-  onCancel,
+export function NoticeDialog({
   title,
-  confirmLabel = 'OK',
-  cancelLabel = 'キャンセル',
-  type = 'confirm',
-  confirmDisabled = false,
-  size = 'default',
-  contentClassName = '',
-  children,
-}) => {
-  const displayTitle = title ?? (type === 'alert' ? DEFAULT_TITLE_ALERT : DEFAULT_TITLE_CONFIRM);
-  const open = true;
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) return;
-    if (type === 'confirm' && onCancel) {
-      onCancel();
-    } else {
-      onConfirm();
-    }
+  message,
+  onClose,
+  closeLabel = getMsg('common.close'),
+}: NoticeDialogProps) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose();
   };
 
   return (
-    <AppDialog
-      open={open}
+    <MessageDialog
+      title={title}
+      message={message}
       onOpenChange={handleOpenChange}
-      title={displayTitle}
-      description={message}
-      descriptionClassName={styles.modalMessage}
-      className={`${getModalContentClass(size)}${contentClassName ? ` ${contentClassName}` : ''}`}
-    >
-      {children}
-      <div className={styles.modalButtons}>
-        {type === 'confirm' && onCancel && (
-          <button type="button" className={styles.modalBtnCancel} onClick={onCancel}>
-            {cancelLabel}
-          </button>
-        )}
-        <button type="button" className={`${shared.btnPrimary} ${styles.modalBtnConfirm}`} onClick={onConfirm} disabled={confirmDisabled}>
-          {confirmLabel}
-        </button>
-      </div>
-    </AppDialog>
+      actions={(
+        <button type="button" className={`${shared.btnPrimary} ${styles.modalBtnAction}`} onClick={onClose}>{closeLabel}</button>
+      )}
+    />
   );
-};
+}
+
+export function ConfirmDialog({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmLabel = getMsg('common.ok'),
+  cancelLabel = getMsg('common.cancel'),
+  confirmDisabled = false,
+  intent = 'default',
+}: ConfirmDialogProps) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onCancel();
+  };
+  const confirmClassName = `${intent === 'danger' ? shared.btnDanger : shared.btnPrimary} ${styles.modalBtnAction}`;
+
+  return (
+    <MessageDialog
+      title={title}
+      message={message}
+      onOpenChange={handleOpenChange}
+      actions={(
+        <>
+          <button type="button" className={styles.modalBtnCancel} onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" className={confirmClassName} onClick={onConfirm} disabled={confirmDisabled}>{confirmLabel}</button>
+        </>
+      )}
+    />
+  );
+}

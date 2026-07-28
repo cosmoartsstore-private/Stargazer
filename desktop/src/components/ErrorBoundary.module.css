@@ -1,0 +1,31 @@
+.errorPage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: var(--surface-page);
+  color: var(--text-default);
+}
+
+.errorPanel {
+  width: 100%;
+  max-width: 560px;
+  padding: 24px 32px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background-color: var(--surface-panel);
+  text-align: left;
+}
+
+.errorHeading {
+  margin-bottom: 12px;
+  color: var(--text-heading);
+  font-size: 20px;
+}
+
+.errorGuidance {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 14px;
+}

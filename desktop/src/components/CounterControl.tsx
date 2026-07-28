@@ -1,4 +1,7 @@
+// ボタン、キーボード、ホイール操作に対応した範囲付き数値カウンターを提供する。
+
 import React, { useCallback } from 'react';
+import { getMsg } from '@/messages/getMsg';
 import styles from './CounterControl.module.css';
 
 interface CounterControlProps {
@@ -28,6 +31,7 @@ export const CounterControl: React.FC<CounterControlProps> = ({
   disabled = false,
   className,
 }) => {
+  // 現在値と増減操作を、propsで指定された範囲へ正規化する。
   const normalizedValue = clampCounterValue(value, min, max);
   const setNextValue = useCallback((nextValue: number) => {
     onChange(clampCounterValue(nextValue, min, max));
@@ -66,44 +70,31 @@ export const CounterControl: React.FC<CounterControlProps> = ({
     setNextValue(normalizedValue + (event.deltaY < 0 ? step : -step));
   };
 
+  // 操作可否と表示クラスを現在値から導出する。
   const rootClassName = [
     styles.counterControl,
     disabled ? styles.counterControlDisabled : '',
     className ?? '',
   ].filter(Boolean).join(' ');
+  const decrementDisabled = disabled || (min !== undefined && normalizedValue <= min);
+  const incrementDisabled = disabled || (max !== undefined && normalizedValue >= max);
 
   return (
-    <div className={rootClassName} onKeyDown={handleKeyDown} onWheel={handleWheel}>
-      <button
-        type="button"
-        className={styles.counterButton}
-        onClick={decrement}
-        disabled={disabled || (min !== undefined && normalizedValue <= min)}
-        aria-label={`${label}を減らす`}
-      >
-        -
-      </button>
+    <div className={rootClassName}>
+      <button type="button" className={styles.counterButton} onClick={decrement} disabled={decrementDisabled} aria-label={getMsg('CounterControl.decrease', { label })}>-</button>
       <div
         className={styles.counterValue}
         role="spinbutton"
         tabIndex={disabled ? -1 : 0}
+        onKeyDown={handleKeyDown}
+        onWheel={handleWheel}
         aria-label={label}
         aria-valuenow={normalizedValue}
         aria-valuemin={min}
         aria-valuemax={max}
-        title="矢印キーまたはマウスホイールで増減"
-      >
-        {normalizedValue}
-      </div>
-      <button
-        type="button"
-        className={styles.counterButton}
-        onClick={increment}
-        disabled={disabled || (max !== undefined && normalizedValue >= max)}
-        aria-label={`${label}を増やす`}
-      >
-        +
-      </button>
+        aria-disabled={disabled}
+      >{normalizedValue}</div>
+      <button type="button" className={styles.counterButton} onClick={increment} disabled={incrementDisabled} aria-label={getMsg('CounterControl.increase', { label })}>+</button>
     </div>
   );
 };

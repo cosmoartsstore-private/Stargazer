@@ -1,7 +1,8 @@
 import type { ThemeId } from './themes';
 
+// 背景グラデーションの編集UIで許可する色数。
 export const CUSTOM_THEME_MAX_COLORS = 5;
-export const CUSTOM_THEME_MIN_COLORS = 1;
+const CUSTOM_THEME_MIN_COLORS = 1;
 
 export interface DefaultThemeCustomization {
   accent: string;
@@ -25,6 +26,7 @@ interface RgbColor {
   b: number;
 }
 
+// 各テーマの初期表示と、保存値が不正な場合の復元先。
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomizationState = {
   dark: {
     accent: '#5865F2',
@@ -36,6 +38,35 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomizationState = {
     hue: 204,
   },
 };
+
+// darkテーマの強度計算と、accentから導出する状態色の配合規則。
+const DARK_THEME_RECIPE = {
+  gradientBaseAlpha: 0.22,
+  gradientIntensityAlpha: 0.58,
+  gradientFallback: '#0d0b1e',
+  accentHoverShade: -0.18,
+  hoverAlpha: 0.12,
+  selectedAlpha: 0.18,
+  borderAlpha: 0.34,
+  linkShade: 0.24,
+} as const;
+
+// skyblueテーマで基準色相から各用途の色を導出するHSL規則。
+const CHECK_THEME_RECIPE = {
+  accentSaturation: 65,
+  accentLightness: 50,
+  accentHoverLightness: 43,
+  deepTextSaturation: 54,
+  deepTextLightness: 23,
+  mutedTextSaturation: 44,
+  mutedTextLightness: 34,
+  mutedTextAlpha: 0.66,
+  linkSaturation: 72,
+  linkLightness: 41,
+  successHueOffset: 136,
+  successSaturation: 43,
+  successLightness: 41,
+} as const;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -172,13 +203,14 @@ function rgbTriplet(color: RgbColor): string {
 }
 
 function buildGradient(colors: readonly string[], direction: number, intensity: number): string {
-  const alpha = 0.22 + (clamp(intensity, 0, 100) / 100) * 0.58;
+  const alpha = DARK_THEME_RECIPE.gradientBaseAlpha
+    + (clamp(intensity, 0, 100) / 100) * DARK_THEME_RECIPE.gradientIntensityAlpha;
   const stops = colors.map((color, index) => {
     const rgb = parseHexColor(color);
     const position = colors.length === 1 ? 0 : Math.round((index / (colors.length - 1)) * 100);
     return `${rgba(rgb, alpha)} ${position}%`;
   });
-  return `linear-gradient(${direction}deg, ${stops.join(', ')}), #0d0b1e`;
+  return `linear-gradient(${direction}deg, ${stops.join(', ')}), ${DARK_THEME_RECIPE.gradientFallback}`;
 }
 
 function buildDarkVariables(customization: DefaultThemeCustomization): Record<string, string> {
@@ -187,30 +219,38 @@ function buildDarkVariables(customization: DefaultThemeCustomization): Record<st
   return {
     '--theme-dark-background': buildGradient(customization.colors, customization.direction, customization.intensity),
     '--theme-dark-accent': accent,
-    '--theme-dark-accent-hover': shadeHex(accent, -0.18),
+    '--theme-dark-accent-hover': shadeHex(accent, DARK_THEME_RECIPE.accentHoverShade),
     '--theme-accent-rgb': rgbTriplet(accentRgb),
-    '--theme-dark-hover': rgba(accentRgb, 0.12),
-    '--theme-dark-selected': rgba(accentRgb, 0.18),
-    '--theme-dark-border': rgba(accentRgb, 0.34),
-    '--theme-dark-link': shadeHex(accent, 0.24),
+    '--theme-dark-hover': rgba(accentRgb, DARK_THEME_RECIPE.hoverAlpha),
+    '--theme-dark-selected': rgba(accentRgb, DARK_THEME_RECIPE.selectedAlpha),
+    '--theme-dark-border': rgba(accentRgb, DARK_THEME_RECIPE.borderAlpha),
+    '--theme-dark-link': shadeHex(accent, DARK_THEME_RECIPE.linkShade),
   };
 }
 
 function buildCheckVariables(customization: CheckThemeCustomization): Record<string, string> {
   const hue = customization.hue;
-  const accent = hslToHex(hue, 65, 50);
-  const accentRgb = hslToRgb(hue, 65, 50);
+  const accent = hslToHex(hue, CHECK_THEME_RECIPE.accentSaturation, CHECK_THEME_RECIPE.accentLightness);
+  const accentRgb = hslToRgb(hue, CHECK_THEME_RECIPE.accentSaturation, CHECK_THEME_RECIPE.accentLightness);
   return {
     '--theme-check-hue': `${hue}`,
     '--theme-check-accent': accent,
-    '--theme-check-accent-hover': hslToHex(hue, 65, 43),
-    '--theme-check-soft': hslToHex(hue, 72, 72),
-    '--theme-check-deep-text': hslToHex(hue, 54, 23),
-    '--theme-check-muted-text': rgba(hslToRgb(hue, 44, 34), 0.66),
-    '--theme-check-link': hslToHex(hue, 72, 41),
-    '--theme-check-success': hslToHex((hue + 136) % 360, 43, 41),
-    '--theme-check-gold': hslToHex((hue + 62) % 360, 72, 38),
-    '--theme-check-danger': hslToHex((hue + 162) % 360, 61, 58),
+    '--theme-check-accent-hover': hslToHex(hue, CHECK_THEME_RECIPE.accentSaturation, CHECK_THEME_RECIPE.accentHoverLightness),
+    '--theme-check-deep-text': hslToHex(hue, CHECK_THEME_RECIPE.deepTextSaturation, CHECK_THEME_RECIPE.deepTextLightness),
+    '--theme-check-muted-text': rgba(
+      hslToRgb(
+        hue,
+        CHECK_THEME_RECIPE.mutedTextSaturation,
+        CHECK_THEME_RECIPE.mutedTextLightness,
+      ),
+      CHECK_THEME_RECIPE.mutedTextAlpha,
+    ),
+    '--theme-check-link': hslToHex(hue, CHECK_THEME_RECIPE.linkSaturation, CHECK_THEME_RECIPE.linkLightness),
+    '--theme-check-success': hslToHex(
+      (hue + CHECK_THEME_RECIPE.successHueOffset) % 360,
+      CHECK_THEME_RECIPE.successSaturation,
+      CHECK_THEME_RECIPE.successLightness,
+    ),
     '--theme-accent-rgb': rgbTriplet(accentRgb),
   };
 }

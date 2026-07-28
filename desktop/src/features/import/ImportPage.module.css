@@ -10,6 +10,10 @@
   --import-cast-mapping-slot-height: 171px;
 }
 
+.import-hidden-input {
+  display: none;
+}
+
 /* ── Section header ── */
 
 .import-section-header {
@@ -272,6 +276,10 @@
   table-layout: auto;
 }
 
+.import-preview-table-container {
+  max-height: 220px;
+}
+
 .import-preview-table th {
   font-size: 11px;
   padding: 8px 10px;
@@ -318,6 +326,58 @@
   opacity: 0.45;
 }
 
+.import-issue-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-warning, #faa61a) 55%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-warning, #faa61a) 8%, var(--surface-panel));
+}
+
+.import-issue-summary {
+  margin-bottom: 10px;
+  color: var(--text-default);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.import-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.import-issue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface-panel);
+}
+
+.import-issue-text {
+  min-width: 0;
+  color: var(--accent-warning, #faa61a);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.import-issue-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
 .import-cell-empty {
   opacity: 0.35;
 }
@@ -331,6 +391,8 @@
 .import-raw-modal {
   display: flex;
   flex-direction: column;
+  width: min(1120px, calc(100vw - 48px));
+  max-width: 1120px;
   max-height: calc(100vh - 48px);
 }
 
@@ -397,6 +459,10 @@
 .import-raw-table tr:last-child th,
 .import-raw-table tr:last-child td {
   border-bottom: none;
+}
+
+.import-raw-row--warn td {
+  background: color-mix(in srgb, var(--accent-warning, #faa61a) 8%, var(--surface-panel));
 }
 
 .import-raw-table th:last-child,
@@ -501,6 +567,15 @@
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+  }
+
+  .import-issue-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .import-issue-delete-btn {
+    justify-content: center;
   }
 
   .import-submit-btn {

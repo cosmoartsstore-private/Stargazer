@@ -1,46 +1,30 @@
+import { getMsg } from '@/messages/getMsg';
+import type { MatchingTypeCode } from '@/common/types/sessionWorkflow';
+
+export {
+  MATCHING_TYPE_CODES,
+  type MatchingTypeCode,
+} from '@/common/types/sessionWorkflow';
+
 /**
  * マッチング形式の区分コード（仕様 4-1）。
  * 抽選条件で選択する M000～M003。
  */
 
-export const MATCHING_TYPE_CODES = [
-  'M000',
-  'M001',
-  'M002',
-  'M003',
-] as const;
-
-export type MatchingTypeCode = (typeof MATCHING_TYPE_CODES)[number];
-
-/** プルダウンに表示する区分コード */
-export const MATCHING_TYPE_CODES_SELECTABLE: readonly MatchingTypeCode[] = [
-  'M000',
-  'M001',
-  'M002',
-  'M003',
-];
-
-/** マッチング画面で選択できる方式。抽選のみは抽選画面だけで扱う。 */
-export const MATCHING_TYPE_CODES_FOR_MATCHING: readonly MatchingTypeCode[] = [
-  'M001',
-  'M002',
-  'M003',
-];
-
 /** プルダウン用ラベル */
 export const MATCHING_TYPE_LABELS: Record<MatchingTypeCode, string> = {
-  M000: '抽選のみ行う',
-  M001: 'ランダム',
-  M002: 'ローテーション',
-  M003: 'グループ制マッチング',
+  M000: getMsg('matchingTypeCodes.lotteryOnly'),
+  M001: getMsg('matchingTypeCodes.random'),
+  M002: getMsg('matchingTypeCodes.rotation'),
+  M003: getMsg('matchingTypeCodes.groupMatching'),
 };
 
 /** サマリーカード用の短縮ラベル */
 export const MATCHING_TYPE_SUMMARY_LABELS: Record<MatchingTypeCode, string> = {
-  M000: '抽選のみ',
-  M001: 'ランダム',
-  M002: 'ローテーション',
-  M003: 'グループ制',
+  M000: getMsg('matchingTypeCodes.lotteryOnlySummary'),
+  M001: getMsg('matchingTypeCodes.random'),
+  M002: getMsg('matchingTypeCodes.rotation'),
+  M003: getMsg('matchingTypeCodes.groupSummary'),
 };
 
 /** ランダム or ローテーション（テーブル数指定型）= M001, M002 */

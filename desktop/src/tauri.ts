@@ -1,38 +1,24 @@
-/**
- * Tauri の invoke を安全に使うためのラッパー。
- * ブラウザで直接開いた場合（npm run dev のみ）は invoke が undefined になるため、
- * ここで存在チェックしてエラーメッセージを出す。
- */
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CoreModule = { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } | any;
-
-import * as core from '@tauri-apps/api/core';
-
-const TAURI_REQUIRED_MSG =
-  'Tauri のウィンドウで実行してください。ブラウザで開いている場合は、npm run tauri:dev で起動してください。';
-
-function getInvoke(): (cmd: string, args?: Record<string, unknown>) => Promise<unknown> {
-  const mod = core as CoreModule;
-  const base = mod?.default ?? mod;
-  const fn = base != null && typeof (base as { invoke?: unknown }).invoke === 'function'
-    ? (base as { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }).invoke
-    : undefined;
-  if (typeof fn !== 'function') {
-    throw new Error(TAURI_REQUIRED_MSG);
+/** 外部URLをTauriではbackend経由、ブラウザ開発時は新しいタブで開く。 */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    await invoke<void>('open_external_url', { url });
+    return;
   }
-  return fn;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-/** Tauri の invoke。ブラウザのみで開いていると undefined になるため、このラッパー経由で呼ぶ。 */
-export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const fn = getInvoke();
-  return fn(cmd, args) as Promise<T>;
+/** StellaRecord連携先がこの端末で利用できるか確認する。ブラウザ実行時は利用不可とする。 */
+export async function isStellaRecordAvailable(): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>('check_stellarecord_available');
 }
 
-/** Tauri アプリ内で実行されているか。ブラウザで開いている場合は false。 */
-export function isTauri(): boolean {
-  if (typeof window === 'undefined') return false;
-  const w = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
-  return w.__TAURI__ != null || w.__TAURI_INTERNALS__ != null;
+/** 現在のStargazerをStellaRecordへ登録する。 */
+export async function registerToStellaRecord(): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('StellaRecordへの登録はデスクトップアプリでのみ利用できます。');
+  }
+  await invoke<void>('register_to_stellarecord');
 }

@@ -60,6 +60,14 @@
   white-space: nowrap;
 }
 
+.match-chip-ng-reason {
+  flex-basis: 100%;
+  color: var(--text-danger);
+  font-size: 10px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .match-chip-first {
   background: rgba(245, 196, 0, 0.18);
   border-color: rgba(245, 196, 0, 0.46);
@@ -136,6 +144,14 @@
   font-size: 9px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.applicant-assignment-ng-reason {
+  flex: 1 1 100%;
+  color: var(--text-danger);
+  font-size: 10px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .applicant-assignment-first {

@@ -5,14 +5,6 @@
    ======================================== */
 
 :root {
-  /* 固定列・固定行 */
-  --db-sticky-bg: #0a050e;
-  --db-sticky-bg-alt: #0a050e;
-  --db-sticky-bg-caution: #2a0808;
-  --db-sticky-shadow-right: 4px 0 12px rgba(0, 0, 0, 0.4);
-  --db-sticky-shadow-bottom: 0 4px 12px rgba(0, 0, 0, 0.4);
-
-
   /* アプリ共通の面・文字・状態色 */
   --surface-panel: rgba(0, 0, 0, 0.25);
   --surface-page: transparent;
@@ -22,8 +14,6 @@
   --surface-selected: rgba(255, 255, 255, 0.08);
   --surface-tab-hover: var(--surface-hover);
   --surface-subtle: rgba(0, 0, 0, 0.15);
-  --surface-sidebar: rgba(0, 0, 0, 0.2);
-
   --text-default: #dbdee1;
   --text-muted: rgba(255, 255, 255, 0.4);
   --text-link: #00a8fc;
@@ -35,10 +25,7 @@
   --accent-primary: #5865f2;
   --accent-success: #23a559;
   --accent-warning: #f0b232;
-  --accent-gold: #ffd700;
   --accent-danger: #ed4245;
-
-  /* 切り替えボタン色：dark=紫 / light=水色（テーマ別上書き） */
   --color-switch: #7c3aed;
 
   --border-default: rgba(255, 255, 255, 0.13);

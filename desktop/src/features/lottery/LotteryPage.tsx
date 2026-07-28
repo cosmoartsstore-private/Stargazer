@@ -1,131 +1,164 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
-import { ConfirmModal } from '@/components/ConfirmModal';
-import { CounterControl } from '@/components/CounterControl';
+// 抽選条件の編集と当選結果の抽選・保存・復元を行う画面を提供します。
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SessionWorkflowState } from '@/common/types/sessionWorkflow';
+import type { AppSelectOption } from '@/components/AppSelect';
+import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getCautionNGCastNames } from '@/features/matching/logics/caution-user';
-import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
-import { MATCHING_TYPE_CODES_SELECTABLE, MATCHING_TYPE_LABELS, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
-import { NgCastResultCell } from './components/NgCastResultCell';
-import { LotteryValidationPanel } from './components/LotteryValidationPanel';
-import { useLotteryValidation } from './hooks/useLotteryValidation';
-import {
-  formatSavedLotteryLabel,
-  shuffle,
-} from './services/lottery-draw';
+import { GuaranteedWinnerDialog } from './components/GuaranteedWinnerDialog';
+import { LotteryConditionPanel } from './components/LotteryConditionPanel';
+import { LotteryResultPanel } from './components/LotteryResultPanel';
+import { validateLotteryConditions } from './services/lottery-validation';
+import { drawLotteryWinners, formatSavedLotteryLabel } from './services/lottery-draw';
 import {
   buildLotteryPersistenceRows,
   restoreLotteryWinners,
-  summarizeLotteryPersistenceRows,
 } from './services/lottery-result-persistence';
 import { useAppContext } from '@/stores/AppContext';
 import {
-  getSavedLotteryResults,
   getLotteryResults,
+  getSavedLotteryResults,
   listSavedLotteryRuns,
   replaceLotteryResults,
+  restoreSavedLotteryRun,
   saveLotteryRun,
   type SavedLotteryRunRow,
 } from '@/db/repositories/lotteryRepository';
-import styles from './LotteryPage.module.css';
+import {
+  loadApplicants,
+  replaceApplicantGuarantees,
+} from '@/db/repositories/applicantRepository';
+import {
+  flushSessionWorkflowWrites,
+  getSessionWorkflowSnapshot,
+} from '@/db/repositories/sessionWorkflowRepository';
+import {
+  captureSessionWriteActivity,
+  getRequiredSessionContext,
+  isCurrentSessionContext,
+  isSessionRecoveryActive,
+  isSessionWriteActivityUnchanged,
+  runAsSessionRecovery,
+  waitForEventWritesToSettle,
+  waitForSessionWritesToSettle,
+} from '@/db/repositories/commandContext';
+import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 
-const GUARANTEED_WINNER_PREVIEW_LIMIT = 1;
-
 export const LotteryPage: React.FC = () => {
+  // セッション共有の応募者・条件・結果と、永続化世代の制御APIを取得する。
   const {
     setActivePage,
     applicants,
+    setApplicants,
     casts,
     currentWinners,
     setCurrentWinners,
     isLotteryResultCurrent,
     setIsLotteryResultCurrent,
-    guaranteedWinners,
-    setGuaranteedWinners,
-    setGlobalMatchingResult,
-    setGlobalTableSlots,
-    setGlobalMatchingError,
-    setIsMatchingLocked,
-    matchingTypeCode,
-    setMatchingTypeCode,
-    rotationCount,
-    setRotationCount,
-    totalTables,
-    setTotalTables,
-    usersPerTable,
-    setUsersPerTable,
-    castsPerRotation,
-    setCastsPerRotation,
-    allowM003EmptySeats,
-    setAllowM003EmptySeats,
-    m003SameDaySlotCount,
-    setM003SameDaySlotCount,
+    resetMatching,
+    sessionWorkflow,
+    updateSessionWorkflow,
+    hydrateSessionWorkflow,
     currentSessionTimestamp,
+    beginSessionUiMutation,
+    getSessionUiMutationGeneration,
+    isCurrentSessionUiMutation,
   } = useAppContext();
+  const {
+    matchingTypeCode,
+    lotteryCount,
+    rotationCount,
+    totalTables,
+    usersPerTable,
+    castsPerRotation,
+    allowM003EmptySeats,
+    m003SameDaySlotCount,
+  } = sessionWorkflow;
 
-  useEffect(() => {
-    if (!currentSessionTimestamp) return;
-    if (currentWinners.length > 0) return;
-    (async () => {
-      try {
-        const rows = await getLotteryResults();
-        if (rows.length === 0) return;
-        const restored = await restoreLotteryWinners(rows, applicants);
-        if (restored.length > 0) {
-          setCurrentWinners(restored);
-          setIsLotteryResultCurrent(true);
-          setGuaranteedWinners(restored.filter((winner) => winner.is_guaranteed));
-        }
-      } catch (e) {
-        console.warn('抽選結果の読み込みに失敗しました:', e);
-      }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSessionTimestamp, applicants.length]);
-
-  const allUsers = applicants;
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
 
-  const [lotteryCount, setLotteryCount] = useState(1);
+  // 確定当選者選択、上書き確認、保存済み結果、通知の画面状態を保持する。
   const [showGuaranteedSelect, setShowGuaranteedSelect] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [savedRuns, setSavedRuns] = useState<SavedLotteryRunRow[]>([]);
   const [selectedSavedRunId, setSelectedSavedRunId] = useState('');
   const [savingLotteryRun, setSavingLotteryRun] = useState(false);
   const [lotteryMessage, setLotteryMessage] = useState<string | null>(null);
+  const savedRunsLoadGenerationRef = useRef(0);
+  const guaranteedWinners = useMemo(
+    () => applicants.filter((applicant) => applicant.is_guaranteed),
+    [applicants],
+  );
 
+  // 保存済み結果はセッション書込が静止した時点だけ採用し、古い読込結果を破棄する。
   const refreshSavedRuns = useCallback(async () => {
+    const generation = savedRunsLoadGenerationRef.current + 1;
+    savedRunsLoadGenerationRef.current = generation;
     if (!currentSessionTimestamp) {
       setSavedRuns([]);
       setSelectedSavedRunId('');
       return;
     }
+    const context = getRequiredSessionContext();
     try {
-      const runs = await listSavedLotteryRuns();
-      setSavedRuns(runs);
-      setSelectedSavedRunId((current) => {
-        if (!current) return '';
-        return runs.some((run) => String(run.id) === current) ? current : '';
-      });
-    } catch (e) {
-      console.warn('保存済み抽選結果の読み込みに失敗しました:', e);
+      while (
+        savedRunsLoadGenerationRef.current === generation
+        && isCurrentSessionContext(context)
+      ) {
+        await Promise.all([
+          waitForEventWritesToSettle(context),
+          waitForSessionWritesToSettle(context),
+        ]);
+        if (
+          savedRunsLoadGenerationRef.current !== generation
+          || !isCurrentSessionContext(context)
+        ) return;
+        const writeActivity = captureSessionWriteActivity(context);
+        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
+        const runs = await listSavedLotteryRuns();
+        if (
+          savedRunsLoadGenerationRef.current !== generation
+          || !isCurrentSessionContext(context)
+        ) return;
+        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
+        setSavedRuns(runs);
+        setSelectedSavedRunId((current) => {
+          if (!current) return '';
+          return runs.some((run) => String(run.id) === current) ? current : '';
+        });
+        return;
+      }
+    } catch {
+      // 初期読込に失敗した場合は、保存済み結果一覧を空のまま保持する。
     }
   }, [currentSessionTimestamp]);
 
   useEffect(() => {
+    setSavingLotteryRun(false);
+    setShowGuaranteedSelect(false);
+    setConfirmReplace(false);
     void refreshSavedRuns();
+    return () => {
+      savedRunsLoadGenerationRef.current += 1;
+    };
   }, [refreshSavedRuns]);
 
+  // 抽選人数、保存済み選択肢、条件検証を現在のworkflowから導出する。
   const guaranteedCount = guaranteedWinners.length;
   const totalWinners = lotteryCount + guaranteedCount;
   const savedRunOptions: AppSelectOption[] = useMemo(
     () => savedRuns.map((run) => ({
       value: String(run.id),
-      label: `${run.label} / 合計 ${run.winner_count}名 / ${run.created_at}`,
+      label: getMsg('LotteryPage.savedRunOption', {
+        label: run.label,
+        winnerCount: run.winner_count,
+        createdAt: run.created_at,
+      }),
     })),
     [savedRuns],
   );
-  const validation = useLotteryValidation({
+  const validation = validateLotteryConditions({
     matchingTypeCode,
     totalWinners,
     lotteryCount,
@@ -139,130 +172,159 @@ export const LotteryPage: React.FC = () => {
   });
   const isLotteryOnlyMode = matchingTypeCode === 'M000';
 
-  const clearMatchingForConditionChange = useCallback(() => {
-    setGlobalMatchingResult(null);
-    setGlobalTableSlots(undefined);
-    setGlobalMatchingError(null);
-    setIsMatchingLocked(false);
-  }, [
-    setGlobalMatchingError,
-    setGlobalMatchingResult,
-    setGlobalTableSlots,
-    setIsMatchingLocked,
-  ]);
-
-  const markLotteryResultStale = useCallback(() => {
+  // 条件または確定当選者の変更時は、現在の抽選結果と後続マッチングを無効化する。
+  const invalidateInMemoryResult = () => {
     if (currentWinners.length > 0) {
       setIsLotteryResultCurrent(false);
     }
-    clearMatchingForConditionChange();
-  }, [clearMatchingForConditionChange, currentWinners.length, setIsLotteryResultCurrent]);
+    resetMatching();
+  };
 
-  const handleLotteryCountChange = useCallback((value: number) => {
-    if (lotteryCount === value) return;
-    setLotteryCount(value);
-    markLotteryResultStale();
-  }, [lotteryCount, markLotteryResultStale]);
+  // 保存失敗時は同じセッションの応募者・抽選結果・workflowを一組で復元する。
+  async function recoverPersistedLotteryState(
+    context: ReturnType<typeof getRequiredSessionContext>,
+  ): Promise<boolean> {
+    return runAsSessionRecovery(context, async () => {
+      // 後続操作が読込中に始まった場合は、その保存完了後の状態でもう一度同期する。
+      while (isCurrentSessionContext(context)) {
+        const generation = getSessionUiMutationGeneration();
+        await Promise.all([
+          waitForEventWritesToSettle(context),
+          waitForSessionWritesToSettle(context),
+        ]);
+        if (!isCurrentSessionContext(context)) return false;
+        if (!isCurrentSessionUiMutation(generation)) continue;
+        const writeActivity = captureSessionWriteActivity(context);
+        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
+        const [persistedApplicants, persistedRows, workflowSnapshot] = await Promise.all([
+          loadApplicants(),
+          getLotteryResults(),
+          getSessionWorkflowSnapshot(),
+        ]);
+        if (!isCurrentSessionContext(context)) return false;
+        if (!isCurrentSessionUiMutation(generation)) continue;
+        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
+        setApplicants(persistedApplicants);
+        setCurrentWinners(restoreLotteryWinners(persistedRows, persistedApplicants));
+        hydrateSessionWorkflow(workflowSnapshot);
+        resetMatching();
+        return true;
+      }
+      return false;
+    });
+  }
 
-  const handleMatchingTypeChange = useCallback((code: MatchingTypeCode) => {
-    if (matchingTypeCode === code) return;
-    setMatchingTypeCode(code);
-    markLotteryResultStale();
-  }, [markLotteryResultStale, matchingTypeCode, setMatchingTypeCode]);
-
-  const handleRotationCountChange = useCallback((value: number) => {
-    if (rotationCount === value) return;
-    setRotationCount(value);
-    markLotteryResultStale();
-  }, [markLotteryResultStale, rotationCount, setRotationCount]);
-
-  const handleTotalTablesChange = useCallback((value: number) => {
-    if (totalTables === value) return;
-    setTotalTables(value);
-    markLotteryResultStale();
-  }, [markLotteryResultStale, setTotalTables, totalTables]);
-
-  const handleUsersPerTableChange = useCallback((value: number) => {
-    if (usersPerTable === value) return;
-    setUsersPerTable(value);
-    markLotteryResultStale();
-  }, [markLotteryResultStale, setUsersPerTable, usersPerTable]);
-
-  const handleCastsPerRotationChange = useCallback((value: number) => {
-    if (castsPerRotation === value) return;
-    setCastsPerRotation(value);
-    markLotteryResultStale();
-  }, [castsPerRotation, markLotteryResultStale, setCastsPerRotation]);
-
-  const handleSameDaySlotCountChange = useCallback((value: number) => {
-    if (m003SameDaySlotCount === value) return;
-    setM003SameDaySlotCount(value);
-    markLotteryResultStale();
-  }, [markLotteryResultStale, m003SameDaySlotCount, setM003SameDaySlotCount]);
-
-  const handleAllowM003EmptySeatsToggle = useCallback(() => {
-    const next = !allowM003EmptySeats;
-    setAllowM003EmptySeats(next);
-    if (next && m003SameDaySlotCount < 1) {
-      setM003SameDaySlotCount(1);
+  // workflowは画面へ即時反映し、保存失敗時だけ永続状態へ戻す。
+  const commitWorkflowUpdate = (patch: Partial<SessionWorkflowState>) => {
+    const context = getRequiredSessionContext();
+    if (isSessionRecoveryActive(context)) {
+      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
+      return;
     }
-    markLotteryResultStale();
-  }, [
-    allowM003EmptySeats,
-    markLotteryResultStale,
-    m003SameDaySlotCount,
-    setAllowM003EmptySeats,
-    setM003SameDaySlotCount,
-  ]);
+    const generation = beginSessionUiMutation();
+    void updateSessionWorkflow(patch).catch(async () => {
+      if (!isCurrentSessionContext(context)) return;
+      try {
+        if (
+          await recoverPersistedLotteryState(context)
+          && isCurrentSessionUiMutation(generation)
+        ) {
+          setLotteryMessage(getMsg('LotteryPage.workflowSaveFailedRestored'));
+        }
+      } catch {
+        if (
+          isCurrentSessionContext(context)
+          && isCurrentSessionUiMutation(generation)
+        ) {
+          setLotteryMessage(getMsg('LotteryPage.workflowSaveFailedReloadRequired'));
+        }
+      }
+    });
+  };
 
+  // M003の当日枠を有効化する際は、最低1枠を同時に設定する。
+  const handleAllowM003EmptySeatsToggle = () => {
+    const next = !allowM003EmptySeats;
+    commitWorkflowUpdate({
+      allowM003EmptySeats: next,
+      m003SameDaySlotCount:
+        next && m003SameDaySlotCount < 1 ? 1 : m003SameDaySlotCount,
+    });
+  };
+
+  // 確定当選者の選択状態と条件欄の要約表示を組み立てる。
   const guaranteedIds = useMemo(
     () => new Set(guaranteedWinners.map((winner) => winner.x_id)),
     [guaranteedWinners],
   );
-  const guaranteedWinnerSummary = useMemo(
-    () => guaranteedWinners.map((winner) => winner.name || winner.x_id).join(', '),
-    [guaranteedWinners],
-  );
-  const visibleGuaranteedWinners = guaranteedWinners.slice(0, GUARANTEED_WINNER_PREVIEW_LIMIT);
-  const hiddenGuaranteedWinnerCount = Math.max(0, guaranteedWinners.length - visibleGuaranteedWinners.length);
-
-  const runLottery = () => {
-    const guaranteedIdSet = new Set(guaranteedWinners.map((winner) => winner.x_id));
-    const candidates = allUsers.filter((user) => !guaranteedIdSet.has(user.x_id));
-    const winners = shuffle(candidates).slice(0, lotteryCount);
-    const nextWinners = [
-      ...guaranteedWinners.map((winner) => ({ ...winner, is_guaranteed: true })),
-      ...winners.map((winner) => ({ ...winner, is_guaranteed: false })),
-    ];
-
+  // 抽選の純粋処理結果を先行表示し、対応する条件revisionと一緒に永続化する。
+  const runLottery = async () => {
+    if (!currentSessionTimestamp) return;
+    const context = getRequiredSessionContext();
+    if (isSessionRecoveryActive(context)) {
+      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
+      return;
+    }
+    const nextWinners = drawLotteryWinners(applicants, guaranteedWinners, lotteryCount);
+    const generation = beginSessionUiMutation();
     setCurrentWinners(nextWinners);
-    setIsLotteryResultCurrent(nextWinners.length > 0);
-    setGlobalMatchingResult(null);
-    setGlobalTableSlots(undefined);
-    setGlobalMatchingError(null);
-    setIsMatchingLocked(false);
+    // 新しい当選者を先に表示しても、DBへの全置換が終わるまでは保存・マッチング対象にしない。
+    setIsLotteryResultCurrent(false);
+    resetMatching();
     setConfirmReplace(false);
-
-    // Persist to the session DB. Re-running the lottery is intentionally a
-    // destructive replace; matching has nothing to persist because it is
-    // recomputed every time from this winner set + casts + settings.
-    if (currentSessionTimestamp) {
-      (async () => {
+    try {
+      // 条件保存を先に完了させ、抽選結果が対応するrevisionを同じ順序で確定する。
+      await flushSessionWorkflowWrites(context);
+      if (
+        !isCurrentSessionContext(context)
+        || !isCurrentSessionUiMutation(generation)
+      ) return;
+      const workflowSnapshot = await getSessionWorkflowSnapshot();
+      if (
+        !isCurrentSessionContext(context)
+        || !isCurrentSessionUiMutation(generation)
+      ) return;
+      const rows = buildLotteryPersistenceRows(nextWinners);
+      if (!isCurrentSessionUiMutation(generation)) return;
+      await replaceLotteryResults(rows, workflowSnapshot.conditionRevision, context);
+      if (
+        !isCurrentSessionContext(context)
+        || !isCurrentSessionUiMutation(generation)
+      ) return;
+      // 先行していた条件保存の完了通知が画面を古い結果扱いへ戻すため、
+      // 抽選結果のtransaction確定後に同じ入力を現行結果として確定し直す。
+      setCurrentWinners(nextWinners);
+      setIsLotteryResultCurrent(nextWinners.length > 0);
+      resetMatching();
+    } catch {
+      if (isCurrentSessionContext(context)) {
         try {
-          const rows = await buildLotteryPersistenceRows(nextWinners);
-          await replaceLotteryResults(rows);
-        } catch (e) {
-          console.error('抽選結果の保存に失敗しました:', e);
+          if (
+            await recoverPersistedLotteryState(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.runSaveFailedRestored'));
+          }
+        } catch {
+          if (
+            isCurrentSessionContext(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.runSaveFailedReloadRequired'));
+          }
         }
-      })();
+      }
     }
   };
 
+  // 当選者一覧へ抽選区分とNGキャスト表示を付加する。
   const resultRows = useMemo(
     () => currentWinners.map((winner) => ({
       ...winner,
-      lotteryType: guaranteedIds.has(winner.x_id) || winner.is_guaranteed ? '確定当選' : '抽選当選',
-      ngCastNames: getCautionNGCastNames(winner, casts, FIXED_NG_JUDGMENT_TYPE),
+      lotteryType: guaranteedIds.has(winner.x_id) || winner.is_guaranteed
+        ? getMsg('LotteryPage.guaranteedWinnerType')
+        : getMsg('LotteryPage.drawnWinnerType'),
+      ngCastNames: getCautionNGCastNames(winner, casts),
     })),
     [casts, currentWinners, guaranteedIds],
   );
@@ -270,441 +332,292 @@ export const LotteryPage: React.FC = () => {
   const hasStaleLotteryResult = currentWinners.length > 0 && !isLotteryResultCurrent;
   const canProceedToMatching = !isLotteryOnlyMode && resultRows.length > 0 && isLotteryResultCurrent && validation.errors.length === 0;
 
-  const handleSaveLotteryRun = useCallback(async () => {
+  // 現行抽選結果を履歴として保存し、選択肢を再取得する。
+  const handleSaveLotteryRun = async () => {
     if (currentWinners.length === 0 || savingLotteryRun || !isLotteryResultCurrent) return;
+    const context = getRequiredSessionContext();
+    if (isSessionRecoveryActive(context)) {
+      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
+      return;
+    }
     setSavingLotteryRun(true);
     try {
-      const rows = await buildLotteryPersistenceRows(currentWinners);
-      if (rows.length === 0) {
-        setLotteryMessage('保存できる抽選結果がありません。');
-        return;
-      }
-      const summary = summarizeLotteryPersistenceRows(rows);
-      const runId = await saveLotteryRun({
-        label: formatSavedLotteryLabel(summary.winnerCount),
-        matchingTypeCode,
-        lotteryCount: summary.lotteryCount,
-        guaranteedCount: summary.guaranteedCount,
-        rows,
-      });
-      await replaceLotteryResults(rows);
+      await flushSessionWorkflowWrites(context);
+      if (!isCurrentSessionContext(context)) return;
+      const runId = await saveLotteryRun(formatSavedLotteryLabel(currentWinners.length), context);
+      if (!isCurrentSessionContext(context)) return;
       await refreshSavedRuns();
+      if (!isCurrentSessionContext(context)) return;
       setSelectedSavedRunId(String(runId));
-      setLotteryMessage('抽選結果をDBに保存しました。');
-    } catch (e) {
-      console.error('抽選結果の保存に失敗しました:', e);
-      setLotteryMessage('抽選結果の保存に失敗しました。');
+      setLotteryMessage(getMsg('LotteryPage.savedSuccessfully'));
+    } catch {
+      if (isCurrentSessionContext(context)) {
+        setLotteryMessage(getMsg('LotteryPage.saveFailed'));
+      }
     } finally {
-      setSavingLotteryRun(false);
+      if (isCurrentSessionContext(context)) {
+        setSavingLotteryRun(false);
+      }
     }
-  }, [
-    currentWinners,
-    isLotteryResultCurrent,
-    matchingTypeCode,
-    refreshSavedRuns,
-    savingLotteryRun,
-  ]);
+  };
 
-  const handleLoadSavedLotteryRun = useCallback(async () => {
+  // 保存済みスナップショットの件数を確認し、現行結果と確定当選者へ復元する。
+  const handleLoadSavedLotteryRun = async () => {
     const runId = Number(selectedSavedRunId);
     if (!Number.isFinite(runId) || runId <= 0) return;
+    const context = getRequiredSessionContext();
+    if (isSessionRecoveryActive(context)) {
+      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
+      return;
+    }
+    const generation = beginSessionUiMutation();
     try {
+      await flushSessionWorkflowWrites(context);
+      const workflowSnapshot = await getSessionWorkflowSnapshot();
+      if (
+        !isCurrentSessionContext(context)
+        || !isCurrentSessionUiMutation(generation)
+      ) return;
       const rows = await getSavedLotteryResults(runId);
-      const restored = await restoreLotteryWinners(rows, applicants);
+      if (
+        !isCurrentSessionContext(context)
+        || !isCurrentSessionUiMutation(generation)
+      ) return;
+      const selected = savedRuns.find((run) => run.id === runId);
+      if (
+        !selected
+        || rows.length !== selected.winner_count
+        || rows.filter((row) => row.is_guaranteed === 1).length !== selected.guaranteed_count
+      ) {
+        throw new Error('保存済み当選者スナップショットの件数が一致しません。');
+      }
+      const restored = restoreLotteryWinners(rows, applicants);
       if (restored.length === 0) {
-        setLotteryMessage('選択した抽選結果を復元できませんでした。');
+        setLotteryMessage(getMsg('LotteryPage.savedRunEmpty'));
         return;
       }
-      setCurrentWinners(restored);
-      setGuaranteedWinners(restored.filter((winner) => winner.is_guaranteed));
-      setGlobalMatchingResult(null);
-      setGlobalTableSlots(undefined);
-      setGlobalMatchingError(null);
-      setIsMatchingLocked(false);
-      await replaceLotteryResults(await buildLotteryPersistenceRows(restored));
-      const selected = savedRuns.find((run) => run.id === runId);
-      if (selected && MATCHING_TYPE_CODES_SELECTABLE.includes(selected.matching_type_code as MatchingTypeCode)) {
-        setMatchingTypeCode(selected.matching_type_code as MatchingTypeCode);
-        setLotteryCount(Math.max(1, selected.lottery_count));
+      const persistenceRows = buildLotteryPersistenceRows(restored);
+      // ここから現行抽選結果を置換するため、完了までは旧結果の保存とマッチングを止める。
+      setIsLotteryResultCurrent(false);
+      resetMatching();
+      const restoredState = await restoreSavedLotteryRun(
+        runId,
+        workflowSnapshot.conditionRevision,
+        context,
+      );
+      if (!isCurrentSessionContext(context)) return;
+      if (!isCurrentSessionUiMutation(generation)) {
+        await recoverPersistedLotteryState(context);
+        return;
       }
-      setLotteryMessage(`${selected?.label ?? '保存済み抽選結果'}を選択しました。`);
-      setIsLotteryResultCurrent(true);
-    } catch (e) {
-      console.error('保存済み抽選結果の選択に失敗しました:', e);
-      setLotteryMessage('保存済み抽選結果の選択に失敗しました。');
+
+      const guaranteedIdSet = new Set(
+        persistenceRows
+          .filter((row) => row.is_guaranteed)
+          .map((row) => row.x_id),
+      );
+      setApplicants((currentApplicants) => currentApplicants.map((applicant) => ({
+        ...applicant,
+        is_guaranteed: guaranteedIdSet.has(applicant.x_id),
+      })));
+      setCurrentWinners(restored);
+      hydrateSessionWorkflow({
+        state: {
+          ...workflowSnapshot.state,
+          matchingTypeCode: restoredState.matchingTypeCode,
+          lotteryCount: restoredState.lotteryCount,
+        },
+        isLotteryResultCurrent: true,
+      });
+      resetMatching();
+      setLotteryMessage(getMsg('LotteryPage.savedRunOpened', { label: selected.label }));
+    } catch {
+      if (isCurrentSessionContext(context)) {
+        try {
+          if (
+            await recoverPersistedLotteryState(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.openSavedRunFailedRestored'));
+          }
+        } catch {
+          if (
+            isCurrentSessionContext(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.openSavedRunFailedReloadRequired'));
+          }
+        }
+      }
     }
-  }, [
-    applicants,
-    savedRuns,
-    selectedSavedRunId,
-    setCurrentWinners,
-    setGlobalMatchingError,
-    setGlobalMatchingResult,
-    setGlobalTableSlots,
-    setIsMatchingLocked,
-    setIsLotteryResultCurrent,
-    setMatchingTypeCode,
-  ]);
+  };
+
+  // 確定当選者を先行反映し、保存失敗時はセッション全体を復元する。
+  const handleGuaranteedToggle = async (xId: string) => {
+    const context = getRequiredSessionContext();
+    if (isSessionRecoveryActive(context)) {
+      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
+      return;
+    }
+    const nextGuaranteedXIds = guaranteedIds.has(xId)
+      ? [...guaranteedIds].filter((id) => id !== xId)
+      : [...guaranteedIds, xId];
+    const generation = beginSessionUiMutation();
+    const nextGuaranteedIdSet = new Set(nextGuaranteedXIds);
+    setApplicants(applicants.map((applicant) => ({
+      ...applicant,
+      is_guaranteed: nextGuaranteedIdSet.has(applicant.x_id),
+    })));
+    invalidateInMemoryResult();
+    try {
+      await replaceApplicantGuarantees(nextGuaranteedXIds, context);
+    } catch {
+      if (isCurrentSessionContext(context)) {
+        try {
+          if (
+            await recoverPersistedLotteryState(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.guaranteedSaveFailedRestored'));
+          }
+        } catch {
+          if (
+            isCurrentSessionContext(context)
+            && isCurrentSessionUiMutation(generation)
+          ) {
+            setLotteryMessage(getMsg('LotteryPage.guaranteedSaveFailedReloadRequired'));
+          }
+        }
+      }
+    }
+  };
+
+  // JSXから利用する条件変更とダイアログ操作を名前付きhandlerへ集約する。
+  const handleLotteryCountChange = (value: number) => commitWorkflowUpdate({ lotteryCount: value });
+  const handleRotationCountChange = (value: number) => commitWorkflowUpdate({ rotationCount: value });
+  const handleTotalTablesChange = (value: number) => commitWorkflowUpdate({ totalTables: value });
+  const handleUsersPerTableChange = (value: number) => commitWorkflowUpdate({ usersPerTable: value });
+  const handleCastsPerRotationChange = (value: number) => commitWorkflowUpdate({ castsPerRotation: value });
+  const handleSameDaySlotCountChange = (value: number) => commitWorkflowUpdate({ m003SameDaySlotCount: value });
+  const handleMatchingTypeChange = (code: SessionWorkflowState['matchingTypeCode']) => {
+    commitWorkflowUpdate({ matchingTypeCode: code });
+  };
+  const handleOpenGuaranteedSelect = () => {
+    setShowGuaranteedSelect(true);
+  };
+
+  const handleCloseGuaranteedSelect = () => {
+    setShowGuaranteedSelect(false);
+  };
+
+  const handleRunLotteryClick = () => {
+    if (currentWinners.length > 0) {
+      setConfirmReplace(true);
+      return;
+    }
+    void runLottery();
+  };
+
+  const handleLoadSavedLotteryRunClick = () => {
+    void handleLoadSavedLotteryRun();
+  };
+
+  const handleSaveLotteryRunClick = () => {
+    void handleSaveLotteryRun();
+  };
+
+  const handleNavigateToMatching = () => {
+    setActivePage('matching');
+  };
+
+  const handleConfirmReplace = () => {
+    void runLottery();
+  };
+
+  const handleCancelReplace = () => {
+    setConfirmReplace(false);
+  };
+
+  const handleCloseLotteryMessage = () => {
+    setLotteryMessage(null);
+  };
 
   return (
-    <div className={styles.lotteryScreen}>
+    <>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>抽選</h1>
-        <p className={shared.pageHeaderSubtitle}>
-          確定当選者と当選人数を設定し、抽選結果を確認してからマッチングへ進みます。
-        </p>
+        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('LotteryPage.pageTitle')}</h1>
+        <p className={shared.pageHeaderSubtitle}>{getMsg('LotteryPage.pageDescription')}</p>
       </header>
 
-      <section className={`${shared.sectionBlock} ${styles.workflowConditionBlock}`}>
-        <div className={styles.workflowSectionHeader}>
-          <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>抽選設定</h2>
-          <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-            当選者数とマッチング条件をまとめて設定し、右側のステータスでエラーや警告を確認します。
-          </p>
-        </div>
+      <LotteryConditionPanel
+        matchingTypeCode={matchingTypeCode}
+        lotteryCount={lotteryCount}
+        totalWinners={totalWinners}
+        guaranteedWinners={guaranteedWinners}
+        rotationCount={rotationCount}
+        totalTables={totalTables}
+        usersPerTable={usersPerTable}
+        castsPerRotation={castsPerRotation}
+        allowM003EmptySeats={allowM003EmptySeats}
+        m003SameDaySlotCount={m003SameDaySlotCount}
+        validation={validation}
+        onLotteryCountChange={handleLotteryCountChange}
+        onOpenGuaranteedSelect={handleOpenGuaranteedSelect}
+        onMatchingTypeChange={handleMatchingTypeChange}
+        onRotationCountChange={handleRotationCountChange}
+        onTotalTablesChange={handleTotalTablesChange}
+        onUsersPerTableChange={handleUsersPerTableChange}
+        onCastsPerRotationChange={handleCastsPerRotationChange}
+        onAllowM003EmptySeatsToggle={handleAllowM003EmptySeatsToggle}
+        onSameDaySlotCountChange={handleSameDaySlotCountChange}
+        onRunLottery={handleRunLotteryClick}
+      />
 
-        <div className={styles.workflowConditionLayout}>
-          <div className={styles.workflowConditionForm}>
-            <div className={styles.workflowColumnHeader}>
-              <strong>条件入力</strong>
-              <span>抽選人数とマッチングに使う前提条件を設定します。</span>
-            </div>
-            <div className={styles.workflowFormGrid}>
-              <label className={shared.formGroup}>
-                <span className={shared.formLabel}>当選人数</span>
-                <CounterControl
-                  label="当選人数"
-                  value={lotteryCount}
-                  min={1}
-                  onChange={handleLotteryCountChange}
-                />
-              </label>
-
-              <div className={styles.workflowInlineCard}>
-                <div className={styles.workflowInlineCard__header}>
-                  <strong>確定当選者</strong>
-                  <span className={styles.workflowInlineCard__meta}>合計当選者 {totalWinners} 名</span>
-                  <button type="button" className={shared.btnSecondary} onClick={() => setShowGuaranteedSelect(true)}>
-                    選択
-                  </button>
-                </div>
-                <div className={styles.workflowInlineCard__body}>
-                  <div className={styles.workflowInlineCard__winnerList} title={guaranteedWinnerSummary || undefined}>
-                    {guaranteedWinners.length > 0
-                      ? visibleGuaranteedWinners.map((winner) => {
-                          const label = winner.name || winner.x_id;
-                          return (
-                            <span
-                              key={winner.x_id}
-                              className={styles.workflowInlineCard__winnerChip}
-                              title={`${label} (${winner.x_id})`}
-                            >
-                              {label}
-                            </span>
-                          );
-                        })
-                      : '未設定'}
-                  </div>
-                  {hiddenGuaranteedWinnerCount > 0 && (
-                    <button
-                      type="button"
-                      className={`${styles.workflowInlineCard__winnerChip} ${styles.workflowInlineCard__winnerChipMore}`}
-                      title={guaranteedWinnerSummary}
-                      aria-label={`非表示の確定当選者 ${hiddenGuaranteedWinnerCount} 名を確認する`}
-                      onClick={() => setShowGuaranteedSelect(true)}
-                    >
-                      +{hiddenGuaranteedWinnerCount}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <label className={`${shared.formGroup} ${styles.workflowFormWide}`}>
-                <span className={shared.formLabel}>マッチング方式</span>
-                <div className={styles.matchingTypeOptions}>
-                  {MATCHING_TYPE_CODES_SELECTABLE.map((code) => (
-                    <button
-                      key={code}
-                      type="button"
-                      className={`${styles.matchingTypeOption}${matchingTypeCode === code ? ` ${styles.matchingTypeOptionSelected}` : ''}`}
-                      onClick={() => handleMatchingTypeChange(code)}
-                    >
-                      {MATCHING_TYPE_LABELS[code]}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <div className={styles.workflowVariableSettings}>
-                {isLotteryOnlyMode ? (
-                  <div className={`${styles.m003SettingsSlot} ${styles.m003SettingsSlotInactive} ${styles.workflowLotteryOnlySlot}`}>
-                    <div className={styles.m003SettingsPlaceholder}>
-                      抽選のみ行うため、ラウンド数・テーブル数・キャスト割り当て条件は使用しません。
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <label className={shared.formGroup}>
-                      <span className={shared.formLabel}>ラウンド数</span>
-                      <CounterControl
-                        label="ラウンド数"
-                        value={rotationCount}
-                        min={1}
-                        onChange={handleRotationCountChange}
-                      />
-                    </label>
-
-                    <label className={shared.formGroup}>
-                      <span className={shared.formLabel}>総テーブル数</span>
-                      <CounterControl
-                        label="総テーブル数"
-                        value={totalTables}
-                        min={1}
-                        onChange={handleTotalTablesChange}
-                      />
-                    </label>
-
-                    <div className={`${styles.m003SettingsSlot}${matchingTypeCode === 'M003' ? '' : ` ${styles.m003SettingsSlotInactive}`}`}>
-                      {matchingTypeCode === 'M003' ? (
-                        <>
-                          <div className={styles.m003SettingsGrid}>
-                            <label className={shared.formGroup}>
-                              <span className={shared.formLabel}>1テーブルあたりのゲスト数</span>
-                              <CounterControl
-                                label="1テーブルあたりのゲスト数"
-                                value={usersPerTable}
-                                min={1}
-                                onChange={handleUsersPerTableChange}
-                              />
-                            </label>
-
-                            <label className={shared.formGroup}>
-                              <span className={shared.formLabel}>1ローテあたりのキャスト数</span>
-                              <CounterControl
-                                label="1ローテあたりのキャスト数"
-                                value={castsPerRotation}
-                                min={1}
-                                onChange={handleCastsPerRotationChange}
-                              />
-                            </label>
-                          </div>
-
-                          <div className={styles.sameDaySlotPanel}>
-                            <div className={shared.formGroup}>
-                              <span className={shared.formLabel}>当日枠を含める</span>
-                              <button
-                                type="button"
-                                className={`${styles.workflowSwitch}${allowM003EmptySeats ? ` ${styles.workflowSwitchOn}` : ''}`}
-                                role="switch"
-                                aria-checked={allowM003EmptySeats}
-                                onClick={handleAllowM003EmptySeatsToggle}
-                              >
-                                <span className={styles.workflowSwitch__knob} />
-                                <span>{allowM003EmptySeats ? '含める' : '含めない'}</span>
-                              </button>
-                            </div>
-
-                            <label className={`${styles.sameDaySlotControl}${allowM003EmptySeats ? '' : ` ${styles.sameDaySlotControlDisabled}`}`}>
-                              <span>当日枠数</span>
-                              <CounterControl
-                                label="当日枠数"
-                                value={m003SameDaySlotCount}
-                                min={allowM003EmptySeats ? 1 : 0}
-                                disabled={!allowM003EmptySeats}
-                                className={styles.sameDaySlotCounter}
-                                onChange={handleSameDaySlotCountChange}
-                              />
-                            </label>
-                          </div>
-                        </>
-                      ) : (
-                        <div className={styles.m003SettingsPlaceholder}>
-                          グループ制マッチングを選択すると、テーブル単位の詳細条件を編集できます。
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <aside className={styles.workflowConditionStatus}>
-            <LotteryValidationPanel
-              validation={validation}
-              title="設定ステータス"
-              description="この条件で抽選を実行できるかを確認します。"
-              onRunClick={() => {
-                if (currentWinners.length > 0) {
-                  setConfirmReplace(true);
-                  return;
-                }
-                runLottery();
-              }}
-            />
-          </aside>
-        </div>
-      </section>
-
-      <section className={`${shared.sectionBlock} ${styles.workflowResultSection}`}>
-        <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
-          <div>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>当選者リスト</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-              抽選結果はDBに保存できます。保存済みの結果は後から選択し直せます。
-            </p>
-          </div>
-          {ngWinnerCount > 0 && (
-            <span className={styles.workflowResultNgSummary}>
-              NGキャストあり {ngWinnerCount} 名
-            </span>
-          )}
-        </div>
-
-        <div className={styles.workflowResultToolbar}>
-          <div className={styles.workflowSavedResultControl}>
-            <label className={`${shared.formGroup} ${styles.workflowSavedResultSelect}`}>
-              <span className={shared.formLabel}>保存済み抽選結果</span>
-              <AppSelect
-                value={selectedSavedRunId}
-                onValueChange={setSelectedSavedRunId}
-                options={savedRunOptions}
-                placeholder={savedRuns.length === 0 ? '保存済み結果はありません' : '保存済み結果を選択'}
-                disabled={savedRuns.length === 0}
-              />
-            </label>
-            <button
-              type="button"
-              className={shared.btnSecondary}
-              disabled={!selectedSavedRunId}
-              onClick={() => { void handleLoadSavedLotteryRun(); }}
-            >
-              保存済み結果を開く
-            </button>
-          </div>
-          <div className={styles.workflowResultToolbar__actions}>
-            <button
-              type="button"
-              className={shared.btnPrimary}
-              disabled={resultRows.length === 0 || savingLotteryRun || hasStaleLotteryResult}
-              onClick={() => { void handleSaveLotteryRun(); }}
-            >
-              {savingLotteryRun ? '保存中...' : '抽選結果保存'}
-            </button>
-            {!isLotteryOnlyMode && (
-              <button
-                type="button"
-                className={shared.btnPrimary}
-                disabled={!canProceedToMatching}
-                title={hasStaleLotteryResult ? '条件変更後は抽選を再実行してください。' : undefined}
-                onClick={() => setActivePage('matching')}
-              >
-                マッチングへ
-              </button>
-            )}
-          </div>
-        </div>
-        {hasStaleLotteryResult && (
-          <p className={styles.workflowResultNotice}>
-            抽選条件またはマッチング条件が変更されています。現在の条件でマッチングへ進むには、抽選を再実行してください。
-          </p>
-        )}
-
-        <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 840 }}>
-            <thead>
-              <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
-                <th className={shared.tableHeaderCell}>ユーザー</th>
-                <th className={shared.tableHeaderCell}>X ID</th>
-                <th className={shared.tableHeaderCell}>区分</th>
-                <th className={shared.tableHeaderCell}>希望キャスト</th>
-                <th className={shared.tableHeaderCell}>NGキャスト</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultRows.length === 0 && (
-                <tr>
-                  <td className={shared.tableCell} colSpan={5} style={{ textAlign: 'center' }}>
-                    抽選結果はまだありません
-                  </td>
-                </tr>
-              )}
-              {resultRows.map((row) => (
-                <tr key={row.x_id}>
-                  <td className={shared.tableCell}>{row.name}</td>
-                  <td className={shared.tableCell}>{row.x_id}</td>
-                  <td className={shared.tableCell}>{row.lotteryType}</td>
-                  <td className={shared.tableCell}>{row.casts.join(', ') || '未設定'}</td>
-                  <td className={shared.tableCell}>
-                    <NgCastResultCell ngCastNames={row.ngCastNames} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <LotteryResultPanel
+        resultRows={resultRows}
+        ngWinnerCount={ngWinnerCount}
+        selectedSavedRunId={selectedSavedRunId}
+        onSelectedSavedRunIdChange={setSelectedSavedRunId}
+        savedRunOptions={savedRunOptions}
+        hasSavedRuns={savedRuns.length > 0}
+        savingLotteryRun={savingLotteryRun}
+        hasStaleLotteryResult={hasStaleLotteryResult}
+        isLotteryOnlyMode={isLotteryOnlyMode}
+        canProceedToMatching={canProceedToMatching}
+        onLoadSavedLotteryRun={handleLoadSavedLotteryRunClick}
+        onSaveLotteryRun={handleSaveLotteryRunClick}
+        onNavigateToMatching={handleNavigateToMatching}
+      />
 
       {showGuaranteedSelect && (
-        <ConfirmModal
-          type="alert"
-          title="確定当選者の選択"
-          message={`現在 ${guaranteedWinners.length} 名を確定当選者として設定しています。合計当選者数は ${totalWinners} 名です。`}
-          confirmLabel="閉じる"
-          size="extraWide"
-          contentClassName={styles.guaranteedSelectModalContent}
-          onConfirm={() => setShowGuaranteedSelect(false)}
-        >
-          <div className={styles.guaranteedSelectModalList}>
-            <div className={`${styles.guaranteedSelectModalList__scroll} ${shared.customScrollbar}`}>
-              {allUsers.map((user) => {
-                const isSelected = guaranteedIds.has(user.x_id);
-                const displayName = user.name || user.x_id;
-                return (
-                  <button
-                    key={user.x_id}
-                    type="button"
-                    className={`${styles.guaranteedSelectModalList__item}${isSelected ? ` ${styles.guaranteedSelectModalList__itemSelected}` : ''}`}
-                    title={`${displayName}\n${user.x_id}`}
-                    onClick={() => {
-                        const nextGuaranteed = isSelected
-                          ? guaranteedWinners.filter((winner) => winner.x_id !== user.x_id)
-                          : [...guaranteedWinners, user];
-                        setGuaranteedWinners(nextGuaranteed);
-                        markLotteryResultStale();
-                    }}
-                  >
-                    <span className={styles.guaranteedSelectModalList__check}>{isSelected ? '選択中' : '未選択'}</span>
-                    <span className={styles.guaranteedSelectModalList__name}>{displayName}</span>
-                    <span className={styles.guaranteedSelectModalList__id}>{user.x_id}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </ConfirmModal>
+        <GuaranteedWinnerDialog
+          applicants={applicants}
+          guaranteedIds={guaranteedIds}
+          guaranteedCount={guaranteedCount}
+          totalWinners={totalWinners}
+          onClose={handleCloseGuaranteedSelect}
+          onToggle={handleGuaranteedToggle}
+        />
       )}
 
       {confirmReplace && (
-        <ConfirmModal
-          type="confirm"
-          title="抽選結果の上書き"
-          message="現在の抽選結果を上書きします。よろしいですか。"
-          confirmLabel="上書きする"
-          cancelLabel="キャンセル"
-          onConfirm={runLottery}
-          onCancel={() => setConfirmReplace(false)}
+        <ConfirmDialog
+          title={getMsg('LotteryPage.replaceResultTitle')}
+          message={getMsg('LotteryPage.replaceResultMessage')}
+          confirmLabel={getMsg('LotteryPage.replaceResultConfirm')}
+          cancelLabel={getMsg('common.cancel')}
+          onConfirm={handleConfirmReplace}
+          onCancel={handleCancelReplace}
         />
       )}
       {lotteryMessage && (
-        <ConfirmModal
-          type="alert"
-          title="抽選結果"
+        <NoticeDialog
+          title={getMsg('LotteryPage.resultDialogTitle')}
           message={lotteryMessage}
-          confirmLabel="閉じる"
-          onConfirm={() => setLotteryMessage(null)}
+          closeLabel={getMsg('common.close')}
+          onClose={handleCloseLotteryMessage}
         />
       )}
-    </div>
+    </>
   );
 };

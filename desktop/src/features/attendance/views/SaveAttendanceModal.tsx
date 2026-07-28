@@ -1,53 +1,44 @@
-import { useMemo, useState } from 'react';
+// 出欠記録の日付と参加キャストを確認して保存するモーダルを表示する。
+
+import { useId, useMemo, useState, type ChangeEvent } from 'react';
 import { AppDialog } from '@/components/AppDialog';
 import type { CastBean } from '@/common/types/entities';
-import { CalendarDays } from '@/common/icons';
+import { CalendarDays } from 'lucide-react';
+import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../AttendancePage.module.css';
-
-const DATE_VALUE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
-
-function pad2(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
-function formatDateValue(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-function parseRecordDate(value: string): Date | null {
-  if (!DATE_VALUE_PATTERN.test(value)) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-  return date;
-}
-
-function buildCalendarDays(viewDate: Date): Date[] {
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const first = new Date(year, month, 1);
-  const start = new Date(year, month, 1 - first.getDay());
-  return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
-}
-
-function formatRecordDateInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-}
+import {
+  buildCalendarDays,
+  formatRecordDateInput,
+  formatRecordDateValue,
+  hasRecordDateFormat,
+  parseRecordDate,
+} from '../models/recordDate';
+import type { AttendanceDateRecordStatus } from '../models/types';
 
 interface SaveAttendanceModalProps {
   presentCasts: CastBean[];
   presentCount: number;
   saving: boolean;
   recordDate: string;
-  dateHasRecord: boolean;
+  dateRecordStatus: AttendanceDateRecordStatus;
   onClose: () => void;
   onRecordDateChange: (value: string) => void;
   onSave: () => Promise<void>;
+}
+
+interface CalendarDayButtonProps {
+  date: Date;
+  className: string;
+  ariaLabel: string;
+  selected: boolean;
+  onSelect: (date: Date) => void;
+}
+
+function CalendarDayButton({ date, className, ariaLabel, selected, onSelect }: CalendarDayButtonProps) {
+  const handleClick = () => onSelect(date);
+
+  return <button type="button" className={className} aria-label={ariaLabel} aria-pressed={selected} onClick={handleClick}>{date.getDate()}</button>;
 }
 
 export function SaveAttendanceModal({
@@ -55,34 +46,74 @@ export function SaveAttendanceModal({
   presentCount,
   saving,
   recordDate,
-  dateHasRecord,
+  dateRecordStatus,
   onClose,
   onRecordDateChange,
   onSave,
 }: SaveAttendanceModalProps) {
-  const canSave = DATE_VALUE_PATTERN.test(recordDate);
+  // 入力日付とカレンダー表示から、保存・選択に必要な表示値を導出する。
+  const canSave = hasRecordDateFormat(recordDate)
+    && (dateRecordStatus === 'absent' || dateRecordStatus === 'exists');
   const parsedRecordDate = parseRecordDate(recordDate);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => parsedRecordDate ?? new Date());
+  const recordDateInputId = useId();
+  const calendarPanelId = useId();
   const calendarDays = useMemo(() => buildCalendarDays(viewDate), [viewDate]);
-  const selectedDateValue = parsedRecordDate ? formatDateValue(parsedRecordDate) : '';
+  const selectedDateValue = parsedRecordDate ? formatRecordDateValue(parsedRecordDate) : '';
   const currentMonth = viewDate.getMonth();
+  const weekdayLabels = getMsg('SaveAttendanceModal.weekdays').split(',');
+  const recordStatusMessage = dateRecordStatus === 'exists'
+    ? getMsg('SaveAttendanceModal.overwriteNote')
+    : dateRecordStatus === 'checking'
+      ? getMsg('SaveAttendanceModal.checkingRecord')
+      : dateRecordStatus === 'failed'
+        ? getMsg('SaveAttendanceModal.recordCheckFailed')
+        : null;
+  const saveButtonLabel = saving
+    ? getMsg('common.saving')
+    : dateRecordStatus === 'exists'
+      ? getMsg('SaveAttendanceModal.overwriteSave')
+      : getMsg('common.save');
 
+  // 日付入力、カレンダー、保存ボタンのUIイベント。
   const handleSelectDate = (date: Date) => {
-    onRecordDateChange(formatDateValue(date));
+    onRecordDateChange(formatRecordDateValue(date));
     setViewDate(date);
     setCalendarOpen(false);
   };
 
   const shiftMonth = (delta: number) => {
-    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+    setViewDate((current) => new Date(
+      current.getFullYear(),
+      current.getMonth() + delta,
+      1,
+    ));
   };
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose();
+  };
+
+  const handleRecordDateChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onRecordDateChange(formatRecordDateInput(event.target.value));
+  };
+
+  const handleToggleCalendar = () => {
+    const nextDate = parseRecordDate(recordDate);
+    if (nextDate) setViewDate(nextDate);
+    setCalendarOpen((open) => !open);
+  };
+
+  const handlePreviousMonth = () => shiftMonth(-1);
+  const handleNextMonth = () => shiftMonth(1);
+  const handleSaveClick = () => { void onSave(); };
 
   return (
     <AppDialog
       open
-      onOpenChange={(open) => { if (!open) onClose(); }}
-      title="出席を記録する"
+      onOpenChange={handleOpenChange}
+      title={getMsg('SaveAttendanceModal.dialogTitle')}
       showClose
       useDefaultContentClass={false}
       className={styles.saveModalPanel}
@@ -92,55 +123,32 @@ export function SaveAttendanceModal({
     >
       <div className={styles.saveModalBody}>
         <div className={styles.saveModalCol}>
-          <span className={styles.saveModalColLabel}>記録日</span>
+          <label className={styles.saveModalColLabel} htmlFor={recordDateInputId}>{getMsg('SaveAttendanceModal.recordDate')}</label>
           <div className={styles.recordDateField}>
             <CalendarDays size={16} className={styles.recordDateIcon} aria-hidden />
-            <input
-              type="text"
-              inputMode="numeric"
-              className={styles.recordDateInput}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-              value={recordDate}
-              onChange={(event) => onRecordDateChange(formatRecordDateInput(event.target.value))}
-            />
-            <button
-              type="button"
-              className={styles.recordDateCalendarButton}
-              aria-label="カレンダーを開く"
-              onClick={() => {
-                const nextDate = parseRecordDate(recordDate);
-                if (nextDate) setViewDate(nextDate);
-                setCalendarOpen((open) => !open);
-              }}
-            >
-              <CalendarDays size={15} />
-            </button>
+            <input id={recordDateInputId} type="text" inputMode="numeric" className={styles.recordDateInput} placeholder={getMsg('SaveAttendanceModal.datePlaceholder')} maxLength={10} value={recordDate} onChange={handleRecordDateChange} />
+            <button type="button" className={styles.recordDateCalendarButton} aria-label={getMsg('SaveAttendanceModal.openCalendar')} aria-expanded={calendarOpen} aria-controls={calendarPanelId} onClick={handleToggleCalendar}><CalendarDays size={15} /></button>
             {calendarOpen && (
-              <div className={styles.recordDateCalendarPanel}>
+              <div id={calendarPanelId} className={styles.recordDateCalendarPanel}>
                 <div className={styles.recordDateCalendarHeader}>
-                  <button type="button" onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
-                  <strong>{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</strong>
-                  <button type="button" onClick={() => shiftMonth(1)} aria-label="次の月">›</button>
+                  <button type="button" onClick={handlePreviousMonth} aria-label={getMsg('SaveAttendanceModal.previousMonth')}>‹</button>
+                  <strong>{getMsg('SaveAttendanceModal.calendarMonth', { year: viewDate.getFullYear(), month: viewDate.getMonth() + 1 })}</strong>
+                  <button type="button" onClick={handleNextMonth} aria-label={getMsg('SaveAttendanceModal.nextMonth')}>›</button>
                 </div>
-                <div className={styles.recordDateCalendarWeekdays}>
-                  {WEEKDAY_LABELS.map((weekday) => <span key={weekday}>{weekday}</span>)}
-                </div>
+                <div className={styles.recordDateCalendarWeekdays}>{weekdayLabels.map((weekday) => <span key={weekday}>{weekday}</span>)}</div>
                 <div className={styles.recordDateCalendarGrid}>
                   {calendarDays.map((date) => {
-                    const value = formatDateValue(date);
+                    // 日付セルの選択状態と当月外表示を同じ日付値から組み立てる。
+                    const value = formatRecordDateValue(date);
                     const isSelected = value === selectedDateValue;
                     const isCurrentMonth = date.getMonth() === currentMonth;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`${styles.recordDateCalendarDay}${isSelected ? ` ${styles.recordDateCalendarDaySelected}` : ''}${isCurrentMonth ? '' : ` ${styles.recordDateCalendarDayMuted}`}`}
-                        onClick={() => handleSelectDate(date)}
-                      >
-                        {date.getDate()}
-                      </button>
-                    );
+                    const className = [
+                      styles.recordDateCalendarDay,
+                      isSelected ? styles.recordDateCalendarDaySelected : '',
+                      isCurrentMonth ? '' : styles.recordDateCalendarDayMuted,
+                    ].filter(Boolean).join(' ');
+                    const ariaLabel = getMsg('SaveAttendanceModal.calendarDate', { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
+                    return <CalendarDayButton key={value} date={date} className={className} ariaLabel={ariaLabel} selected={isSelected} onSelect={handleSelectDate} />;
                   })}
                 </div>
               </div>
@@ -148,31 +156,25 @@ export function SaveAttendanceModal({
           </div>
         </div>
         <div className={`${styles.saveModalCol} ${styles.saveModalColCenter}`}>
-          <span className={styles.saveModalColLabel}>出席人数</span>
+          <span className={styles.saveModalColLabel}>{getMsg('SaveAttendanceModal.attendeeCount')}</span>
           <div className={styles.saveCountRow}>
             <span className={styles.saveCountNum}>{presentCount}</span>
-            <span className={styles.saveCountUnit}>名</span>
+            <span className={styles.saveCountUnit}>{getMsg('SaveAttendanceModal.attendeeUnit')}</span>
           </div>
         </div>
         <div className={`${styles.saveModalCol} ${styles.saveModalColCasts}`}>
-          <span className={styles.saveModalColLabel}>出席キャスト</span>
+          <span className={styles.saveModalColLabel}>{getMsg('SaveAttendanceModal.attendingCasts')}</span>
           <div className={styles.saveCastList}>
             {presentCasts.map((cast) => (
-              <span key={cast.name} className={styles.saveCastItem}>{cast.name}</span>
+              <span key={cast.id} className={styles.saveCastItem}>{cast.name}</span>
             ))}
           </div>
         </div>
       </div>
       <div className={styles.modalFooter}>
-        {dateHasRecord && (
-          <span className={styles.overwriteNote}>この日付のデータが既に存在します。上書きされます。</span>
-        )}
-        <button type="button" className={shared.btnSecondary} onClick={onClose}>
-          キャンセル
-        </button>
-        <button type="button" className={shared.btnPrimary} disabled={saving || !canSave} onClick={() => { void onSave(); }}>
-          {saving ? '保存中...' : dateHasRecord ? '上書きして保存' : '保存'}
-        </button>
+        {recordStatusMessage && <span className={styles.overwriteNote} role={dateRecordStatus === 'failed' ? 'alert' : 'status'}>{recordStatusMessage}</span>}
+        <button type="button" className={shared.btnSecondary} onClick={onClose}>{getMsg('common.cancel')}</button>
+        <button type="button" className={shared.btnPrimary} disabled={saving || !canSave} onClick={handleSaveClick}>{saveButtonLabel}</button>
       </div>
     </AppDialog>
   );

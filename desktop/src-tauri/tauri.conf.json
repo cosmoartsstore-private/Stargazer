@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Stargazer", "width": 800, "height": 600, "maximized": true }],
+    "windows": [{ "title": "Stargazer", "width": 1920, "height": 1080, "maximized": true }],
     "security": { "csp": null }
   },
   "bundle": {

@@ -26,6 +26,11 @@
   justify-content: space-between;
 }
 
+.tweet-reset-button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
 .tweet-template-textarea {
   width: 100%;
   padding: 10px 12px;
@@ -53,17 +58,35 @@
   gap: 6px;
 }
 
+.tweet-placeholder-heading {
+  margin-bottom: 4px;
+}
+
+.tweet-no-attending-casts {
+  margin-top: 8px;
+}
+
 .tweet-placeholder-chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 3px 10px;
   border-radius: 6px;
   background: var(--accent-primary);
   color: #fff;
   font-size: 12px;
-  font-family: monospace;
   cursor: pointer;
   transition: opacity 0.12s;
+}
+
+.tweet-placeholder-key {
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.tweet-placeholder-description {
+  font-size: 11px;
+  opacity: 0.82;
 }
 
 .tweet-placeholder-chip:hover {
@@ -87,6 +110,11 @@
 .tweet-char-count {
   font-size: 12px;
   text-align: right;
+  color: var(--text-muted);
+}
+
+.tweet-char-count-over-limit {
+  color: var(--accent-danger);
 }
 
 .tweet-actions {

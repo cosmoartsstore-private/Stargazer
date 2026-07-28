@@ -344,7 +344,7 @@
 }
 
 .setup-chip-wait::after {
-  content: '未選択';
+  content: attr(data-status-label);
   margin-left: 12px;
   color: var(--attendance-muted);
   font-size: 10px;
@@ -367,7 +367,7 @@
 }
 
 .setup-chip-wait-selected::after {
-  content: '待機';
+  content: attr(data-status-label);
   margin-left: 12px;
   color: var(--attendance-muted);
   font-size: 10px;
@@ -700,11 +700,11 @@
   position: absolute;
   top: 50%;
   right: 6px;
-  width: 30px;
-  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--surface-panel-muted);
@@ -716,14 +716,14 @@
 
 .record-date-calendar-button:hover {
   border-color: var(--accent-primary);
-  color: var(--text-heading);
   background: var(--surface-hover);
+  color: var(--text-heading);
 }
 
 .record-date-calendar-panel {
   position: absolute;
-  left: 0;
   top: calc(100% + 8px);
+  left: 0;
   z-index: 20;
   width: min(300px, calc(100vw - 48px));
   padding: 12px;
@@ -754,9 +754,9 @@
   border-radius: 6px;
   background: var(--surface-panel);
   color: var(--text-default);
-  cursor: pointer;
   font-size: 18px;
   line-height: 1;
+  cursor: pointer;
 }
 
 .record-date-calendar-header button:hover {
@@ -787,10 +787,10 @@
   border-radius: 6px;
   background: var(--surface-panel);
   color: var(--text-default);
-  cursor: pointer;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 

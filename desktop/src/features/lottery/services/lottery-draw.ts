@@ -1,16 +1,26 @@
-/** 入力配列を変更せず、抽選用にランダム順の配列を返す。 */
-export function shuffle<T>(items: readonly T[]): T[] {
-  const copied = [...items];
-  for (let index = copied.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [copied[index], copied[swapIndex]] = [copied[swapIndex], copied[index]];
-  }
-  return copied;
+import { shuffleArray } from '@/common/arrayUtils';
+import type { UserBean } from '@/common/types/entities';
+import { getMsg } from '@/messages/getMsg';
+
+/** 確定当選者を候補から除外し、抽選枠と結合した当選者一覧を返す。 */
+export function drawLotteryWinners(
+  applicants: readonly UserBean[],
+  guaranteedWinners: readonly UserBean[],
+  lotteryCount: number,
+): UserBean[] {
+  const guaranteedIds = new Set(guaranteedWinners.map((winner) => winner.x_id));
+  const candidates = applicants.filter((applicant) => !guaranteedIds.has(applicant.x_id));
+  const drawnWinners = shuffleArray(candidates).slice(0, lotteryCount);
+  return [
+    ...guaranteedWinners.map((winner) => ({ ...winner, is_guaranteed: true })),
+    ...drawnWinners.map((winner) => ({ ...winner, is_guaranteed: false })),
+  ];
 }
 
 /** 保存済み抽選結果の一覧に表示する日時付きラベルを生成する。 */
 export function formatSavedLotteryLabel(winnerCount: number): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, '0');
-  return `抽選結果 ${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}（${winnerCount}名）`;
+  const dateTime = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return getMsg('lotteryDraw.savedResultLabel', { dateTime, winnerCount });
 }

@@ -7,6 +7,7 @@
 
 import type { UserBean, CastBean, NGUserEntry } from '@/common/types/entities';
 import type { NGJudgmentType } from '@/features/matching/types/matching-system-types';
+import { getMsg } from '@/messages/getMsg';
 
 function normalize(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase();
@@ -51,5 +52,5 @@ export function isUserNGForCast(
  * NG理由文言を返す（警告モード表示用）。
  */
 export function getNGReasonForCast(castName: string): string {
-  return `このユーザーはキャスト「${castName}」のNG対象です`;
+  return getMsg('ngJudgment.ngReasonForCast', { castName });
 }

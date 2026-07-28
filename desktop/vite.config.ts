@@ -1,15 +1,13 @@
-import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import { excludeDebugPlugin } from "./vite-plugin-exclude-debug";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react(), excludeDebugPlugin()],
+  plugins: [react()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
@@ -19,44 +17,55 @@ export default defineConfig(async () => ({
     },
   },
   test: {
+    include: ['src/test/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
-      // 外部ドライブ上でも安定して生成できるよう、coverage レポートは OS の一時領域へ出力する。
-      reportsDirectory: path.join(os.tmpdir(), 'stargazer-vitest-coverage'),
+      reportsDirectory: path.resolve(__dirname, 'src/coverage'),
       include: [
         'src/common/csvParse.ts',
+        'src/common/arrayUtils.ts',
         'src/common/browserStorage.ts',
-        'src/common/downloadCsv.ts',
+        'src/common/castReferences.ts',
+        'src/common/downloadTsv.ts',
         'src/common/sheetParsers.ts',
         'src/common/xIdUtils.ts',
-        'src/db/headerSignature.ts',
         'src/db/initializer.ts',
+        'src/db/repositories/groupRowsBy.ts',
         'src/db/repositories/applicantRepository.ts',
         'src/db/repositories/attendanceRepository.ts',
         'src/db/repositories/castRepository.ts',
         'src/db/repositories/commandContext.ts',
         'src/db/repositories/cautionUserRepository.ts',
         'src/db/repositories/eventRepository.ts',
-        'src/db/repositories/headerTemplateRepository.ts',
         'src/db/repositories/lotteryRepository.ts',
+        'src/db/repositories/sessionWorkflowRepository.ts',
         'src/db/repositories/settingsRepository.ts',
         'src/features/attendance/models/attendanceMatrix.ts',
+        'src/features/attendance/models/recordDate.ts',
+        'src/features/cast-management/castManagementModel.ts',
+        'src/features/data-management/applicantListModel.ts',
+        'src/features/data-management/dataManagementNavigation.ts',
+        'src/features/data-management/dataManagementViewModel.ts',
+        'src/features/import/importPreviewModel.ts',
         'src/features/lottery/services/lottery-draw.ts',
         'src/features/lottery/services/lottery-result-persistence.ts',
         'src/features/lottery/services/lottery-validation.ts',
         'src/features/matching/logics/caution-user.ts',
+        'src/features/matching/logics/matching-capacity.ts',
         'src/features/matching/logics/matching-hungarian-engine.ts',
+        'src/features/matching/logics/matching-input-integrity.ts',
         'src/features/matching/logics/matching-io.ts',
-        'src/features/matching/logics/matching-m001.ts',
-        'src/features/matching/logics/matching-m002.ts',
         'src/features/matching/logics/matching-m003.ts',
+        'src/features/matching/logics/matching-result-integrity.ts',
         'src/features/matching/logics/matching-table-engine.ts',
         'src/features/matching/logics/ng-judgment.ts',
         'src/features/matching/presenters/matching-result-export.ts',
         'src/features/matching/presenters/matching-result-view.ts',
         'src/features/matching/stores/matching-settings-store.ts',
+        'src/features/ng-management/ngUserManagementModel.ts',
         'src/features/tweet/tweetTemplate.ts',
         'src/layout/appNavigation.ts',
+        'src/messages/getMsg.ts',
         'src/stores/app-storage-store.ts',
       ],
       thresholds: {
@@ -69,11 +78,11 @@ export default defineConfig(async () => ({
     },
   },
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  // `tauri dev`と`tauri build`で使うTauri向けVite設定。
   //
-  // 1. prevent Vite from obscuring rust errors
+  // 1. Rust errorを確認できるよう、Vite側で画面を消去しない。
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. Tauriが固定portを使うため、使用中の場合は別portへ切り替えず失敗させる。
   server: {
     port: 1420,
     strictPort: true,
@@ -86,7 +95,7 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
+      // 3. Rust側の変更はViteの監視対象から除外する。
       ignored: ["**/src-tauri/**"],
     },
   },

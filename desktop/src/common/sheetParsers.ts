@@ -7,23 +7,14 @@ function getCell(row: unknown[] | null | undefined, colIndex: number): string {
   return (row[colIndex] ?? '').toString().trim();
 }
 
-/** 1行を UserBean に変換するときのオプション（カスタム用） */
-export interface MapRowOptions {
-  /** この列をカンマ区切りで分割し、順不同希望として保持する（-1のときは使わない）。 */
-  splitCommaColumnIndex?: number;
-}
-
 /** カラムマッピングに従って1行を UserBean に変換する（テンプレート／カスタム用） */
 export function mapRowToUserBeanWithMapping(
   row: unknown[],
   mapping: ColumnMapping,
-  options?: MapRowOptions
 ): UserBean {
   let casts: string[];
   let preferenceMode: UserBean['preference_mode'] = 'ranked';
-  const splitCol = options?.splitCommaColumnIndex;
-  const useSplitComma =
-    splitCol !== undefined && splitCol >= 0 && mapping.cast1 === splitCol;
+  const useSplitComma = mapping.castInputType === 'multiple' && mapping.cast1 >= 0;
 
   /** 順位なしのカンマ区切り希望として取り込む最大希望数。 */
   const MAX_CAST_COMMA = 20;

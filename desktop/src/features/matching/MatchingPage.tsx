@@ -1,99 +1,72 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { toPng } from 'html-to-image';
-import { ConfirmModal } from '@/components/ConfirmModal';
+// マッチングを実行し、キャスト別・テーブル別の結果を表示・出力します。
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { NoticeDialog } from '@/components/ConfirmModal';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import { downloadTsv } from '@/common/downloadCsv';
+import { downloadTsv } from '@/common/downloadTsv';
 import { LotteryValidationPanel } from '@/features/lottery/components/LotteryValidationPanel';
-import { useLotteryValidation } from '@/features/lottery/hooks/useLotteryValidation';
+import { validateLotteryConditions } from '@/features/lottery/services/lottery-validation';
 import { MatchingConditionPanel } from '@/features/matching/components/MatchingConditionPanel';
-import { CastAssignmentList, RotationMatchList } from '@/features/matching/components/MatchingResultCells';
-import type { MatchedCast, MatchingFailureReason, MatchingScoreSummary, TableSlot } from '@/features/matching/logics/matching-io';
-import { buildCastMatchingTsvRows } from '@/features/matching/presenters/matching-result-export';
+import { CastAssignmentList } from '@/features/matching/components/MatchingResultCells';
+import { MatchingTableRows } from '@/features/matching/components/MatchingTableRows';
+import { buildCastMatchingTsvRows, exportElementAsPng } from '@/features/matching/presenters/matching-result-export';
+import { useMatchingExecution } from '@/features/matching/hooks/useMatchingExecution';
 import {
   buildCastResultRows,
   buildResultRows,
-  formatFailureMessage,
   getAssignmentsForColumn,
   getCastResultColumnKeys,
   getCastResultColumnLabel,
   groupTableSlots,
 } from '@/features/matching/presenters/matching-result-view';
-import { FIXED_NG_JUDGMENT_TYPE } from '@/features/matching/types/matching-system-types';
 import { useAppContext } from '@/stores/AppContext';
+import { getMsg } from '@/messages/getMsg';
 import styles from './MatchingPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-interface MatchingWorkerResult {
-  userMapEntries: Array<[string, MatchedCast[]]>;
-  tableSlots?: TableSlot[];
-  ngConflict?: boolean;
-  failureReason?: MatchingFailureReason;
-  scoreSummary?: MatchingScoreSummary;
-}
-
-type MatchingWorkerMessage =
-  | { type: 'complete'; id: string; result: MatchingWorkerResult }
-  | { type: 'error'; id: string; message: string };
-
-const MATCHING_SEARCH_TIME_LIMIT_MS = 30_000;
-const MATCHING_RELAXED_AFTER_MS = 10_000;
-
-async function exportElementAsPng(node: HTMLElement | null, filename: string): Promise<void> {
-  if (!node) {
-    return;
-  }
-  const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
-  const anchor = document.createElement('a');
-  anchor.href = dataUrl;
-  anchor.download = filename.endsWith('.png') ? filename : `${filename}.png`;
-  anchor.click();
-}
+// 利用者が保存・出力するときに使用する既定ファイル名。
+const DEFAULT_BACKUP_FILE_NAME = getMsg('MatchingPage.defaultBackupFileName');
+const CAST_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.castResultImageFileName');
+const TABLE_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.tableResultImageFileName');
 
 export const MatchingPage: React.FC = () => {
+  // 実行条件、抽選結果、表示中のマッチング結果を同じContextスナップショットから取得する。
   const {
     currentWinners: winners,
     casts,
-    globalMatchingResult,
-    globalTableSlots,
-    globalMatchingError,
-    setGlobalMatchingResult,
-    setGlobalTableSlots,
-    setGlobalMatchingError,
-    isMatchingLocked,
-    setIsMatchingLocked,
+    matchingResultState: {
+      result: globalMatchingResult,
+      tableSlots: globalTableSlots,
+      error: globalMatchingError,
+      isLocked: isMatchingLocked,
+    },
     resetMatching,
     isLotteryResultCurrent,
+    sessionWorkflow,
+  } = useAppContext();
+  const {
     matchingTypeCode,
-    rotationCount,
     totalTables,
     usersPerTable,
     castsPerRotation,
     allowM003EmptySeats,
     m003SameDaySlotCount,
-    matchingSettings,
-  } = useAppContext();
+  } = sessionWorkflow;
 
+  // ダイアログ、出力名、PNG化対象の要素を画面側で管理する。
   const [alertMessage, setAlertMessage] = useState<string | null>(globalMatchingError);
-  const [scoreSummary, setScoreSummary] = useState<MatchingScoreSummary | null>(null);
-  const [backupFileName, setBackupFileName] = useState('matching-result');
+  const [backupFileName, setBackupFileName] = useState(DEFAULT_BACKUP_FILE_NAME);
   const resultRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
-  const workerRef = useRef<Worker | null>(null);
-  const workerRequestIdRef = useRef<string | null>(null);
+  const { isComputing, scoreSummary, runMatching, cancelMatching } = useMatchingExecution();
 
   useEffect(() => {
     setAlertMessage(globalMatchingError);
   }, [globalMatchingError]);
 
+  // 抽選結果とマッチング条件から、実行可否の表示内容を組み立てる。
   const guaranteedWinnerCount = winners.filter((winner) => winner.is_guaranteed).length;
-  const totalSeatCount = matchingTypeCode === 'M003'
-    ? totalTables * usersPerTable + (allowM003EmptySeats ? m003SameDaySlotCount : 0)
-    : totalTables;
-  const effectiveMatchingTableCount = matchingTypeCode === 'M003'
-    ? Math.max(1, Math.ceil(totalSeatCount / usersPerTable))
-    : totalTables;
-
-  const validation = useLotteryValidation({
+  const validation = validateLotteryConditions({
     matchingTypeCode,
     totalWinners: winners.length,
     lotteryCount: Math.max(0, winners.length - guaranteedWinnerCount),
@@ -105,107 +78,16 @@ export const MatchingPage: React.FC = () => {
     allowM003EmptySeats,
     sameDaySlotCount: m003SameDaySlotCount,
   });
+  // 抽選結果が古い場合は再抽選要求を優先し、マッチングを開始できない状態にする。
   const effectiveValidation = isLotteryResultCurrent
     ? validation
     : {
-        errors: ['抽選条件またはマッチング条件が変更されています。抽選を再実行してください。'],
+        errors: [getMsg('MatchingPage.staleLotteryResult')],
         warnings: [],
         info: validation.info,
       };
 
-  const [isComputing, setIsComputing] = useState(false);
-
-  const stopWorker = useCallback(() => {
-    workerRef.current?.terminate();
-    workerRef.current = null;
-    workerRequestIdRef.current = null;
-  }, []);
-
-  const handleCancelMatching = useCallback(() => {
-    stopWorker();
-    setIsComputing(false);
-    setGlobalMatchingError('マッチングをキャンセルしました。');
-    setIsMatchingLocked(false);
-  }, [setGlobalMatchingError, setIsMatchingLocked, stopWorker]);
-
-  useEffect(() => () => stopWorker(), [stopWorker]);
-
-  const handleRun = useCallback(() => {
-    if (!isLotteryResultCurrent) {
-      setGlobalMatchingError('抽選条件またはマッチング条件が変更されています。抽選を再実行してください。');
-      return;
-    }
-    stopWorker();
-    setIsComputing(true);
-    setGlobalMatchingError(null);
-
-    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    workerRequestIdRef.current = requestId;
-    const worker = new Worker(new URL('./matching.worker.ts', import.meta.url), { type: 'module' });
-    workerRef.current = worker;
-
-    worker.onmessage = (event: MessageEvent<MatchingWorkerMessage>) => {
-      const message = event.data;
-      if (message.id !== workerRequestIdRef.current) return;
-
-      stopWorker();
-      setIsComputing(false);
-
-      if (message.type === 'error') {
-        setGlobalMatchingResult(null);
-        setGlobalTableSlots(undefined);
-        setScoreSummary(null);
-        setGlobalMatchingError(message.message);
-        setIsMatchingLocked(false);
-        return;
-      }
-
-      const result = message.result;
-      if (result.ngConflict) {
-        setGlobalMatchingResult(null);
-        setGlobalTableSlots(undefined);
-        setScoreSummary(null);
-        setGlobalMatchingError(formatFailureMessage(result.failureReason));
-        setIsMatchingLocked(false);
-      } else {
-        setGlobalMatchingResult(new Map(result.userMapEntries));
-        setGlobalTableSlots(result.tableSlots);
-        setScoreSummary(result.scoreSummary ?? null);
-        setGlobalMatchingError(null);
-        setIsMatchingLocked(true);
-      }
-    };
-
-    worker.onerror = () => {
-      if (requestId !== workerRequestIdRef.current) return;
-      stopWorker();
-      setIsComputing(false);
-      setGlobalMatchingResult(null);
-      setGlobalTableSlots(undefined);
-      setScoreSummary(null);
-      setGlobalMatchingError('マッチング中に予期しないエラーが発生しました。');
-      setIsMatchingLocked(false);
-    };
-
-    worker.postMessage({
-      id: requestId,
-      winners,
-      casts,
-      matchingTypeCode,
-      options: {
-        rotationCount,
-        totalTables: matchingTypeCode === 'M003' ? effectiveMatchingTableCount : totalTables,
-        usersPerTable: matchingTypeCode === 'M003' ? usersPerTable : undefined,
-        castsPerRotation: matchingTypeCode === 'M003' ? castsPerRotation : undefined,
-        searchTimeLimitMs: MATCHING_SEARCH_TIME_LIMIT_MS,
-        relaxedAfterMs: MATCHING_RELAXED_AFTER_MS,
-        searchMode: matchingSettings.searchMode,
-      },
-      ngJudgmentType: FIXED_NG_JUDGMENT_TYPE,
-      ngMatchingBehavior: 'exclude',
-    });
-  }, [winners, casts, isLotteryResultCurrent, matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, allowM003EmptySeats, m003SameDaySlotCount, effectiveMatchingTableCount, matchingSettings, setGlobalMatchingError, setGlobalMatchingResult, setGlobalTableSlots, setIsMatchingLocked, stopWorker]);
-
+  // Context結果を、キャスト別・テーブル別の表示モデルへ変換する。
   const resultRows = useMemo(
     () => buildResultRows(winners, globalMatchingResult),
     [globalMatchingResult, winners],
@@ -226,25 +108,55 @@ export const MatchingPage: React.FC = () => {
     [globalTableSlots],
   );
   const castResultTableMinWidth = Math.max(760, 220 + castResultColumnKeys.length * 260);
+  const scoreSummaryText = scoreSummary
+    ? getMsg('MatchingPage.scoreSummary', {
+        totalScore: scoreSummary.totalScore,
+        averageScore: scoreSummary.averageScore.toFixed(1),
+        firstChoiceCount: scoreSummary.firstChoiceCount,
+        secondChoiceCount: scoreSummary.secondChoiceCount,
+        thirdChoiceCount: scoreSummary.thirdChoiceCount,
+        flatPreferenceCount: scoreSummary.flatPreferenceCount,
+        unpreferredCount: scoreSummary.unpreferredCount,
+      })
+    : '';
+
+  const handleExportCastResults = () => {
+    void exportElementAsPng(resultRef.current, CAST_RESULT_IMAGE_FILE_NAME);
+  };
+
+  const handleExportTableResults = () => {
+    void exportElementAsPng(tableRef.current, TABLE_RESULT_IMAGE_FILE_NAME);
+  };
+
+  const handleBackupFileNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setBackupFileName(event.target.value);
+  };
+
+  const handleSaveTsv = () => {
+    downloadTsv(
+      buildCastMatchingTsvRows(castResultRows, castResultColumnKeys),
+      backupFileName || DEFAULT_BACKUP_FILE_NAME,
+    );
+  };
+
+  const handleAlertConfirm = () => {
+    setAlertMessage(null);
+  };
 
   return (
     <div className={styles.matchingScreen} style={{ paddingBottom: 80, position: 'relative' }}>
-      {isComputing && <LoadingOverlay message="マッチング計算中…（最大30秒）" onCancel={handleCancelMatching} />}
+      {isComputing && <LoadingOverlay message={getMsg('MatchingPage.computing')} onCancel={cancelMatching} />}
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>マッチング</h1>
-        <p className={shared.pageHeaderSubtitle}>
-          memo.md の仕様に合わせて、設定確認、結果表示、PNG・TSV出力を分けています。
-        </p>
+        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('MatchingPage.pageTitle')}</h1>
+        <p className={shared.pageHeaderSubtitle}>{getMsg('MatchingPage.pageDescription')}</p>
       </header>
 
       <div className={styles.workflowTwoPane}>
         <div className={styles.workflowTwoPane__main}>
           <section className={shared.sectionBlock}>
             <div className={styles.workflowSectionHeader}>
-              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>マッチング実行</h2>
-              <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-                抽選設定で確定した条件を確認し、探索モードだけを選択して実行します。
-              </p>
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingPage.executionHeading')}</h2>
+              <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.executionDescription')}</p>
             </div>
 
             <MatchingConditionPanel disabled={isMatchingLocked} />
@@ -252,15 +164,9 @@ export const MatchingPage: React.FC = () => {
 
           {scoreSummary && (
             <section className={shared.sectionBlock} style={{ marginTop: 16 }}>
-              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>スコアサマリー</h2>
-              <p className={shared.pageHeaderSubtitle}>
-                総スコア {scoreSummary.totalScore} 点 / 平均 {scoreSummary.averageScore.toFixed(1)} 点 / 1位 {scoreSummary.firstChoiceCount} 件 / 2位 {scoreSummary.secondChoiceCount} 件 / 3位 {scoreSummary.thirdChoiceCount} 件 / 希望キャスト50点 {scoreSummary.flatPreferenceCount} 件 / 希望外 {scoreSummary.unpreferredCount} 件
-              </p>
-              {scoreSummary.ngWarningCount > 0 && (
-                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(237, 66, 69, 0.14)', color: 'var(--text-danger)' }}>
-                  ※NGのマッチングがあります。可能な限り修正してください。
-                </div>
-              )}
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingPage.scoreSummaryHeading')}</h2>
+              <p className={shared.pageHeaderSubtitle}>{scoreSummaryText}</p>
+              {scoreSummary.ngWarningCount > 0 && <div className={styles.scoreWarning}>{getMsg('MatchingPage.ngWarning')}</div>}
             </section>
           )}
         </div>
@@ -268,33 +174,27 @@ export const MatchingPage: React.FC = () => {
         <aside className={styles.workflowTwoPane__side}>
           <LotteryValidationPanel
             validation={effectiveValidation}
-            onRunClick={handleRun}
-            title="マッチングステータス"
-            description="読み取り専用条件と出席状態をもとにエラーや警告を確認します。"
-            readySubtext="マッチングを行う準備が完了しています"
-            runLabel="マッチング開始"
+            onRunClick={runMatching}
+            title={getMsg('MatchingPage.statusTitle')}
+            description={getMsg('MatchingPage.statusDescription')}
+            readySubtext={getMsg('MatchingPage.readySubtext')}
+            runLabel={getMsg('MatchingPage.runLabel')}
             runDisabled={!isLotteryResultCurrent}
           />
           {isMatchingLocked && (
-            <button type="button" className={shared.btnDanger} style={{ width: '100%', marginTop: 12 }} onClick={resetMatching}>
-              結果を解除して再実行
-            </button>
+            <button type="button" className={shared.btnDanger} style={{ width: '100%', marginTop: 12 }} onClick={resetMatching}>{getMsg('MatchingPage.unlockAndRerun')}</button>
           )}
         </aside>
       </div>
 
-      <section ref={resultRef} className={`${shared.sectionBlock} ${styles.workflowResultSection}`} style={{ marginTop: 24 }}>
+      <section ref={resultRef} className={shared.sectionBlock} style={{ marginTop: 24 }}>
         <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
           <div>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>キャスト別結果</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-              各キャストが応対する応募者をローテーション別に確認できます。
-            </p>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.castResultsHeading')}</h2>
+            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.castResultsDescription')}</p>
           </div>
           {isMatchingLocked && (
-            <button type="button" className={shared.btnExportSecondary} onClick={() => { void exportElementAsPng(resultRef.current, 'matching-casts'); }}>
-              PNG出力
-            </button>
+            <button type="button" className={shared.btnExportSecondary} aria-label={getMsg('MatchingPage.exportCastPngAriaLabel')} onClick={handleExportCastResults}>{getMsg('MatchingPage.exportPng')}</button>
           )}
         </div>
 
@@ -302,7 +202,7 @@ export const MatchingPage: React.FC = () => {
           <table className={styles.matchingResultTable} style={{ minWidth: castResultTableMinWidth }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
-                <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__cast}`}>キャスト</th>
+                <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__cast}`}>{getMsg('MatchingPage.castHeader')}</th>
                 {castResultColumnKeys.map((columnKey) => (
                   <th key={columnKey ?? 'none'} className={shared.tableHeaderCell}>{getCastResultColumnLabel(columnKey)}</th>
                 ))}
@@ -311,11 +211,11 @@ export const MatchingPage: React.FC = () => {
             <tbody>
               {castResultRows.length === 0 && (
                 <tr>
-                  <td className={shared.tableCell} colSpan={castResultColumnKeys.length + 1} style={{ textAlign: 'center' }}>マッチング結果はまだありません</td>
+                  <td className={shared.tableCell} colSpan={castResultColumnKeys.length + 1} style={{ textAlign: 'center' }}>{getMsg('MatchingPage.noMatchingResults')}</td>
                 </tr>
               )}
               {castResultRows.map((row) => (
-                <tr key={row.cast.name}>
+                <tr key={row.cast.id}>
                   <td className={`${shared.tableCell} ${styles.matchingResultTable__cast}`}>{row.cast.name}</td>
                   {castResultColumnKeys.map((columnKey) => (
                     <td key={columnKey ?? 'none'} className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}>
@@ -329,58 +229,34 @@ export const MatchingPage: React.FC = () => {
         </div>
       </section>
 
-      <section ref={tableRef} className={`${shared.sectionBlock} ${styles.workflowResultSection}`} style={{ marginTop: 24 }}>
+      <section ref={tableRef} className={shared.sectionBlock} style={{ marginTop: 24 }}>
         <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
           <div>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>テーブル別結果</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>
-              テーブルごとの座席と担当キャストを表で確認できます。
-            </p>
+            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.tableResultsHeading')}</h2>
+            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.tableResultsDescription')}</p>
           </div>
           {isMatchingLocked && (
-            <button type="button" className={shared.btnExportSecondary} onClick={() => { void exportElementAsPng(tableRef.current, 'matching-tables'); }}>
-              PNG出力
-            </button>
+            <button type="button" className={shared.btnExportSecondary} aria-label={getMsg('MatchingPage.exportTablePngAriaLabel')} onClick={handleExportTableResults}>{getMsg('MatchingPage.exportPng')}</button>
           )}
         </div>
 
         {groupedTables.length === 0 ? (
-          <div className={shared.pageCardNarrow} style={{ marginTop: 16, padding: 16 }}>テーブル別結果はまだありません</div>
+          /* テーブル別結果がない場合 */
+          <div className={shared.pageCardNarrow} style={{ marginTop: 16, padding: 16 }}>{getMsg('MatchingPage.noTableResults')}</div>
         ) : (
+          /* テーブル別結果の一覧 */
           <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
             <table className={`${styles.matchingResultTable} ${styles.matchingTableResultTable}`}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__table}`}>テーブル</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__seat}`}>席</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__guest}`}>応募者</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__id}`}>X ID</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__matches}`}>担当キャスト</th>
+                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__table}`}>{getMsg('MatchingPage.tableHeader')}</th>
+                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__seat}`}>{getMsg('MatchingPage.seatHeader')}</th>
+                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__guest}`}>{getMsg('MatchingPage.applicantHeader')}</th>
+                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__id}`}>{getMsg('MatchingPage.xIdHeader')}</th>
+                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__matches}`}>{getMsg('MatchingPage.assignedCastsHeader')}</th>
                 </tr>
               </thead>
-              <tbody>
-                {groupedTables.flatMap(({ tableIndex, slots }) =>
-                  slots.map((slot, index) => (
-                    <tr key={`${tableIndex}-${index}`}>
-                      <td className={`${shared.tableCell} ${styles.matchingResultTable__table}`}>テーブル {tableIndex}</td>
-                      <td className={`${shared.tableCell} ${styles.matchingResultTable__seat}`}>{index + 1}</td>
-                      <td className={`${shared.tableCell} ${styles.matchingResultTable__guest}`}>
-                        {slot.user?.name ?? '空席'}
-                      </td>
-                      <td className={`${shared.tableCell} ${styles.matchingResultTable__id}`}>
-                        {slot.user?.x_id ?? '未割り当て'}
-                      </td>
-                      <td className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}>
-                        {slot.matches.length === 0 ? (
-                          <span className={styles.castResultEmpty}>キャスト未割り当て</span>
-                        ) : (
-                          <RotationMatchList matches={slot.matches} />
-                        )}
-                      </td>
-                    </tr>
-                  )),
-                )}
-              </tbody>
+              <tbody><MatchingTableRows groups={groupedTables} /></tbody>
             </table>
           </div>
         )}
@@ -389,36 +265,19 @@ export const MatchingPage: React.FC = () => {
       {isMatchingLocked && castResultRows.length > 0 && (
         <div className={styles.workflowResultToolbar} style={{ marginTop: 24 }}>
           <label className={`${shared.formGroup} ${styles.workflowResultToolbar__filename}`}>
-            <span className={shared.formLabel}>バックアップファイル名</span>
-            <input
-              type="text"
-              className={shared.formInput}
-              value={backupFileName}
-              onChange={(event) => setBackupFileName(event.target.value)}
-              placeholder="matching-result"
-            />
+            <span className={shared.formLabel}>{getMsg('MatchingPage.backupFileName')}</span>
+            <input type="text" className={shared.formInput} value={backupFileName} onChange={handleBackupFileNameChange} placeholder={DEFAULT_BACKUP_FILE_NAME} />
           </label>
-          <button
-            type="button"
-            className={shared.btnExportPrimary}
-            onClick={() =>
-              downloadTsv(
-                buildCastMatchingTsvRows(castResultRows, castResultColumnKeys),
-                backupFileName || 'matching-result',
-              )
-            }
-          >
-            TSV保存
-          </button>
+          <button type="button" className={shared.btnExportPrimary} onClick={handleSaveTsv}>{getMsg('MatchingPage.saveTsv')}</button>
         </div>
       )}
 
       {alertMessage && (
-        <ConfirmModal
-          type="alert"
+        <NoticeDialog
+          title={getMsg('MatchingPage.pageTitle')}
           message={alertMessage}
-          confirmLabel="OK"
-          onConfirm={() => setAlertMessage(null)}
+          closeLabel={getMsg('common.close')}
+          onClose={handleAlertConfirm}
         />
       )}
     </div>

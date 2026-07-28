@@ -1,70 +1,95 @@
+// アプリ全体のサイドバー、テーマ、データ読込状態、各機能画面の切替を構成する。
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, X, Users, Settings, CalendarDays, HelpCircle, Terminal } from '@/common/icons';
+import { Menu, X, Users, Settings, CalendarDays, HelpCircle } from 'lucide-react';
 import { DataManagementPage } from '@/features/data-management/DataManagementPage';
 import { InternalManagementPage } from '@/features/internal-management/InternalManagementPage';
 import { EventManagementPage } from '@/features/event-management/EventManagementPage';
 import { GuidePage } from '@/features/guide/GuidePage';
-import { DebugPage } from '@/features/debug/DebugPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ClickEffect } from '@/components/ClickEffect';
-import { ConfirmModal } from '@/components/ConfirmModal';
+import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { HeaderLogo } from '@/components/HeaderLogo';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import { useAppContext, type PageType } from '@/stores/AppContext';
-import { removeStoredSession } from '@/stores/app-storage-store';
-import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
+import { useAppContext } from '@/stores/AppContext';
+import type { PageType } from './appNavigation';
 import { buildThemeCssVariables } from '@/common/themeCustomization';
-import { IMPORT_OVERWRITE, NAV } from '@/common/copy';
-import { getVisiblePage, isSidebarPageDisabled } from './appNavigation';
 import {
-  createSession,
-  getAllCasts,
-  loadApplicants,
-  getAllCautionUsers,
-  listSessions,
-  openSession,
-  persistApplicants,
-  saveLastUsedSession,
-} from '@/db';
+  getInitialThemeCustomization,
+  getInitialThemeId,
+  persistTheme,
+  persistThemeCustomization,
+} from '@/stores/app-storage-store';
+import { useImportCommit } from '@/features/import/hooks/useImportCommit';
+import { getVisiblePage, isPageActive, isSidebarPageDisabled } from './appNavigation';
+import { useAppDataHydration } from './hooks/useAppDataHydration';
 import styles from './AppContainer.module.css';
 import { ThemeSelector } from '@/components/ThemeSelector';
+import { getMsg } from '@/messages/getMsg';
+
+interface SidebarItem {
+  text: string;
+  page: PageType;
+  icon: React.ReactNode;
+}
+
+interface SidebarButtonProps {
+  item: SidebarItem;
+  isActive: boolean;
+  disabled: boolean;
+  onSelect: (page: PageType) => void;
+}
+
+const SidebarButton = ({ item, isActive, disabled, onSelect }: SidebarButtonProps) => {
+  const handleClick = () => {
+    if (!disabled) onSelect(item.page);
+  };
+  const className = [
+    styles.sidebarButton,
+    isActive ? styles.active : '',
+    disabled ? styles.sidebarButtonDisabled : '',
+  ].filter(Boolean).join(' ');
+  const ariaLabel = disabled
+    ? getMsg('AppContainer.disabledPage', { pageName: item.text })
+    : item.text;
+
+  return (
+    <button type="button" className={className} onClick={handleClick} disabled={disabled} aria-disabled={disabled} aria-current={isActive ? 'page' : undefined} aria-label={ariaLabel}>
+      {item.icon}
+      <span className={styles.sidebarButtonLabel}>{item.text}</span>
+    </button>
+  );
+};
 
 export const AppContainer: React.FC = () => {
+  // 全体レイアウトが調停する画面遷移とイベント選択を取得する。
   const {
     activePage,
     setActivePage,
-    applicants,
-    setCasts,
-    setApplicants,
-    currentWinners,
-    setCurrentWinners,
-    themeId,
-    setThemeId,
-    themeCustomization,
-    setThemeCustomization,
-    isDbReady,
     currentEventName,
-    currentSessionTimestamp,
-    setCurrentSessionTimestamp,
-    setSessions,
-    setMatchingSettings,
-    resetMatching,
-    dataReloadCounter,
   } = useAppContext();
+  // 全体レイアウトと確認ダイアログの状態。
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
-  const [isDataLoading, setIsDataLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  // テーマは実際にbodyへ適用するAppContainerが所有する。
+  const [themeId, setThemeId] = useState(getInitialThemeId);
+  const [themeCustomization, setThemeCustomizationState] = useState(getInitialThemeCustomization);
   const themeCssVariables = useMemo(
     () => buildThemeCssVariables(themeId, themeCustomization),
     [themeId, themeCustomization],
   );
-  const [pendingImport, setPendingImport] = useState<{
-    rows: string[][];
-    mapping: import('@/common/importFormat').ColumnMapping;
-    options?: import('@/common/sheetParsers').MapRowOptions;
-    nextPage?: PageType;
-  } | null>(null);
+
+  const setThemeCustomization: typeof setThemeCustomizationState = (stateOrUpdater) => {
+    setThemeCustomizationState((prev) => {
+      const next = typeof stateOrUpdater === 'function' ? stateOrUpdater(prev) : stateOrUpdater;
+      persistThemeCustomization(next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    persistTheme(themeId);
+  }, [themeId]);
 
   useEffect(() => {
     document.body.dataset.theme = themeId;
@@ -79,147 +104,50 @@ export const AppContainer: React.FC = () => {
     };
   }, [themeId, themeCssVariables]);
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // データ再読込。
-  //  - キャストと要注意人物はイベント共有DBに属するため、イベント切り替え時に読み直す。
-  //  - 応募者は取込セッションDBに属するため、セッション切り替え時だけ読み直す。
-  // dataReloadCounter は、キーを変えずに現在セッションを再読込するための明示的な更新トリガー。
-  // ──────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isDbReady) return;
-    if (currentEventName === null) {
-      setCasts([]);
-      setApplicants([]);
-      setIsDataLoading(false);
-      return;
-    }
-    setIsDataLoading(true);
-    (async () => {
-      try {
-        const casts = await getAllCasts();
-        setCasts(casts);
-      } catch (e) {
-        console.warn('キャストデータの読み込みをスキップしました:', e);
-      }
-      try {
-        const cautionUsers = await getAllCautionUsers();
-        setMatchingSettings((prev) => ({
-          ...prev,
-          caution: { ...prev.caution, cautionUsers },
-        }));
-      } catch (e) {
-        console.warn('要注意ユーザーの読み込みをスキップしました:', e);
-      }
-      setIsDataLoading(false);
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventName]);
+  const {
+    isSharedDataLoading,
+    isSessionDataLoading,
+    requestSessionReload,
+  } = useAppDataHydration({ onAlert: setAlertMessage });
+  const {
+    isMutationLoading,
+    pendingImport,
+    importUsers: handleImportUsers,
+    confirmImportOverwrite: handleConfirmImportOverwrite,
+    cancelImportOverwrite: handleCancelImportOverwrite,
+  } = useImportCommit({
+    onAlert: setAlertMessage,
+    requestSessionReload,
+  });
+  const isDataLoading = isSharedDataLoading || isSessionDataLoading || isMutationLoading;
 
-  useEffect(() => {
-    if (!isDbReady) return;
-    if (currentSessionTimestamp === null) {
-      setApplicants([]);
-      return;
-    }
-    (async () => {
-      try {
-        const applicants = await loadApplicants();
-        setApplicants(applicants);
-      } catch (e) {
-        console.warn('応募データの読み込みをスキップしました:', e);
-      }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentSessionTimestamp, dataReloadCounter]);
-
-  const ensureWritableSession = async (): Promise<string> => {
-    if (currentEventName === null) {
-      throw new Error('先にイベントを作成、または既存イベントを開いてください。');
-    }
-    if (currentSessionTimestamp !== null) {
-      return currentSessionTimestamp;
-    }
-
-    const timestamp = await createSession(currentEventName);
-    await openSession(timestamp);
-    saveLastUsedSession(timestamp);
-    setCurrentSessionTimestamp(timestamp);
-    setSessions(await listSessions(currentEventName));
-    return timestamp;
+  // レイアウト部品から呼ばれる操作を、型付き引数で画面状態へ接続する。
+  const handleToggleMenu = () => setIsMenuOpen((current) => !current);
+  const handleCloseMenu = () => setIsMenuOpen(false);
+  const handleCloseAlert = () => setAlertMessage(null);
+  const handleSidebarPageSelect = (page: PageType) => {
+    setActivePage(page);
+    setIsMenuOpen(false);
   };
 
-  const applyImport = async (
-    rows: string[][],
-    mapping: import('@/common/importFormat').ColumnMapping,
-    options?: import('@/common/sheetParsers').MapRowOptions,
-    nextPage: PageType = 'dataManagement',
-  ) => {
-    setIsDataLoading(true);
-    try {
-      await ensureWritableSession();
-      const users = rows
-        .map((row) => mapRowToUserBeanWithMapping(row as unknown[], mapping, options))
-        .filter((user) => user.name.trim() !== '' || user.x_id.trim() !== '');
-      await persistApplicants(users);
-      setApplicants(users);
-      setCurrentWinners([]);
-      resetMatching();
-      removeStoredSession();
-      setActivePage(nextPage);
-    } catch (error) {
-      setAlertMessage(error instanceof Error ? error.message : '応募データの取り込みに失敗しました。');
-    } finally {
-      setIsDataLoading(false);
-    }
-  };
-
-  const handleImportUserRows = (
-    rows: string[][],
-    mapping: import('@/common/importFormat').ColumnMapping,
-    options?: import('@/common/sheetParsers').MapRowOptions,
-    nextPage?: PageType,
-  ) => {
-    if (applicants.length > 0 || currentWinners.length > 0) {
-      setPendingImport({ rows, mapping, options, nextPage });
-      return;
-    }
-    void applyImport(rows, mapping, options, nextPage);
-  };
-
-  const handleConfirmImportOverwrite = () => {
-    if (!pendingImport) return;
-    const next = pendingImport;
-    setPendingImport(null);
-    void applyImport(next.rows, next.mapping, next.options, next.nextPage);
-  };
-
-  const INTERNAL_PAGES: PageType[] = ['internalManagement', 'cast', 'ngManagement', 'tweet', 'attendance'];
-  const APPLICATION_PAGES: PageType[] = ['dataManagement', 'lottery', 'matching', 'import'];
-
-  const isPageActive = (current: PageType, buttonPage: PageType): boolean => {
-    if (buttonPage === 'internalManagement') return INTERNAL_PAGES.includes(current);
-    if (buttonPage === 'dataManagement') return APPLICATION_PAGES.includes(current);
-    return current === buttonPage;
-  };
-
-  const sidebarButtons: { text: string; page: PageType; icon?: React.ReactNode }[] = [
-    { text: '応募管理', page: 'dataManagement', icon: <Users size={18} /> },
-    { text: '内部管理', page: 'internalManagement', icon: <Settings size={18} /> },
-    { text: 'イベント切り替え', page: 'eventManagement', icon: <CalendarDays size={18} /> },
-    { text: NAV.GUIDE, page: 'guide', icon: <HelpCircle size={18} /> },
+  // サイドバーの表示項目と、イベント状態を反映した実表示ページ。
+  const sidebarButtons: SidebarItem[] = [
+    { text: getMsg('AppContainer.dataManagement'), page: 'dataManagement', icon: <Users size={18} /> },
+    { text: getMsg('AppContainer.internalManagement'), page: 'internalManagement', icon: <Settings size={18} /> },
+    { text: getMsg('AppContainer.eventManagement'), page: 'eventManagement', icon: <CalendarDays size={18} /> },
+    { text: getMsg('AppContainer.guide'), page: 'guide', icon: <HelpCircle size={18} /> },
   ];
   const visiblePage = getVisiblePage(activePage, currentEventName);
 
   const renderPage = () => {
-    if (currentEventName === null && activePage !== 'guide') {
-      return <EventManagementPage />;
-    }
-    switch (activePage) {
+    switch (visiblePage) {
+      // 応募管理配下のページは、DataManagementPage 内のタブとして切り替える。
       case 'dataManagement':
       case 'lottery':
       case 'matching':
       case 'import':
-        return <DataManagementPage onImportUserRows={handleImportUserRows} />;
+        return <DataManagementPage onImportUsers={handleImportUsers} />;
+      // 内部管理配下のページは、InternalManagementPage 内のタブとして切り替える。
       case 'internalManagement':
       case 'cast':
       case 'ngManagement':
@@ -230,8 +158,6 @@ export const AppContainer: React.FC = () => {
         return <EventManagementPage />;
       case 'guide':
         return <GuidePage />;
-      default:
-        return <DataManagementPage onImportUserRows={handleImportUserRows} />;
     }
   };
 
@@ -241,88 +167,46 @@ export const AppContainer: React.FC = () => {
       <div className={styles.appContainer} data-theme={themeId} style={themeCssVariables as React.CSSProperties}>
         <div className={styles.mobileHeader} data-context="mobile-header">
           <HeaderLogo />
-          <button className={styles.menuToggle} onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <button type="button" className={styles.menuToggle} aria-label={getMsg(isMenuOpen ? 'AppContainer.closeMenu' : 'AppContainer.openMenu')} aria-expanded={isMenuOpen} aria-controls="app-sidebar" onClick={handleToggleMenu}>{isMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
         </div>
-        <aside className={`${styles.sidebar} ${isMenuOpen ? styles.open : ''}`}>
+        <aside id="app-sidebar" className={`${styles.sidebar} ${isMenuOpen ? styles.open : ''}`}>
           <div className={styles.sidebarInner}>
-            <div className={styles.sidebarTitle}>
-              <HeaderLogo />
-            </div>
-            {sidebarButtons.map((button, index) => {
-              const disabled = isSidebarPageDisabled(button.page, currentEventName);
-              const className = [
-                styles.sidebarButton,
-                !disabled && isPageActive(visiblePage, button.page) ? styles.active : '',
-                disabled ? styles.sidebarButtonDisabled : '',
-              ].filter(Boolean).join(' ');
-
-              return (
-                <button
-                  key={index}
-                  className={className}
-                  onClick={() => {
-                    if (disabled) return;
-                    setActivePage(button.page);
-                    setShowDebug(false);
-                    setIsMenuOpen(false);
-                  }}
-                  disabled={disabled}
-                  aria-disabled={disabled}
-                  title={disabled ? `${button.text}はイベント選択後に利用できます` : button.text}
-                >
-                  {button.icon != null ? (
-                    <>
-                      {button.icon}
-                      <span className={styles.sidebarButtonLabel}>{button.text}</span>
-                    </>
-                  ) : (
-                    button.text
-                  )}
-                </button>
-              );
-            })}
-            {import.meta.env.DEV && (
-              <button
-                className={`${styles.sidebarButton}${showDebug ? ` ${styles.active}` : ''}`}
-                onClick={() => { setShowDebug(true); setIsMenuOpen(false); }}
-                title="Debug"
-              >
-                <Terminal size={18} />
-                <span className={styles.sidebarButtonLabel}>Debug</span>
-              </button>
-            )}
+            <div className={styles.sidebarTitle}><HeaderLogo /></div>
+            <nav className={styles.sidebarNavigation} aria-label={getMsg('AppContainer.navigationLabel')}>
+              {sidebarButtons.map((item) => {
+                const disabled = isSidebarPageDisabled(item.page, currentEventName);
+                return <SidebarButton key={item.page} item={item} isActive={!disabled && isPageActive(visiblePage, item.page)} disabled={disabled} onSelect={handleSidebarPageSelect} />;
+              })}
+            </nav>
             <div className={`${styles.sidebarBlock} ${styles.sidebarBlockPush}`} />
             <div className={`${styles.sidebarBlock} ${styles.sidebarThemeSlider}`}>
-              <ThemeSelector
-                themeId={themeId}
-                setThemeId={setThemeId!}
-                customization={themeCustomization}
-                setCustomization={setThemeCustomization}
-              />
+              <ThemeSelector themeId={themeId} setThemeId={setThemeId} customization={themeCustomization} setCustomization={setThemeCustomization} />
             </div>
           </div>
         </aside>
-        {isMenuOpen && <div className={styles.overlay} onClick={() => setIsMenuOpen(false)} />}
+        {isMenuOpen && <button type="button" className={styles.overlay} aria-label={getMsg('AppContainer.closeMenu')} onClick={handleCloseMenu} />}
         {alertMessage !== null && (
-          <ConfirmModal type="alert" message={alertMessage} onConfirm={() => setAlertMessage(null)} confirmLabel="OK" />
+          <NoticeDialog
+            title={getMsg('AppContainer.dataManagement')}
+            message={alertMessage}
+            closeLabel={getMsg('common.close')}
+            onClose={handleCloseAlert}
+          />
         )}
         {pendingImport !== null && (
-          <ConfirmModal
-            type="confirm"
-            title={IMPORT_OVERWRITE.MODAL_TITLE}
-            message={IMPORT_OVERWRITE.MODAL_MESSAGE}
-            confirmLabel={IMPORT_OVERWRITE.CONFIRM_LABEL}
-            cancelLabel={IMPORT_OVERWRITE.CANCEL_LABEL}
+          <ConfirmDialog
+            title={getMsg('AppContainer.importOverwriteTitle')}
+            message={getMsg('AppContainer.importOverwriteMessage')}
+            confirmLabel={getMsg('AppContainer.importOverwriteConfirm')}
+            cancelLabel={getMsg('common.cancel')}
             onConfirm={handleConfirmImportOverwrite}
-            onCancel={() => setPendingImport(null)}
+            onCancel={handleCancelImportOverwrite}
           />
         )}
         <main className={styles.mainContent}>
-          {isDataLoading && <LoadingOverlay message="データを読み込んでいます…" />}
+          {isDataLoading && <LoadingOverlay message={getMsg('AppContainer.dataLoading')} />}
           <div className={styles.mainContentScroll}>
-            {import.meta.env.DEV && showDebug ? <DebugPage /> : renderPage()}
+            {renderPage()}
           </div>
         </main>
         <div id="modal-root" />

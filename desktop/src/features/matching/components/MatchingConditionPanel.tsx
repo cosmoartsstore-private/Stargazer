@@ -1,6 +1,10 @@
-import React from 'react';
+// マッチング実行条件の要約と探索モード設定を表示します。
+
+import React, { useId } from 'react';
+import { selectM003Capacity } from '@/features/matching/logics/matching-capacity';
 import { useAppContext } from '@/stores/AppContext';
 import { MATCHING_TYPE_SUMMARY_LABELS } from '@/features/matching/types/matching-type-codes';
+import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from './MatchingConditionPanel.module.css';
 
@@ -8,18 +12,61 @@ interface MatchingConditionPanelProps {
   disabled?: boolean;
 }
 
+// マッチング探索で選択できる速度・品質方針。
 const SEARCH_MODE_OPTIONS = [
-  { value: 'efficiency', label: '効率モード', description: '条件到達で即採用' },
-  { value: 'quality', label: '品質モード', description: '時間内で最良を採用' },
+  {
+    value: 'efficiency',
+    label: getMsg('MatchingConditionPanel.efficiencyMode'),
+    description: getMsg('MatchingConditionPanel.efficiencyModeDescription'),
+  },
+  {
+    value: 'quality',
+    label: getMsg('MatchingConditionPanel.qualityMode'),
+    description: getMsg('MatchingConditionPanel.qualityModeDescription'),
+  },
 ] as const;
+
+type SearchMode = (typeof SEARCH_MODE_OPTIONS)[number]['value'];
+
+function getSearchModeOptionClassName(isSelected: boolean): string {
+  return [
+    styles.optionButton,
+    isSelected ? styles.optionButtonSelected : '',
+  ].filter(Boolean).join(' ');
+}
+
+interface SearchModeOptionButtonProps {
+  option: (typeof SEARCH_MODE_OPTIONS)[number];
+  selected: boolean;
+  disabled: boolean;
+  onSelect: (searchMode: SearchMode) => void;
+}
+
+function SearchModeOptionButton({ option, selected, disabled, onSelect }: SearchModeOptionButtonProps) {
+  const handleClick = () => onSelect(option.value);
+
+  return (
+    <button type="button" className={getSearchModeOptionClassName(selected)} aria-pressed={selected} disabled={disabled} onClick={handleClick}>
+      {option.label}
+      <span>{option.description}</span>
+    </button>
+  );
+}
 
 export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
   disabled = false,
 }) => {
+  const searchModeLabelId = useId();
+  // 条件要約と検索方針の変更に必要な共有状態を取得する。
   const {
     setActivePage,
     casts,
     currentWinners,
+    sessionWorkflow,
+    matchingSettings,
+    setMatchingSettings,
+  } = useAppContext();
+  const {
     matchingTypeCode,
     rotationCount,
     totalTables,
@@ -27,41 +74,89 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
     castsPerRotation,
     allowM003EmptySeats,
     m003SameDaySlotCount,
-    matchingSettings,
-    setMatchingSettings,
-  } = useAppContext();
+  } = sessionWorkflow;
 
+  // 現在の方式と参加データから、実行条件の要約行を組み立てる。
   const isGroupMode = matchingTypeCode === 'M003';
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
-  const totalSeatCount = isGroupMode
-    ? totalTables * usersPerTable + (allowM003EmptySeats ? m003SameDaySlotCount : 0)
-    : totalTables;
+  const m003Capacity = isGroupMode
+    ? selectM003Capacity({
+        totalTables,
+        usersPerTable,
+        totalWinners: currentWinners.length,
+        activeCastCount,
+        castsPerRotation,
+        includedSameDaySlotCount: allowM003EmptySeats ? m003SameDaySlotCount : 0,
+      })
+    : null;
+  const totalSeatCount = m003Capacity?.totalSeatCount ?? totalTables;
   const conditionItems = [
-    { label: '方式', value: MATCHING_TYPE_SUMMARY_LABELS[matchingTypeCode] },
-    { label: '当選者数', value: `${currentWinners.length} 名` },
-    { label: '出席キャスト', value: `${activeCastCount} 名` },
-    { label: 'ラウンド数', value: `${rotationCount}` },
-    { label: isGroupMode ? '合計席数' : '総テーブル数', value: isGroupMode ? `${totalSeatCount} 席` : `${totalTables}` },
+    {
+      label: getMsg('MatchingConditionPanel.matchingType'),
+      value: MATCHING_TYPE_SUMMARY_LABELS[matchingTypeCode],
+    },
+    {
+      label: getMsg('MatchingConditionPanel.winnerCount'),
+      value: getMsg('MatchingConditionPanel.peopleCount', { count: currentWinners.length }),
+    },
+    {
+      label: getMsg('MatchingConditionPanel.attendingCasts'),
+      value: getMsg('MatchingConditionPanel.peopleCount', { count: activeCastCount }),
+    },
+    {
+      label: getMsg('MatchingConditionPanel.rotationCount'),
+      value: String(rotationCount),
+    },
+    {
+      label: isGroupMode
+        ? getMsg('MatchingConditionPanel.totalSeatCount')
+        : getMsg('MatchingConditionPanel.totalTableCount'),
+      value: isGroupMode
+        ? getMsg('MatchingConditionPanel.seatCount', { count: totalSeatCount })
+        : String(totalTables),
+    },
+    // M003 では、共通条件にグループ制固有の席・キャスト条件を追加する。
     ...(isGroupMode ? [
-      { label: '総テーブル数', value: `${totalTables}` },
-      { label: '1テーブルあたりのゲスト数', value: `${usersPerTable}` },
-      { label: '1ローテあたりのキャスト数', value: `${castsPerRotation}` },
-      { label: '当日枠', value: allowM003EmptySeats ? `${m003SameDaySlotCount} 席を含める` : '含めない' },
+      {
+        label: getMsg('MatchingConditionPanel.totalTableCount'),
+        value: String(totalTables),
+      },
+      {
+        label: getMsg('MatchingConditionPanel.guestsPerTable'),
+        value: String(usersPerTable),
+      },
+      {
+        label: getMsg('MatchingConditionPanel.castsPerRotation'),
+        value: String(castsPerRotation),
+      },
+      {
+        label: getMsg('MatchingConditionPanel.sameDaySlots'),
+        value: allowM003EmptySeats
+          ? getMsg('MatchingConditionPanel.includedSeatCount', { count: m003SameDaySlotCount })
+          : getMsg('MatchingConditionPanel.notIncluded'),
+      },
     ] : []),
   ];
+
+  const handleReturnToLottery = () => {
+    setActivePage('lottery');
+  };
+
+  const handleSearchModeChange = (searchMode: SearchMode) => {
+    setMatchingSettings((previous) => ({
+      ...previous,
+      searchMode,
+    }));
+  };
 
   return (
     <div className={styles.executionPanel}>
       <div className={styles.conditionHeader}>
         <div>
-          <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>実行条件</h2>
-          <p className={`${shared.pageHeaderSubtitle} ${styles.conditionLead}`}>
-            抽選設定で確定した条件を読み取り専用で表示します。
-          </p>
+          <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingConditionPanel.heading')}</h2>
+          <p className={`${shared.pageHeaderSubtitle} ${styles.conditionLead}`}>{getMsg('MatchingConditionPanel.description')}</p>
         </div>
-        <button type="button" className={shared.btnSecondary} onClick={() => setActivePage('lottery')}>
-          抽選設定へ戻る
-        </button>
+        <button type="button" className={shared.btnSecondary} onClick={handleReturnToLottery}>{getMsg('MatchingConditionPanel.returnToLottery')}</button>
       </div>
 
       <div className={styles.conditionSummaryGrid}>
@@ -73,32 +168,16 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
         ))}
       </div>
 
-      <label className={`${shared.formGroup} ${styles.searchModeGroup}`}>
-        <span className={shared.formLabel}>探索モード</span>
-        <div className={styles.optionGrid}>
+      <div className={`${shared.formGroup} ${styles.searchModeGroup}`}>
+        <span id={searchModeLabelId} className={shared.formLabel}>{getMsg('MatchingConditionPanel.searchMode')}</span>
+        <div className={styles.optionGrid} role="group" aria-labelledby={searchModeLabelId}>
           {SEARCH_MODE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`${styles.optionButton}${matchingSettings.searchMode === option.value ? ` ${styles.optionButtonSelected}` : ''}`}
-              disabled={disabled}
-              onClick={() =>
-                setMatchingSettings((prev) => ({
-                  ...prev,
-                  searchMode: option.value,
-                }))
-              }
-            >
-              {option.label}
-              <span>{option.description}</span>
-            </button>
+            <SearchModeOptionButton key={option.value} option={option} selected={matchingSettings.searchMode === option.value} disabled={disabled} onSelect={handleSearchModeChange} />
           ))}
         </div>
-      </label>
+      </div>
 
-      <p className={styles.conditionSummaryNote}>
-        マッチング方式、席数、ラウンド数を変更する場合は抽選設定に戻ります。キャストごとのNG対象はX IDで判定し、マッチング時に自動除外します。
-      </p>
+      <p className={styles.conditionSummaryNote}>{getMsg('MatchingConditionPanel.note')}</p>
     </div>
   );
 };

@@ -28,37 +28,6 @@
 :global([data-theme="skyblue"]) .header-logo__img--full.header-logo__img--dark  { display: none; }
 :global([data-theme="skyblue"]) .header-logo__img--full.header-logo__img--light { display: block; }
 
-.header-logo__icon {
-  flex-shrink: 0;
-}
-
-.header-logo__icon svg {
-  width: 36px;
-  height: 36px;
-}
-
-.header-logo__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.1;
-}
-
-.header-logo__title {
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #ffffff;
-}
-
-.header-logo__tagline {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(219, 222, 225, 0.7);
-}
-
 /* =========================================================
    Context-aware overrides (parent provides data-context attr)
    ========================================================= */
@@ -76,16 +45,4 @@
     max-width: 140px;
     transform: scale(1.0);
   }
-}
-
-/* ========================================
-   Skyblue テーマオーバーライド
-   ======================================== */
-
-:global([data-theme="skyblue"]) .header-logo__title {
-  color: hsl(var(--theme-check-hue, 204) 52% 17%);
-}
-
-:global([data-theme="skyblue"]) .header-logo__tagline {
-  color: hsl(var(--theme-check-hue, 204) 52% 24% / 0.6);
 }

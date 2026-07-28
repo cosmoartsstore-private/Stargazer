@@ -81,6 +81,14 @@
   font-size: 12px;
 }
 
+.score-warning {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(237, 66, 69, 0.14);
+  color: var(--text-danger);
+}
+
 /* ========================================
    Matching screen & workflow layout
    ======================================== */
@@ -131,34 +139,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-}
-
-.workflow-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.workflow-meta-card {
-  background: var(--surface-panel-muted);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.workflow-meta-card__label {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.workflow-result-section {
-  /* PNG 出力時に結果範囲を特定するためのクラス */
 }
 
 .workflow-result-toolbar {

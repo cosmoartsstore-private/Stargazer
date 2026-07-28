@@ -1,3 +1,5 @@
+// 表示領域と配色に応じた STARGAZER のヘッダーロゴ画像を描画する。
+
 import React from 'react';
 import styles from './HeaderLogo.module.css';
 

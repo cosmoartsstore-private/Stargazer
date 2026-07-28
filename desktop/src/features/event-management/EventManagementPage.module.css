@@ -1,33 +1,35 @@
-/* ========================================
-   イベント管理 マスター詳細レイアウト
-   ======================================== */
-
-.event-detail-layout {
-  display: grid;
-  grid-template-columns: 210px 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-/* ── Left panel height override (top-level page, less overhead than internal tabs) ── */
 .event-detail-layout {
   --panel-height: calc(100vh - 220px);
   --panel-min-height: 400px;
 }
 
-/* ── Right panel ── */
+.event-list-status-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.event-list-status-dot--present {
+  background: var(--accent-success);
+}
+
+.event-list-status-dot--absent {
+  background: var(--text-muted);
+}
+
+/* イベント詳細 */
 .event-char-panel {
-  background: var(--surface-panel-muted);
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  padding: 18px 24px;
-  overflow-y: hidden;
   height: calc(100vh - 220px);
   min-height: 400px;
   max-height: 780px;
+  padding: 18px 24px;
+  overflow-y: hidden;
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
 }
 
-/* 縦フロー・中央寄せ */
 .event-char-content {
   display: flex;
   flex-direction: column;
@@ -36,22 +38,21 @@
   min-height: 100%;
 }
 
-/* ── Name input ── */
 .event-char-name-input {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-heading);
-  background: transparent;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 2px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  width: 100%;
-  padding: 2px 8px;
   outline: none;
+  background: transparent;
+  color: var(--text-heading);
   font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
   text-align: center;
   transition: border-color 0.15s, background 0.15s;
-  box-sizing: border-box;
-  margin-bottom: 10px;
 }
 
 .event-char-name-input:hover {
@@ -63,22 +64,33 @@
   background: var(--surface-panel);
 }
 
-/* ── Photo frame 16:9 (big) ── */
 .event-char-photo-frame {
   position: relative;
-  width: min(68%, 560px);
-  aspect-ratio: 16 / 8;
-  border-radius: 12px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
-  overflow: hidden;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
-  transition: border-color 0.15s, box-shadow 0.15s;
   flex-shrink: 0;
+  width: min(68%, 560px);
+  aspect-ratio: 16 / 8;
+  margin-bottom: 12px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--surface-panel);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.event-photo-input {
+  display: none;
+}
+
+.event-char-photo-frame.event-char-read-only,
+.event-char-memo-text.event-char-read-only {
+  cursor: default;
 }
 
 .event-char-photo-frame:hover {
@@ -86,10 +98,10 @@
 }
 
 .event-char-photo-frame__img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .event-char-photo-frame__placeholder {
@@ -98,8 +110,8 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: var(--text-muted);
   padding: 20px;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -114,12 +126,12 @@
 .event-char-photo-frame__overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  background: rgba(0, 0, 0, 0.5);
   color: #fff;
   font-size: 14px;
   opacity: 0;
@@ -131,11 +143,11 @@
 }
 
 .event-char-divider {
-  height: 1px;
   width: 100%;
-  background: var(--border-divider);
+  height: 1px;
   margin: 14px 0;
   flex-shrink: 0;
+  background: var(--border-divider);
 }
 
 .event-char-memo-section {
@@ -150,27 +162,36 @@
   margin-bottom: 6px;
 }
 
+.event-notes-icon {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 .event-char-memo-text,
 .event-char-memo-textarea {
+  box-sizing: border-box;
   width: 100%;
   height: 126px;
   min-height: 126px;
-  box-sizing: border-box;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
   border-radius: 6px;
+  font-family: inherit;
   font-size: 13px;
   line-height: 1.7;
-  padding: 8px 10px;
-  font-family: inherit;
-  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .event-char-memo-text {
+  display: block;
+  overflow-y: auto;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text-default);
+  font-weight: 400;
+  text-align: left;
   white-space: pre-wrap;
   cursor: text;
-  border: 1px solid transparent;
-  overflow-y: auto;
   transition: background 0.12s;
 }
 
@@ -184,40 +205,43 @@
 }
 
 .event-char-memo-textarea {
-  background: var(--surface-panel);
   border: 1px solid var(--accent-primary);
-  color: var(--text-default);
   outline: none;
+  background: var(--surface-panel);
+  color: var(--text-default);
   resize: none;
 }
 
-/* ── Bottom action row ── */
 .event-char-action-row {
   display: flex;
   gap: 10px;
-  width: 100%;
-  justify-content: center;
   flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
 }
 
-/* ── Switch button ── */
-.event-char-switch-btn {
+.event-char-switch-btn,
+.event-char-delete-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 11px 48px;
-  border-radius: 999px;
   border: none;
-  background: var(--color-switch);
+  border-radius: 999px;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.03em;
   cursor: pointer;
   transition: opacity 0.15s;
-  letter-spacing: 0.03em;
 }
 
-.event-char-switch-btn:hover:not(:disabled) {
+.event-char-switch-btn {
+  background: var(--color-switch);
+}
+
+.event-char-switch-btn:hover:not(:disabled),
+.event-char-delete-btn:hover {
   opacity: 0.85;
 }
 
@@ -229,36 +253,15 @@
   opacity: 1;
 }
 
-/* ── Delete button ── */
 .event-char-delete-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 11px 48px;
-  border-radius: 999px;
-  border: none;
   background: var(--accent-danger);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  letter-spacing: 0.03em;
-}
-
-.event-char-delete-btn:hover {
-  opacity: 0.85;
 }
 
 @media (max-width: 800px) {
-  .event-detail-layout {
-    grid-template-columns: 1fr;
-  }
-
   .event-char-panel {
     height: auto;
-    max-height: 700px;
     min-height: unset;
+    max-height: 700px;
     overflow-y: auto;
   }
 

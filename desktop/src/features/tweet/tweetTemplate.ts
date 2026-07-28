@@ -1,7 +1,8 @@
+import { getMsg } from '@/messages/getMsg';
+
 export const TWEET_TEMPLATE_KEY = 'tweet_template';
 
-export const DEFAULT_TWEET_TEMPLATE = `【出席キャスト】
-{casts}`;
+export const DEFAULT_TWEET_TEMPLATE = getMsg('tweetTemplate.defaultTemplate');
 
 /**
  * DB から取得した投稿テンプレートを画面初期値へ変換する。
@@ -15,8 +16,13 @@ export function resolveTweetTemplate(saved: string | null): string {
 export function buildTweetPreview(template: string, casts: string[], eventName: string): string {
   const attendingCasts = casts.filter(Boolean);
   return template
-    .replace(/{casts}/g, attendingCasts.length > 0 ? attendingCasts.join('\n') : '（キャスト未登録）')
-    .replace(/{event_name}/g, eventName || 'イベント')
+    .replace(
+      /{casts}/g,
+      attendingCasts.length > 0
+        ? attendingCasts.join('\n')
+        : getMsg('tweetTemplate.castsNotRegistered'),
+    )
+    .replace(/{event_name}/g, eventName || getMsg('tweetTemplate.defaultEventName'))
     .replace(/{date}/g, '')
     .replace(/{cast_count}/g, '')
     .replace(/{tags}/g, '');

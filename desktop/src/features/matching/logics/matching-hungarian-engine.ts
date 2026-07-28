@@ -1,4 +1,5 @@
-import type { UserBean } from '@/common/types/entities';
+import type { CastBean, UserBean } from '@/common/types/entities';
+import { getCastPreferenceIndex } from '@/common/castReferences';
 import munkres from 'munkres-js';
 
 const INF = 1e9;
@@ -18,19 +19,27 @@ function hungarianAssign(scoreMatrix: number[][]): number[] {
   return assignment;
 }
 
-export const PREFERENCE_WEIGHTS: Readonly<Record<number, number>> = {
+const PREFERENCE_WEIGHTS: Readonly<Record<number, number>> = {
   1: 90,
   2: 70,
   3: 50,
 };
 
+/** 画面表示用の希望順位を、順不同希望では順位なしとして算出する。 */
+export function getPreferenceRank(user: UserBean, cast: CastBean): number {
+  const preferenceIndex = getCastPreferenceIndex(user, cast);
+  return user.preference_mode !== 'flat' && preferenceIndex >= 0 && preferenceIndex < 3
+    ? preferenceIndex + 1
+    : 0;
+}
+
 /** 応募者の希望順位と希望モードから、キャスト1名分の評価点を算出する。 */
-export function getPreferenceScore(user: UserBean, castName: string): number {
+export function getPreferenceScore(user: UserBean, cast: CastBean): number {
   if (!Array.isArray(user.casts) || user.casts.length === 0) {
     return 0;
   }
 
-  const prefIndex = user.casts.indexOf(castName);
+  const prefIndex = getCastPreferenceIndex(user, cast);
   if (prefIndex < 0) {
     return 0;
   }
@@ -40,16 +49,6 @@ export function getPreferenceScore(user: UserBean, castName: string): number {
   }
 
   return PREFERENCE_WEIGHTS[prefIndex + 1] ?? 0;
-}
-
-/** 入力配列を変更せず、Fisher-Yates 法でランダム順の配列を返す。 */
-export function shuffleArray<T>(items: readonly T[]): T[] {
-  const shuffled = [...items];
-  for (let i = shuffled.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 /** 先頭スロットを1つずつずらし、ローテーションごとの巡回表を構築する。 */

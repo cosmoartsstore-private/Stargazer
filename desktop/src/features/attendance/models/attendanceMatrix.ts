@@ -1,4 +1,4 @@
-import type { CastAttendanceEvent, CastAttendanceSummary } from '@/db';
+import type { CastAttendanceRecord } from './types';
 import type { CastBean } from '@/common/types/entities';
 import type { AttendanceMatrixRow, GroupedCasts } from './types';
 
@@ -26,67 +26,53 @@ export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
   return result;
 }
 
-/** 出席履歴から日付だけを取り出し、履歴表の列順として昇順に整列する。 */
-export function buildAttendanceDates(history: CastAttendanceEvent[]): string[] {
-  return Array.from(new Set(history.map((event) => event.recorded_at.slice(0, 10)))).sort();
-}
+/** 構造化履歴を1回走査し、出席履歴表の日付列とキャスト行を構築する。 */
+export function buildAttendanceMatrix(
+  casts: CastBean[],
+  history: CastAttendanceRecord[],
+): { dates: string[]; rows: AttendanceMatrixRow[] } {
+  const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
+  const dates = new Set<string>();
+  const rowByCastName = new Map<string, AttendanceMatrixRow>();
 
-/** DB の集約文字列を、表示・集計で扱うキャスト名配列へ戻す。 */
-function parseAttendanceCastNames(castNames: string): string[] {
-  return castNames
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean);
-}
-
-/** 出席履歴をキャスト名から出席日集合へ変換し、行構築時の参照表にする。 */
-function buildAttendanceByCast(history: CastAttendanceEvent[]): Map<string, Set<string>> {
-  const matrix = new Map<string, Set<string>>();
-
-  for (const event of history) {
-    const date = event.recorded_at.slice(0, 10);
-    for (const castName of parseAttendanceCastNames(event.cast_names)) {
-      const castDates = matrix.get(castName);
-      if (castDates) {
-        castDates.add(date);
-      } else {
-        matrix.set(castName, new Set([date]));
-      }
+  for (const record of history) {
+    const date = record.recordedAt.slice(0, 10);
+    dates.add(date);
+    const current = rowByCastName.get(record.castName);
+    if (current) {
+      current.totalCount += record.attendanceCount;
+      current.dates.add(date);
+    } else {
+      rowByCastName.set(record.castName, {
+        castName: record.castName,
+        totalCount: record.attendanceCount,
+        dates: new Set([date]),
+      });
     }
   }
 
-  return matrix;
-}
+  for (const cast of casts) {
+    if (!rowByCastName.has(cast.name)) {
+      rowByCastName.set(cast.name, {
+        castName: cast.name,
+        totalCount: 0,
+        dates: new Set(),
+      });
+    }
+  }
 
-/** キャスト一覧、履歴、累計を統合し、出席履歴表の行データを構築する。 */
-export function buildAttendanceRows(
-  casts: CastBean[],
-  history: CastAttendanceEvent[],
-  summary: CastAttendanceSummary[],
-): AttendanceMatrixRow[] {
-  const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
-  const summaryCountByCast = new Map(summary.map((item) => [item.cast_name, item.total_count]));
-  const attendanceByCast = buildAttendanceByCast(history);
-  const names = new Set<string>();
-
-  for (const cast of casts) names.add(cast.name);
-  for (const item of summary) names.add(item.cast_name);
-
-  return Array.from(names)
+  const rows = Array.from(rowByCastName.values())
     .sort((a, b) => {
-      const orderA = castOrder.get(a);
-      const orderB = castOrder.get(b);
+      const orderA = castOrder.get(a.castName);
+      const orderB = castOrder.get(b.castName);
       if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
       if (orderA !== undefined) return -1;
       if (orderB !== undefined) return 1;
-      return a.localeCompare(b, 'ja');
-    })
-    .map((castName) => {
-      const dates = attendanceByCast.get(castName) ?? new Set<string>();
-      return {
-        castName,
-        totalCount: summaryCountByCast.get(castName) ?? dates.size,
-        dates,
-      };
+      return a.castName.localeCompare(b.castName, 'ja');
     });
+
+  return {
+    dates: Array.from(dates).sort(),
+    rows,
+  };
 }

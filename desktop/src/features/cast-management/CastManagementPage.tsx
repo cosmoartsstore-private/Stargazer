@@ -1,449 +1,529 @@
-import React, { useRef, useState } from 'react';
-import {
-  Camera, ExternalLink, Pencil,
-  Plus, Search, Trash2, User, UserPlus,
-} from '@/common/icons';
-import { ConfirmModal } from '@/components/ConfirmModal';
+// キャストの登録・編集・削除とプロフィール情報を管理するページ。
+
+import React, { useEffect, useRef, useState } from 'react';
+import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
+import { getMsg } from '@/messages/getMsg';
 import type { CastBean } from '@/common/types/entities';
+import { findCastNameUsages, renameCastInPreferences } from '@/common/castReferences';
 import { useAppContext } from '@/stores/AppContext';
-import { insertCast, updateCastFields, renameCast as renameCastDb, deleteCast } from '@/db';
-import { invoke, isTauri } from '@/tauri';
+import {
+  deleteCast,
+  getAllCasts,
+  insertCast,
+  renameCast as renameCastDb,
+  updateCastFields,
+} from '@/db';
+import {
+  captureEventWriteActivity,
+  getOpenEventContext,
+  isEventWriteActivityUnchanged,
+  isCurrentEventContext,
+  waitForEventWritesToSettle,
+  type EventCommandContext,
+} from '@/db/repositories/commandContext';
+import { openExternalUrl } from '@/tauri';
+import { CastDetailPanel } from './components/CastDetailPanel';
+import { CastListPanel } from './components/CastListPanel';
+import {
+  getAliasConflictMessage,
+  getEditableContactUrls,
+  getFormalNameConflictMessage,
+  getOpenableContactUrl,
+  type EventMutationResult,
+} from './castManagementModel';
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-const CONTACT_SITE_LINKS = [
-  { key: 'externalChat', label: 'Discord', marker: 'Discord', url: 'https://discord.com/channels/@me' },
-  { key: 'x', label: 'X', marker: 'X', url: 'https://x.com/i/chat' },
-  { key: 'vrchat', label: 'VRChat', marker: 'VRC', url: 'https://vrchat.com/home' },
-] as const;
-
-type ContactMarkerKind = 'externalChat' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
-
-function isHttpsContactUrl(url: string): boolean {
-  return url.trim().toLowerCase().startsWith('https://');
-}
-
-function getXProfileUrl(url: string): string | null {
-  const trimmed = url.trim();
-  if (!trimmed.startsWith('@')) return null;
-  const username = trimmed.replace(/^@+/, '');
-  if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) return null;
-  return `https://x.com/${username}`;
-}
-
-function getOpenableContactUrl(url: string): string | null {
-  const trimmed = url.trim();
-  if (isHttpsContactUrl(trimmed)) return trimmed;
-  return getXProfileUrl(trimmed);
-}
-
-// 入力値の種類を、小さなラベルと色分けに使う安定した内部分類へ変換する。
-function getContactMarker(url: string): { label: string; kind: ContactMarkerKind } {
-  const trimmed = url.trim();
-  const lowerUrl = trimmed.toLowerCase();
-  const matched = CONTACT_SITE_LINKS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
-  if (matched) return { label: matched.marker, kind: matched.key };
-  if (!trimmed) return { label: 'URL', kind: 'empty' };
-  if (lowerUrl.startsWith('https://vrchat.com/')) return { label: 'VRC', kind: 'vrchat' };
-  if (lowerUrl.startsWith('https://x.com/') || lowerUrl.startsWith('https://twitter.com/') || getXProfileUrl(trimmed)) return { label: 'X', kind: 'x' };
-  if (isHttpsContactUrl(trimmed)) return { label: 'HTTPS', kind: 'https' };
-  return { label: 'TEXT', kind: 'text' };
-}
-
 export const CastManagementPage: React.FC = () => {
-  const { casts, setCasts } = useAppContext();
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  // イベント名簿と、キャスト名変更に追従する画面内データ。
+  const {
+    casts,
+    setCasts,
+    setApplicants,
+    setCurrentWinners,
+    updateMatchingCastName,
+    currentEventName,
+  } = useAppContext();
+
+  // 選択・編集・検索・確認ダイアログのUI状態。
+  const [selectedCastId, setSelectedCastId] = useState<number | null>(null);
   const [memoEditing, setMemoEditing] = useState(false);
   const [inputCastName, setInputCastName] = useState('');
+  const [inputAlias, setInputAlias] = useState('');
   const [castSearchQuery, setCastSearchQuery] = useState('');
+  const [isSavingAliases, setIsSavingAliases] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [confirmMessage, setConfirmMessage] = useState<{ message: string; onConfirm: () => void } | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const memoTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CastBean | null>(null);
 
-  const selectedCast = casts.find((c) => c.name === selectedName) ?? null;
+  // 写真読込と連絡先保存の競合を、キャスト単位の世代番号で管理する。
+  const photoMutationGenerationByCastRef = useRef(new Map<number, number>());
+  const pendingPhotoReadersRef = useRef(new Set<FileReader>());
+  const contactMutationSequenceByCastRef = useRef(new Map<number, number>());
 
+  // 一覧選択から詳細ペインの対象を確定する。
+  const selectedCast = casts.find((cast) => cast.id === selectedCastId) ?? null;
+
+  useEffect(() => {
+    setSelectedCastId(null);
+    setMemoEditing(false);
+    setInputAlias('');
+    setIsSavingAliases(false);
+    setAlertMessage(null);
+    setDeleteTarget(null);
+    photoMutationGenerationByCastRef.current.clear();
+    contactMutationSequenceByCastRef.current.clear();
+  }, [currentEventName]);
+
+  useEffect(() => () => {
+    photoMutationGenerationByCastRef.current.clear();
+    for (const reader of pendingPhotoReadersRef.current) {
+      if (reader.readyState === FileReader.LOADING) reader.abort();
+    }
+    pendingPhotoReadersRef.current.clear();
+  }, []);
+
+  // キャスト本体の追加・削除・名称・基本項目を永続化する。
   const handleAddCast = async () => {
     const castName = inputCastName.trim();
     if (!castName) return;
-    if (casts.some((c) => c.name === castName)) {
-      setAlertMessage('そのキャスト名は既に登録されています。');
+    const conflictMessage = getFormalNameConflictMessage(castName, casts);
+    if (conflictMessage) {
+      setAlertMessage(conflictMessage);
       return;
     }
-    const newCast: CastBean = { name: castName, is_present: false };
-    setCasts((prev) => [...prev, newCast]);
-    await insertCast(newCast);
-    setInputCastName('');
-    setSelectedName(castName);
+    const newCast: Omit<CastBean, 'id'> = { name: castName, is_present: false };
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return;
+    try {
+      const id = await insertCast(newCast);
+      if (!isCurrentEventContext(context)) return;
+      setCasts((prev) => [...prev, { ...newCast, id }]);
+      setInputCastName('');
+      setSelectedCastId(id);
+    } catch {
+      if (!isCurrentEventContext(context)) return;
+      setAlertMessage(getMsg('CastManagementPage.addFailed'));
+    }
   };
 
-  const handleDeleteCast = (castName: string) => {
-    setConfirmMessage({
-      message: `${castName} を削除します。よろしいですか。`,
-      onConfirm: () => {
-        setCasts((prev) => prev.filter((c) => c.name !== castName));
-        if (selectedName === castName) setSelectedName(null);
-        setConfirmMessage(null);
-        void deleteCast(castName);
-      },
-    });
+  const handleDeleteCast = (cast: CastBean) => {
+    setDeleteTarget(cast);
   };
 
-  const handleRenameCast = async (oldName: string, nextName: string) => {
+  const handleConfirmDeleteCast = async () => {
+    if (deleteTarget === null) return;
+    const cast = deleteTarget;
+    setDeleteTarget(null);
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return;
+    try {
+      await deleteCast(cast.id);
+      if (!isCurrentEventContext(context)) return;
+      setCasts((prev) => prev.filter((current) => current.id !== cast.id));
+      if (selectedCastId === cast.id) setSelectedCastId(null);
+    } catch {
+      if (!isCurrentEventContext(context)) return;
+      setAlertMessage(getMsg('CastManagementPage.deleteFailed'));
+    }
+  };
+
+  const handleRenameCast = async (
+    renamedCast: CastBean,
+    nextName: string,
+  ): Promise<EventMutationResult> => {
+    const oldName = renamedCast.name;
     const trimmed = nextName.trim();
-    if (!trimmed || trimmed === oldName) return;
-    if (casts.some((c) => c.name !== oldName && c.name === trimmed)) {
-      setAlertMessage('そのキャスト名は既に使用されています。');
-      return;
+    if (!trimmed || trimmed === oldName) return trimmed === oldName ? 'saved' : 'failed';
+    const conflictMessage = getFormalNameConflictMessage(trimmed, casts);
+    if (conflictMessage) {
+      setAlertMessage(
+        findCastNameUsages(trimmed, casts).some((usage) => usage.castId === renamedCast.id)
+          ? getMsg('CastManagementPage.renameMatchesAlias', { name: trimmed })
+          : conflictMessage,
+      );
+      return 'failed';
     }
-    setCasts((prev) => prev.map((c) => (c.name === oldName ? { ...c, name: trimmed } : c)));
-    setSelectedName(trimmed);
-    await renameCastDb(oldName, trimmed);
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return 'stale';
+    try {
+      // DB更新後に、現在プロセスで保持している表示名を同じ安定IDの希望へ反映する。
+      await renameCastDb(renamedCast.id, trimmed);
+      if (!isCurrentEventContext(context)) return 'stale';
+      setCasts((prev) => prev.map((cast) => (
+        cast.id === renamedCast.id ? { ...cast, name: trimmed } : cast
+      )));
+      setApplicants((current) => (
+        renameCastInPreferences(current, renamedCast, oldName, trimmed)
+      ));
+      setCurrentWinners((current) => (
+        renameCastInPreferences(current, renamedCast, oldName, trimmed)
+      ));
+      updateMatchingCastName(renamedCast.id, trimmed);
+      return 'saved';
+    } catch {
+      if (!isCurrentEventContext(context)) return 'stale';
+      setAlertMessage(getMsg('CastManagementPage.renameFailed'));
+      return 'failed';
+    }
   };
 
-  const handleFieldChange = async (castName: string, patch: Partial<CastBean>) => {
-    setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, ...patch } : c)));
-    await updateCastFields(castName, patch);
+  const handleFieldChange = async (
+    castId: number,
+    patch: Partial<Omit<CastBean, 'id' | 'name'>>,
+  ): Promise<EventMutationResult> => {
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return 'stale';
+    try {
+      await updateCastFields(castId, patch);
+      if (!isCurrentEventContext(context)) return 'stale';
+      setCasts((prev) => prev.map((cast) => (
+        cast.id === castId ? { ...cast, ...patch } : cast
+      )));
+      return 'saved';
+    } catch {
+      if (!isCurrentEventContext(context)) return 'stale';
+      setAlertMessage(getMsg('CastManagementPage.updateFailed'));
+      return 'failed';
+    }
   };
 
-  const handlePhotoUpload = (castName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  // FileReaderの世代とイベント世代を確認して写真を保存する。
+  const handlePhotoUpload = (castId: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return;
+    const mutationGeneration = (photoMutationGenerationByCastRef.current.get(castId) ?? 0) + 1;
+    photoMutationGenerationByCastRef.current.set(castId, mutationGeneration);
     const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, photo_data_url: dataUrl } : c)));
-      await updateCastFields(castName, { photo_data_url: dataUrl });
+    pendingPhotoReadersRef.current.add(reader);
+    reader.onloadend = () => {
+      pendingPhotoReadersRef.current.delete(reader);
     };
+    reader.onload = () => {
+      if (
+        photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
+        || !isCurrentEventContext(context)
+      ) return;
+      const dataUrl = reader.result as string;
+      void updateCastFields(castId, { photo_data_url: dataUrl })
+        .then(() => {
+          if (!isCurrentEventContext(context)) return;
+          setCasts((prev) => prev.map((cast) => (
+            cast.id === castId ? { ...cast, photo_data_url: dataUrl } : cast
+          )));
+        })
+        .catch(() => {
+          if (
+            photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
+            || !isCurrentEventContext(context)
+          ) return;
+          setAlertMessage(getMsg('CastManagementPage.photoUpdateFailed'));
+        });
+    };
+    const handleReaderFailure = () => {
+      if (
+        photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
+        || !isCurrentEventContext(context)
+      ) return;
+      setAlertMessage(getMsg('common.imageReadFailed'));
+    };
+    reader.onerror = handleReaderFailure;
+    reader.onabort = handleReaderFailure;
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const getContactUrls = (cast: CastBean) =>
-    cast.contact_urls && cast.contact_urls.length > 0 ? cast.contact_urls : [''];
+  // 連絡先の楽観更新と、失敗時のDB再読み込みをキャスト単位で調停する。
+  const restoreCastsAfterContactFailure = async (
+    context: EventCommandContext,
+    castId: number,
+    sequence: number,
+  ): Promise<boolean> => {
+    while (
+      isCurrentEventContext(context)
+      && contactMutationSequenceByCastRef.current.get(castId) === sequence
+    ) {
+      await waitForEventWritesToSettle(context);
+      if (!isCurrentEventContext(context)) return false;
+      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return false;
+      const writeActivity = captureEventWriteActivity(context);
+      if (!isEventWriteActivityUnchanged(context, writeActivity)) continue;
+      const persistedCasts = await getAllCasts();
+      if (!isCurrentEventContext(context)) return false;
+      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return false;
+      if (!isEventWriteActivityUnchanged(context, writeActivity)) continue;
+      setCasts(persistedCasts);
+      return true;
+    }
+    return false;
+  };
 
-  const handleContactUrlChange = async (castName: string, index: number, value: string) => {
-    const cast = casts.find((c) => c.name === castName);
+  const handleContactUrlChange = async (castId: number, index: number, value: string) => {
+    const cast = casts.find((current) => current.id === castId);
     if (!cast) return;
-    const urls = [...getContactUrls(cast)];
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return;
+    const urls = [...getEditableContactUrls(cast)];
     urls[index] = value;
     const normalized = urls.map((u) => u.trim()).filter(Boolean);
     const contact_urls = normalized.length > 0 ? normalized : undefined;
-    setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, contact_urls } : c)));
-    await updateCastFields(castName, { contact_urls });
+    const sequence = (contactMutationSequenceByCastRef.current.get(castId) ?? 0) + 1;
+    contactMutationSequenceByCastRef.current.set(castId, sequence);
+    setCasts((prev) => prev.map((current) => (
+      current.id === castId ? { ...current, contact_urls } : current
+    )));
+    try {
+      await updateCastFields(castId, { contact_urls });
+      if (!isCurrentEventContext(context)) return;
+    } catch {
+      if (!isCurrentEventContext(context)) return;
+      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return;
+      try {
+        if (await restoreCastsAfterContactFailure(context, castId, sequence)) {
+          setAlertMessage(getMsg('CastManagementPage.contactRollback'));
+        }
+      } catch {
+        if (
+          isCurrentEventContext(context)
+          && contactMutationSequenceByCastRef.current.get(castId) === sequence
+        ) {
+          setAlertMessage(getMsg('CastManagementPage.contactSaveFailed'));
+        }
+      }
+    }
   };
 
-  const handleAddContactUrl = async (castName: string) => {
-    const cast = casts.find((c) => c.name === castName);
+  const handleAddContactUrl = async (castId: number) => {
+    const cast = casts.find((current) => current.id === castId);
     if (!cast) return;
+    const context = getOpenEventContext(currentEventName);
+    if (context === null) return;
     const contact_urls = [...(cast.contact_urls ?? []), ''];
-    setCasts((prev) => prev.map((c) => (c.name === castName ? { ...c, contact_urls } : c)));
-    await updateCastFields(castName, { contact_urls });
+    const sequence = (contactMutationSequenceByCastRef.current.get(castId) ?? 0) + 1;
+    contactMutationSequenceByCastRef.current.set(castId, sequence);
+    setCasts((prev) => prev.map((cast) => (
+      cast.id === castId
+        ? { ...cast, contact_urls }
+        : cast
+    )));
+    try {
+      await updateCastFields(castId, { contact_urls });
+      if (!isCurrentEventContext(context)) return;
+    } catch {
+      if (!isCurrentEventContext(context)) return;
+      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return;
+      try {
+        if (await restoreCastsAfterContactFailure(context, castId, sequence)) {
+          setAlertMessage(getMsg('CastManagementPage.contactAddRollback'));
+        }
+      } catch {
+        if (
+          isCurrentEventContext(context)
+          && contactMutationSequenceByCastRef.current.get(castId) === sequence
+        ) {
+          setAlertMessage(getMsg('CastManagementPage.contactAddFailed'));
+        }
+      }
+    }
   };
 
+  // 正式名との競合を検査して別名を追加・変更・削除する。
+  const handleAddAlias = async (cast: CastBean) => {
+    if (isSavingAliases) return;
+    const alias = inputAlias.trim();
+    if (!alias) return;
+    const conflictMessage = getAliasConflictMessage(alias, casts, cast);
+    if (conflictMessage) {
+      setAlertMessage(conflictMessage);
+      return;
+    }
+    setIsSavingAliases(true);
+    let result: EventMutationResult = 'stale';
+    try {
+      result = await handleFieldChange(cast.id, {
+        aliases: [...(cast.aliases ?? []), alias],
+      });
+      if (result === 'saved') setInputAlias('');
+    } finally {
+      if (result !== 'stale') setIsSavingAliases(false);
+    }
+  };
+
+  const handleUpdateAlias = async (
+    cast: CastBean,
+    aliasIndex: number,
+    nextAlias: string,
+  ): Promise<EventMutationResult> => {
+    if (isSavingAliases) return 'failed';
+    const alias = nextAlias.trim();
+    if (!alias) {
+      setAlertMessage(getMsg('CastManagementPage.emptyAlias'));
+      return 'failed';
+    }
+    if (alias === cast.aliases?.[aliasIndex]) return 'saved';
+    const conflictMessage = getAliasConflictMessage(alias, casts, cast, aliasIndex);
+    if (conflictMessage) {
+      setAlertMessage(conflictMessage);
+      return 'failed';
+    }
+    const aliases = [...(cast.aliases ?? [])];
+    aliases[aliasIndex] = alias;
+    setIsSavingAliases(true);
+    let result: EventMutationResult = 'stale';
+    try {
+      result = await handleFieldChange(cast.id, { aliases });
+      return result;
+    } finally {
+      if (result !== 'stale') setIsSavingAliases(false);
+    }
+  };
+
+  const handleDeleteAlias = async (cast: CastBean, aliasIndex: number) => {
+    if (isSavingAliases) return;
+    const aliases = (cast.aliases ?? []).filter((_, index) => index !== aliasIndex);
+    setIsSavingAliases(true);
+    let result: EventMutationResult = 'stale';
+    try {
+      result = await handleFieldChange(cast.id, {
+        aliases: aliases.length > 0 ? aliases : undefined,
+      });
+    } finally {
+      if (result !== 'stale') setIsSavingAliases(false);
+    }
+  };
+
+  // 連絡先表示と外部リンク起動に必要な値を組み立てる。
   const handleOpenContactUrl = async (url: string) => {
     const openUrl = getOpenableContactUrl(url);
     if (!openUrl) return;
-    if (isTauri()) {
-      try {
-        await invoke<void>('open_external_url', { url: openUrl });
-        return;
-      } catch (error) {
-        setAlertMessage(`外部サイトを開けませんでした: ${error instanceof Error ? error.message : String(error)}`);
-        return;
-      }
-    }
-    window.open(openUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const getContactMarkerClassName = (kind: ContactMarkerKind) => {
-    switch (kind) {
-      case 'externalChat': return `${styles.castContactMarker} ${styles.castContactMarkerExternalChat}`;
-      case 'vrchat':  return `${styles.castContactMarker} ${styles.castContactMarkerVrchat}`;
-      case 'x':       return `${styles.castContactMarker} ${styles.castContactMarkerX}`;
-      case 'https':   return `${styles.castContactMarker} ${styles.castContactMarkerHttps}`;
-      case 'text':    return `${styles.castContactMarker} ${styles.castContactMarkerText}`;
-      default:        return styles.castContactMarker;
+    try {
+      await openExternalUrl(openUrl);
+    } catch {
+      setAlertMessage(getMsg('CastManagementPage.openContactFailed'));
     }
   };
 
-  const filteredCasts = castSearchQuery.trim()
-    ? casts.filter((c) => c.name.toLowerCase().includes(castSearchQuery.trim().toLowerCase()))
-    : casts;
+  // 表示コンポーネントから受け取った型付き引数を、選択中キャストの更新処理へ接続する。
+  const handleSelectCast = (castId: number) => {
+    setSelectedCastId(castId);
+    setMemoEditing(false);
+    setInputAlias('');
+  };
+  const handleSelectedPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (selectedCast) handlePhotoUpload(selectedCast.id, event);
+  };
+  const handleRenameSelectedCast = (nextName: string): Promise<EventMutationResult> => {
+    if (!selectedCast) return Promise.resolve('stale');
+    return handleRenameCast(selectedCast, nextName);
+  };
+  const handleSelectedGroupNameChange = (
+    groupName: string | undefined,
+  ): Promise<EventMutationResult> => {
+    if (!selectedCast) return Promise.resolve('stale');
+    return handleFieldChange(selectedCast.id, { group_name: groupName });
+  };
+  const handleUpdateSelectedAlias = (
+    aliasIndex: number,
+    nextAlias: string,
+  ): Promise<EventMutationResult> => {
+    if (!selectedCast) return Promise.resolve('stale');
+    return handleUpdateAlias(selectedCast, aliasIndex, nextAlias);
+  };
+  const handleDeleteSelectedAlias = (aliasIndex: number) => {
+    if (selectedCast) void handleDeleteAlias(selectedCast, aliasIndex);
+  };
+  const handleMemoEditingChange = (editing: boolean) => setMemoEditing(editing);
+  const handleSelectedMemoChange = (memo: string | undefined) => {
+    if (selectedCast) void handleFieldChange(selectedCast.id, { memo });
+  };
+  const handleSelectedContactChange = (contactIndex: number, value: string) => {
+    if (selectedCast) void handleContactUrlChange(selectedCast.id, contactIndex, value);
+  };
+  const handleDeleteSelectedContact = (contactIndex: number) => {
+    if (selectedCast) void handleContactUrlChange(selectedCast.id, contactIndex, '');
+  };
+  const handleDeleteSelectedCast = () => {
+    if (selectedCast) handleDeleteCast(selectedCast);
+  };
+  const handleAddSelectedAlias = () => {
+    if (selectedCast) void handleAddAlias(selectedCast);
+  };
+  const handleAddSelectedContact = () => {
+    if (selectedCast) void handleAddContactUrl(selectedCast.id);
+  };
+  const handleInputAliasChange = (value: string) => setInputAlias(value);
+  const handleDismissAlert = () => setAlertMessage(null);
+  const handleConfirmDeleteClick = () => { void handleConfirmDeleteCast(); };
+  const handleCancelDelete = () => setDeleteTarget(null);
+  const deleteConfirmMessage = deleteTarget
+    ? getMsg('CastManagementPage.deleteConfirmMessage', { castName: deleteTarget.name })
+    : '';
 
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner}`}>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
         <div className={`${shared.pageHeaderRow} ${shared.pageHeaderRowFlexStart}`}>
-          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>キャスト名簿</h1>
+          <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('CastManagementPage.pageTitle')}</h1>
           <div className={shared.statusCard}>
-            <div className={shared.statusCard__label}>登録数</div>
-            <div className={shared.statusCard__value}>
-              <span className={shared.statusCard__valueAccent}>{casts.length}</span>
-            </div>
+            <div className={shared.statusCard__label}>{getMsg('CastManagementPage.registeredCount')}</div>
+            <div className={shared.statusCard__value}><span className={shared.statusCard__valueAccent}>{casts.length}</span></div>
           </div>
         </div>
       </header>
 
-      <div className={styles.castDetailLayout}>
-        {/* ── Left: cast list ── */}
-        <div className={styles.castListPanel}>
-          <div className={styles.castListPanel__search}>
-            <Search size={14} className={styles.castListPanel__searchIcon} />
-            <input
-              type="text"
-              className={styles.castListPanel__searchInput}
-              placeholder="検索..."
-              value={castSearchQuery}
-              onChange={(e) => setCastSearchQuery(e.target.value)}
-            />
-          </div>
+      <div className={`${shared.managementDetailLayout} ${styles.castDetailLayout}`}>
+        <CastListPanel
+          casts={casts}
+          selectedCastId={selectedCastId}
+          searchQuery={castSearchQuery}
+          inputCastName={inputCastName}
+          onSearchQueryChange={setCastSearchQuery}
+          onInputCastNameChange={setInputCastName}
+          onAddCast={handleAddCast}
+          onSelectCast={handleSelectCast}
+        />
 
-          <div className={`${styles.castListPanel__items} ${shared.customScrollbar}`}>
-            {filteredCasts.length === 0 ? (
-              <div className={styles.castListPanel__empty}>キャストがいません</div>
-            ) : (
-              filteredCasts.map((cast) => (
-                <button
-                  key={cast.name}
-                  type="button"
-                  className={`${styles.castListItem}${selectedName === cast.name ? ` ${styles.castListItemSelected}` : ''}`}
-                  onClick={() => { setSelectedName(cast.name); setMemoEditing(false); }}
-                >
-                  <div className={styles.castListItem__info}>
-                    <div className={styles.castListItem__name}>{cast.name}</div>
-                    {cast.group_name && (
-                      <div className={styles.castListItem__group}>{cast.group_name}</div>
-                    )}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-
-          <div className={styles.castListPanel__add}>
-            <div className={styles.castListPanel__addRow}>
-              <input
-                type="text"
-                className={styles.castListPanel__addInput}
-                placeholder="キャストを追加"
-                value={inputCastName}
-                onChange={(e) => setInputCastName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void handleAddCast(); }}
-              />
-              <button
-                type="button"
-                className={`${shared.btnSuccess} ${styles.castListPanel__addBtn}`}
-                onClick={() => { void handleAddCast(); }}
-                title="追加"
-              >
-                <UserPlus size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Right: detail panel ── */}
-        {selectedCast ? (
-          <div key={selectedName} className={`${styles.castCharPanel} ${shared.customScrollbar}`}>
-            <div className={styles.castCharProfileLayout}>
-
-              {/* LEFT: 写真 */}
-              <div className={styles.castCharPhotoCol}>
-                <div
-                  className={styles.castCharPhotoFrame}
-                  onClick={() => photoInputRef.current?.click()}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') photoInputRef.current?.click(); }}
-                >
-                  {selectedCast.photo_data_url ? (
-                    <img src={selectedCast.photo_data_url} alt={selectedCast.name} className={styles.castCharPhotoFrame__img} />
-                  ) : (
-                    <div className={styles.castCharPhotoFrame__placeholder}>
-                      <User size={36} className={styles.castCharPhotoFrame__placeholderIcon} />
-                      <span className={styles.castCharPhotoFrame__placeholderText}>写真を追加</span>
-                    </div>
-                  )}
-                  <div className={styles.castCharPhotoFrame__overlay}>
-                    <Camera size={16} />
-                    <span>変更</span>
-                  </div>
-                </div>
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handlePhotoUpload(selectedCast.name, e)}
-                />
-                <button
-                  type="button"
-                  className={styles.castCharDeleteBtn}
-                  onClick={() => handleDeleteCast(selectedCast.name)}
-                >
-                  キャストを削除
-                </button>
-              </div>
-
-              {/* RIGHT: プロフィール情報 */}
-              <div className={styles.castCharInfoCol}>
-
-                <input
-                  type="text"
-                  className={styles.castCharNameInput}
-                  defaultValue={selectedCast.name}
-                  onBlur={(e) => { void handleRenameCast(selectedCast.name, e.target.value); }}
-                />
-
-                <input
-                  type="text"
-                  className={styles.castCharGroupBadge}
-                  defaultValue={selectedCast.group_name ?? ''}
-                  placeholder="所属グループを追加..."
-                  onBlur={(e) => {
-                    void handleFieldChange(selectedCast.name, {
-                      group_name: e.target.value.trim() || undefined,
-                    });
-                  }}
-                />
-
-                <div className={styles.castCharDivider} />
-
-                {/* プロフィール */}
-                <div className={styles.castCharMemoSection}>
-                  <div className={styles.castCharMemoHeader}>
-                    <span className={styles.castDetailLabel}>プロフィール</span>
-                    {!memoEditing && (
-                      <button
-                        type="button"
-                        className={styles.castCharMemoEditBtn}
-                        onClick={() => {
-                          setMemoEditing(true);
-                          setTimeout(() => memoTextareaRef.current?.focus(), 0);
-                        }}
-                      >
-                        <Pencil size={12} />
-                      </button>
-                    )}
-                  </div>
-                  {memoEditing ? (
-                    <textarea
-                      ref={memoTextareaRef}
-                      className={`${styles.castCharMemo__textarea} ${shared.customScrollbar}`}
-                      defaultValue={selectedCast.memo ?? ''}
-                      placeholder="自己紹介文・メモを入力..."
-                      rows={5}
-                      onBlur={(e) => {
-                        void handleFieldChange(selectedCast.name, {
-                          memo: e.target.value.trim() || undefined,
-                        });
-                        setMemoEditing(false);
-                      }}
-                    />
-                  ) : (
-                    <div
-                      className={`${styles.castCharMemo__text}${!selectedCast.memo ? ` ${styles.castCharMemo__textEmpty}` : ''}`}
-                      onClick={() => {
-                        setMemoEditing(true);
-                        setTimeout(() => memoTextareaRef.current?.focus(), 0);
-                      }}
-                    >
-                      {selectedCast.memo ?? 'クリックしてプロフィールを入力...'}
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.castCharDivider} />
-
-                {/* 連絡先 */}
-                <div className={styles.castDetailSection}>
-                  <label className={styles.castDetailLabel}>連絡先</label>
-                  <div className={styles.castContactSiteLinks}>
-                    <span className={styles.castContactSiteLabel}>外部サイト</span>
-                    <div className={styles.castContactSiteActions}>
-                      {CONTACT_SITE_LINKS.map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          className={`${styles.castContactQuickBtn} ${styles.castContactSiteBtn}`}
-                          onClick={() => { void handleOpenContactUrl(item.url); }}
-                        >
-                          <span className={styles.castContactQuickIcon}><ExternalLink size={12} /></span>
-                          <span className={styles.castContactQuickText}>
-                            <strong>{item.label}</strong>
-                            <small>サイトを開く</small>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className={styles.castContactList}>
-                    {getContactUrls(selectedCast).map((url, index) => {
-                      const marker = getContactMarker(url);
-                      const canOpen = getOpenableContactUrl(url) !== null;
-                      return (
-                        <div key={`${selectedCast.name}-${index}`} className={styles.castContactItem}>
-                          <div className={styles.castContactInputWrap}>
-                            <span className={getContactMarkerClassName(marker.kind)}>{marker.label}</span>
-                            <input
-                              type="text"
-                              className={styles.castContactInput}
-                              placeholder="https:// から始まるURL または @username"
-                              value={url}
-                              onChange={(e) => { void handleContactUrlChange(selectedCast.name, index, e.target.value); }}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            className={`${styles.castContactBtn} ${styles.castContactBtnOpen}`}
-                            disabled={!canOpen}
-                            title={canOpen ? 'リンクを開く' : 'https:// から始まるURLまたは @username を開けます'}
-                            onClick={() => { void handleOpenContactUrl(url); }}
-                          >
-                            <ExternalLink size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`}
-                            onClick={() => { void handleContactUrlChange(selectedCast.name, index, ''); }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      className={styles.castContactAddBtn}
-                      onClick={() => { void handleAddContactUrl(selectedCast.name); }}
-                    >
-                      <Plus size={13} /> 連絡先を追加
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.castDetailEmpty}>
-            <User size={36} className={styles.castDetailEmpty__icon} />
-            <p>左のリストからキャストを選択してください</p>
-          </div>
-        )}
+        <CastDetailPanel
+          key={selectedCast?.id ?? 'empty'}
+          cast={selectedCast}
+          inputAlias={inputAlias}
+          isSavingAliases={isSavingAliases}
+          memoEditing={memoEditing}
+          onPhotoUpload={handleSelectedPhotoUpload}
+          onDeleteCast={handleDeleteSelectedCast}
+          onRenameCast={handleRenameSelectedCast}
+          onGroupNameChange={handleSelectedGroupNameChange}
+          onAliasInputChange={handleInputAliasChange}
+          onAddAlias={handleAddSelectedAlias}
+          onUpdateAlias={handleUpdateSelectedAlias}
+          onDeleteAlias={handleDeleteSelectedAlias}
+          onMemoEditingChange={handleMemoEditingChange}
+          onMemoChange={handleSelectedMemoChange}
+          onContactChange={handleSelectedContactChange}
+          onAddContact={handleAddSelectedContact}
+          onOpenContact={handleOpenContactUrl}
+          onDeleteContact={handleDeleteSelectedContact}
+        />
       </div>
 
       {alertMessage && (
-        <ConfirmModal message={alertMessage} onConfirm={() => setAlertMessage(null)} confirmLabel="OK" type="alert" />
+        <NoticeDialog
+          title={getMsg('CastManagementPage.pageTitle')}
+          message={alertMessage}
+          closeLabel={getMsg('common.close')}
+          onClose={handleDismissAlert}
+        />
       )}
-      {confirmMessage && (
-        <ConfirmModal
-          message={confirmMessage.message}
-          onConfirm={confirmMessage.onConfirm}
-          onCancel={() => setConfirmMessage(null)}
-          confirmLabel="削除"
-          cancelLabel="キャンセル"
-          type="confirm"
+      {deleteTarget && (
+        <ConfirmDialog
+          title={getMsg('CastManagementPage.deleteConfirmTitle')}
+          message={deleteConfirmMessage}
+          confirmLabel={getMsg('common.delete')}
+          cancelLabel={getMsg('common.cancel')}
+          intent="danger"
+          onConfirm={handleConfirmDeleteClick}
+          onCancel={handleCancelDelete}
         />
       )}
     </div>

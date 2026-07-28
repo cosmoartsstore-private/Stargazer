@@ -1,5 +1,6 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import type { MatchedCast, MatchingFailureReason, TableSlot } from '@/features/matching/logics/matching-io';
+import { getMsg } from '@/messages/getMsg';
 
 export interface ResultRow {
   user: UserBean;
@@ -47,37 +48,40 @@ export function buildCastResultRows(rows: ResultRow[], casts: CastBean[]): CastR
     return [];
   }
 
-  const castByName = new Map(casts.map((cast) => [cast.name, cast]));
-  const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
-  const assignmentsByCast = new Map<string, CastResultAssignment[]>();
+  const castById = new Map(casts.map((cast) => [cast.id, cast]));
+  const castOrder = new Map(casts.map((cast, index) => [cast.id, index]));
+  const assignmentsByCast = new Map<number, CastResultAssignment[]>();
 
   rows.forEach(({ user, matches }) => {
     matches.forEach((match) => {
-      const current = assignmentsByCast.get(match.cast.name) ?? [];
+      const castId = match.cast.id;
+      const current = assignmentsByCast.get(castId) ?? [];
       current.push({ user, match });
-      assignmentsByCast.set(match.cast.name, current);
-      if (!castByName.has(match.cast.name)) {
-        castByName.set(match.cast.name, match.cast);
+      assignmentsByCast.set(castId, current);
+      if (!castById.has(castId)) {
+        castById.set(castId, match.cast);
       }
     });
   });
 
-  const castNames = new Set<string>();
-  casts.filter((cast) => cast.is_present).forEach((cast) => castNames.add(cast.name));
-  assignmentsByCast.forEach((_, castName) => castNames.add(castName));
+  const castIds = new Set<number>();
+  casts.filter((cast) => cast.is_present).forEach((cast) => castIds.add(cast.id));
+  assignmentsByCast.forEach((_, castId) => castIds.add(castId));
 
-  return [...castNames]
+  return [...castIds]
     .sort((left, right) => {
       const leftOrder = castOrder.get(left);
       const rightOrder = castOrder.get(right);
       if (leftOrder !== undefined && rightOrder !== undefined) return leftOrder - rightOrder;
       if (leftOrder !== undefined) return -1;
       if (rightOrder !== undefined) return 1;
-      return left.localeCompare(right, 'ja');
+      const leftName = castById.get(left)?.name ?? '';
+      const rightName = castById.get(right)?.name ?? '';
+      return leftName.localeCompare(rightName, 'ja') || left - right;
     })
-    .map((castName) => ({
-      cast: castByName.get(castName) ?? { name: castName, is_present: true },
-      assignments: assignmentsByCast.get(castName) ?? [],
+    .map((castId) => ({
+      cast: castById.get(castId)!,
+      assignments: assignmentsByCast.get(castId) ?? [],
     }));
 }
 
@@ -85,32 +89,34 @@ export function buildCastResultRows(rows: ResultRow[], casts: CastBean[]): CastR
 export function formatFailureMessage(reason: MatchingFailureReason | undefined): string {
   switch (reason) {
     case 'time-limit':
-      return 'マッチングが見つかりませんでした。30秒以内に、NGなしで成立する組み合わせを作成できませんでした。';
+      return getMsg('matchingResultView.timeLimitFailure');
     case 'insufficient-capacity':
-      return '出勤キャスト数またはテーブル数が不足しているため、有効な割り当てを作れませんでした。';
+      return getMsg('matchingResultView.insufficientCapacityFailure');
     case 'invalid-settings':
-      return 'マッチング設定に不整合があるため、有効な割り当てを作れませんでした。';
+      return getMsg('matchingResultView.invalidSettingsFailure');
     case 'ng-conflict':
     default:
-      return 'NG 条件により有効な割り当てを作れませんでした。設定か対象データを見直してください。';
+      return getMsg('matchingResultView.ngConflictFailure');
   }
 }
 
 /** マッチ結果の順位・点数から、表示ラベルと色分け用分類を返す。 */
 export function getMatchPreference(match: MatchedCast): { label: string; tone: MatchPreferenceTone } {
-  if (match.rank === 1) return { label: '第一希望', tone: 'First' };
-  if (match.rank === 2) return { label: '第二希望', tone: 'Second' };
-  if (match.rank === 3) return { label: '第三希望', tone: 'Third' };
-  if (typeof match.score === 'number' && match.score > 0) return { label: '希望', tone: 'Flat' };
-  return { label: '希望外', tone: 'Outside' };
+  if (match.rank === 1) return { label: getMsg('matchingResultView.firstChoice'), tone: 'First' };
+  if (match.rank === 2) return { label: getMsg('matchingResultView.secondChoice'), tone: 'Second' };
+  if (match.rank === 3) return { label: getMsg('matchingResultView.thirdChoice'), tone: 'Third' };
+  if (typeof match.score === 'number' && match.score > 0) {
+    return { label: getMsg('matchingResultView.preferred'), tone: 'Flat' };
+  }
+  return { label: getMsg('matchingResultView.outsidePreference'), tone: 'Outside' };
 }
 
 /** 0-based のローテーション番号を画面用のラベルへ変換する。 */
 export function getRotationLabel(rotationIndex: number | null | undefined): string {
   if (typeof rotationIndex !== 'number' || rotationIndex < 0) {
-    return 'ローテ未設定';
+    return getMsg('matchingResultView.rotationNotConfigured');
   }
-  return `第${rotationIndex + 1}ローテ`;
+  return getMsg('matchingResultView.rotationLabel', { number: rotationIndex + 1 });
 }
 
 /** ユーザー1名分のマッチ結果をローテーション番号ごとにまとめる。 */
@@ -156,7 +162,9 @@ export function getCastResultColumnKeys(rows: ResultRow[]): Array<number | null>
 
 /** キャスト別表の列キーをヘッダー表示名へ変換する。 */
 export function getCastResultColumnLabel(columnKey: number | null): string {
-  return columnKey === null ? '応対する応募者' : getRotationLabel(columnKey);
+  return columnKey === null
+    ? getMsg('matchingResultView.assignedApplicants')
+    : getRotationLabel(columnKey);
 }
 
 /** キャスト別表の指定列に表示する割り当てだけを抽出する。 */

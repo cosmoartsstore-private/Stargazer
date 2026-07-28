@@ -1,13 +1,11 @@
 /**
- * アプリ全体の軽量な localStorage 永続化境界。
- * イベント DB に属さない一時セッション状態とテーマだけを扱う。
+ * 端末単位の表示設定を保存する localStorage 境界。
+ * 応募者、抽選結果、抽選・マッチング条件などの業務データはSQLiteへ保存する。
  */
 
-import { DEFAULT_ROTATION_COUNT } from '@/common/copy';
 import { STORAGE_KEYS } from '@/common/config';
 import {
   readBrowserStorageItem,
-  removeBrowserStorageItem,
   writeBrowserStorageItem,
 } from '@/common/browserStorage';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
@@ -16,22 +14,6 @@ import {
   normalizeThemeCustomization,
   type ThemeCustomizationState,
 } from '@/common/themeCustomization';
-import type { UserBean } from '@/common/types/entities';
-import { MATCHING_TYPE_CODES, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
-
-const VALID_MATCHING_CODES: readonly string[] = [...MATCHING_TYPE_CODES];
-
-export interface PersistedSession {
-  winners: UserBean[];
-  isLotteryResultCurrent: boolean;
-  matchingTypeCode: MatchingTypeCode;
-  rotationCount: number;
-  totalTables: number;
-  usersPerTable: number;
-  castsPerRotation: number;
-  allowM003EmptySeats: boolean;
-  m003SameDaySlotCount: number;
-}
 
 /** JSON 文字列を object として読み取る。壊れた JSON や配列は復元不可として扱う。 */
 function parseStoredObject(raw: string | null): Record<string, unknown> | null {
@@ -43,42 +25,6 @@ function parseStoredObject(raw: string | null): Record<string, unknown> | null {
   } catch {
     return null;
   }
-}
-
-/** 指定値が下限以上の number なら採用し、それ以外は既定値を返す。 */
-function numberAtLeast(value: unknown, min: number, fallback: number): number {
-  return typeof value === 'number' && value >= min ? value : fallback;
-}
-
-/** matchingTypeCode を復元する。M003 は旧セッション復元時の初期方式として M001 へ戻す。 */
-function normalizeMatchingTypeCode(value: unknown): MatchingTypeCode {
-  if (typeof value !== 'string' || !VALID_MATCHING_CODES.includes(value)) return 'M001';
-  const restored = value as MatchingTypeCode;
-  return restored === 'M003' ? 'M001' : restored;
-}
-
-/** 保存済みセッション object を、現在の画面状態で利用できる値へ正規化する。 */
-function normalizePersistedSession(value: Record<string, unknown>): PersistedSession | null {
-  if (!Array.isArray(value.winners)) return null;
-  return {
-    winners: value.winners as UserBean[],
-    isLotteryResultCurrent: typeof value.isLotteryResultCurrent === 'boolean'
-      ? value.isLotteryResultCurrent
-      : value.winners.length > 0,
-    matchingTypeCode: normalizeMatchingTypeCode(value.matchingTypeCode),
-    rotationCount: numberAtLeast(value.rotationCount, 1, DEFAULT_ROTATION_COUNT),
-    totalTables: numberAtLeast(value.totalTables, 1, 15),
-    usersPerTable: numberAtLeast(value.usersPerTable, 1, 1),
-    castsPerRotation: numberAtLeast(value.castsPerRotation, 1, 1),
-    allowM003EmptySeats: typeof value.allowM003EmptySeats === 'boolean' ? value.allowM003EmptySeats : false,
-    m003SameDaySlotCount: Math.floor(numberAtLeast(value.m003SameDaySlotCount, 0, 0)),
-  };
-}
-
-/** localStorage から前回の抽選・マッチング一時セッションを復元する。 */
-export function getInitialSession(): PersistedSession | null {
-  const stored = parseStoredObject(readBrowserStorageItem(STORAGE_KEYS.SESSION));
-  return stored ? normalizePersistedSession(stored) : null;
 }
 
 /** localStorage から初期テーマを復元する。未保存または不正値なら既定テーマを返す。 */
@@ -95,11 +41,6 @@ export function getInitialThemeCustomization(): ThemeCustomizationState {
   return stored ? normalizeThemeCustomization(stored) : DEFAULT_THEME_CUSTOMIZATION;
 }
 
-/** 抽選・マッチング一時セッションを localStorage に保存する。 */
-export function persistSession(session: PersistedSession): void {
-  writeBrowserStorageItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-}
-
 /** テーマ選択を localStorage に保存する。 */
 export function persistTheme(themeId: ThemeId): void {
   writeBrowserStorageItem(STORAGE_KEYS.THEME, themeId);
@@ -108,9 +49,4 @@ export function persistTheme(themeId: ThemeId): void {
 /** テーマカラー設定を localStorage に保存する。 */
 export function persistThemeCustomization(customization: ThemeCustomizationState): void {
   writeBrowserStorageItem(STORAGE_KEYS.THEME_CUSTOMIZATION, JSON.stringify(normalizeThemeCustomization(customization)));
-}
-
-/** 保存済みの抽選・マッチング一時セッションを削除する。 */
-export function removeStoredSession(): void {
-  removeBrowserStorageItem(STORAGE_KEYS.SESSION);
 }

@@ -1,7 +1,9 @@
+import { selectM003Capacity } from '@/features/matching/logics/matching-capacity';
 import { isTableBasedMatching, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
+import { getMsg } from '@/messages/getMsg';
 
 export interface LotteryValidationParams {
-  matchingTypeCode: string;
+  matchingTypeCode: MatchingTypeCode;
   totalWinners: number;
   lotteryCount?: number;
   guaranteedCount?: number;
@@ -41,60 +43,106 @@ export function validateLotteryConditions({
   const displayedLotteryCount = lotteryCount ?? Math.max(0, totalWinners - guaranteedCount);
 
   if (matchingTypeCode === 'M000') {
-    info.push('抽選のみ行うため、席数・ラウンド数・出席キャスト数は検証対象外です。');
+    info.push(getMsg('lotteryValidation.lotteryOnlyInfo'));
   } else if (matchingTypeCode === 'M003') {
-    const completeCastUnitCount = Math.floor(activeCastCount / castsPerRotation);
-    const baseSeatCount = totalTables * usersPerTable;
-    const totalSeatCount = baseSeatCount + normalizedSameDaySlotCount;
-    const effectiveTableCount = Math.ceil(totalSeatCount / usersPerTable);
-    const userTableCount = Math.ceil(totalWinners / usersPerTable);
+    const {
+      baseSeatCount,
+      totalSeatCount,
+      effectiveTableCount,
+      userTableCount,
+      hasEmptySeats,
+      hasEmptyTables,
+      hasIncompleteCastUnit,
+      expectedTableCount,
+      expectedCapacity,
+    } = selectM003Capacity({
+      totalTables,
+      usersPerTable,
+      totalWinners,
+      activeCastCount,
+      castsPerRotation,
+      includedSameDaySlotCount: normalizedSameDaySlotCount,
+    });
 
-    info.push(`合計席数: 通常 ${baseSeatCount} 席 + 当日枠 ${normalizedSameDaySlotCount} 席 = 合計 ${totalSeatCount} 席です。`);
+    info.push(getMsg('lotteryValidation.groupSeatSummary', {
+      baseSeatCount,
+      sameDaySlotCount: normalizedSameDaySlotCount,
+      totalSeatCount,
+    }));
 
     if (effectiveTableCount < userTableCount) {
-      errors.push(`合計席数（${totalSeatCount} 席）が当選者配置に必要な席数（${totalWinners} 席）より少なくなっています。`);
+      errors.push(getMsg('lotteryValidation.insufficientGroupSeats', {
+        totalSeatCount,
+        totalWinners,
+      }));
     }
-
-    const hasEmptySeats = totalWinners % usersPerTable !== 0;
-    const hasEmptyTables = effectiveTableCount > userTableCount;
 
     if (!allowM003EmptySeats && hasEmptySeats) {
-      errors.push(`当選者数（${totalWinners} 名）が「1テーブルのユーザー数（${usersPerTable}）」で割り切れないため端数の空席が発生します。「当日枠を含める」を有効にしてください。`);
+      errors.push(getMsg('lotteryValidation.emptySeatsDisallowed', {
+        totalWinners,
+        usersPerTable,
+      }));
     }
     if (hasEmptyTables && !allowM003EmptySeats) {
-      errors.push(`指定された条件（総テーブル数${totalTables}）では誰も座らない空きテーブルが発生します。総テーブル数は当選者配置に必要な${userTableCount}に合わせてください。`);
+      errors.push(getMsg('lotteryValidation.emptyTablesDisallowed', {
+        totalTables,
+        userTableCount,
+      }));
     }
 
-    if (activeCastCount % castsPerRotation !== 0) {
-      errors.push(`出席キャスト数（${activeCastCount} 名）が「1ローテあたりのキャスト数（${castsPerRotation}）」で割り切れません。`);
+    if (hasIncompleteCastUnit) {
+      errors.push(getMsg('lotteryValidation.castUnitMismatch', {
+        activeCastCount,
+        castsPerRotation,
+      }));
     }
 
     if (allowM003EmptySeats && totalSeatCount > totalWinners) {
-      warnings.push(`当選者数より合計席数が ${totalSeatCount - totalWinners} 席多くなっています。当日枠または空席として扱います。`);
+      warnings.push(getMsg('lotteryValidation.extraSeats', {
+        extraSeatCount: totalSeatCount - totalWinners,
+      }));
     }
 
-    // 端数キャストはグループを構成できないため、接客枠は完全なキャストグループ数だけで計算する。
-    const expectedTableCount = Math.min(completeCastUnitCount, effectiveTableCount);
-    const expectedCapacity = expectedTableCount * usersPerTable;
     if (totalWinners > expectedCapacity) {
-      errors.push(`当選者数（${totalWinners}名）が1ローテの接客枠（${expectedTableCount}テーブル × ${usersPerTable}人 = ${expectedCapacity}名）を上回っています。出勤キャスト数またはテーブル設定を見直してください。`);
+      errors.push(getMsg('lotteryValidation.groupCapacityExceeded', {
+        totalWinners,
+        expectedTableCount,
+        usersPerTable,
+        expectedCapacity,
+      }));
     } else if (totalWinners < expectedCapacity) {
-      warnings.push(`当選者数（${totalWinners}名）が1ローテの接客枠（${expectedCapacity}名）を下回っています。空席や待機状態のキャストが発生する可能性があります。`);
+      warnings.push(getMsg('lotteryValidation.groupCapacityShortfall', {
+        totalWinners,
+        expectedCapacity,
+      }));
     }
   } else {
-    info.push(`合計席数: 総テーブル数 ${totalTables} = 合計 ${totalTables} 席です。`);
+    info.push(getMsg('lotteryValidation.tableSeatSummary', { totalTables }));
 
-    if (isTableBasedMatching(matchingTypeCode as MatchingTypeCode) && totalTables < totalWinners) {
-      errors.push(`総テーブル数（${totalTables}）が当選者数（${totalWinners} 名）より少なくなっています。`);
+    if (isTableBasedMatching(matchingTypeCode) && totalTables < totalWinners) {
+      errors.push(getMsg('lotteryValidation.insufficientTables', {
+        totalTables,
+        totalWinners,
+      }));
     }
 
     if (totalWinners > activeCastCount) {
-      errors.push(`当選者数（${totalWinners}名）が出勤キャスト数（${activeCastCount}名）を上回っています。現在のマッチング方式では全員に同時割り当てできません。`);
+      errors.push(getMsg('lotteryValidation.moreWinnersThanCasts', {
+        totalWinners,
+        activeCastCount,
+      }));
     } else if (totalWinners < activeCastCount) {
-      warnings.push(`出勤キャスト数（${activeCastCount}名）が当選者数（${totalWinners}名）を上回っています。待機状態となるキャストが発生する可能性があります。`);
+      warnings.push(getMsg('lotteryValidation.moreCastsThanWinners', {
+        activeCastCount,
+        totalWinners,
+      }));
     }
   }
-  info.push(`合計当選者数: 抽選 ${displayedLotteryCount} 名 + 確定 ${guaranteedCount} 名 = 合計 ${totalWinners} 名です。`);
+  info.push(getMsg('lotteryValidation.totalWinnerSummary', {
+    lotteryCount: displayedLotteryCount,
+    guaranteedCount,
+    totalWinners,
+  }));
 
   return { errors, warnings, info };
 }

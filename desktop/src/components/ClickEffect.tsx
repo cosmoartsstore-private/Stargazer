@@ -1,14 +1,23 @@
+// クリック位置から装飾用の破片を生成し、短時間の拡散アニメーションを表示する。
+
 import { useEffect, useCallback } from 'react';
+
+// 破片数と移動距離は、クリック位置が分かりつつ操作を遮らない範囲に固定する。
+const SHARD_COUNT = 10;
+const MIN_SHARD_DISTANCE_PX = 24;
+const SHARD_DISTANCE_VARIANCE_PX = 22;
+const SHARD_ANGLE_VARIANCE_DEG = 25;
+const SHARD_TRANSITION_MS = 400;
+const SHARD_REMOVAL_DELAY_MS = 450;
 
 export const ClickEffect: React.FC = () => {
   const spawn = useCallback((e: MouseEvent) => {
     const x = e.clientX;
     const y = e.clientY;
-    const count = 10;
 
-    for (let i = 0; i < count; i++) {
-      const angle = (360 / count) * i + Math.random() * 25;
-      const dist = 24 + Math.random() * 22;
+    for (let i = 0; i < SHARD_COUNT; i++) {
+      const angle = (360 / SHARD_COUNT) * i + Math.random() * SHARD_ANGLE_VARIANCE_DEG;
+      const dist = MIN_SHARD_DISTANCE_PX + Math.random() * SHARD_DISTANCE_VARIANCE_PX;
       const shard = document.createElement('div');
       shard.style.cssText = `
         position: fixed;
@@ -23,7 +32,7 @@ export const ClickEffect: React.FC = () => {
         box-shadow: 0 0 4px hsl(${220 + Math.random() * 40}, 80%, 65%);
         transform: translate(-50%, -50%) rotate(45deg) scale(1);
         opacity: 1;
-        transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+        transition: transform ${SHARD_TRANSITION_MS}ms ease-out, opacity ${SHARD_TRANSITION_MS}ms ease-out;
       `;
       document.body.appendChild(shard);
 
@@ -34,7 +43,7 @@ export const ClickEffect: React.FC = () => {
         shard.style.opacity = '0';
       });
 
-      setTimeout(() => shard.remove(), 450);
+      setTimeout(() => shard.remove(), SHARD_REMOVAL_DELAY_MS);
     }
   }, []);
 

@@ -1,65 +1,30 @@
+// 未捕捉の描画エラーを捕捉し、利用者向け案内へ切り替える。
+
 import React from 'react';
+import { getMsg } from '@/messages/getMsg';
+import styles from './ErrorBoundary.module.css';
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  error: unknown;
 }
 
 export class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
   constructor(props: React.PropsWithChildren) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
-    console.error('Unexpected error in application:', error, errorInfo);
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
   }
 
   render() {
     if (this.state.hasError) {
-      const err = this.state.error;
-      const message = err instanceof Error ? err.message : String(err ?? '不明なエラー');
-      const stack = err instanceof Error ? err.stack : undefined;
       return (
-        <div
-          style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'var(--surface-page)',
-            color: 'var(--text-default)',
-            padding: '24px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--surface-panel)',
-              borderRadius: 8,
-              padding: '24px 32px',
-              border: '1px solid var(--border-default)',
-              maxWidth: 560,
-              width: '100%',
-              textAlign: 'left',
-            }}
-          >
-            <h1 style={{ fontSize: 20, marginBottom: 12, color: 'var(--text-heading)' }}>
-              予期しないエラーが発生しました
-            </h1>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8 }}>
-              画面を再読み込みしても解消しない場合は、スタッフまでお知らせください。
-            </p>
-            <details style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
-              <summary style={{ cursor: 'pointer' }}>エラー詳細</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', marginTop: 8 }}>
-                {message}
-                {stack ? `\n\n${stack}` : ''}
-              </pre>
-            </details>
+        <div className={styles.errorPage}>
+          <div className={styles.errorPanel}>
+            <h1 className={styles.errorHeading}>{getMsg('ErrorBoundary.heading')}</h1>
+            <p className={styles.errorGuidance}>{getMsg('ErrorBoundary.guidance')}</p>
           </div>
         </div>
       );

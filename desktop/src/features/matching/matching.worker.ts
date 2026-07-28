@@ -1,61 +1,40 @@
 import type { UserBean, CastBean } from '@/common/types/entities';
-import { MatchingService, type MatchingFailureReason, type MatchedCast, type MatchingResult, type TableSlot } from './logics/matching-io';
+import {
+  runMatching,
+  type MatchingResult,
+  type MatchingRunOptions,
+} from './logics/matching-io';
 import type { MatchingTypeCode } from './types/matching-type-codes';
-import type { NGJudgmentType, NGMatchingBehavior } from './types/matching-system-types';
 
-interface MatchingWorkerRequest {
-  id: string;
+export interface MatchingWorkerRequest {
   winners: UserBean[];
   casts: CastBean[];
   matchingTypeCode: MatchingTypeCode;
-  options: {
-    rotationCount: number;
-    totalTables?: number;
-    usersPerTable?: number;
-    castsPerRotation?: number;
-    searchTimeLimitMs?: number;
-    relaxedAfterMs?: number;
-    searchMode?: 'efficiency' | 'quality';
-  };
-  ngJudgmentType: NGJudgmentType;
-  ngMatchingBehavior: NGMatchingBehavior;
+  options: MatchingRunOptions;
 }
 
-interface SerializableMatchingResult extends Omit<MatchingResult, 'userMap'> {
-  userMapEntries: Array<[string, MatchedCast[]]>;
-  tableSlots?: TableSlot[];
-  failureReason?: MatchingFailureReason;
-}
-
-function serializeResult(result: MatchingResult): SerializableMatchingResult {
-  return {
-    ...result,
-    userMapEntries: [...result.userMap.entries()],
-  };
-}
+export type MatchingWorkerMessage =
+  | { type: 'complete'; result: MatchingResult }
+  | { type: 'error' };
 
 self.onmessage = (event: MessageEvent<MatchingWorkerRequest>) => {
   const request = event.data;
   try {
-    const result = MatchingService.runMatching(
+    const result = runMatching(
       request.winners,
       request.casts,
       request.matchingTypeCode,
       request.options,
-      request.ngJudgmentType,
-      request.ngMatchingBehavior,
     );
 
+    // structured clone は Map を保持するため、結果を転送専用DTOへ分解しない。
     self.postMessage({
       type: 'complete',
-      id: request.id,
-      result: serializeResult(result),
+      result,
     });
-  } catch (error) {
+  } catch {
     self.postMessage({
       type: 'error',
-      id: request.id,
-      message: error instanceof Error ? error.message : 'マッチング中に予期しないエラーが発生しました。',
     });
   }
 };

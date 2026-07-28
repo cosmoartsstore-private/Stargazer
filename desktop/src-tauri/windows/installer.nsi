@@ -824,7 +824,8 @@ Section Uninstall
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
   ${EndIf}
 
-  ; Clean up everything except Data\archive\ (irreplaceable data)
+  ; 通常アンインストールでは、明示した旧データとcacheだけを削除する。
+  ; Data\archiveとその他のイベントディレクトリは保持する。
   ${If} $UpdateMode <> 1
     DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"
@@ -833,18 +834,17 @@ Section Uninstall
     DeleteRegKey /ifempty HKCU "${MANUKEY}"
     DeleteRegKey HKCU "Software\CosmoArtsStore\Stargazer"
     SetShellVarContext current
-    ; Delete Data subdirectories
+    ; Data配下の旧共通DB、ログ、WebView profileを削除する。
     RmDir /r "$INSTDIR\Data\db"
     RmDir /r "$INSTDIR\Data\logs"
     RmDir /r "$INSTDIR\Data\EBWebView"
     RmDir /r "$INSTDIR\Cache\EBWebView"
     RmDir "$INSTDIR\Cache"
-    ; Legacy cleanup: Tauri default app_data_dir wrote to Roaming before our fix.
-    ; Also remove LOCALAPPDATA\{bundle_id} in case Tauri created it there.
+    ; 過去版のTauriが既定のapp_data_dirへ作成した旧WebView profileを削除する。
+    ; LOCALAPPDATA側に同じbundle IDで作成された場合も削除する。
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
-    ; NEVER delete Data\archive — preserved data must survive uninstall
-    ; Remove Data\ and $INSTDIR only if empty (archive survives)
+    ; Dataとインストール先は空の場合だけ削除する。
     RmDir "$INSTDIR\Data"
     RmDir "$INSTDIR"
   ${EndIf}

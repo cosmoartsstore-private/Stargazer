@@ -1,4 +1,5 @@
-import type { PageType } from '@/stores/AppContext';
+// サイドバーと各featureが共有する画面識別子。
+export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
 
 const EVENT_REQUIRED_PAGES: PageType[] = [
   'dataManagement',
@@ -12,8 +13,12 @@ const EVENT_REQUIRED_PAGES: PageType[] = [
   'attendance',
 ];
 
+// サイドバー上では、各管理領域の子ページも親項目を選択中として扱う。
+const INTERNAL_PAGES: PageType[] = ['internalManagement', 'cast', 'ngManagement', 'tweet', 'attendance'];
+const APPLICATION_PAGES: PageType[] = ['dataManagement', 'lottery', 'matching', 'import'];
+
 /** イベント共有 DB を開いていない状態では遷移できないページかを判定する。 */
-export function requiresOpenEvent(page: PageType): boolean {
+function requiresOpenEvent(page: PageType): boolean {
   return EVENT_REQUIRED_PAGES.includes(page);
 }
 
@@ -28,4 +33,11 @@ export function getVisiblePage(activePage: PageType, currentEventName: string | 
     return 'eventManagement';
   }
   return activePage;
+}
+
+/** 子ページを含めて、サイドバー項目が現在の表示領域に対応するか判定する。 */
+export function isPageActive(current: PageType, buttonPage: PageType): boolean {
+  if (buttonPage === 'internalManagement') return INTERNAL_PAGES.includes(current);
+  if (buttonPage === 'dataManagement') return APPLICATION_PAGES.includes(current);
+  return current === buttonPage;
 }

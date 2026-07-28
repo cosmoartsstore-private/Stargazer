@@ -1,10 +1,16 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
+import { shuffleArray } from '@/common/arrayUtils';
 import type { NGJudgmentType, NGMatchingBehavior } from '@/features/matching/types/matching-system-types';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
 import { isUserNGForCast } from './ng-judgment';
-import { assignWithHungarian, buildRotation, getPreferenceScore, shuffleArray } from './matching-hungarian-engine';
+import {
+  assignWithHungarian,
+  buildRotation,
+  getPreferenceRank,
+  getPreferenceScore,
+} from './matching-hungarian-engine';
 
-export interface MultipleMatchingParams {
+interface MultipleMatchingParams {
   usersPerTable: number;
   castsPerRotation: number;
   rotationCount: number;
@@ -14,6 +20,11 @@ export interface MultipleMatchingParams {
   searchMode?: 'efficiency' | 'quality';
 }
 
+/**
+ * ランダム探索には収束保証がないため30秒で打ち切る。効率優先では最初の10秒だけ
+ * 平均50点以上を求め、その後は実行可能解を優先して画面の待機時間を制限する。
+ * これらはアルゴリズムから導出される値ではなく、応答時間を決める運用既定値である。
+ */
 const DEFAULT_SEARCH_TIME_LIMIT_MS = 30_000;
 const DEFAULT_RELAXED_AFTER_MS = 10_000;
 const STRICT_MIN_AVERAGE_SCORE = 50;
@@ -84,7 +95,7 @@ function runSingleAttempt(
             if (shouldExclude) {
               return Number.NEGATIVE_INFINITY;
             }
-            totalScore += getPreferenceScore(winner, cast.name);
+            totalScore += getPreferenceScore(winner, cast);
           }
         }
       }
@@ -108,15 +119,12 @@ function runSingleAttempt(
 
     group.forEach((winner) => {
       const matches = roundCastGroups.flatMap(({ roundIndex, casts }) =>
-        casts.map((cast) => {
-          const rankIndex = winner.casts.indexOf(cast.name);
-          return {
-            cast,
-            rank: rankIndex >= 0 && rankIndex < 3 && winner.preference_mode !== 'flat' ? rankIndex + 1 : 0,
-            rotationIndex: roundIndex,
-            score: getPreferenceScore(winner, cast.name),
-          };
-        }),
+        casts.map((cast) => ({
+          cast,
+          rank: getPreferenceRank(winner, cast),
+          rotationIndex: roundIndex,
+          score: getPreferenceScore(winner, cast),
+        })),
       );
       userMap.set(winner.x_id, matches);
       tableSlots.push({

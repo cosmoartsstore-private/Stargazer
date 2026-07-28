@@ -3,7 +3,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getSharedDb } from '../database';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
-import { getRequiredEventName } from './commandContext';
+import { enqueueEventWrite, getRequiredEventName } from './commandContext';
+import { groupRowsBy } from './groupRowsBy';
 
 interface CastRow {
   id: number;
@@ -13,12 +14,25 @@ interface CastRow {
   photo_data_url: string | null;
   memo: string | null;
 }
-interface UrlRow { url: string; }
-interface NgRow  { username: string | null; userid: string | null; }
+interface UrlRow {
+  cast_id: number;
+  url: string;
+}
+interface AliasRow {
+  cast_id: number;
+  alias: string;
+}
+interface NgRow {
+  cast_id: number;
+  username: string | null;
+  userid: string | null;
+  notes: string | null;
+}
 
 /** backend command へ渡すため、未指定の任意項目を null または空配列へ正規化する。 */
-function toCastPayload(cast: CastBean): {
+function toCastPayload(cast: Omit<CastBean, 'id'>): {
   name: string;
+  aliases: string[];
   is_present: boolean;
   contact_urls: string[];
   ng_entries: NGUserEntry[];
@@ -28,6 +42,7 @@ function toCastPayload(cast: CastBean): {
 } {
   return {
     name: cast.name,
+    aliases: cast.aliases ?? [],
     is_present: cast.is_present,
     contact_urls: cast.contact_urls ?? [],
     ng_entries: cast.ng_entries ?? [],
@@ -37,84 +52,72 @@ function toCastPayload(cast: CastBean): {
   };
 }
 
-/** キャスト本体に紐づく連絡先 URL と NG エントリを読み込む。 */
-async function fetchCastFull(castId: number): Promise<{ urls: string[]; ng_entries: NGUserEntry[] }> {
-  const db = getSharedDb();
-  const urls = await db.select<UrlRow[]>('SELECT url FROM cast_urls WHERE cast_id = ?', [castId]);
-  const ngs  = await db.select<NgRow[]>('SELECT username, userid FROM cast_ng_entries WHERE cast_id = ?', [castId]);
-  return {
-    urls: urls.map((u) => u.url),
-    ng_entries: ngs
-      .map((n): NGUserEntry => ({ username: n.username ?? undefined, accountId: n.userid ?? undefined }))
-      .filter((e) => e.username || e.accountId),
-  };
-}
-
 /** 現在イベントのキャスト一覧を、連絡先・NG・出席状態つきで読み込む。 */
 export async function getAllCasts(): Promise<CastBean[]> {
   const db = getSharedDb();
-  const rows = await db.select<CastRow[]>('SELECT * FROM casts ORDER BY id');
-  const result: CastBean[] = [];
-  for (const row of rows) {
-    const { urls, ng_entries } = await fetchCastFull(row.id);
-    const presRows = await db.select<[{ is_present: number }]>(
-      'SELECT is_present FROM event_cast_present WHERE cast_id = ?',
-      [row.id],
-    );
-    const is_present = presRows.length > 0 ? presRows[0].is_present === 1 : true;
-    result.push({
+  const [rows, aliasRows, urlRows, ngRows] = await Promise.all([
+    db.select<CastRow[]>(
+      'SELECT id, name, group_name, is_attend, photo_data_url, memo FROM casts ORDER BY id',
+    ),
+    db.select<AliasRow[]>('SELECT cast_id, alias FROM cast_aliases ORDER BY cast_id, id'),
+    db.select<UrlRow[]>('SELECT cast_id, url FROM cast_urls ORDER BY cast_id, id'),
+    db.select<NgRow[]>(
+      'SELECT cast_id, username, userid, notes FROM cast_ng_entries ORDER BY cast_id, id',
+    ),
+  ]);
+
+  const aliasRowsByCastId = groupRowsBy(aliasRows, (row) => row.cast_id);
+  const urlRowsByCastId = groupRowsBy(urlRows, (row) => row.cast_id);
+  const ngRowsByCastId = groupRowsBy(ngRows, (row) => row.cast_id);
+
+  return rows.map((row) => {
+    const aliases = aliasRowsByCastId.get(row.id)?.map((aliasRow) => aliasRow.alias);
+    const urls = urlRowsByCastId.get(row.id)?.map((urlRow) => urlRow.url);
+    const ngEntries = ngRowsByCastId.get(row.id)?.flatMap((ngRow) => {
+      const entry: NGUserEntry = {
+        username: ngRow.username ?? undefined,
+        accountId: ngRow.userid ?? undefined,
+        notes: ngRow.notes ?? undefined,
+      };
+      return entry.username || entry.accountId ? [entry] : [];
+    });
+    return {
+      id: row.id,
       name: row.name,
-      is_present,
+      aliases: aliases?.length ? aliases : undefined,
+      is_present: row.is_attend === 1,
       group_name: row.group_name ?? undefined,
       photo_data_url: row.photo_data_url ?? undefined,
       memo: row.memo ?? undefined,
-      contact_urls: urls.length ? urls : undefined,
-      ng_entries: ng_entries.length ? ng_entries : undefined,
-    });
-  }
-  return result;
-}
-
-/** キャストのイベント内出席状態を更新する。存在しない名前は無視する。 */
-export async function updateCastAttend(name: string, isPresent: boolean): Promise<void> {
-  await invoke('update_cast_attend_atomic', {
-    eventName: getRequiredEventName(),
-    name,
-    isPresent,
-  });
-}
-
-/** 現在イベントに登録されているキャスト数を返す。 */
-export async function getCastCount(): Promise<number> {
-  const db = getSharedDb();
-  const rows = await db.select<[{ n: number }]>('SELECT COUNT(*) AS n FROM casts');
-  return rows[0]?.n ?? 0;
-}
-
-/** キャスト一覧を全置換する。途中失敗時は既存一覧を残す。 */
-export async function persistAllCasts(casts: CastBean[]): Promise<void> {
-  await invoke('persist_all_casts_atomic', {
-    eventName: getRequiredEventName(),
-    casts: casts.map(toCastPayload),
+      contact_urls: urls?.length ? urls : undefined,
+      ng_entries: ngEntries?.length ? ngEntries : undefined,
+    };
   });
 }
 
 /** キャストを1件追加し、連絡先 URL と NG エントリも同じ transaction で保存する。 */
-export async function insertCast(cast: CastBean): Promise<void> {
-  await invoke('insert_cast_atomic', {
-    eventName: getRequiredEventName(),
+export async function insertCast(cast: Omit<CastBean, 'id'>): Promise<number> {
+  const eventName = getRequiredEventName();
+  return enqueueEventWrite(eventName, () => invoke<number>('insert_cast_atomic', {
+    eventName,
     cast: toCastPayload(cast),
-  });
+  }));
 }
 
 /** キャストの編集可能項目を部分更新し、URL/NG は指定時のみ全置換する。 */
-export async function updateCastFields(name: string, patch: Partial<Omit<CastBean, 'name'>>): Promise<void> {
-  await invoke('update_cast_fields_atomic', {
-    eventName: getRequiredEventName(),
-    name,
+export async function updateCastFields(
+  castId: number,
+  patch: Partial<Omit<CastBean, 'id' | 'name'>>,
+): Promise<void> {
+  const eventName = getRequiredEventName();
+  await enqueueEventWrite(eventName, () => invoke('update_cast_fields_atomic', {
+    eventName,
+    castId,
     patch: {
       update_is_present: 'is_present' in patch,
       is_present: patch.is_present === true,
+      update_aliases: 'aliases' in patch,
+      aliases: patch.aliases ?? [],
       update_group_name: 'group_name' in patch,
       group_name: patch.group_name ?? null,
       update_photo_data_url: 'photo_data_url' in patch,
@@ -126,22 +129,33 @@ export async function updateCastFields(name: string, patch: Partial<Omit<CastBea
       update_ng_entries: 'ng_entries' in patch,
       ng_entries: patch.ng_entries ?? [],
     },
-  });
+  }));
+}
+
+/** 現在イベントの全キャストを、単一SQLで出席または待機へ変更する。 */
+export async function setAllCastPresence(isPresent: boolean): Promise<void> {
+  const eventName = getRequiredEventName();
+  await enqueueEventWrite(eventName, () => invoke('set_all_cast_presence_atomic', {
+    eventName,
+    isPresent,
+  }));
 }
 
 /** キャスト名を変更する。関連テーブルは cast_id 参照のため更新不要。 */
-export async function renameCast(oldName: string, newName: string): Promise<void> {
-  await invoke('rename_cast_atomic', {
-    eventName: getRequiredEventName(),
-    oldName,
+export async function renameCast(castId: number, newName: string): Promise<void> {
+  const eventName = getRequiredEventName();
+  await enqueueEventWrite(eventName, () => invoke('rename_cast_atomic', {
+    eventName,
+    castId,
     newName,
-  });
+  }));
 }
 
 /** キャストと関連 URL/NG エントリを削除する。 */
-export async function deleteCast(name: string): Promise<void> {
-  await invoke('delete_cast_atomic', {
-    eventName: getRequiredEventName(),
-    name,
-  });
+export async function deleteCast(castId: number): Promise<void> {
+  const eventName = getRequiredEventName();
+  await enqueueEventWrite(eventName, () => invoke('delete_cast_atomic', {
+    eventName,
+    castId,
+  }));
 }
