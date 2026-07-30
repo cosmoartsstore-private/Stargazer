@@ -18,10 +18,10 @@ describe('isUserNGForCast', () => {
       ng_entries: [{ accountId: 'alice_id' }],
     };
 
-    expect(isUserNGForCast(user, cast, 'accountId')).toBe(true);
+    expect(isUserNGForCast(user, cast)).toBe(true);
   });
 
-  it('username 判定ではユーザー名だけを比較する', () => {
+  it('usernameが一致してもX IDが異なればNGと判定しない', () => {
     const cast: CastBean = {
       id: 1,
       name: 'Cast A',
@@ -29,11 +29,10 @@ describe('isUserNGForCast', () => {
       ng_entries: [{ username: 'alice', accountId: 'other' }],
     };
 
-    expect(isUserNGForCast(user, cast, 'username')).toBe(true);
-    expect(isUserNGForCast(user, cast, 'accountId')).toBe(false);
+    expect(isUserNGForCast(user, cast)).toBe(false);
   });
 
-  it('either 判定ではユーザー名または accountId の一致で NG とする', () => {
+  it('usernameが異なってもX IDが一致すればNGと判定する', () => {
     const cast: CastBean = {
       id: 1,
       name: 'Cast A',
@@ -41,11 +40,11 @@ describe('isUserNGForCast', () => {
       ng_entries: [{ username: 'other', accountId: '@alice_id' }],
     };
 
-    expect(isUserNGForCast(user, cast, 'either')).toBe(true);
+    expect(isUserNGForCast(user, cast)).toBe(true);
   });
 
   it('NG リストが空なら NG と判定しない', () => {
-    expect(isUserNGForCast(user, { id: 1, name: 'Cast A', is_present: true }, 'either')).toBe(false);
+    expect(isUserNGForCast(user, { id: 1, name: 'Cast A', is_present: true })).toBe(false);
   });
 });
 

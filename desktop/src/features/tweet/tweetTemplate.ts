@@ -22,8 +22,5 @@ export function buildTweetPreview(template: string, casts: string[], eventName: 
         ? attendingCasts.join('\n')
         : getMsg('tweetTemplate.castsNotRegistered'),
     )
-    .replace(/{event_name}/g, eventName || getMsg('tweetTemplate.defaultEventName'))
-    .replace(/{date}/g, '')
-    .replace(/{cast_count}/g, '')
-    .replace(/{tags}/g, '');
+    .replace(/{event_name}/g, eventName || getMsg('tweetTemplate.defaultEventName'));
 }

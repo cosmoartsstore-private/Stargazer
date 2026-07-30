@@ -11,6 +11,92 @@
   flex-shrink: 0;
 }
 
+.applicant-saved-lottery-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-shrink: 0;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-panel-muted);
+}
+
+.applicant-saved-lottery-picker-text {
+  min-width: 0;
+}
+
+.applicant-saved-lottery-picker-text h2 {
+  margin: 0 0 3px;
+  color: var(--text-heading);
+  font-size: 13px;
+}
+
+.applicant-saved-lottery-picker-text p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.applicant-saved-lottery-picker-control {
+  position: relative;
+  width: min(620px, 58%);
+  flex-shrink: 0;
+}
+
+.applicant-saved-lottery-picker-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.applicant-saved-lottery-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.applicant-saved-lottery-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.applicant-saved-lottery-picker-actions > button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.applicant-saved-lottery-picker-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.applicant-list-page,
+.applicant-detail-modal {
+  --applicant-cast-issue-surface: #ffd43b;
+  --applicant-cast-issue-hover-surface: #ffe16a;
+  --applicant-cast-issue-on-surface: #1a1503;
+  --applicant-cast-issue-border: #d1a000;
+  --applicant-cast-issue-panel: #302b17;
+}
+
+:global([data-theme="skyblue"]) .applicant-list-page,
+:global([data-theme="skyblue"]) .applicant-detail-modal {
+  --applicant-cast-issue-panel: #fff7c7;
+}
+
+:global([data-guide-theme-preview="dark"]) .applicant-list-page,
+:global([data-guide-theme-preview="dark"]) .applicant-detail-modal {
+  --applicant-cast-issue-panel: #302b17;
+}
+
 .applicant-list-page-static {
   height: calc(100vh - 176px);
   min-height: 360px;
@@ -34,12 +120,15 @@
   align-items: center;
   gap: 8px;
   flex: 1;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
 .applicant-list-header__actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .applicant-list-header__action-button {
@@ -51,9 +140,21 @@
   margin-bottom: 16px;
 }
 
+.applicant-import-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.applicant-import-fieldset:disabled {
+  opacity: 0.65;
+}
+
 .applicant-list-header__count {
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .applicant-caution-badge {
@@ -67,6 +168,7 @@
   color: var(--accent-danger);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -76,12 +178,33 @@
   transform: none;
 }
 
+.applicant-cast-issue-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--applicant-cast-issue-border);
+  border-radius: 12px;
+  background: var(--applicant-cast-issue-surface);
+  color: var(--applicant-cast-issue-on-surface);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.applicant-cast-issue-filter-badge:hover {
+  background: var(--applicant-cast-issue-hover-surface);
+  transform: none;
+}
+
 .applicant-filter-tabs {
   display: flex;
+  max-width: 100%;
   gap: 2px;
   padding: 3px;
   background: var(--surface-panel-muted);
   border-radius: 6px;
+  overflow-x: auto;
 }
 
 .applicant-filter-tab {
@@ -92,6 +215,7 @@
   background: transparent;
   color: var(--text-muted);
   border: none;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -112,15 +236,33 @@
    ======================================== */
 
 .applicant-row {
+  --applicant-row-bg: var(--surface-sticky);
   transition: background-color 0.1s;
 }
 
+.applicant-row td {
+  background-color: var(--applicant-row-bg);
+}
+
 .applicant-row--attention td {
-  background-color: rgba(237, 66, 69, 0.07) !important;
+  background-color: color-mix(in srgb, var(--accent-danger) 7%, var(--applicant-row-bg)) !important;
 }
 
 .applicant-row--attention:hover td {
-  background-color: rgba(237, 66, 69, 0.13) !important;
+  background-color: color-mix(in srgb, var(--accent-danger) 13%, var(--applicant-row-bg)) !important;
+}
+
+.applicant-row--identity-issue .applicant-list-id-cell {
+  background-color: var(--status-warning-bg) !important;
+  color: var(--status-warning-text);
+}
+
+.applicant-row--identity-issue:hover .applicant-list-id-cell {
+  background-color: var(--status-warning-hover-bg) !important;
+}
+
+.applicant-row--identity-issue .applicant-identity-issue-badge {
+  color: var(--status-warning-text);
 }
 
 
@@ -134,8 +276,29 @@
 }
 
 .applicant-detail-modal {
-  width: min(760px, calc(100vw - 48px));
-  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  width: 760px;
+  height: 560px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+
+.applicant-detail-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.applicant-detail-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding-right: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .applicant-detail-modal .applicant-row__detail-grid {
@@ -152,6 +315,67 @@
 
 .applicant-detail-title-badge {
   font-size: 12px;
+}
+
+.applicant-cast-issue-text {
+  display: inline-flex;
+  padding: 2px 7px;
+  border: 1px solid var(--applicant-cast-issue-border);
+  border-radius: 4px;
+  background: var(--applicant-cast-issue-surface);
+  color: var(--applicant-cast-issue-on-surface);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.applicant-preference-help {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--applicant-cast-issue-border);
+  border-radius: 7px;
+  background: var(--applicant-cast-issue-panel);
+  color: var(--text-default);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.applicant-preference-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.applicant-preference-original {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 7px;
+  padding: 3px 7px;
+  border: 1px solid var(--applicant-cast-issue-border);
+  border-radius: 4px;
+  background: var(--applicant-cast-issue-surface);
+  color: var(--applicant-cast-issue-on-surface);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.applicant-preference-select {
+  max-width: 360px;
+  border-color: var(--applicant-cast-issue-border) !important;
+}
+
+.applicant-preference-error {
+  margin: 14px 0 0;
+  color: var(--accent-danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.applicant-preference-actions {
+  flex-shrink: 0;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-default);
 }
 
 .applicant-row__detail-grid dt {
@@ -180,7 +404,7 @@
 }
 
 .applicant-row__detail-grid a {
-  color: var(--text-link);
+  color: var(--text-external-link);
   overflow-wrap: anywhere;
 }
 
@@ -253,7 +477,18 @@
 .applicant-list-table {
   width: max-content !important;
   min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: auto;
+}
+
+.applicant-list-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-sticky-muted);
+  background-clip: padding-box;
+  box-shadow: inset 0 -1px 0 var(--border-default);
 }
 
 .applicant-list-table th,
@@ -263,7 +498,33 @@
 }
 
 .applicant-list-name-cell {
+  position: sticky;
+  left: 0;
   min-width: 160px;
+}
+
+.applicant-list-table thead .applicant-list-name-cell {
+  z-index: 3;
+}
+
+.applicant-list-table tbody .applicant-list-name-cell {
+  z-index: 1;
+  background: var(--applicant-row-bg);
+  background-clip: padding-box;
+  box-shadow: inset -1px 0 0 var(--border-default);
+}
+
+.applicant-list-table tbody tr:nth-child(even) {
+  --applicant-row-bg: var(--surface-sticky-subtle);
+}
+
+:global([data-theme="skyblue"]) .applicant-list-table tbody tr:nth-child(even) {
+  --applicant-row-bg: var(--surface-sticky);
+}
+
+.applicant-list-table tbody tr:hover,
+:global([data-theme="skyblue"]) .applicant-list-table tbody tr:hover {
+  --applicant-row-bg: var(--surface-sticky-hover);
 }
 
 .applicant-detail-button {
@@ -284,6 +545,21 @@
 
 .applicant-list-id-cell {
   min-width: 150px;
+}
+
+.applicant-x-profile-link {
+  color: var(--text-external-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.applicant-x-profile-link:hover,
+.applicant-x-profile-link:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+.applicant-row--identity-issue .applicant-x-profile-link {
+  color: var(--text-external-link-on-warning);
 }
 
 .applicant-identity-issue-badge {
@@ -321,10 +597,67 @@
   visibility: hidden;
 }
 
+.applicant-list-cast-cell--issue,
+.applicant-list-cast-grid-item--issue {
+  background: transparent;
+  font-weight: 700;
+}
+
+.applicant-cast-issue-button,
+.applicant-cast-issue-value {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid var(--applicant-cast-issue-border);
+  border-radius: 4px;
+  background: var(--applicant-cast-issue-surface);
+  color: var(--applicant-cast-issue-on-surface);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.applicant-cast-issue-button {
+  cursor: pointer;
+}
+
+.applicant-cast-issue-button:hover,
+.applicant-cast-issue-button:focus-visible {
+  background: var(--applicant-cast-issue-hover-surface);
+  color: var(--applicant-cast-issue-on-surface);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+
 .applicant-list-ng-cell {
   min-width: 150px;
 }
 
 .applicant-empty-cell {
   text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .applicant-saved-lottery-picker {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .applicant-saved-lottery-picker-control {
+    width: 100%;
+  }
+
+  .applicant-list-header__stats {
+    flex: 1 0 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .applicant-saved-lottery-picker-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

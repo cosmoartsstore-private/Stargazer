@@ -28,6 +28,10 @@
 :global([data-theme="skyblue"]) .header-logo__img--full.header-logo__img--dark  { display: none; }
 :global([data-theme="skyblue"]) .header-logo__img--full.header-logo__img--light { display: block; }
 
+/* ガイドのダーク固定プレビューでは、外側がskyblueでも白ロゴを使用する。 */
+:global([data-guide-theme-preview="dark"]) .header-logo__img--full.header-logo__img--dark  { display: block; }
+:global([data-guide-theme-preview="dark"]) .header-logo__img--full.header-logo__img--light { display: none; }
+
 /* =========================================================
    Context-aware overrides (parent provides data-context attr)
    ========================================================= */
@@ -40,6 +44,8 @@
   /* チェック(skyblue): 黒モバイルロゴ */
   :global([data-theme="skyblue"]) :global([data-context="mobile-header"]) .header-logo__img--mobile.header-logo__img--dark  { display: none; }
   :global([data-theme="skyblue"]) :global([data-context="mobile-header"]) .header-logo__img--mobile.header-logo__img--light { display: block; }
+  :global([data-guide-theme-preview="dark"]) :global([data-context="mobile-header"]) .header-logo__img--mobile.header-logo__img--dark  { display: block; }
+  :global([data-guide-theme-preview="dark"]) :global([data-context="mobile-header"]) .header-logo__img--mobile.header-logo__img--light { display: none; }
 
   :global([data-context="mobile-header"]) .header-logo__img--mobile {
     max-width: 140px;

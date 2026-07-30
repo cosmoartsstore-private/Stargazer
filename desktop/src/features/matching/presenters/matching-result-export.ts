@@ -5,13 +5,41 @@ import {
   type CastResultAssignment,
   type CastResultRow,
 } from './matching-result-view';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { toPng } from 'html-to-image';
+
+function parsePixelValue(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 /** 表示中の結果要素を高解像度PNGとして保存する。 */
 export async function exportElementAsPng(node: HTMLElement | null, filename: string): Promise<void> {
   if (!node) return;
-  const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
+
+  // スクロール領域の実寸を指定し、画面外の列も複製後の画像へ含める。
+  const computedStyle = window.getComputedStyle(node);
+  const width = Math.ceil(
+    Math.max(node.clientWidth, node.scrollWidth)
+      + parsePixelValue(computedStyle.borderLeftWidth)
+      + parsePixelValue(computedStyle.borderRightWidth),
+  );
+  const height = Math.ceil(
+    Math.max(node.clientHeight, node.scrollHeight)
+      + parsePixelValue(computedStyle.borderTopWidth)
+      + parsePixelValue(computedStyle.borderBottomWidth),
+  );
+  const dataUrl = await toPng(node, {
+    cacheBust: true,
+    pixelRatio: 2,
+    width,
+    height,
+    style: {
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+    },
+  });
   const anchor = document.createElement('a');
   anchor.href = dataUrl;
   anchor.download = filename.endsWith('.png') ? filename : `${filename}.png`;
@@ -26,7 +54,7 @@ function formatCastAssignmentForTsv(assignment: CastResultAssignment): string {
     : 'matchingResultExport.assignment';
   return getMsg(messageKey, {
     applicantName: assignment.user.name,
-    xId: assignment.user.x_id,
+    xId: formatXAccountIdForDisplay(assignment.user.x_id),
     preference: preference.label,
   });
 }

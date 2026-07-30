@@ -83,13 +83,14 @@ describe('buildImportPreviewModel', () => {
     expect(model.previewCastColumnIndexes).toEqual([0, 1, 2]);
   });
 
-  it('空と大小文字違いの重複X IDを問題行として集計し取込を拒否する', () => {
+  it('空・形式不正・大小文字違いの重複X IDを問題行として集計し抽選への進行を拒否する', () => {
     const model = buildImportPreviewModel(
       ['名前', 'X ID'],
       [
         { rowNumber: 4, cells: ['Empty', ''] },
         { rowNumber: 8, cells: ['Alice', '@Sample_User'] },
-        { rowNumber: 12, cells: ['Bob', 'https://x.com/sample_user'] },
+        { rowNumber: 12, cells: ['Bob', 'sample_user'] },
+        { rowNumber: 16, cells: ['Invalid', 'https://x.com/invalid_user'] },
       ],
       { ...rankedMapping, cast1: -1, cast2: -1, cast3: -1 },
     );
@@ -98,13 +99,16 @@ describe('buildImportPreviewModel', () => {
       { rowNumber: 4, xId: '', kind: 'empty' },
       { rowNumber: 8, xId: 'Sample_User', kind: 'duplicate' },
       { rowNumber: 12, xId: 'sample_user', kind: 'duplicate' },
+      { rowNumber: 16, xId: 'https://x.com/invalid_user', kind: 'invalid' },
     ]);
-    expect([...model.issueRowNumbers]).toEqual([4, 8, 12]);
+    expect([...model.issueRowNumbers]).toEqual([4, 8, 12, 16]);
     expect(model.mappedRowByNumber.get(8)?.user.name).toBe('Alice');
     expect(model.emptyIdCount).toBe(1);
+    expect(model.invalidIdCount).toBe(1);
     expect(model.duplicateIdCount).toBe(2);
     expect(model.validCount).toBe(0);
-    expect(model.canImport).toBe(false);
+    expect(model.canImport).toBe(true);
+    expect(model.canProceedToLottery).toBe(false);
   });
 
   it('X ID列が未選択なら問題行は作らず取込可能件数を0件とする', () => {
@@ -117,6 +121,7 @@ describe('buildImportPreviewModel', () => {
     expect(model.identityIssues).toEqual([]);
     expect(model.validCount).toBe(0);
     expect(model.canImport).toBe(false);
+    expect(model.canProceedToLottery).toBe(false);
   });
 
   it('1件以上ありX IDに問題がなければ取込を許可する', () => {
@@ -129,6 +134,8 @@ describe('buildImportPreviewModel', () => {
 
     expect(validModel.validCount).toBe(1);
     expect(validModel.canImport).toBe(true);
+    expect(validModel.canProceedToLottery).toBe(true);
     expect(emptyModel.canImport).toBe(false);
+    expect(emptyModel.canProceedToLottery).toBe(false);
   });
 });

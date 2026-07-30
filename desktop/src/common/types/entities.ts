@@ -7,6 +7,7 @@ export interface UserBean {
   /** DBから読み込んだ応募者の安定ID。取込前のプレビュー行には存在しない。 */
   id?: number;
   name: string;
+  /** Xのユーザー名。内部では先頭の@を付けず、画面表示時に付与する。 */
   x_id: string;
   vrc_url?: string; // VRCアカウントURL(オプション)
   casts: string[];
@@ -21,6 +22,7 @@ export interface UserBean {
 /** NGユーザー1件（仕様: username / accountId）。登録時は名前＋X ID。 */
 export interface NGUserEntry {
   username?: string;
+  /** Xのユーザー名。内部では先頭の@を付けない。 */
   accountId?: string;
   /** NGにした理由や、運営内で共有する補足。 */
   notes?: string;
@@ -29,12 +31,11 @@ export interface NGUserEntry {
 /** 固定登録した要注意人物。X IDを必須とし、双方にユーザー名がある場合は名前も照合する。 */
 export interface CautionUser {
   username: string;
+  /** Xのユーザー名。内部では先頭の@を付けない。 */
   accountId: string;
-  /** 旧データとの互換情報。未指定の新規登録は手動登録として保存する。 */
-  registrationType?: 'auto' | 'manual';
   ngCastCount?: number;
   registeredAt?: string;
-  reason?: string;
+  /** 登録理由や、運営内で共有する補足。 */
   notes?: string;
 }
 
@@ -42,10 +43,10 @@ export interface CastBean {
   /** イベント共有DBでキャストを識別する安定ID。 */
   id: number;
   name: string;
-  /** 源氏名など、取込時の希望名として正式名と同様に扱う別名。 */
+  /** 取込時の希望名として正式名と同様に扱う別名義。 */
   aliases?: string[];
   is_present: boolean;
-  /** 連絡先一覧（Discord DM URL・WebプロフィールURL・Xの @username など）。＋で複数追加可能 */
+  /** 連絡先一覧（DM(Discord)用URL・WebプロフィールURL・Xの @username など）。＋で複数追加可能 */
   contact_urls?: string[];
   /** 仕様準拠のNGリスト（ユーザー名・アカウントID） */
   ng_entries?: NGUserEntry[];

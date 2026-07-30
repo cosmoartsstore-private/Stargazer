@@ -1,4 +1,8 @@
 import type { UserBean } from '@/common/types/entities';
+import {
+  formatXAccountIdForDisplay,
+  normalizeXAccountId,
+} from '@/common/xIdUtils';
 
 export interface LotteryPersistenceRow {
   x_id: string;
@@ -10,32 +14,45 @@ export interface LotteryRestoreRow {
   x_id: string;
 }
 
-/** 当選者一覧をDB commandへ渡す行へ変換し、重複を保存前に拒否する。 */
+/** 当選者一覧をDB commandへ渡す形式へ整え、@有無や大小文字差による重複を防ぐ。 */
 export function buildLotteryPersistenceRows(winners: UserBean[]): LotteryPersistenceRow[] {
   const seenXIds = new Set<string>();
   return winners.map((winner) => {
-    if (seenXIds.has(winner.x_id)) {
-      throw new Error(`当選者 ${winner.x_id} が重複しています。`);
+    const key = normalizeXAccountId(winner.x_id);
+    if (!key) {
+      throw new Error(`当選者 ${formatXAccountIdForDisplay(winner.x_id)} のX IDが不正です。`);
     }
-    seenXIds.add(winner.x_id);
+    if (seenXIds.has(key)) {
+      throw new Error(`当選者 ${formatXAccountIdForDisplay(winner.x_id)} が重複しています。`);
+    }
+    seenXIds.add(key);
     return { x_id: winner.x_id, is_guaranteed: !!winner.is_guaranteed };
   });
 }
 
-/** JOIN済みの抽選結果行を、現在の応募者一覧に対応する UserBean として復元する。 */
+/** 保存行を現在の応募者一覧へ照合し、表示中データへ復元する。 */
 export function restoreLotteryWinners(rows: LotteryRestoreRow[], applicants: UserBean[]): UserBean[] {
-  const xIdToUser = new Map(applicants.map((user) => [user.x_id, user]));
+  const xIdToUser = new Map(
+    applicants.flatMap((user) => {
+      const key = normalizeXAccountId(user.x_id);
+      return key ? [[key, user] as const] : [];
+    }),
+  );
   const restoredXIds = new Set<string>();
   const restored: UserBean[] = [];
   for (const row of rows) {
-    const user = xIdToUser.get(row.x_id);
+    const key = normalizeXAccountId(row.x_id);
+    if (!key) {
+      throw new Error(`保存時の応募者 ${formatXAccountIdForDisplay(row.x_id)} のX IDが不正です。`);
+    }
+    const user = xIdToUser.get(key);
     if (!user) {
-      throw new Error(`保存時の応募者 ${row.x_id} は現在の取込データに存在しません。`);
+      throw new Error(`保存時の応募者 ${formatXAccountIdForDisplay(row.x_id)} は現在の取込データに存在しません。`);
     }
-    if (restoredXIds.has(row.x_id)) {
-      throw new Error(`保存済み抽選結果で応募者 ${row.x_id} が重複しています。`);
+    if (restoredXIds.has(key)) {
+      throw new Error(`保存済み抽選結果で応募者 ${formatXAccountIdForDisplay(row.x_id)} が重複しています。`);
     }
-    restoredXIds.add(row.x_id);
+    restoredXIds.add(key);
     restored.push({ ...user, is_guaranteed: row.is_guaranteed === 1 });
   }
   return restored;

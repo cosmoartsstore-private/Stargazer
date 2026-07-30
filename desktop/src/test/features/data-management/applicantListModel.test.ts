@@ -36,6 +36,7 @@ describe('EMPTY_APPLICANT_ROW_DATA', () => {
       isCaution: false,
       hasIdentityIssue: false,
       ngCastNames: [],
+      unavailablePreferenceIndexes: [],
     });
   });
 });
@@ -64,18 +65,22 @@ describe('buildApplicantListViewModel', () => {
       isCaution: true,
       hasIdentityIssue: false,
       ngCastNames: ['Cast A', 'Cast B'],
+      unavailablePreferenceIndexes: [],
     });
     expect(viewModel.rowDataMap.get(bob)).toEqual({
       isCaution: true,
       hasIdentityIssue: false,
       ngCastNames: [],
+      unavailablePreferenceIndexes: [],
     });
     expect(viewModel.rowDataMap.get(carol)).toEqual({
       isCaution: false,
       hasIdentityIssue: false,
       ngCastNames: ['Cast A'],
+      unavailablePreferenceIndexes: [2],
     });
     expect(viewModel.cautionCount).toBe(2);
+    expect(viewModel.castIssueCount).toBe(1);
     expect(viewModel.filteredUsers).toEqual([alice, bob, carol]);
     expect(viewModel.isFlatList).toBe(true);
     expect(viewModel.flatCastColumnIndexes).toEqual([0, 1, 2]);
@@ -105,6 +110,23 @@ describe('buildApplicantListViewModel', () => {
     expect(viewModel.flatCastColumnIndexes).toEqual([0, 1, 2, 3]);
   });
 
+  it('希望キャストに不備がある応募者だけを絞り込む', () => {
+    const available = user({ casts: ['Cast A'] });
+    const unresolved = user({ name: 'Bob', x_id: 'bob', casts: ['Unknown'] });
+
+    const viewModel = buildApplicantListViewModel(
+      [available, unresolved],
+      casts,
+      'castIssue',
+      [],
+      2,
+    );
+
+    expect(viewModel.filteredUsers).toEqual([unresolved]);
+    expect(viewModel.castIssueCount).toBe(1);
+    expect(viewModel.rowDataMap.get(unresolved)?.unavailablePreferenceIndexes).toEqual([0]);
+  });
+
   it('空欄と大文字小文字だけが異なる重複X IDを各行の問題として記録する', () => {
     const first = user({ name: 'First', x_id: ' Duplicate ' });
     const second = user({ name: 'Second', x_id: 'duplicate' });
@@ -130,6 +152,7 @@ describe('buildApplicantListViewModel', () => {
     expect(viewModel.rowDataMap.size).toBe(0);
     expect(viewModel.filteredUsers).toEqual([]);
     expect(viewModel.cautionCount).toBe(0);
+    expect(viewModel.castIssueCount).toBe(0);
     expect(viewModel.isFlatList).toBe(false);
     expect(viewModel.flatCastColumnIndexes).toEqual([0]);
   });

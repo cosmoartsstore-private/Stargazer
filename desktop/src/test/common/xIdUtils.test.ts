@@ -12,31 +12,29 @@ describe('parseXUsername', () => {
     expect(parseXUsername('  @sample_user  ')).toBe('sample_user');
   });
 
-  it('X と Twitter のプロフィール URL からユーザー名部分を返す', () => {
-    expect(parseXUsername('https://x.com/sample_user/status/123')).toBe('sample_user');
-    expect(parseXUsername('twitter.com/SampleUser?lang=ja')).toBe('SampleUser');
+  it('単独ユーザー名はそのまま返す', () => {
+    expect(parseXUsername('sample_user')).toBe('sample_user');
   });
 
-  it('URL ではない単独ユーザー名はそのまま返す', () => {
-    expect(parseXUsername('sample_user_store')).toBe('sample_user_store');
-  });
-
-  it('プロフィール URL と判定できない文字列は null を返す', () => {
+  it('プロフィールURL、使用不可文字、16文字以上の値は null を返す', () => {
+    expect(parseXUsername('https://x.com/sample_user')).toBeNull();
+    expect(parseXUsername('twitter.com/SampleUser')).toBeNull();
     expect(parseXUsername('https://example.com/sample_user')).toBeNull();
+    expect(parseXUsername('sample-user')).toBeNull();
+    expect(parseXUsername('1234567890123456')).toBeNull();
     expect(parseXUsername('')).toBeNull();
     expect(parseXUsername('@   ')).toBeNull();
   });
 });
 
 describe('normalizeXAccountId', () => {
-  it('ユーザー名・@ID・プロフィールURLを大小文字を区別しない比較キーへ揃える', () => {
-    expect(normalizeXAccountId('sample_user')).toBe('@sample_user');
-    expect(normalizeXAccountId('@sample_user')).toBe('@sample_user');
-    expect(normalizeXAccountId('https://x.com/sample_user')).toBe('@sample_user');
-    expect(normalizeXAccountId('https://x.com/Sample_User')).toBe('@sample_user');
+  it('ユーザー名と@IDを先頭の@と大文字小文字を区別しない比較キーへ揃える', () => {
+    expect(normalizeXAccountId('sample_user')).toBe('sample_user');
+    expect(normalizeXAccountId('@Sample_User')).toBe('sample_user');
   });
 
   it('X ID として解釈できない値は null を返す', () => {
+    expect(normalizeXAccountId('https://x.com/sample_user')).toBeNull();
     expect(normalizeXAccountId('https://example.com/sample_user')).toBeNull();
     expect(normalizeXAccountId('')).toBeNull();
   });
@@ -45,7 +43,8 @@ describe('normalizeXAccountId', () => {
 describe('formatXAccountId', () => {
   it('入力時の大文字小文字を保ったまま@ID形式へ揃える', () => {
     expect(formatXAccountId('Sample_User')).toBe('@Sample_User');
-    expect(formatXAccountId('https://x.com/MixedCase')).toBe('@MixedCase');
+    expect(formatXAccountId('@MixedCase')).toBe('@MixedCase');
+    expect(formatXAccountId('https://x.com/MixedCase')).toBeNull();
   });
 });
 
@@ -70,7 +69,7 @@ describe('findXIdIdentityIssues', () => {
     ]);
   });
 
-  it('@ID と X プロフィール URL を取込変換した後の重複を検出する', () => {
+  it('@IDと単独ユーザー名を内部usernameへ変換した後の重複を検出する', () => {
     const mapping = {
       name: 0,
       x_id: 1,
@@ -82,13 +81,23 @@ describe('findXIdIdentityIssues', () => {
     } as const;
     const users = [
       mapRowToUserBeanWithMapping(['Alice', '@Sample_User'], mapping),
-      mapRowToUserBeanWithMapping(['Bob', 'https://x.com/sample_user'], mapping),
+      mapRowToUserBeanWithMapping(['Bob', 'sample_user'], mapping),
     ];
 
+    expect(users.map((user) => user.x_id)).toEqual(['Sample_User', 'sample_user']);
     expect(findXIdIdentityIssues(users.map((user, index) => ({
       rowNumber: index + 1,
       xId: user.x_id,
     })))).toHaveLength(2);
+  });
+
+  it('X ID形式に合わない値を問題行として返す', () => {
+    expect(findXIdIdentityIssues([
+      { rowNumber: 7, xId: 'https://x.com/sample_user' },
+      { rowNumber: 8, xId: 'valid_user' },
+    ])).toEqual([
+      { rowNumber: 7, xId: 'https://x.com/sample_user', kind: 'invalid' },
+    ]);
   });
 
   it('重複行を1件削除した状態では残った X ID を問題にしない', () => {

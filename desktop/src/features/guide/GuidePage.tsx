@@ -24,6 +24,9 @@ const GUIDE_TAB_DOM_IDS: Record<Tab, { tab: string; panel: string }> = {
   features: { tab: 'guide-tab-features', panel: 'guide-tabpanel-features' },
 };
 
+// TODO: StellaRecordリリース後、連携先への登録動作を実機確認してから登録UIを有効化する。
+const IS_STELLA_RECORD_REGISTRATION_ENABLED = false;
+
 function getStellaRegisterButtonLabel(status: StellaStatus): string {
   if (status === 'loading') return getMsg('GuidePage.stella.registering');
   if (status === 'success') return getMsg('GuidePage.stella.registered');
@@ -127,7 +130,7 @@ export const GuidePage: React.FC = () => {
   };
 
   return (
-    <div className={`${shared.pageWrapper} ${styles.guidePage}`} style={{ maxWidth: 1400, paddingBottom: 60 }}>
+    <div className={`${shared.pageWrapper} ${styles.guidePage}`} style={{ maxWidth: 1560, paddingBottom: 60 }}>
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(4px); }
@@ -153,16 +156,18 @@ export const GuidePage: React.FC = () => {
         {activeTab === 'flow' && (
           <>
             <GuideFlowContent />
-            <section className={styles.guideSection} style={{ marginBottom: 40 }}>
-              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><Settings size={22} />{getMsg('GuidePage.stella.title')}</h2>
-              <div className={styles.guideCard} style={{ padding: '18px 22px' }}>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>{getMsg('GuidePage.stella.description')}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button type="button" onClick={handleStellaRegister} disabled={isStellaActionDisabled} style={stellaButtonStyle}>{getStellaRegisterButtonLabel(stellaStatus)}</button>
-                  {stellaMessage && <span style={stellaMessageStyle}>{stellaMessage}</span>}
+            {IS_STELLA_RECORD_REGISTRATION_ENABLED && (
+              <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+                <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><Settings size={22} />{getMsg('GuidePage.stella.title')}</h2>
+                <div className={styles.guideCard} style={{ padding: '18px 22px' }}>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>{getMsg('GuidePage.stella.description')}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button type="button" onClick={handleStellaRegister} disabled={isStellaActionDisabled} style={stellaButtonStyle}>{getStellaRegisterButtonLabel(stellaStatus)}</button>
+                    {stellaMessage && <span style={stellaMessageStyle}>{stellaMessage}</span>}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CastBean } from '@/common/types/entities';
+import { normalizeXAccountId } from '@/common/xIdUtils';
 import {
   deleteCautionUserByAccountId,
   upsertCautionUser,
@@ -139,7 +140,10 @@ export function useCautionUserManagement({
       showAlert(getMsg('NGUserManagementPage.invalidXId'));
       return;
     }
-    if (cautionUsers.some((user) => user.accountId === newEntry.accountId)) {
+    const newAccountIdKey = normalizeXAccountId(newEntry.accountId);
+    if (cautionUsers.some(
+      (user) => normalizeXAccountId(user.accountId) === newAccountIdKey,
+    )) {
       showAlert(getMsg('NGUserManagementPage.duplicateCaution'));
       return;
     }
@@ -160,7 +164,6 @@ export function useCautionUserManagement({
       setForm((current) => ({
         username: current.username === submittedForm.username ? '' : current.username,
         accountId: current.accountId === submittedForm.accountId ? '' : current.accountId,
-        reason: current.reason === submittedForm.reason ? '' : current.reason,
         notes: current.notes === submittedForm.notes ? '' : current.notes,
       }));
     } catch {
@@ -179,19 +182,22 @@ export function useCautionUserManagement({
       showAlert(getMsg('NGUserManagementPage.addCandidateNeedsEvent'));
       return;
     }
-    const reason = getMsg('NGUserManagementPage.candidateRegistrationReason', {
+    const notes = getMsg('NGUserManagementPage.candidateRegistrationReason', {
       count: candidate.castCount,
     });
     const newEntry = createCandidateCautionUser(
       candidate,
       new Date().toISOString(),
-      reason,
+      notes,
     );
     if (newEntry === null) {
       showAlert(getMsg('NGUserManagementPage.candidateInvalidXId'));
       return;
     }
-    if (cautionUsers.some((user) => user.accountId === newEntry.accountId)) return;
+    const newAccountIdKey = normalizeXAccountId(newEntry.accountId);
+    if (cautionUsers.some(
+      (user) => normalizeXAccountId(user.accountId) === newAccountIdKey,
+    )) return;
     if (!beginMutation()) return;
 
     try {
@@ -255,12 +261,8 @@ export function useCautionUserManagement({
     if (!mutationInFlightRef.current) setPendingDeleteAccountId(null);
   }
 
-  /** 理由とメモの明示的な空文字もrepositoryへ渡し、既存値を削除できるようにする。 */
-  async function updateDetails(
-    accountId: string,
-    reason: string,
-    notes: string,
-  ): Promise<void> {
+  /** 理由・メモの明示的な空文字もrepositoryへ渡し、既存値を削除できるようにする。 */
+  async function updateDetails(accountId: string, notes: string): Promise<void> {
     if (mutationInFlightRef.current) return;
     const context = getOpenEventContext(currentEventName);
     if (context === null) {
@@ -275,7 +277,7 @@ export function useCautionUserManagement({
     if (!beginMutation()) return;
 
     try {
-      await upsertCautionUser({ ...target, reason, notes });
+      await upsertCautionUser({ ...target, notes });
       if (!isCurrentEventContext(context)) return;
       setMatchingSettings((current) => ({
         ...current,
@@ -283,7 +285,7 @@ export function useCautionUserManagement({
           ...current.caution,
           cautionUsers: current.caution.cautionUsers.map((user) => (
             user.accountId === accountId
-              ? { ...user, reason: reason || undefined, notes: notes || undefined }
+              ? { ...user, notes: notes || undefined }
               : user
           )),
         },

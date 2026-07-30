@@ -44,8 +44,6 @@ describe('runMultipleMatching', () => {
         totalTables: 1,
         searchTimeLimitMs: 10,
       },
-      'accountId',
-      'exclude',
     );
 
     expect(result.ngConflict).toBeUndefined();
@@ -73,8 +71,6 @@ describe('runMultipleMatching', () => {
         searchTimeLimitMs: 1,
         relaxedAfterMs: 0,
       },
-      'accountId',
-      'exclude',
     );
 
     const matches = [...(result.userMap.get('@alice') ?? [])]
@@ -107,8 +103,6 @@ describe('runMultipleMatching', () => {
         searchTimeLimitMs: 3,
         searchMode: 'quality',
       },
-      'accountId',
-      'exclude',
     );
 
     expect(averageScore(result)).toBe(90);
@@ -141,8 +135,6 @@ describe('runMultipleMatching', () => {
         searchTimeLimitMs: 3,
         searchMode: 'quality',
       },
-      'accountId',
-      'exclude',
     );
 
     expect(averageScore(result)).toBe(90);
@@ -176,8 +168,6 @@ describe('runMultipleMatching', () => {
         relaxedAfterMs: 1,
         searchMode: 'efficiency',
       },
-      'accountId',
-      'exclude',
     );
 
     expect(averageScore(result)).toBe(45);
@@ -194,8 +184,6 @@ describe('runMultipleMatching', () => {
         rotationCount: 1,
         totalTables: 1,
       },
-      'accountId',
-      'exclude',
     );
 
     expect(result).toMatchObject({
@@ -214,8 +202,6 @@ describe('runMultipleMatching', () => {
         rotationCount: 1,
         totalTables: 1,
       },
-      'accountId',
-      'exclude',
     )).toMatchObject({
       ngConflict: true,
       failureReason: 'invalid-settings',
@@ -229,8 +215,6 @@ describe('runMultipleMatching', () => {
         castsPerRotation: 1,
         rotationCount: 1,
       },
-      'accountId',
-      'exclude',
     )).toMatchObject({
       ngConflict: true,
       failureReason: 'insufficient-capacity',
@@ -248,8 +232,6 @@ describe('runMultipleMatching', () => {
         totalTables: 1,
         searchTimeLimitMs: 1,
       },
-      'accountId',
-      'exclude',
     );
 
     expect(result).toMatchObject({
@@ -271,8 +253,6 @@ describe('runMultipleMatching', () => {
         totalTables: 2,
         searchTimeLimitMs: 1,
       },
-      'accountId',
-      'exclude',
     );
 
     expect(result.ngConflict).toBeUndefined();
@@ -284,12 +264,12 @@ describe('runMultipleMatching', () => {
       usersPerTable: 1,
       castsPerRotation: 1,
       rotationCount: 1,
-    }, 'accountId', 'exclude')).toEqual({ userMap: new Map() });
+    })).toEqual({ userMap: new Map() });
 
     expect(runMultipleMatching([user('Alice', '@alice', ['Cast A'])], [{ id: 99, name: 'Resting', is_present: false }], {
       usersPerTable: 1,
       castsPerRotation: 1,
       rotationCount: 1,
-    }, 'accountId', 'exclude')).toEqual({ userMap: new Map() });
+    })).toEqual({ userMap: new Map() });
   });
 });

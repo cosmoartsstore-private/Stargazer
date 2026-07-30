@@ -27,8 +27,6 @@ interface CautionRow {
   id: number;
   username: string;
   account_id: string;
-  registration_type: string;
-  reason: string | null;
   notes: string | null;
   ng_cast_count: number;
   registered_at: string;
@@ -57,8 +55,6 @@ function sampleRow(overrides: Partial<CautionRow> = {}): CautionRow {
     id: 1,
     username: 'Sample User',
     account_id: '@sample_user',
-    registration_type: 'manual',
-    reason: '連絡時に確認が必要',
     notes: '運営内メモ',
     ng_cast_count: 2,
     registered_at: '2026-06-19T12:00:00.000Z',
@@ -69,9 +65,7 @@ function sampleRow(overrides: Partial<CautionRow> = {}): CautionRow {
 function sampleUser(overrides: Partial<CautionUser> = {}): CautionUser {
   return {
     username: 'Sample User',
-    accountId: '@sample_user',
-    registrationType: 'manual',
-    reason: '連絡時に確認が必要',
+    accountId: 'sample_user',
     notes: '運営内メモ',
     ngCastCount: 2,
     registeredAt: '2026-06-19T12:00:00.000Z',
@@ -91,10 +85,15 @@ function createDb(rows: CautionRow[] = [sampleRow()]): FakeDb {
     }),
     select: vi.fn(async <T>(query: string, values?: unknown[]): Promise<T> => {
       selectCalls.push({ query, values });
-      if (normalizeSql(query) === 'SELECT account_id FROM caution_users WHERE account_id = ?') {
-        const accountId = String(values?.[0] ?? '');
+      if (
+        normalizeSql(query)
+        === "SELECT account_id FROM caution_users WHERE LOWER(LTRIM(TRIM(account_id), '@')) = LOWER(?)"
+      ) {
+        const accountId = String(values?.[0] ?? '').trim().replace(/^@/, '').toLowerCase();
         return rows
-          .filter((row) => row.account_id === accountId)
+          .filter(
+            (row) => row.account_id.trim().replace(/^@/, '').toLowerCase() === accountId,
+          )
           .map((row) => ({ account_id: row.account_id })) as T;
       }
       return rows as T;
@@ -114,60 +113,59 @@ describe('caution user read operations', () => {
     const calls = mockState.sharedDb?.selectCalls ?? [];
     expect(calls).toHaveLength(1);
     expect(normalizeSql(calls[0].query)).toBe(
-      'SELECT username, account_id, registration_type, reason, notes, ng_cast_count, registered_at FROM caution_users ORDER BY registered_at DESC',
+      'SELECT username, account_id, notes, ng_cast_count, registered_at FROM caution_users ORDER BY registered_at DESC',
     );
   });
 });
 
 describe('caution user write operations', () => {
   it('同じ表記の既存要注意人物を更新する', async () => {
+    mockState.sharedDb = createDb([sampleRow({ account_id: 'sample_user' })]);
+
     await upsertCautionUser(sampleUser());
 
     const calls = mockState.sharedDb?.executeCalls ?? [];
     expect(calls).toHaveLength(1);
     expect(normalizeSql(calls[0].query)).toBe(
-      'UPDATE caution_users SET username = ?, account_id = ?, registration_type = ?, reason = ?, notes = ?, ng_cast_count = ? WHERE account_id = ?',
+      'UPDATE caution_users SET username = ?, account_id = ?, notes = ?, ng_cast_count = ? WHERE account_id = ?',
     );
     expect(calls[0].values).toEqual([
       'Sample User',
-      '@sample_user',
-      'manual',
-      '連絡時に確認が必要',
+      'sample_user',
       '運営内メモ',
       2,
-      '@sample_user',
+      'sample_user',
     ]);
     expect(mockState.sharedDb?.selectCalls).toEqual([{
-      query: 'SELECT account_id FROM caution_users WHERE account_id = ?',
-      values: ['@sample_user'],
+      query: `SELECT account_id FROM caution_users
+   WHERE LOWER(LTRIM(TRIM(account_id), '@')) = LOWER(?)`,
+      values: ['sample_user'],
     }]);
   });
 
-  it('新しい要注意人物を入力時の大文字小文字を保ったX IDで追加する', async () => {
+  it('新しい要注意人物を入力時の大文字小文字を保った内部usernameで追加する', async () => {
     mockState.sharedDb = createDb([]);
 
     await upsertCautionUser(sampleUser({
-      accountId: 'https://x.com/Sample_User',
+      accountId: 'Sample_User',
     }));
 
     expect(mockState.sharedDb?.executeCalls[0]?.values).toEqual([
       'Sample User',
-      '@Sample_User',
-      'manual',
-      '連絡時に確認が必要',
+      'Sample_User',
       '運営内メモ',
       2,
       '2026-06-19T12:00:00.000Z',
     ]);
     expect(normalizeSql(mockState.sharedDb?.executeCalls[0]?.query ?? '')).toBe(
-      'INSERT INTO caution_users (username, account_id, registration_type, reason, notes, ng_cast_count, registered_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO caution_users (username, account_id, notes, ng_cast_count, registered_at) VALUES (?, ?, ?, ?, ?)',
     );
   });
 
-  it('簡易更新では既存の理由・登録種別・登録日時を上書きしない', async () => {
+  it('簡易更新では既存の補足・NG人数・登録日時を上書きしない', async () => {
     await upsertCautionUser({
       username: 'Updated User',
-      accountId: '@sample_user',
+      accountId: 'sample_user',
     });
 
     const call = mockState.sharedDb?.executeCalls[0];
@@ -176,39 +174,45 @@ describe('caution user write operations', () => {
     );
     expect(call?.values).toEqual([
       'Updated User',
-      '@sample_user',
+      'sample_user',
       '@sample_user',
     ]);
   });
 
-  it('大小文字が異なる既存IDは別の登録として追加する', async () => {
+  it('大小文字と先頭@が異なる既存IDを同じユーザーとして更新する', async () => {
     mockState.sharedDb = createDb([sampleRow({ account_id: '@Sample_User' })]);
 
-    await upsertCautionUser(sampleUser({ accountId: '@sample_user' }));
+    await upsertCautionUser(sampleUser({ accountId: 'sample_user' }));
 
     expect(normalizeSql(mockState.sharedDb.executeCalls[0]?.query ?? '')).toBe(
-      'INSERT INTO caution_users (username, account_id, registration_type, reason, notes, ng_cast_count, registered_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'UPDATE caution_users SET username = ?, account_id = ?, notes = ?, ng_cast_count = ? WHERE account_id = ?',
     );
+    expect(mockState.sharedDb.executeCalls[0]?.values).toEqual([
+      'Sample User',
+      'sample_user',
+      '運営内メモ',
+      2,
+      '@Sample_User',
+    ]);
   });
 
   it('X IDとして解釈できない値は保存しない', async () => {
     await expect(upsertCautionUser(sampleUser({
       accountId: 'https://example.com/sample_user',
-    }))).rejects.toThrow('有効なX IDを入力してください。');
+    }))).rejects.toThrow('X IDは username または @username 形式で入力してください。');
 
     expect(mockState.sharedDb?.selectCalls).toEqual([]);
     expect(mockState.sharedDb?.executeCalls).toEqual([]);
   });
 
-  it('account_id が一致する要注意人物を削除する', async () => {
-    await deleteCautionUserByAccountId('@sample_user');
+  it('先頭@と大小文字を除いて一致する要注意人物を削除する', async () => {
+    await deleteCautionUserByAccountId('@SAMPLE_USER');
 
-    expect(mockState.sharedDb?.executeCalls).toEqual([
-      {
-        query: 'DELETE FROM caution_users WHERE account_id = ?',
-        values: ['@sample_user'],
-      },
-    ]);
+    const call = mockState.sharedDb?.executeCalls[0];
+    expect(normalizeSql(call?.query ?? '')).toBe(
+      "DELETE FROM caution_users WHERE LOWER(LTRIM(TRIM(account_id), '@')) = LOWER(?)",
+    );
+    expect(call?.values).toEqual(['SAMPLE_USER']);
   });
 
 });

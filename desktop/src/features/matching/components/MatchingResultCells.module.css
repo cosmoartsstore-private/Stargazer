@@ -190,6 +190,59 @@
   color: var(--text-danger);
 }
 
+/* skyblue の白い結果パネルでは、順位ごとの識別を不透明な面と濃い文字で保つ。 */
+:global([data-theme="skyblue"]) .match-chip-rank,
+:global([data-theme="skyblue"]) .applicant-assignment-rank {
+  background: #d8e7f2;
+  color: #294c68;
+}
+
+:global([data-theme="skyblue"]) .match-chip-first,
+:global([data-theme="skyblue"]) .applicant-assignment-first {
+  background: #fff1c7;
+  border-color: #d7a400;
+  color: #754900;
+}
+
+:global([data-theme="skyblue"]) .match-chip-second,
+:global([data-theme="skyblue"]) .applicant-assignment-second {
+  background: #eef2f6;
+  border-color: #8b98a6;
+  color: #344353;
+}
+
+:global([data-theme="skyblue"]) .match-chip-third,
+:global([data-theme="skyblue"]) .applicant-assignment-third {
+  background: #f7e3d0;
+  border-color: #bd7b3c;
+  color: #75401a;
+}
+
+:global([data-theme="skyblue"]) .match-chip-flat,
+:global([data-theme="skyblue"]) .applicant-assignment-flat {
+  background: #e0e7ff;
+  border-color: #7488cf;
+  color: #34477d;
+}
+
+:global([data-theme="skyblue"]) .match-chip-outside,
+:global([data-theme="skyblue"]) .applicant-assignment-outside {
+  background: #eef6fb;
+  border-color: #9abbd2;
+  color: #3d607b;
+}
+
+:global([data-theme="skyblue"]) .match-chip-ng,
+:global([data-theme="skyblue"]) .applicant-assignment-ng {
+  background: #fde8e8;
+  border-color: #bf5255;
+  color: #98272b;
+}
+
+:global([data-theme="skyblue"]) .applicant-assignment-id {
+  color: #53718b;
+}
+
 .cast-result-empty {
   color: var(--text-muted);
   font-size: 12px;

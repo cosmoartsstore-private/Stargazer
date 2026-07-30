@@ -1,6 +1,7 @@
 // マッチング結果をローテーション別・キャスト別に表示するセル群を提供します。
 
 import React from 'react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import type { MatchedCast } from '@/features/matching/logics/matching-io';
 import { getMsg } from '@/messages/getMsg';
 import {
@@ -119,7 +120,7 @@ export const CastAssignmentList: React.FC<{ assignments: CastResultAssignment[] 
             aria-label={accessibleLabel}
           >
             <span className={styles.applicantAssignmentName}>{assignment.user.name}</span>
-            <span className={styles.applicantAssignmentId}>{assignment.user.x_id}</span>
+            <span className={styles.applicantAssignmentId}>{formatXAccountIdForDisplay(assignment.user.x_id)}</span>
             <span className={styles.applicantAssignmentRank}>{preference.label}</span>
             {assignment.match.ngReason && (
               <span className={styles.applicantAssignmentNgReason}>{getMsg('MatchingResultCells.ngReason', { reason: assignment.match.ngReason })}</span>

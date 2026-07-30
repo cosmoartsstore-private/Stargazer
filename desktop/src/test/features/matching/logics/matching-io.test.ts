@@ -42,8 +42,6 @@ describe('runMatching', () => {
       [createCast('Cast A'), createCast('Cast B')],
       'M002',
       { rotationCount: 1, totalTables: 2 },
-      'accountId',
-      'exclude',
     );
 
     expect(result.ngConflict).toBeUndefined();
@@ -65,8 +63,6 @@ describe('runMatching', () => {
       ],
       'M002',
       { rotationCount: 1, totalTables: 2 },
-      'accountId',
-      'exclude',
     );
 
     expect(result.userMap.get('@alice')?.[0]).toMatchObject({
@@ -86,8 +82,6 @@ describe('runMatching', () => {
       [createCast('Cast D')],
       'M002',
       { rotationCount: 1, totalTables: 1 },
-      'accountId',
-      'exclude',
     );
 
     expect(result.userMap.get('@alice')?.[0]).toMatchObject({
@@ -120,39 +114,17 @@ describe('runMatching', () => {
     expect(result.scoreSummary).toBeUndefined();
   });
 
-  it('exclude モードで NG しかない場合は NG 競合として失敗する', () => {
+  it('NGしかない場合は常に候補から除外し、NG競合として失敗する', () => {
     const result = runMatching(
       [createUser('Alice', '@alice', ['Cast A'])],
       [createCast('Cast A', '@alice')],
       'M002',
       { rotationCount: 1, totalTables: 1 },
-      'accountId',
-      'exclude',
     );
 
     expect(result).toMatchObject({
       ngConflict: true,
       failureReason: 'ng-conflict',
-    });
-  });
-
-  it('warn モードでは NG を結果へ残し、警告件数を集計する', () => {
-    const result = runMatching(
-      [createUser('Alice', '@alice', ['Cast A'])],
-      [createCast('Cast A', '@alice')],
-      'M002',
-      { rotationCount: 1, totalTables: 1 },
-      'accountId',
-      'warn',
-    );
-
-    expect(result.userMap.get('@alice')?.[0]).toMatchObject({
-      isNGWarning: true,
-      ngReason: 'キャスト「Cast A」のNG対象です',
-      score: 90,
-    });
-    expect(result.scoreSummary).toMatchObject({
-      ngWarningCount: 1,
     });
   });
 
@@ -176,7 +148,7 @@ describe('runMatching', () => {
     });
   });
 
-  it('M003 の warn モードでも NG 警告を最終結果へ付与する', () => {
+  it('M003でもNGしかない場合は候補から除外する', () => {
     const result = runMatching(
       [createUser('Alice', '@alice', ['Cast A'])],
       [createCast('Cast A', '@alice')],
@@ -188,15 +160,13 @@ describe('runMatching', () => {
         totalTables: 1,
         searchTimeLimitMs: 1,
       },
-      'accountId',
-      'warn',
     );
 
-    expect(result.userMap.get('@alice')?.[0]).toMatchObject({
-      cast: { name: 'Cast A' },
-      isNGWarning: true,
-      ngReason: 'キャスト「Cast A」のNG対象です',
+    expect(result).toMatchObject({
+      ngConflict: true,
+      failureReason: 'time-limit',
     });
-    expect(result.scoreSummary?.ngWarningCount).toBe(1);
+    expect(result.userMap.get('@alice')).toBeUndefined();
+    expect(result.scoreSummary).toBeUndefined();
   });
 });

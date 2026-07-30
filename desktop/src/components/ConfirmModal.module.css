@@ -82,3 +82,17 @@
 :global([data-theme="skyblue"]) .modal-btn-cancel:hover {
   background-color: var(--button-secondary-hover-bg);
 }
+
+:global([data-guide-theme-preview="dark"]) .modal-message {
+  color: var(--text-default);
+}
+
+:global([data-guide-theme-preview="dark"]) .modal-btn-cancel {
+  background-color: var(--button-secondary-bg);
+  color: var(--text-default);
+  border-color: var(--border-default);
+}
+
+:global([data-guide-theme-preview="dark"]) .modal-btn-cancel:hover {
+  background-color: var(--button-secondary-hover-bg);
+}

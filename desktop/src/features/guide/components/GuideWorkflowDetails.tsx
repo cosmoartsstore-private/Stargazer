@@ -5,73 +5,8 @@ import { BarChart3, CheckCircle, Database, FileText, Settings, Users } from 'luc
 import { getMsg } from '@/messages/getMsg';
 import styles from '../GuidePage.module.css';
 import shared from '@/styles/shared.module.css';
-import { ScreenSample, getPreferenceBadgeColors } from './content/GuideContentPrimitives';
-
-const FLOW_IMPORT_MAPPING_VALUE_STYLE: React.CSSProperties = {
-  padding: '2px 7px',
-  background: 'var(--surface-panel-muted)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 3,
-  fontSize: 10,
-  color: 'var(--accent-primary)',
-};
-
-const FLOW_IMPORT_LOTTERY_ACTION_STYLE: React.CSSProperties = {
-  padding: '3px 8px',
-  background: 'var(--button-secondary-bg)',
-  color: 'var(--text-default)',
-  borderRadius: 4,
-  fontSize: 10,
-  fontWeight: 700,
-};
-
-const FLOW_IMPORT_CONFIRM_ACTION_STYLE: React.CSSProperties = {
-  padding: '3px 10px',
-  background: 'var(--guide-accent-import)',
-  color: '#fff',
-  borderRadius: 4,
-  fontSize: 10,
-  fontWeight: 700,
-};
-
-const FLOW_ATTENDANCE_ACTION_STYLE: React.CSSProperties = {
-  padding: '3px 10px',
-  background: 'var(--accent-primary)',
-  color: '#fff',
-  borderRadius: 4,
-  fontSize: 10,
-  fontWeight: 700,
-};
-
-const FLOW_LOTTERY_SETTING_VALUE_STYLE: React.CSSProperties = {
-  padding: '2px 7px',
-  background: 'var(--surface-panel-muted)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 3,
-  fontSize: 10,
-  color: 'var(--text-heading)',
-  fontWeight: 600,
-};
-
-const FLOW_LOTTERY_STATUS_STYLE: React.CSSProperties = {
-  marginTop: 4,
-  padding: 5,
-  background: 'var(--guide-accent-lottery-bg)',
-  border: '1px solid var(--guide-accent-lottery-border)',
-  borderRadius: 5,
-  fontSize: 10,
-  color: 'var(--guide-accent-lottery)',
-  fontWeight: 700,
-};
-
-const FLOW_LOTTERY_ACTION_STYLE: React.CSSProperties = {
-  padding: '3px 10px',
-  background: 'var(--guide-accent-lottery)',
-  color: '#fff',
-  borderRadius: 4,
-  fontSize: 10,
-  fontWeight: 700,
-};
+import { ScreenSample } from './content/GuideContentPrimitives';
+import { GuideImportScreenSample } from './GuideImportScreenSample';
 
 interface FlowStepHeaderProps {
   number: number;
@@ -105,20 +40,252 @@ const FlowStepHeader: React.FC<FlowStepHeaderProps> = ({ number, icon, title, ac
 interface FlowStepBulletProps {
   number: number;
   accent: string;
-  background: string;
-  border: string;
 }
 
 /** 各手順カード内の箇条書き番号を、featureの配色で表示する。 */
-const FlowStepBullet: React.FC<FlowStepBulletProps> = ({ number, accent, background, border }) => {
+const FlowStepBullet: React.FC<FlowStepBulletProps> = ({ number, accent }) => {
   const style: React.CSSProperties = {
-    width: 20, height: 20, borderRadius: '50%', background, border: `1px solid ${border}`,
+    width: 20, height: 20, borderRadius: '50%', background: accent,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10,
-    fontWeight: 700, color: accent, flexShrink: 0, marginTop: 1,
+    fontWeight: 700, color: '#ffffff', flexShrink: 0, marginTop: 1,
   };
 
   return <div style={style}>{number}</div>;
 };
+
+interface GuideSampleActionProps {
+  label: string;
+  tone?: 'primary' | 'secondary' | 'success' | 'export';
+}
+
+/** 操作できない画面例のボタンを、実画面の主要なボタン種別に合わせて表示する。 */
+const GuideSampleAction: React.FC<GuideSampleActionProps> = ({ label, tone = 'secondary' }) => {
+  const toneClassName = {
+    primary: styles.guideFlowActionPrimary,
+    secondary: styles.guideFlowActionSecondary,
+    success: styles.guideFlowActionSuccess,
+    export: styles.guideFlowActionExport,
+  }[tone];
+
+  return <span className={`${styles.guideFlowAction} ${toneClassName}`}>{label}</span>;
+};
+
+const GuideAttendanceScreenSample: React.FC = () => (
+  <ScreenSample title={getMsg('GuidePage.feature.attendance.settingsTitle')}>
+    <div className={styles.guideFlowSample}>
+      <div className={styles.guideFlowAttendanceToolbar}>
+        <div className={styles.guideFlowAttendanceSummary}>
+          <span className={styles.guideFlowAttendancePresentCount}>{getMsg('AttendanceSetupView.presentCount', { count: 3 })}</span>
+          <span className={styles.guideFlowAttendanceAbsentCount}>{getMsg('AttendanceSetupView.absentCount', { count: 1 })}</span>
+        </div>
+        <div className={styles.guideFlowAttendanceActions}>
+          <GuideSampleAction label={getMsg('AttendanceSetupView.allPresent')} tone="success" />
+          <GuideSampleAction label={getMsg('AttendanceSetupView.allAbsent')} />
+          <GuideSampleAction label={getMsg('AttendanceSetupView.recordAttendance')} tone="primary" />
+        </div>
+      </div>
+
+      <div className={styles.guideFlowAttendanceColumns}>
+        <section className={styles.guideFlowMiniPanel}>
+          <header className={styles.guideFlowMiniPanelHeader}>
+            <strong>{getMsg('AttendanceSetupView.presentTitle')}</strong>
+            <span className={`${styles.guideFlowCountBadge} ${styles.guideFlowCountBadgePresent}`}>3</span>
+          </header>
+          <div className={styles.guideFlowCastList}>
+            {[getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC')].map(castName => (
+              <span key={castName} className={`${styles.guideFlowCastRow} ${styles.guideFlowCastRowPresent}`}>{castName}</span>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.guideFlowMiniPanel}>
+          <header className={styles.guideFlowMiniPanelHeader}>
+            <strong>{getMsg('AttendanceSetupView.absentTitle')}</strong>
+            <span className={styles.guideFlowCountBadge}>1</span>
+          </header>
+          <div className={styles.guideFlowCastList}>
+            <span className={`${styles.guideFlowCastRow} ${styles.guideFlowCastRowAbsent}`}>
+              <span>{getMsg('GuidePage.sample.castD')}</span>
+              <span className={styles.guideFlowCastStatus}>{getMsg('AttendanceSetupView.absentStatus')}</span>
+            </span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </ScreenSample>
+);
+
+const GuideCounterSample: React.FC<{ value: string }> = ({ value }) => (
+  <span className={styles.guideFlowCounter}>
+    <span aria-hidden>−</span>
+    <strong>{value}</strong>
+    <span aria-hidden>＋</span>
+  </span>
+);
+
+const GuideLotteryScreenSample: React.FC = () => (
+  <ScreenSample title={getMsg('GuidePage.feature.lottery.sampleTitle')}>
+    <div className={styles.guideFlowLotteryLayout}>
+      <section className={styles.guideFlowMiniPanel}>
+        <header className={`${styles.guideFlowMiniPanelHeader} ${styles.guideFlowPanelHeading}`}>
+          <strong>{getMsg('LotteryPage.conditionInputHeading')}</strong>
+          <span>{getMsg('LotteryPage.conditionInputDescription')}</span>
+        </header>
+        <div className={styles.guideFlowLotteryFields}>
+          <div className={styles.guideFlowLotteryFieldWide}>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('GuidePage.feature.lottery.formatLabel')}</span>
+            <div className={styles.guideFlowSegmentedControl}>
+              <span>{getMsg('matchingTypeCodes.lotteryOnly')}</span>
+              <span className={styles.guideFlowSegmentedSelected}>{getMsg('GuidePage.feature.lottery.random')}</span>
+              <span>{getMsg('matchingTypeCodes.rotation')}</span>
+            </div>
+          </div>
+          <div>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('GuidePage.feature.lottery.winnerCountLabel')}</span>
+            <GuideCounterSample value="20" />
+          </div>
+          <div>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('GuidePage.feature.lottery.rotationLabel')}</span>
+            <GuideCounterSample value="3" />
+          </div>
+          <div>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('GuidePage.flow.lottery.tableCountLabel')}</span>
+            <GuideCounterSample value="4" />
+          </div>
+        </div>
+      </section>
+
+      <section className={`${styles.guideFlowMiniPanel} ${styles.guideFlowValidationPanel}`}>
+        <header className={`${styles.guideFlowMiniPanelHeader} ${styles.guideFlowPanelHeading}`}>
+          <strong>{getMsg('LotteryPage.statusTitle')}</strong>
+          <span>{getMsg('LotteryPage.statusDescription')}</span>
+        </header>
+        <div className={styles.guideFlowValidationBody}>
+          <span className={styles.guideFlowInfoBadge}>{getMsg('LotteryValidationPanel.infoBadge')}</span>
+          <div className={styles.guideFlowValidationInfo}>
+            <strong>{getMsg('GuidePage.flow.lottery.sampleStatus')}</strong>
+            <span>{getMsg('GuidePage.feature.lottery.sampleAttendingCasts')}</span>
+          </div>
+          <div className={styles.guideFlowReadyState}>
+            <CheckCircle size={12} aria-hidden />
+            <span>{getMsg('LotteryValidationPanel.noProblems')}</span>
+          </div>
+        </div>
+        <footer className={styles.guideFlowPanelActionBar}>
+          <GuideSampleAction label={getMsg('GuidePage.feature.lottery.execute')} tone="primary" />
+        </footer>
+      </section>
+    </div>
+  </ScreenSample>
+);
+
+interface GuideAssignmentProps {
+  name: string;
+  xId: string;
+  preference: string;
+  tone: 'first' | 'second' | 'third';
+}
+
+const GuideAssignment: React.FC<GuideAssignmentProps> = ({ name, xId, preference, tone }) => {
+  const toneClassName = {
+    first: styles.guideFlowAssignmentFirst,
+    second: styles.guideFlowAssignmentSecond,
+    third: styles.guideFlowAssignmentThird,
+  }[tone];
+
+  return (
+    <div className={`${styles.guideFlowAssignment} ${toneClassName}`}>
+      <strong>{name}</strong>
+      <span className={styles.guideFlowAssignmentId}>{xId}</span>
+      <span className={styles.guideFlowAssignmentRank}>{preference}</span>
+    </div>
+  );
+};
+
+const GuideMatchingScreenSample: React.FC = () => (
+  <ScreenSample title={getMsg('GuidePage.flow.matching.sampleTitle')}>
+    <div className={styles.guideFlowSample}>
+      <div className={styles.guideFlowExecutionBar}>
+        <span className={styles.guideFlowExecutionStatus}><CheckCircle size={12} aria-hidden />{getMsg('LotteryValidationPanel.noProblems')}</span>
+        <GuideSampleAction label={getMsg('MatchingPage.runLabel')} tone="primary" />
+      </div>
+
+      <section className={styles.guideFlowResultPanel}>
+        <header className={styles.guideFlowResultHeader}>
+          <div>
+            <strong>{getMsg('MatchingPage.castResultsHeading')}</strong>
+            <span>{getMsg('MatchingPage.castResultsDescription')}</span>
+          </div>
+          <GuideSampleAction label={getMsg('MatchingPage.exportPng')} tone="export" />
+        </header>
+        <div className={styles.guideFlowResultTableWrap}>
+          <table className={styles.guideFlowResultTable}>
+            <thead>
+              <tr>
+                <th scope="col">{getMsg('GuidePage.label.cast')}</th>
+                <th scope="col">{getMsg('GuidePage.feature.matching.rotation1')}</th>
+                <th scope="col">{getMsg('GuidePage.feature.matching.rotation2')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">{getMsg('GuidePage.sample.castA')}</th>
+                <td><GuideAssignment name={getMsg('GuidePage.flow.applicantData.sampleUser1')} xId={getMsg('GuidePage.flow.applicantData.sampleXId1')} preference={getMsg('matchingResultView.firstChoice')} tone="first" /></td>
+                <td><GuideAssignment name={getMsg('GuidePage.flow.applicantData.sampleUser3')} xId={getMsg('GuidePage.flow.applicantData.sampleXId3')} preference={getMsg('matchingResultView.secondChoice')} tone="second" /></td>
+              </tr>
+              <tr>
+                <th scope="row">{getMsg('GuidePage.sample.castB')}</th>
+                <td><GuideAssignment name={getMsg('GuidePage.flow.matching.sampleUser')} xId={getMsg('GuidePage.flow.applicantData.sampleXId2')} preference={getMsg('matchingResultView.thirdChoice')} tone="third" /></td>
+                <td><GuideAssignment name={getMsg('GuidePage.flow.applicantData.sampleUser1')} xId={getMsg('GuidePage.flow.applicantData.sampleXId1')} preference={getMsg('matchingResultView.firstChoice')} tone="first" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </ScreenSample>
+);
+
+const GuideOutputScreenSample: React.FC = () => (
+  <ScreenSample title={getMsg('GuidePage.flow.output.sampleTitle')}>
+    <div className={styles.guideFlowSample}>
+      <section className={styles.guideFlowOutputPanel}>
+        <header className={styles.guideFlowOutputHeader}>
+          <strong>{getMsg('LotteryPage.winnerListHeading')}</strong>
+          <span>{getMsg('LotteryPage.winnerListDescription')}</span>
+        </header>
+        <div className={styles.guideFlowOutputControls}>
+          <div className={styles.guideFlowSavedResultControl}>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('LotteryPage.savedResults')}</span>
+            <span className={styles.guideFlowSelectMock}>{getMsg('LotteryPage.selectSavedResult')}</span>
+          </div>
+          <div className={styles.guideFlowOutputActions}>
+            <GuideSampleAction label={getMsg('LotteryPage.saveResult')} tone="primary" />
+            <GuideSampleAction label={getMsg('LotteryPage.goToMatching')} tone="primary" />
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.guideFlowOutputPanel}>
+        <div className={styles.guideFlowExportRow}>
+          <strong>{getMsg('MatchingPage.castResultsHeading')}</strong>
+          <GuideSampleAction label={getMsg('MatchingPage.exportPng')} tone="export" />
+        </div>
+        <div className={styles.guideFlowExportRow}>
+          <strong>{getMsg('MatchingPage.tableResultsHeading')}</strong>
+          <GuideSampleAction label={getMsg('MatchingPage.exportPng')} tone="export" />
+        </div>
+        <div className={styles.guideFlowTsvBar}>
+          <div>
+            <span className={styles.guideFlowFieldLabel}>{getMsg('MatchingPage.backupFileName')}</span>
+            <span className={styles.guideFlowFileName}>{getMsg('MatchingPage.defaultBackupFileName')}</span>
+          </div>
+          <GuideSampleAction label={getMsg('MatchingPage.saveTsv')} tone="success" />
+        </div>
+      </section>
+    </div>
+  </ScreenSample>
+);
 
 /** 初回取込から結果出力までの各画面の操作手順を表示する。 */
 export const GuideWorkflowDetails: React.FC = () => (
@@ -144,30 +311,12 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.import.step4'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-import)" background="var(--guide-accent-import-bg)" border="var(--guide-accent-import-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-import)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
           </div>
-          <ScreenSample title={getMsg('GuidePage.feature.import.mappingTitle')}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {[
-                [getMsg('GuidePage.label.userName'), getMsg('GuidePage.label.name')],
-                [getMsg('GuidePage.feature.import.xIdRequired'), getMsg('GuidePage.feature.import.xTwitterId')],
-                [getMsg('GuidePage.feature.import.preferredCast1'), getMsg('GuidePage.feature.import.firstChoice')],
-                [getMsg('GuidePage.feature.import.preferredCast2'), getMsg('GuidePage.feature.import.secondChoice')],
-              ].map(([l, v]) => (
-                <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 90, fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{l}</span>
-                  <span style={FLOW_IMPORT_MAPPING_VALUE_STYLE}>{v}</span>
-                </div>
-              ))}
-              <div style={{ marginTop: 4, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 5 }}>
-                <span style={FLOW_IMPORT_LOTTERY_ACTION_STYLE}>{getMsg('GuidePage.flow.import.lotteryOnly')}</span>
-                <span style={FLOW_IMPORT_CONFIRM_ACTION_STYLE}>{getMsg('GuidePage.feature.import.importButton')}</span>
-              </div>
-            </div>
-          </ScreenSample>
+          <GuideImportScreenSample />
         </div>
       </div>
 
@@ -189,7 +338,7 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.applicantData.step4'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-primary)" background="var(--guide-accent-primary-bg)" border="var(--guide-accent-primary-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-primary)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
@@ -245,33 +394,12 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.attendance.step4'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-cast)" background="var(--guide-accent-cast-bg)" border="var(--guide-accent-cast-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-cast)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
           </div>
-          <ScreenSample title={getMsg('GuidePage.feature.attendance.settingsTitle')}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                {
-                  label: getMsg('GuidePage.feature.attendance.present'),
-                  color: '#3ba55d',
-                  casts: [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC')],
-                },
-                { label: getMsg('GuidePage.feature.attendance.waiting'), color: '#747f8d', casts: [getMsg('GuidePage.sample.castD')] },
-              ].map(col => (
-                <div key={col.label}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: col.color, marginBottom: 4 }}>{col.label}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {col.casts.map(c => (
-                      <span key={c} style={{ padding: '3px 7px', borderRadius: 4, background: col.color, color: '#fff', fontSize: 10 }}>{c}</span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 8, textAlign: 'right' }}><span style={FLOW_ATTENDANCE_ACTION_STYLE}>{getMsg('AttendanceSetupView.recordAttendance')}</span></div>
-          </ScreenSample>
+          <GuideAttendanceScreenSample />
         </div>
       </div>
 
@@ -294,28 +422,12 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.lottery.step5'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-lottery)" background="var(--guide-accent-lottery-bg)" border="var(--guide-accent-lottery-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-lottery)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
           </div>
-          <ScreenSample title={getMsg('GuidePage.feature.lottery.sampleTitle')}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {[
-                [getMsg('GuidePage.feature.lottery.formatLabel'), getMsg('GuidePage.feature.lottery.random')],
-                [getMsg('GuidePage.feature.lottery.winnerCountLabel'), getMsg('GuidePage.feature.lottery.sampleWinnerCount')],
-                [getMsg('GuidePage.feature.lottery.rotationLabel'), getMsg('GuidePage.feature.lottery.sampleRotationCount')],
-                [getMsg('GuidePage.flow.lottery.tableCountLabel'), getMsg('GuidePage.feature.lottery.sampleTableCount')],
-              ].map(([l, v]) => (
-                <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 70, fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{l}</span>
-                  <span style={FLOW_LOTTERY_SETTING_VALUE_STYLE}>{v}</span>
-                </div>
-              ))}
-              <div style={FLOW_LOTTERY_STATUS_STYLE}>{getMsg('GuidePage.flow.lottery.sampleStatus')}</div>
-              <div style={{ textAlign: 'right' }}><span style={FLOW_LOTTERY_ACTION_STYLE}>{getMsg('GuidePage.feature.lottery.execute')}</span></div>
-            </div>
-          </ScreenSample>
+          <GuideLotteryScreenSample />
         </div>
       </div>
 
@@ -337,56 +449,12 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.matching.step4'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-matching)" background="var(--guide-accent-matching-bg)" border="var(--guide-accent-matching-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-matching)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
           </div>
-          <ScreenSample title={getMsg('GuidePage.flow.matching.sampleTitle')}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-default)' }}>
-                  {[
-                    getMsg('GuidePage.label.cast'),
-                    getMsg('GuidePage.feature.matching.rotation1'),
-                    getMsg('GuidePage.feature.matching.rotation2'),
-                  ].map(h => <th key={h} scope="col" style={{ padding: '3px 6px', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left' }}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.flow.applicantData.sampleUser1'), getMsg('GuidePage.flow.applicantData.sampleUser3'), 1, 2],
-                  [getMsg('GuidePage.sample.castB'), getMsg('GuidePage.flow.matching.sampleUser'), getMsg('GuidePage.flow.applicantData.sampleUser1'), 0, 1],
-                  [getMsg('GuidePage.sample.castC'), getMsg('GuidePage.flow.applicantData.sampleUser3'), getMsg('GuidePage.sample.notAvailable'), 3, 0],
-                ].map(([n, c1, c2, r1, r2], i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border-default)' }}>
-                    <td style={{ padding: '4px 6px', color: 'var(--text-default)' }}>{n}</td>
-                    {[[c1, r1], [c2, r2]].map(function renderRotationResult([candidate, rankValue], j) {
-                      const candidateName = candidate as string;
-                      const rank = rankValue as number;
-                      const badgeStyle: React.CSSProperties = {
-                        marginLeft: 3,
-                        padding: '1px 4px',
-                        borderRadius: 3,
-                        ...getPreferenceBadgeColors(rank),
-                        fontSize: 9,
-                        fontWeight: 700,
-                      };
-
-                      return (
-                        <td key={j} style={{ padding: '4px 6px' }}>
-                          <span style={{ fontSize: 10, color: 'var(--text-default)' }}>{candidateName}</span>
-                          {rank > 0 && (
-                            <span style={badgeStyle}>{getMsg('GuidePage.feature.matching.preferenceRank', { rank })}</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScreenSample>
+          <GuideMatchingScreenSample />
         </div>
       </div>
 
@@ -408,49 +476,12 @@ export const GuideWorkflowDetails: React.FC = () => (
               getMsg('GuidePage.flow.output.step4'),
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <FlowStepBullet number={i + 1} accent="var(--guide-accent-output)" background="var(--guide-accent-output-bg)" border="var(--guide-accent-output-border)" />
+                <FlowStepBullet number={i + 1} accent="var(--guide-accent-output)" />
                 <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.6 }}>{s}</span>
               </div>
             ))}
           </div>
-          <ScreenSample title={getMsg('GuidePage.flow.output.sampleTitle')}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {[
-              {
-                label: getMsg('GuidePage.flow.output.saveLottery'),
-                color: 'var(--guide-accent-lottery)',
-                bg: 'var(--guide-accent-lottery-bg)',
-                border: 'var(--guide-accent-lottery-border)',
-              },
-              {
-                label: getMsg('GuidePage.flow.output.castPng'), color: 'var(--guide-accent-primary)',
-                bg: 'var(--guide-accent-primary-bg)', border: 'var(--guide-accent-primary-border)',
-              },
-              {
-                label: getMsg('GuidePage.flow.output.tablePng'), color: 'var(--guide-accent-primary)',
-                bg: 'var(--guide-accent-primary-bg)', border: 'var(--guide-accent-primary-border)',
-              },
-              {
-                label: getMsg('GuidePage.flow.output.matchingTsv'),
-                color: 'var(--guide-accent-lottery)',
-                bg: 'var(--guide-accent-lottery-bg)',
-                border: 'var(--guide-accent-lottery-border)',
-              },
-              ].map(({ label, color, bg, border }) => (
-              <div
-                key={label}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  borderRadius: 5, background: bg, border: `1px solid ${border}`,
-                  fontSize: 11, color: 'var(--text-default)', fontWeight: 600,
-                }}
-              >
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                  {label}
-                </div>
-              ))}
-            </div>
-          </ScreenSample>
+          <GuideOutputScreenSample />
         </div>
       </div>
 

@@ -245,13 +245,13 @@
 .workflow-switch {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  width: 132px;
+  gap: 8px;
+  width: max-content;
   min-height: 38px;
-  padding: 7px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: 999px;
-  background: var(--surface-panel);
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--text-muted);
   font: inherit;
   font-size: 12px;
@@ -259,18 +259,30 @@
   cursor: pointer;
 }
 
-.workflow-switch > span:last-child {
+.workflow-switch:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.workflow-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.workflow-switch-status {
   min-width: 48px;
   text-align: left;
 }
 
 .workflow-switch__knob {
   position: relative;
-  width: 34px;
-  height: 18px;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--border-default);
   border-radius: 999px;
-  background: var(--surface-hover);
+  background: var(--surface-sticky-muted);
   flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s;
 }
 
 .workflow-switch__knob::after {
@@ -278,42 +290,37 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--text-muted);
   transition: transform 0.12s, background 0.12s;
 }
 
 .workflow-switch--on {
-  border-color: var(--accent-success);
   color: var(--text-heading);
 }
 
 .workflow-switch--on .workflow-switch__knob {
-  background: rgba(35, 165, 89, 0.25);
-}
-
-.workflow-switch--on .workflow-switch__knob::after {
-  transform: translateX(16px);
+  border-color: var(--accent-success);
   background: var(--accent-success);
 }
 
+.workflow-switch--on .workflow-switch__knob::after {
+  transform: translateX(18px);
+  background: #fff;
+}
+
+.same-day-slot-setting,
 .same-day-slot-control {
   display: grid;
   gap: 6px;
+  min-width: 0;
   min-height: 0;
 }
 
-.same-day-slot-control span {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
 .same-day-slot-counter {
-  max-width: 140px;
+  max-width: 180px;
 }
 
 .same-day-slot-control--disabled {
@@ -322,9 +329,9 @@
 
 .same-day-slot-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(130px, 180px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  align-items: end;
+  align-items: start;
   padding: 12px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -447,7 +454,15 @@
 
 .lottery-validation-badge--warning { background: var(--accent-warning); color: #1a1000; }
 .lottery-validation-badge--error   { background: var(--accent-danger); }
-.lottery-validation-badge--info    { background: var(--accent-primary); }
+.lottery-validation-badge--info    { background: var(--status-info-solid); }
+
+:global([data-theme="skyblue"]) .lottery-validation-badge--warning {
+  color: #fff;
+}
+
+:global([data-guide-theme-preview="dark"]) .lottery-validation-badge--warning {
+  color: #1a1000;
+}
 
 .lottery-validation-content {
   padding: 12px 14px;
@@ -508,8 +523,8 @@
 }
 
 .lottery-validation-item--info {
-  background: rgba(88, 101, 242, 0.12);
-  color: var(--text-default);
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
 }
 
 .lottery-validation-item-label {

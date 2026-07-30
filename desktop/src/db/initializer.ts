@@ -11,8 +11,6 @@ import {
  */
 
 const LAST_LOCATION_KEY = 'stargazer:lastLocation';
-const LEGACY_LAST_EVENT_KEY = 'stargazer:lastEvent';
-const LEGACY_LAST_SESSION_KEY = 'stargazer:lastSession';
 
 interface LastLocation {
   version: 1;
@@ -32,44 +30,25 @@ function isLastLocation(value: unknown): value is LastLocation {
     && (candidate.sessionTimestamp === null || typeof candidate.sessionTimestamp === 'string');
 }
 
-/** 新形式を優先し、未移行の場合だけ旧2キーを一組として読み込む。 */
+/** 保存済みの最終使用位置を読み込む。 */
 function readLastLocation(): LastLocationReadResult {
   const current = readBrowserStorageItemResult(LAST_LOCATION_KEY);
   if (!current.ok) return { ok: false, value: null };
-  if (current.value !== null) {
-    try {
-      const parsed: unknown = JSON.parse(current.value);
-      return {
-        ok: true,
-        value: isLastLocation(parsed) ? parsed : null,
-      };
-    } catch {
-      return { ok: true, value: null };
-    }
+  if (current.value === null) return { ok: true, value: null };
+  try {
+    const parsed: unknown = JSON.parse(current.value);
+    return {
+      ok: true,
+      value: isLastLocation(parsed) ? parsed : null,
+    };
+  } catch {
+    return { ok: true, value: null };
   }
-
-  const legacyEvent = readBrowserStorageItemResult(LEGACY_LAST_EVENT_KEY);
-  const legacySession = readBrowserStorageItemResult(LEGACY_LAST_SESSION_KEY);
-  if (!legacyEvent.ok || !legacySession.ok) return { ok: false, value: null };
-  if (!legacyEvent.value) return { ok: true, value: null };
-  return {
-    ok: true,
-    value: {
-      version: 1,
-      eventName: legacyEvent.value,
-      sessionTimestamp: legacySession.value,
-    },
-  };
 }
 
-/** 最終使用位置を単一キーへ保存し、成功後だけ旧2キーを削除する。 */
+/** 最終使用位置を単一キーへ保存する。 */
 function writeLastLocation(location: LastLocation): boolean {
-  const saved = writeBrowserStorageItem(LAST_LOCATION_KEY, JSON.stringify(location));
-  if (saved) {
-    removeBrowserStorageItem(LEGACY_LAST_EVENT_KEY);
-    removeBrowserStorageItem(LEGACY_LAST_SESSION_KEY);
-  }
-  return saved;
+  return writeBrowserStorageItem(LAST_LOCATION_KEY, JSON.stringify(location));
 }
 
 export interface InitializeResult {
@@ -125,6 +104,4 @@ export function saveLastLocation(
 /** 保存済みの最終使用位置を削除する。 */
 export function clearSavedLocation(): void {
   removeBrowserStorageItem(LAST_LOCATION_KEY);
-  removeBrowserStorageItem(LEGACY_LAST_EVENT_KEY);
-  removeBrowserStorageItem(LEGACY_LAST_SESSION_KEY);
 }

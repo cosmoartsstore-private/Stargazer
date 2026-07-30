@@ -45,6 +45,7 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
     isDbReady,
     currentEventName,
     currentSessionTimestamp,
+    sessionReloadGeneration,
     setMatchingSettings,
     getSessionUiMutationGeneration,
     isCurrentSessionUiMutation,
@@ -194,7 +195,7 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
     })();
     return cancel;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventName, currentSessionTimestamp, sessionReloadKey]);
+  }, [isDbReady, currentEventName, currentSessionTimestamp, sessionReloadGeneration, sessionReloadKey]);
 
   return { isSharedDataLoading, isSessionDataLoading, requestSessionReload };
 }

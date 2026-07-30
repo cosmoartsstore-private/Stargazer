@@ -104,10 +104,8 @@ const GUIDE_SAMPLE_MATCHING_SETTINGS: MatchingSettingsState = {
     cautionUsers: [{
       username: getMsg('GuidePage.sample.applicant001'),
       accountId: getMsg('GuidePage.sample.xId001'),
-      registrationType: 'auto',
       ngCastCount: 2,
-      reason: getMsg('GuidePage.sample.cautionReason'),
-      notes: getMsg('GuidePage.sample.cautionNote'),
+      notes: `${getMsg('GuidePage.sample.cautionReason')}\n${getMsg('GuidePage.sample.cautionNote')}`,
       registeredAt: getMsg('GuidePage.sample.registeredAt'),
     }],
   },
@@ -135,13 +133,16 @@ export function createGuideSampleContext(feature: FeatureId): AppContextType {
   const activePage = GUIDE_FEATURE_PAGE[feature];
   // 取込画面は未取込、抽選画面は抽選済み、マッチング画面は割り当て済みで表示する。
   const applicants = feature === 'import' ? [] : GUIDE_SAMPLE_USERS;
+  const casts = feature === 'matching'
+    ? GUIDE_SAMPLE_CASTS.map((cast) => ({ ...cast, is_present: true }))
+    : GUIDE_SAMPLE_CASTS;
   const currentWinners = feature === 'matching' || feature === 'lottery' ? GUIDE_SAMPLE_WINNERS : [];
   const isMatchingPreview = feature === 'matching';
 
   return {
     activePage,
     setActivePage: noopGuideSampleAction,
-    casts: GUIDE_SAMPLE_CASTS,
+    casts,
     setCasts: noopSetState,
     applicants,
     setApplicants: noopGuideSampleAction,
@@ -177,11 +178,17 @@ export function createGuideSampleContext(feature: FeatureId): AppContextType {
     isCurrentSessionUiMutation: () => true,
     isDbReady: true,
     currentEventName: getMsg('GuidePage.sample.eventName'),
-    currentSessionTimestamp: null,
+    currentSessionTimestamp: '20260720130000',
+    sessionReloadGeneration: 0,
+    focusedSavedLotteryRunTarget: null,
+    clearFocusedSavedLotteryRunTarget: noopGuideSampleAction,
+    isSavedLotterySessionReadOnly: false,
     ensureWritableSession: noopAsync,
     events: [getMsg('GuidePage.sample.eventName')],
     setEvents: noopSetState,
     switchEvent: noopAsync,
+    activateSavedLotteryRun: noopAsync,
+    markCurrentSessionReadOnlyAfterLotterySave: noopGuideSampleAction,
     deleteManagedEvent: noopAsync,
     renameManagedEvent: noopAsync,
   };

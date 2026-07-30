@@ -41,6 +41,34 @@
       "urls": ["https://x.com/haru_cast"],
       "ng_username": [],
       "ng_userid": []
+    },
+    {
+      "name": "Hina",
+      "is_attend": true,
+      "urls": ["https://x.com/hina_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Kana",
+      "is_attend": true,
+      "urls": ["https://x.com/kana_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Rei",
+      "is_attend": true,
+      "urls": ["https://x.com/rei_cast"],
+      "ng_username": [],
+      "ng_userid": []
+    },
+    {
+      "name": "Toa",
+      "is_attend": true,
+      "urls": ["https://x.com/toa_cast"],
+      "ng_username": [],
+      "ng_userid": []
     }
   ]
 }

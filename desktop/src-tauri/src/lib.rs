@@ -39,17 +39,6 @@ fn resolve_webview_data_root() -> PathBuf {
     resolve_app_root().join(CACHE_DIR).join(WEBVIEW_DATA_DIR)
 }
 
-fn cleanup_legacy_webview_data_root() {
-    let legacy_path = resolve_data_root().join(WEBVIEW_DATA_DIR);
-    if looks_like_webview_data_root(&legacy_path) {
-        let _ = std::fs::remove_dir_all(legacy_path);
-    }
-}
-
-fn looks_like_webview_data_root(path: &Path) -> bool {
-    path.is_dir() && (path.join(WEBVIEW_DATA_DIR).is_dir() || path.join("Default").is_dir())
-}
-
 fn get_install_location() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let key = hkcu
@@ -74,7 +63,7 @@ CREATE TABLE IF NOT EXISTS apps (
 // === イベント共有 DB ========================================================
 // キャスト、NG、要注意者、設定は取込単位ではなくイベント全体で共有する。
 // セッション DB と分離することで、再取込や取込セッション削除の影響をイベント共有データへ波及させない。
-const SHARED_MIGRATION_V1: &str = r#"
+const SHARED_SCHEMA: &str = r#"
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT
@@ -100,24 +89,18 @@ CREATE TABLE cast_ng_entries (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   cast_id  INTEGER NOT NULL REFERENCES casts(id) ON DELETE CASCADE,
   username TEXT,
-  userid   TEXT
+  userid   TEXT,
+  notes    TEXT
 );
 
 CREATE TABLE caution_users (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  username          TEXT NOT NULL,
-  account_id        TEXT NOT NULL,
-  registration_type TEXT NOT NULL DEFAULT 'manual',
-  reason            TEXT,
-  notes             TEXT,
-  ng_cast_count     INTEGER NOT NULL DEFAULT 0,
-  registered_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  username      TEXT NOT NULL,
+  account_id    TEXT NOT NULL COLLATE NOCASE,
+  notes         TEXT,
+  ng_cast_count INTEGER NOT NULL DEFAULT 0,
+  registered_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   UNIQUE(account_id)
-);
-
-CREATE TABLE event_cast_present (
-  cast_id    INTEGER PRIMARY KEY REFERENCES casts(id) ON DELETE CASCADE,
-  is_present INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE cast_attendance (
@@ -125,80 +108,6 @@ CREATE TABLE cast_attendance (
   cast_id     INTEGER NOT NULL REFERENCES casts(id) ON DELETE CASCADE,
   recorded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
-
--- 過去のCSV列割当を保持する既存DBとの互換のため、UIから到達しない場合も表と既存行を残す。
-CREATE TABLE header_templates (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  signature         TEXT NOT NULL UNIQUE,
-  label             TEXT,
-  column_mapping    TEXT,
-  matching_settings TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-);
-
-CREATE TABLE settings (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-"#;
-
-const SHARED_MIGRATION_V2: &str = r#"
--- 公開済みversion番号との互換性を維持する。既存の登録種別は変更しない。
-SELECT 1;
-"#;
-
-const SHARED_MIGRATION_V3: &str = r#"
--- casts.is_attendを現行の正にするが、旧Frontendとの互換性に必要な表は残す。
-UPDATE casts
-SET is_attend = COALESCE(
-  (SELECT is_present FROM event_cast_present WHERE cast_id = casts.id),
-  is_attend
-);
-"#;
-
-const SHARED_MIGRATION_V4: &str = r#"
--- 公開済みversion番号との互換性を維持する。既存テンプレートは削除しない。
-SELECT 1;
-"#;
-
-const SHARED_MIGRATION_V5: &str = r#"
--- 旧V3/V4で削除された互換表を再作成する。既存表と既存行は上書きしない。
-CREATE TABLE IF NOT EXISTS event_cast_present (
-  cast_id    INTEGER PRIMARY KEY REFERENCES casts(id) ON DELETE CASCADE,
-  is_present INTEGER NOT NULL DEFAULT 1
-);
-
--- V3で旧表から移した現行の正を使い、欠落した旧Frontend向けmirror行だけを補う。
-INSERT OR IGNORE INTO event_cast_present (cast_id, is_present)
-SELECT id, is_attend FROM casts;
-
-CREATE TRIGGER IF NOT EXISTS sync_event_cast_present_after_cast_insert
-AFTER INSERT ON casts
-BEGIN
-  INSERT OR REPLACE INTO event_cast_present (cast_id, is_present)
-  VALUES (NEW.id, NEW.is_attend);
-END;
-
-CREATE TRIGGER IF NOT EXISTS sync_event_cast_present_after_cast_presence_update
-AFTER UPDATE OF is_attend ON casts
-BEGIN
-  INSERT OR REPLACE INTO event_cast_present (cast_id, is_present)
-  VALUES (NEW.id, NEW.is_attend);
-END;
-
-CREATE TABLE IF NOT EXISTS header_templates (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  signature         TEXT NOT NULL UNIQUE,
-  label             TEXT,
-  column_mapping    TEXT,
-  matching_settings TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-);
-"#;
-
-const SHARED_MIGRATION_V6: &str = r#"
--- キャスト別NGの理由メモと、源氏名などの別名を既存行を保ったまま追加する。
-ALTER TABLE cast_ng_entries ADD COLUMN notes TEXT;
 
 CREATE TABLE cast_aliases (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -209,24 +118,33 @@ CREATE TABLE cast_aliases (
 
 CREATE INDEX idx_cast_aliases_cast_id
   ON cast_aliases(cast_id, id);
+
+CREATE TABLE settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 "#;
 
-const SHARED_MIGRATION_V7: &str = r#"
--- V5/V6適用済みDBにも、現行の正から欠損した旧Frontend向けmirror行だけを補う。
-INSERT OR IGNORE INTO event_cast_present (cast_id, is_present)
-SELECT id, is_attend FROM casts;
-"#;
+const SHARED_REQUIRED_TABLES: &[&str] = &[
+    "meta",
+    "casts",
+    "cast_urls",
+    "cast_ng_entries",
+    "caution_users",
+    "cast_attendance",
+    "cast_aliases",
+    "settings",
+];
 
-// WHY: V2〜V4は公開済みversion番号を維持しつつ、未適用DBへの破壊的変更を止める。
-// すでに適用済みのDBは末尾のmigrationで不足schemaを補い、どのversionからでも同じschemaへ到達させる。
-const SHARED_MIGRATIONS: &[(i32, &str)] = &[
-    (1, SHARED_MIGRATION_V1),
-    (2, SHARED_MIGRATION_V2),
-    (3, SHARED_MIGRATION_V3),
-    (4, SHARED_MIGRATION_V4),
-    (5, SHARED_MIGRATION_V5),
-    (6, SHARED_MIGRATION_V6),
-    (7, SHARED_MIGRATION_V7),
+const SHARED_SCHEMA_QUERIES: &[&str] = &[
+    "SELECT key, value FROM meta LIMIT 0",
+    "SELECT id, name, group_name, is_attend, photo_data_url, memo, created_at FROM casts LIMIT 0",
+    "SELECT id, cast_id, url FROM cast_urls LIMIT 0",
+    "SELECT id, cast_id, username, userid, notes FROM cast_ng_entries LIMIT 0",
+    "SELECT id, username, account_id, notes, ng_cast_count, registered_at FROM caution_users LIMIT 0",
+    "SELECT id, cast_id, recorded_at FROM cast_attendance LIMIT 0",
+    "SELECT id, cast_id, alias FROM cast_aliases LIMIT 0",
+    "SELECT key, value FROM settings LIMIT 0",
 ];
 
 // === 取込セッション DB ======================================================
@@ -235,15 +153,10 @@ const SHARED_MIGRATIONS: &[(i32, &str)] = &[
 //
 // 最終マッチング結果は DB に保存せず、現在のアプリプロセスだけで保持する。
 // 現行名簿にないキャスト参照は判定漏れの可能性を警告するが、操作は制限しない。再起動後の復元も行わない。
-const SESSION_MIGRATION_V1: &str = r#"
-CREATE TABLE meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT
-);
-
+const SESSION_SCHEMA: &str = r#"
 CREATE TABLE applicants (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  x_id          TEXT NOT NULL UNIQUE,
+  x_id          TEXT NOT NULL,
   name          TEXT,
   vrc_url       TEXT,
   is_guaranteed INTEGER NOT NULL DEFAULT 0,
@@ -254,7 +167,8 @@ CREATE TABLE applicant_casts (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   applicant_id     INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
   preference_order INTEGER NOT NULL,
-  cast_name        TEXT NOT NULL
+  cast_name        TEXT NOT NULL,
+  cast_id          INTEGER NULL
 );
 
 CREATE TABLE applicant_extra (
@@ -270,9 +184,7 @@ CREATE TABLE lottery_results (
   is_guaranteed INTEGER NOT NULL DEFAULT 0,
   drawn_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
-"#;
 
-const SESSION_MIGRATION_V2: &str = r#"
 CREATE TABLE lottery_saved_runs (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
   label              TEXT NOT NULL,
@@ -294,16 +206,13 @@ CREATE TABLE lottery_saved_run_results (
 
 CREATE INDEX idx_lottery_saved_run_results_run_id
   ON lottery_saved_run_results(run_id, result_order);
-"#;
-
-const SESSION_MIGRATION_V3: &str = r#"
-ALTER TABLE applicant_casts ADD COLUMN cast_id INTEGER NULL;
 
 CREATE INDEX idx_applicant_casts_cast_id
   ON applicant_casts(cast_id);
-"#;
 
-const SESSION_MIGRATION_V4: &str = r#"
+CREATE INDEX idx_applicants_x_id
+  ON applicants(x_id);
+
 CREATE TABLE session_workflow_state (
   id                          INTEGER PRIMARY KEY CHECK (id = 1),
   matching_type_code          TEXT NOT NULL DEFAULT 'M001'
@@ -319,51 +228,33 @@ CREATE TABLE session_workflow_state (
   lottery_result_revision     INTEGER
 );
 
--- 旧DBの抽選結果には条件スナップショットがないため、移行直後は安全側に倒して未確定とする。
 INSERT INTO session_workflow_state (id) VALUES (1);
 "#;
 
-const SESSION_MIGRATION_V5: &str = r#"
--- V4で一律に未確定とした旧抽選結果を、旧版と同じく現在の結果として復元する。
--- これは旧条件との一致を推測する処理ではなく、既存結果を現行扱いした旧版の外部挙動を維持する互換処理である。
--- 移行後に条件を変更したセッションはcondition_revisionが進むため対象外になる。
-UPDATE session_workflow_state
-SET lottery_result_revision = condition_revision
-WHERE condition_revision = 0
-  AND lottery_result_revision IS NULL
-  AND EXISTS (SELECT 1 FROM lottery_results);
-"#;
-
-const SESSION_MIGRATION_V6: &str = r#"
--- V5適用済みDBにも、旧版で現行扱いだった抽選結果のrevisionだけを補う。
-UPDATE session_workflow_state
-SET lottery_result_revision = condition_revision
-WHERE condition_revision = 0
-  AND lottery_result_revision IS NULL
-  AND EXISTS (SELECT 1 FROM lottery_results);
-"#;
-
-// 共有DBと同様に、公開済みversionは変更せず末尾へ追加する。
-const SESSION_MIGRATIONS: &[(i32, &str)] = &[
-    (1, SESSION_MIGRATION_V1),
-    (2, SESSION_MIGRATION_V2),
-    (3, SESSION_MIGRATION_V3),
-    (4, SESSION_MIGRATION_V4),
-    (5, SESSION_MIGRATION_V5),
-    (6, SESSION_MIGRATION_V6),
+const SESSION_REQUIRED_TABLES: &[&str] = &[
+    "applicants",
+    "applicant_casts",
+    "applicant_extra",
+    "lottery_results",
+    "lottery_saved_runs",
+    "lottery_saved_run_results",
+    "session_workflow_state",
 ];
-const SESSION_CAST_ID_PROVENANCE_META_KEY: &str = "applicant_cast_ids_provenance_v1";
-const SESSION_CAST_ID_PROVENANCE_NATIVE: &str = "native";
-const SESSION_CAST_ID_PROVENANCE_LEGACY: &str = "legacy_name_only";
-const OBSOLETE_SESSION_CAST_ID_BACKFILL_META_KEY: &str = "applicant_casts_cast_id_backfilled_v3";
 
-/** 既存イベントを参照する際に使う名前検証。旧版で作成できた予約名も受け入れる。 */
+const SESSION_SCHEMA_QUERIES: &[&str] = &[
+    "SELECT id, x_id, name, vrc_url, is_guaranteed, created_at FROM applicants LIMIT 0",
+    "SELECT id, applicant_id, preference_order, cast_name, cast_id FROM applicant_casts LIMIT 0",
+    "SELECT id, applicant_id, field_key, field_value FROM applicant_extra LIMIT 0",
+    "SELECT id, applicant_id, is_guaranteed, drawn_at FROM lottery_results LIMIT 0",
+    "SELECT id, label, matching_type_code, lottery_count, guaranteed_count, winner_count, created_at FROM lottery_saved_runs LIMIT 0",
+    "SELECT id, run_id, applicant_id, is_guaranteed, result_order FROM lottery_saved_run_results LIMIT 0",
+    "SELECT id, matching_type_code, lottery_count, rotation_count, total_tables, users_per_table, casts_per_rotation, allow_m003_empty_seats, m003_same_day_slot_count, condition_revision, lottery_result_revision FROM session_workflow_state LIMIT 0",
+];
+
+/** イベント名をパス構成要素として安全に扱える形式へ制限する。 */
 fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("イベント名が空です".to_string());
-    }
-    if is_reserved_event_name(name) {
-        return Err(format!("イベント名 '{name}' は予約されています"));
     }
     if name.len() > 64 {
         return Err("イベント名は64文字以下にしてください".to_string());
@@ -388,12 +279,6 @@ fn validate_event_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn is_reserved_event_name(name: &str) -> bool {
-    [SHARED_DIR, WEBVIEW_DATA_DIR]
-        .iter()
-        .any(|reserved| name.eq_ignore_ascii_case(reserved))
-}
-
 fn is_event_directory_name(name: &str) -> bool {
     !name.starts_with('.') && validate_event_name(name).is_ok()
 }
@@ -410,42 +295,8 @@ fn validate_timestamp(ts: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn supported_schema_version(
-    conn: &rusqlite::Connection,
-    migrations: &[(i32, &str)],
-) -> rusqlite::Result<i32> {
-    let current: i32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    let latest = migrations.last().map(|(version, _)| *version).unwrap_or(0);
-    if current > latest {
-        return Err(rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
-            Some(format!(
-                "DB schema version {current} は、このアプリが対応するversion {latest} より新しいため開けません"
-            )),
-        ));
-    }
-    Ok(current)
-}
-
-fn apply_pending_migrations(
-    conn: &mut rusqlite::Connection,
-    migrations: &[(i32, &str)],
-    current: i32,
-) -> rusqlite::Result<()> {
-    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
-
-    // versionごとに確定し、中断後も完了済みmigrationを再実行しない。
-    for (version, sql) in migrations {
-        if *version > current {
-            let tx = conn.transaction()?;
-            tx.execute_batch(sql)?;
-            // PRAGMA user_versionはbind変数を受け付けないため、コード内の定数だけを埋め込む。
-            tx.execute_batch(&format!("PRAGMA user_version = {version};"))?;
-            tx.commit()?;
-        }
-    }
-
-    Ok(())
+fn configure_connection(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
 }
 
 fn validate_required_tables(
@@ -474,105 +325,45 @@ fn validate_required_tables(
     Ok(())
 }
 
-fn validate_existing_database_family(
+fn validate_schema_queries(
     conn: &rusqlite::Connection,
     database_name: &str,
-    base_table: &str,
-    current_version: i32,
+    queries: &[&str],
 ) -> rusqlite::Result<()> {
-    if current_version > 0 {
-        validate_required_tables(conn, database_name, &[base_table])?;
+    for query in queries {
+        if let Err(error) = conn.prepare(query) {
+            return Err(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_SCHEMA),
+                Some(format!(
+                    "{database_name}DBが現行schemaに一致しません: {error}"
+                )),
+            ));
+        }
     }
     Ok(())
 }
 
-fn migrate_database(
-    conn: &mut rusqlite::Connection,
-    migrations: &[(i32, &str)],
+fn validate_current_schema(
+    conn: &rusqlite::Connection,
     database_name: &str,
-    base_table: &str,
     required_tables: &[&str],
+    schema_queries: &[&str],
 ) -> rusqlite::Result<()> {
-    let current = supported_schema_version(conn, migrations)?;
-    validate_existing_database_family(conn, database_name, base_table, current)?;
-    apply_pending_migrations(conn, migrations, current)?;
-    validate_required_tables(conn, database_name, required_tables)
+    validate_required_tables(conn, database_name, required_tables)?;
+    validate_schema_queries(conn, database_name, schema_queries)
 }
 
-fn run_shared_migrations(conn: &mut rusqlite::Connection) -> rusqlite::Result<()> {
-    migrate_database(
-        conn,
-        SHARED_MIGRATIONS,
-        "イベント共有",
-        "casts",
-        &[
-            "casts",
-            "settings",
-            "event_cast_present",
-            "header_templates",
-            "cast_aliases",
-        ],
-    )
-}
-
-fn run_session_migrations(conn: &mut rusqlite::Connection) -> rusqlite::Result<()> {
-    migrate_database(
-        conn,
-        SESSION_MIGRATIONS,
-        "取込セッション",
-        "applicants",
-        &["applicants", "session_workflow_state"],
-    )
-}
-
-/**
- * 希望キャストIDの由来が記録されていないセッションを、名前だけの旧形式として固定する。
- *
- * WHY: 旧DBの名称だけでは、削除後に同名で再登録されたキャストとの同一性を証明できない。
- * 現在の名簿からIDを推測せず、過去の中間版が補完したIDも未解決へ戻して誤接続を防ぐ。
- */
-fn normalize_session_cast_id_provenance(conn: &mut rusqlite::Connection) -> rusqlite::Result<()> {
+fn initialize_schema(
+    conn: &mut rusqlite::Connection,
+    schema: &str,
+    database_name: &str,
+    required_tables: &[&str],
+    schema_queries: &[&str],
+) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
-    let provenance = tx
-        .query_row(
-            "SELECT value FROM meta WHERE key = ?1",
-            [SESSION_CAST_ID_PROVENANCE_META_KEY],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?;
-    if provenance.as_deref() != Some(SESSION_CAST_ID_PROVENANCE_NATIVE) {
-        tx.execute("UPDATE applicant_casts SET cast_id = NULL", [])?;
-    }
-    if provenance.as_deref() != Some(SESSION_CAST_ID_PROVENANCE_LEGACY)
-        && provenance.as_deref() != Some(SESSION_CAST_ID_PROVENANCE_NATIVE)
-    {
-        tx.execute(
-            "INSERT INTO meta (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            rusqlite::params![
-                SESSION_CAST_ID_PROVENANCE_META_KEY,
-                SESSION_CAST_ID_PROVENANCE_LEGACY
-            ],
-        )?;
-    }
-    tx.execute(
-        "DELETE FROM meta WHERE key = ?1",
-        [OBSOLETE_SESSION_CAST_ID_BACKFILL_META_KEY],
-    )?;
-    tx.commit()
-}
-
-/** 新規セッションでは、取込時に保存するIDを信頼できる値として扱う。 */
-fn mark_session_cast_ids_native(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO meta (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        rusqlite::params![
-            SESSION_CAST_ID_PROVENANCE_META_KEY,
-            SESSION_CAST_ID_PROVENANCE_NATIVE
-        ],
-    )
-    .map(|_| ())
+    tx.execute_batch(schema)?;
+    tx.commit()?;
+    validate_current_schema(conn, database_name, required_tables, schema_queries)
 }
 
 fn event_dir(event_name: &str) -> PathBuf {
@@ -597,31 +388,24 @@ fn session_db_path(event_name: &str, timestamp: &str) -> PathBuf {
         .join("stargazer.db")
 }
 
-fn open_and_migrate_connection(
+fn open_connection(
     db_path: &Path,
     flags: rusqlite::OpenFlags,
-    allow_uninitialized_schema: bool,
-    run_migrations: fn(&mut rusqlite::Connection) -> rusqlite::Result<()>,
 ) -> Result<rusqlite::Connection, String> {
-    let mut conn = rusqlite::Connection::open_with_flags(db_path, flags)
+    let conn = rusqlite::Connection::open_with_flags(db_path, flags)
         .map_err(|e| format!("DBを開けませんでした: {e}"))?;
     conn.busy_timeout(SQLITE_BUSY_TIMEOUT)
         .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
-    let current_version: i32 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|e| format!("DB schema versionを確認できませんでした: {e}"))?;
-    // version 0からの初期化は新規作成commandだけに限定し、手動配置された任意のSQLiteを
-    // Stargazer DBとして書き換えない。
-    if !allow_uninitialized_schema && current_version == 0 {
-        return Err("初期化済みのStargazer DBではありません".to_string());
-    }
-    run_migrations(&mut conn).map_err(|e| format!("マイグレーションに失敗しました: {e}"))?;
+    configure_connection(&conn).map_err(|e| format!("DB接続を設定できませんでした: {e}"))?;
     Ok(conn)
 }
 
-fn create_migrated_connection(
+fn create_schema_connection(
     db_path: &Path,
-    run_migrations: fn(&mut rusqlite::Connection) -> rusqlite::Result<()>,
+    schema: &str,
+    database_name: &str,
+    required_tables: &[&str],
+    schema_queries: &[&str],
 ) -> Result<rusqlite::Connection, String> {
     if db_path.exists() {
         return Err(format!("DBは既に存在します: {}", db_path.display()));
@@ -630,12 +414,19 @@ fn create_migrated_connection(
         .parent()
         .ok_or_else(|| "DBパスが不正です".to_string())?;
     std::fs::create_dir_all(db_dir).map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
-    open_and_migrate_connection(
+    let mut conn = open_connection(
         db_path,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
-        true,
-        run_migrations,
+    )?;
+    initialize_schema(
+        &mut conn,
+        schema,
+        database_name,
+        required_tables,
+        schema_queries,
     )
+    .map_err(|e| format!("{database_name}DBを初期化できませんでした: {e}"))?;
+    Ok(conn)
 }
 
 fn create_staging_directory(final_dir: &Path) -> Result<PathBuf, String> {
@@ -678,14 +469,17 @@ fn create_staging_directory(final_dir: &Path) -> Result<PathBuf, String> {
 /**
  * 新しいDBを一時ディレクトリ内で最後まで初期化し、完成したディレクトリだけを公開する。
  *
- * WHY: 最終パスへ直接作成すると、migrationや追加初期化の失敗後に一覧へ現れる不完全な
+ * WHY: 最終パスへ直接作成すると、schemaや追加初期化の失敗後に一覧へ現れる不完全な
  * イベント・セッションが残り、同名で再作成できなくなる。一時ディレクトリだけを失敗時の
  * 削除対象にすることで、既存データを巻き込まずに作成処理を原子的に扱える。
  */
-fn create_migrated_directory_atomically<F>(
+fn create_initialized_directory_atomically<F>(
     final_dir: &Path,
     relative_db_path: &Path,
-    run_migrations: fn(&mut rusqlite::Connection) -> rusqlite::Result<()>,
+    schema: &str,
+    database_name: &str,
+    required_tables: &[&str],
+    schema_queries: &[&str],
     initialize: F,
 ) -> Result<PathBuf, String>
 where
@@ -694,7 +488,13 @@ where
     let staging_dir = create_staging_directory(final_dir)?;
     let creation_result = (|| {
         let staging_db_path = staging_dir.join(relative_db_path);
-        let mut conn = create_migrated_connection(&staging_db_path, run_migrations)?;
+        let mut conn = create_schema_connection(
+            &staging_db_path,
+            schema,
+            database_name,
+            required_tables,
+            schema_queries,
+        )?;
         initialize(&mut conn)?;
         conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
             .map_err(|e| format!("DBの確定処理に失敗しました: {e}"))?;
@@ -725,28 +525,31 @@ where
     }
 }
 
-fn open_existing_migrated_connection(
+fn open_existing_schema_connection(
     db_path: &Path,
-    run_migrations: fn(&mut rusqlite::Connection) -> rusqlite::Result<()>,
+    database_name: &str,
+    required_tables: &[&str],
+    schema_queries: &[&str],
 ) -> Result<rusqlite::Connection, String> {
     if !db_path.is_file() {
         return Err(format!("DBが存在しません: {}", db_path.display()));
     }
     // READ_WRITEだけで開き、存在確認後に削除された場合も空DBを再作成しない。
-    open_and_migrate_connection(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
-        false,
-        run_migrations,
-    )
+    let conn = open_connection(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    validate_current_schema(&conn, database_name, required_tables, schema_queries)
+        .map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
+    Ok(conn)
 }
 
 fn create_event_shared_db(event_name: &str) -> Result<(), String> {
     let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
-    create_migrated_directory_atomically(
+    create_initialized_directory_atomically(
         &event_dir(event_name),
         &relative_db_path,
-        run_shared_migrations,
+        SHARED_SCHEMA,
+        "イベント共有",
+        SHARED_REQUIRED_TABLES,
+        SHARED_SCHEMA_QUERIES,
         |_| Ok(()),
     )
     .map(|_| ())
@@ -754,25 +557,25 @@ fn create_event_shared_db(event_name: &str) -> Result<(), String> {
 
 fn open_event_shared_db(event_name: &str) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = event_shared_db_path(event_name);
-    let conn = if db_path.is_file() {
-        open_existing_migrated_connection(&db_path, run_shared_migrations)?
-    } else {
-        // 既存版は有効なイベントディレクトリを一覧へ出し、初回open時に共有DBを作成する。
-        create_migrated_connection(&db_path, run_shared_migrations)?
-    };
+    let conn = open_existing_schema_connection(
+        &db_path,
+        "イベント共有",
+        SHARED_REQUIRED_TABLES,
+        SHARED_SCHEMA_QUERIES,
+    )?;
     Ok((db_path, conn))
 }
 
 fn create_session_db(event_name: &str, timestamp: &str) -> Result<(), String> {
     let relative_db_path = Path::new("db").join("stargazer.db");
-    create_migrated_directory_atomically(
+    create_initialized_directory_atomically(
         &session_dir(event_name, timestamp),
         &relative_db_path,
-        run_session_migrations,
-        |conn| {
-            mark_session_cast_ids_native(conn)
-                .map_err(|e| format!("希望キャストIDの初期化に失敗しました: {e}"))
-        },
+        SESSION_SCHEMA,
+        "取込セッション",
+        SESSION_REQUIRED_TABLES,
+        SESSION_SCHEMA_QUERIES,
+        |_| Ok(()),
     )
     .map(|_| ())
 }
@@ -782,17 +585,12 @@ fn open_session_db(
     timestamp: &str,
 ) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = session_db_path(event_name, timestamp);
-    let mut conn = if db_path.is_file() {
-        open_existing_migrated_connection(&db_path, run_session_migrations)?
-    } else {
-        // 一覧に残る既存セッションディレクトリとの互換のため、初回open時にDBを作成する。
-        let conn = create_migrated_connection(&db_path, run_session_migrations)?;
-        mark_session_cast_ids_native(&conn)
-            .map_err(|e| format!("希望キャストIDの初期化に失敗しました: {e}"))?;
-        conn
-    };
-    normalize_session_cast_id_provenance(&mut conn)
-        .map_err(|e| format!("希望キャストIDの互換状態を確定できませんでした: {e}"))?;
+    let conn = open_existing_schema_connection(
+        &db_path,
+        "取込セッション",
+        SESSION_REQUIRED_TABLES,
+        SESSION_SCHEMA_QUERIES,
+    )?;
     Ok((db_path, conn))
 }
 
@@ -821,6 +619,11 @@ struct ApplicantInput {
     preference_mode: Option<String>,
     is_guaranteed: bool,
     raw_extra: Vec<RawExtraInput>,
+}
+
+#[derive(Deserialize)]
+struct ApplicantCastPreferencesInput {
+    cast_ids: Vec<Option<i64>>,
 }
 
 #[derive(Deserialize)]
@@ -902,6 +705,20 @@ struct RestoredLotteryRunState {
     lottery_count: i64,
 }
 
+/** イベント内の保存済み抽選結果を、所有セッションと組み合わせて参照する見出し。 */
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EventSavedLotteryRunSummary {
+    session_timestamp: String,
+    run_id: i64,
+    label: String,
+    matching_type_code: String,
+    lottery_count: i64,
+    guaranteed_count: i64,
+    winner_count: i64,
+    created_at: String,
+}
+
 /** SQLite エラーに、呼び出し元の操作名を付けたユーザー向けメッセージを作る。 */
 fn sqlite_error(context: &str, error: rusqlite::Error) -> String {
     format!("{context}: {error}")
@@ -923,7 +740,7 @@ fn open_session_write_connection(
     open_session_db(event_name, timestamp).map(|(_, conn)| conn)
 }
 
-/** キャスト本体、別名、連絡先 URL、NG エントリを同じ transaction に挿入する。 */
+/** キャスト本体、別名義、連絡先 URL、NG エントリを同じ transaction に挿入する。 */
 fn insert_cast_in_transaction(
     tx: &rusqlite::Transaction<'_>,
     cast: &CastInput,
@@ -947,13 +764,14 @@ fn insert_cast_in_transaction(
         )?;
     }
     for ng in &cast.ng_entries {
+        let account_id = canonicalize_optional_x_id(ng.account_id.as_deref(), "キャストNG")?;
         tx.execute(
             "INSERT INTO cast_ng_entries (cast_id, username, userid, notes)
              VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![
                 cast_id,
                 ng.username.as_deref(),
-                ng.account_id.as_deref(),
+                account_id.as_deref(),
                 ng.notes.as_deref()
             ],
         )?;
@@ -993,6 +811,7 @@ fn persist_session_workflow_state_in_connection(
     conn: &mut rusqlite::Connection,
     state: &SessionWorkflowStateInput,
 ) -> rusqlite::Result<()> {
+    reject_saved_lottery_session_write(conn)?;
     conn.execute(
         "UPDATE session_workflow_state
          SET condition_revision = condition_revision + CASE
@@ -1028,21 +847,61 @@ fn persist_session_workflow_state_in_connection(
     Ok(())
 }
 
+/** @usernameまたはusernameを検証し、内部保存用のusername部分を返す。 */
+fn parse_x_username(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    let username = trimmed.strip_prefix('@').unwrap_or(trimmed);
+    if username.is_empty()
+        || username.len() > 15
+        || !username
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return None;
+    }
+    Some(username)
+}
+
+/** 有効なX IDは@なしへ整え、形式不正値は取込後に確認できるよう原文を残す。 */
+fn canonicalize_x_id_for_storage(value: &str) -> String {
+    parse_x_username(value).unwrap_or(value.trim()).to_string()
+}
+
+/** 任意入力のX IDを@なしへ整え、指定された形式不正値は保存前に拒否する。 */
+fn canonicalize_optional_x_id(
+    value: Option<&str>,
+    context: &str,
+) -> rusqlite::Result<Option<String>> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let username = parse_x_username(value).ok_or_else(|| {
+        rusqlite::Error::InvalidParameterName(format!("{context}のX ID '{value}' は形式が不正です"))
+    })?;
+    Ok(Some(username.to_string()))
+}
+
 fn validate_unique_x_ids<'a>(
     x_ids: impl IntoIterator<Item = &'a str>,
     context: &str,
 ) -> rusqlite::Result<()> {
     let mut seen_x_ids = HashSet::new();
     for x_id in x_ids {
-        let normalized = x_id.trim().to_lowercase();
-        if normalized.is_empty() {
+        let trimmed = x_id.trim();
+        if trimmed.is_empty() {
             return Err(rusqlite::Error::InvalidParameterName(format!(
-                "{context}に空のxIDが含まれています"
+                "{context}にX IDが空のデータがあります"
             )));
         }
+        let username = parse_x_username(trimmed).ok_or_else(|| {
+            rusqlite::Error::InvalidParameterName(format!(
+                "{context}に形式が不正なX ID '{x_id}' があります"
+            ))
+        })?;
+        let normalized = username.to_ascii_lowercase();
         if !seen_x_ids.insert(normalized) {
             return Err(rusqlite::Error::InvalidParameterName(format!(
-                "{context}でxID '{x_id}' が重複しています"
+                "{context}に重複するX ID '{x_id}' があります"
             )));
         }
     }
@@ -1050,7 +909,6 @@ fn validate_unique_x_ids<'a>(
 }
 
 fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
-    validate_unique_x_ids(users.iter().map(|user| user.x_id.as_str()), "応募者一覧")?;
     for user in users {
         if user.casts.len() != user.cast_ids.len() {
             return Err(rusqlite::Error::InvalidParameterName(format!(
@@ -1091,15 +949,57 @@ fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/** 応募者一覧と依存する保存済み抽選結果を、単一 SQLite transaction で全置換する。 */
+/** 保存済み抽選の所有セッションを、抽選前データまで含む履歴として固定する。 */
+fn reject_saved_lottery_session_write(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    let has_saved_run = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM lottery_saved_runs LIMIT 1)",
+        [],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if has_saved_run {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "保存済みの抽選結果がある取込データは変更できません".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/** 選び直した希望IDを現在の名簿へ照合し、保存する正式名を確定する。 */
+fn resolve_applicant_cast_preferences(
+    shared_conn: &rusqlite::Connection,
+    input: &ApplicantCastPreferencesInput,
+) -> rusqlite::Result<Vec<Option<(i64, String)>>> {
+    input
+        .cast_ids
+        .iter()
+        .map(|cast_id| {
+            let Some(cast_id) = cast_id else {
+                return Ok(None);
+            };
+            let cast_name = shared_conn
+                .query_row("SELECT name FROM casts WHERE id = ?1", [cast_id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .optional()?
+                .ok_or_else(|| {
+                    rusqlite::Error::InvalidParameterName(format!(
+                        "希望キャストID '{cast_id}' は現在の名簿に存在しません"
+                    ))
+                })?;
+            Ok(Some((*cast_id, cast_name)))
+        })
+        .collect()
+}
+
+/** 編集可能な取込セッションの応募者一覧と現行抽選結果を、単一 transaction で全置換する。 */
 fn persist_applicants_in_connection(
     conn: &mut rusqlite::Connection,
     users: &[ApplicantInput],
 ) -> rusqlite::Result<()> {
     // 入力全体を先に検証し、不正なpayloadで既存データの置換を開始しない。
     validate_applicant_inputs(users)?;
+    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
-    tx.execute("DELETE FROM lottery_saved_runs", [])?;
     tx.execute("DELETE FROM applicants", [])?;
     // WHY: 応募者集合の全置換も抽選条件の変更である。revisionを進めないと、
     // 置換前に開始した抽選が同じxIDを含む新集合へ遅れて保存され、現行結果として復活する。
@@ -1111,11 +1011,12 @@ fn persist_applicants_in_connection(
         [],
     )?;
     for user in users {
+        let stored_x_id = canonicalize_x_id_for_storage(&user.x_id);
         tx.execute(
             "INSERT INTO applicants (x_id, name, vrc_url, is_guaranteed)
              VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![
-                &user.x_id,
+                &stored_x_id,
                 user.name.as_deref(),
                 user.vrc_url.as_deref(),
                 if user.is_guaranteed { 1 } else { 0 }
@@ -1152,7 +1053,37 @@ fn persist_applicants_in_connection(
             )?;
         }
     }
-    mark_session_cast_ids_native(&tx)?;
+    tx.commit()
+}
+
+/** 応募者1件の希望だけを更新し、抽選結果と応募者IDは維持する。 */
+fn update_applicant_cast_preferences_in_connection(
+    conn: &mut rusqlite::Connection,
+    applicant_id: i64,
+    preferences: &[Option<(i64, String)>],
+) -> rusqlite::Result<()> {
+    reject_saved_lottery_session_write(conn)?;
+    let tx = conn.transaction()?;
+    tx.query_row(
+        "SELECT 1 FROM applicants WHERE id = ?1",
+        [applicant_id],
+        |row| row.get::<_, i64>(0),
+    )?;
+    tx.execute(
+        "DELETE FROM applicant_casts WHERE applicant_id = ?1",
+        [applicant_id],
+    )?;
+    for (preference_order, preference) in preferences.iter().enumerate() {
+        let Some((cast_id, cast_name)) = preference else {
+            continue;
+        };
+        tx.execute(
+            "INSERT INTO applicant_casts
+               (applicant_id, preference_order, cast_name, cast_id)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![applicant_id, preference_order as i64, cast_name, cast_id],
+        )?;
+    }
     tx.commit()
 }
 
@@ -1161,13 +1092,13 @@ fn delete_applicant_in_connection(
     conn: &mut rusqlite::Connection,
     applicant_id: i64,
 ) -> rusqlite::Result<()> {
+    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
     tx.query_row(
         "SELECT 1 FROM applicants WHERE id = ?1",
         [applicant_id],
         |row| row.get::<_, i64>(0),
     )?;
-    tx.execute("DELETE FROM lottery_saved_runs", [])?;
     tx.execute("DELETE FROM lottery_results", [])?;
     tx.execute("DELETE FROM applicants WHERE id = ?1", [applicant_id])?;
     tx.execute(
@@ -1192,24 +1123,36 @@ fn apply_applicant_guarantee_diff(
         guaranteed_x_ids.iter().map(String::as_str),
         "確定当選者一覧",
     )?;
-    let requested: HashSet<&str> = guaranteed_x_ids.iter().map(String::as_str).collect();
+    let requested = guaranteed_x_ids
+        .iter()
+        .map(|x_id| {
+            parse_x_username(x_id)
+                .unwrap_or(x_id.as_str())
+                .to_ascii_lowercase()
+        })
+        .collect::<HashSet<_>>();
     let current = {
         let mut stmt = tx.prepare("SELECT x_id FROM applicants WHERE is_guaranteed = 1")?;
         let values = stmt
-            .query_map([], |row| row.get::<_, String>(0))?
+            .query_map([], |row| {
+                let x_id = row.get::<_, String>(0)?;
+                Ok(parse_x_username(&x_id)
+                    .unwrap_or(x_id.as_str())
+                    .to_ascii_lowercase())
+            })?
             .collect::<rusqlite::Result<HashSet<_>>>()?;
         values
     };
-    if current.len() == requested.len()
-        && current.iter().all(|x_id| requested.contains(x_id.as_str()))
-    {
+    if current.len() == requested.len() && current.iter().all(|x_id| requested.contains(x_id)) {
         return Ok(());
     }
 
     tx.execute("UPDATE applicants SET is_guaranteed = 0", [])?;
-    for x_id in requested {
+    for x_id in &requested {
         let updated = tx.execute(
-            "UPDATE applicants SET is_guaranteed = 1 WHERE x_id = ?1",
+            "UPDATE applicants
+             SET is_guaranteed = 1
+             WHERE LOWER(LTRIM(TRIM(x_id), '@')) = ?1",
             [x_id],
         )?;
         if updated != 1 {
@@ -1229,7 +1172,10 @@ fn replace_applicant_guarantees_in_connection(
     conn: &mut rusqlite::Connection,
     guaranteed_x_ids: &[String],
 ) -> rusqlite::Result<()> {
+    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
+    // 重複X IDを含むセッションでは対象行を一意に決められないため、抽選条件を更新しない。
+    validate_stored_applicant_x_ids(&tx)?;
     apply_applicant_guarantee_diff(&tx, guaranteed_x_ids)?;
     tx.commit()
 }
@@ -1293,13 +1239,14 @@ fn update_cast_fields_in_connection(
     if patch.update_ng_entries {
         tx.execute("DELETE FROM cast_ng_entries WHERE cast_id = ?1", [cast_id])?;
         for ng in &patch.ng_entries {
+            let account_id = canonicalize_optional_x_id(ng.account_id.as_deref(), "キャストNG")?;
             tx.execute(
                 "INSERT INTO cast_ng_entries (cast_id, username, userid, notes)
                  VALUES (?1, ?2, ?3, ?4)",
                 rusqlite::params![
                     cast_id,
                     ng.username.as_deref(),
-                    ng.account_id.as_deref(),
+                    account_id.as_deref(),
                     ng.notes.as_deref()
                 ],
             )?;
@@ -1406,14 +1353,21 @@ fn replace_lottery_rows_in_transaction(
     tx: &rusqlite::Transaction<'_>,
     rows: &[LotteryResultInput],
 ) -> rusqlite::Result<()> {
-    // UIを迂回した呼出しでも、旧DBに残る不正なX IDを解消するまで抽選を確定させない。
+    // UIを迂回した呼出しでも、不正なX IDを解消するまで抽選を確定させない。
     validate_stored_applicant_x_ids(tx)?;
     tx.execute("DELETE FROM lottery_results", [])?;
     for row in rows {
+        let Some(username) = parse_x_username(&row.x_id) else {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "当選者 '{}' のX IDは形式が不正です",
+                row.x_id
+            )));
+        };
         let inserted = tx.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed)
-             SELECT id, ?2 FROM applicants WHERE x_id = ?1",
-            rusqlite::params![&row.x_id, if row.is_guaranteed { 1 } else { 0 }],
+             SELECT id, ?2 FROM applicants
+             WHERE LOWER(LTRIM(TRIM(x_id), '@')) = LOWER(?1)",
+            rusqlite::params![username, if row.is_guaranteed { 1 } else { 0 }],
         )?;
         if inserted != 1 {
             return Err(rusqlite::Error::InvalidParameterName(format!(
@@ -1437,6 +1391,7 @@ fn replace_lottery_results_in_connection(
     rows: &[LotteryResultInput],
     expected_condition_revision: i64,
 ) -> rusqlite::Result<()> {
+    reject_saved_lottery_session_write(conn)?;
     validate_lottery_result_inputs(rows)?;
     let tx = conn.transaction()?;
     validate_expected_condition_revision(&tx, expected_condition_revision)?;
@@ -1469,27 +1424,24 @@ fn replace_lottery_state_in_connection(
     tx.commit()
 }
 
-/**
- * 保存済み抽選の当選者と保存時の方式・抽選人数を、一つの状態として復元する。
- *
- * WHY: 条件と当選者を別々に保存すると、途中失敗時に条件だけが変わる。保存行の検証、
- * 条件revision、確定当選者、現行抽選結果を同じtransactionで確定する。
- */
-fn restore_lottery_run_in_connection(
-    conn: &mut rusqlite::Connection,
-    run_id: i64,
-    expected_condition_revision: i64,
-) -> rusqlite::Result<RestoredLotteryRunState> {
-    let tx = conn.transaction()?;
-    validate_expected_condition_revision(&tx, expected_condition_revision)?;
-    validate_stored_applicant_x_ids(&tx)?;
+struct ValidatedSavedLotteryRun {
+    matching_type_code: String,
+    lottery_count: i64,
+    rows: Vec<LotteryResultInput>,
+}
 
+/** 一覧表示と復元で同じ条件を使い、開けない保存結果を選択肢へ出さない。 */
+fn read_validated_saved_lottery_run(
+    conn: &rusqlite::Connection,
+    run_id: i64,
+) -> rusqlite::Result<ValidatedSavedLotteryRun> {
+    validate_stored_applicant_x_ids(conn)?;
     let (matching_type_code, stored_lottery_count, guaranteed_count, winner_count): (
         String,
         i64,
         i64,
         i64,
-    ) = tx.query_row(
+    ) = conn.query_row(
         "SELECT matching_type_code, lottery_count, guaranteed_count, winner_count
          FROM lottery_saved_runs
          WHERE id = ?1",
@@ -1503,7 +1455,7 @@ fn restore_lottery_run_in_connection(
     }
 
     let rows = {
-        let mut stmt = tx.prepare(
+        let mut stmt = conn.prepare(
             "SELECT a.x_id, r.is_guaranteed
              FROM lottery_saved_run_results r
              INNER JOIN applicants a ON a.id = r.applicant_id
@@ -1512,8 +1464,9 @@ fn restore_lottery_run_in_connection(
         )?;
         let values = stmt
             .query_map([run_id], |row| {
+                let x_id = row.get::<_, String>(0)?;
                 Ok(LotteryResultInput {
-                    x_id: row.get(0)?,
+                    x_id: canonicalize_x_id_for_storage(&x_id),
                     is_guaranteed: row.get::<_, i64>(1)? == 1,
                 })
             })?
@@ -1532,8 +1485,33 @@ fn restore_lottery_run_in_connection(
         ));
     }
 
-    // 旧画面と同じく、抽選人数0件の保存データは画面下限の1件として復元する。
-    let lottery_count = stored_lottery_count.max(1);
+    Ok(ValidatedSavedLotteryRun {
+        matching_type_code,
+        lottery_count: stored_lottery_count.max(1),
+        rows,
+    })
+}
+
+/**
+ * 保存済み抽選の当選者と保存時の方式・抽選人数を、一つの状態として復元する。
+ *
+ * WHY: 条件と当選者を別々に保存すると、途中失敗時に条件だけが変わる。保存行の検証、
+ * 条件revision、確定当選者、現行抽選結果を同じtransactionで確定する。
+ */
+fn restore_lottery_run_in_connection(
+    conn: &mut rusqlite::Connection,
+    run_id: i64,
+    expected_condition_revision: i64,
+) -> rusqlite::Result<RestoredLotteryRunState> {
+    let tx = conn.transaction()?;
+    validate_expected_condition_revision(&tx, expected_condition_revision)?;
+    let saved_run = read_validated_saved_lottery_run(&tx, run_id)?;
+    let ValidatedSavedLotteryRun {
+        matching_type_code,
+        lottery_count,
+        rows,
+    } = saved_run;
+
     tx.execute(
         "UPDATE session_workflow_state
          SET condition_revision = condition_revision + CASE
@@ -1653,7 +1631,13 @@ fn list_event_names_at(root: &Path) -> std::io::Result<Vec<String>> {
         let Ok(name) = entry.file_name().into_string() else {
             continue;
         };
-        if is_event_directory_name(&name) {
+        let has_shared_db = entry
+            .path()
+            .join(SHARED_DIR)
+            .join("db")
+            .join("stargazer.db")
+            .is_file();
+        if is_event_directory_name(&name) && has_shared_db {
             names.push(name);
         }
     }
@@ -1681,6 +1665,85 @@ fn list_sessions(event_name: String) -> Result<Vec<String>, String> {
         .map_err(|e| format!("応募データ一覧を読み込めませんでした: {e}"))
 }
 
+/**
+ * イベント配下の各セッションを読み取り専用で確認し、明示保存された抽選結果だけを返す。
+ * 読めないセッションは、他の保存済み抽選結果の表示を妨げない。
+ */
+#[tauri::command]
+fn list_event_saved_lottery_runs(
+    event_name: String,
+) -> Result<Vec<EventSavedLotteryRunSummary>, String> {
+    validate_event_name(&event_name)?;
+    let session_timestamps = list_session_names_at(&event_dir(&event_name))
+        .map_err(|e| format!("保存済み抽選結果を読み込めませんでした: {e}"))?;
+    let mut summaries = Vec::new();
+
+    for session_timestamp in session_timestamps {
+        let db_path = session_db_path(&event_name, &session_timestamp);
+        if !db_path.is_file() {
+            continue;
+        }
+        let Ok(conn) = rusqlite::Connection::open_with_flags(
+            &db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        ) else {
+            continue;
+        };
+        if conn.busy_timeout(SQLITE_BUSY_TIMEOUT).is_err() {
+            continue;
+        }
+        if validate_current_schema(
+            &conn,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )
+        .is_err()
+        {
+            continue;
+        }
+
+        let Ok(mut stmt) = conn.prepare(
+            "SELECT id, label, matching_type_code, lottery_count,
+                    guaranteed_count, winner_count, created_at
+             FROM lottery_saved_runs
+             ORDER BY id DESC",
+        ) else {
+            continue;
+        };
+        let Ok(rows) = stmt.query_map([], |row| {
+            Ok(EventSavedLotteryRunSummary {
+                session_timestamp: session_timestamp.clone(),
+                run_id: row.get(0)?,
+                label: row.get(1)?,
+                matching_type_code: row.get(2)?,
+                lottery_count: row.get(3)?,
+                guaranteed_count: row.get(4)?,
+                winner_count: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        }) else {
+            continue;
+        };
+        let Ok(session_summaries) = rows.collect::<rusqlite::Result<Vec<_>>>() else {
+            continue;
+        };
+        summaries.extend(
+            session_summaries
+                .into_iter()
+                .filter(|summary| read_validated_saved_lottery_run(&conn, summary.run_id).is_ok()),
+        );
+    }
+
+    summaries.sort_by(|a, b| {
+        b.created_at
+            .cmp(&a.created_at)
+            .then_with(|| b.session_timestamp.cmp(&a.session_timestamp))
+            .then_with(|| b.run_id.cmp(&a.run_id))
+    });
+    Ok(summaries)
+}
+
 fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -1697,7 +1760,8 @@ fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
         let Ok(timestamp) = entry.file_name().into_string() else {
             continue;
         };
-        if validate_timestamp(&timestamp).is_ok() {
+        let has_session_db = entry.path().join("db").join("stargazer.db").is_file();
+        if validate_timestamp(&timestamp).is_ok() && has_session_db {
             sessions.push(timestamp);
         }
     }
@@ -1745,6 +1809,28 @@ fn persist_applicants_atomic(
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     persist_applicants_in_connection(&mut conn, &users)
         .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))
+}
+
+/** 応募者1件の希望キャストを現在の名簿から選び直して保存する。 */
+#[tauri::command]
+fn update_applicant_cast_preferences_atomic(
+    event_name: String,
+    timestamp: String,
+    applicant_id: i64,
+    preferences: ApplicantCastPreferencesInput,
+) -> Result<(), String> {
+    let shared_conn = open_shared_write_connection(&event_name)?;
+    let resolved_preferences = resolve_applicant_cast_preferences(&shared_conn, &preferences)
+        .map_err(|e| sqlite_error("希望キャストの確認に失敗しました", e))?;
+    drop(shared_conn);
+
+    let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
+    update_applicant_cast_preferences_in_connection(
+        &mut session_conn,
+        applicant_id,
+        &resolved_preferences,
+    )
+    .map_err(|e| sqlite_error("希望キャストの保存に失敗しました", e))
 }
 
 /** 応募者1件を安定IDで削除し、残りの応募者は置換しない。 */
@@ -1909,6 +1995,26 @@ fn restore_lottery_run_atomic(
         .map_err(|e| sqlite_error("保存済み抽選結果の復元に失敗しました", e))
 }
 
+/** ライフサイクル切替用に、対象セッションの現行revisionをtransaction内の復元へ渡す。 */
+#[tauri::command]
+fn activate_saved_lottery_run_atomic(
+    event_name: String,
+    session_timestamp: String,
+    run_id: i64,
+) -> Result<(), String> {
+    let mut conn = open_session_write_connection(&event_name, &session_timestamp)?;
+    let condition_revision = conn
+        .query_row(
+            "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|e| sqlite_error("抽選条件の確認に失敗しました", e))?;
+    restore_lottery_run_in_connection(&mut conn, run_id, condition_revision)
+        .map(|_| ())
+        .map_err(|e| sqlite_error("保存済み抽選結果の復元に失敗しました", e))
+}
+
 #[tauri::command]
 fn create_event(event_name: String) -> Result<(), String> {
     validate_event_name(&event_name)?;
@@ -2032,7 +2138,6 @@ fn open_url_with_system(url: &str) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    cleanup_legacy_webview_data_root();
     let webview_data_dir = resolve_webview_data_root();
     // 事前作成に失敗してもWebView側の作成可否へ委ね、アプリ起動を継続する。
     let _ = std::fs::create_dir_all(&webview_data_dir);
@@ -2049,9 +2154,11 @@ pub fn run() {
             list_events,
             get_event_shared_db_uri,
             list_sessions,
+            list_event_saved_lottery_runs,
             create_session,
             get_session_db_uri,
             persist_applicants_atomic,
+            update_applicant_cast_preferences_atomic,
             delete_applicant_atomic,
             persist_session_workflow_state_atomic,
             replace_applicant_guarantees_atomic,
@@ -2065,6 +2172,7 @@ pub fn run() {
             replace_lottery_results_atomic,
             save_lottery_run_atomic,
             restore_lottery_run_atomic,
+            activate_saved_lottery_run_atomic,
             create_event,
             delete_event,
             rename_event,
@@ -2107,24 +2215,30 @@ mod tests {
         }
     }
 
-    fn open_migrated_shared_db(path: &Path) -> rusqlite::Result<Connection> {
+    fn open_initialized_shared_db(path: &Path) -> rusqlite::Result<Connection> {
         let mut conn = Connection::open(path)?;
-        run_shared_migrations(&mut conn)?;
+        configure_connection(&conn)?;
+        initialize_schema(
+            &mut conn,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )?;
         Ok(conn)
     }
 
-    fn open_migrated_session_db(path: &Path) -> rusqlite::Result<Connection> {
+    fn open_initialized_session_db(path: &Path) -> rusqlite::Result<Connection> {
         let mut conn = Connection::open(path)?;
-        run_session_migrations(&mut conn)?;
+        configure_connection(&conn)?;
+        initialize_schema(
+            &mut conn,
+            SESSION_SCHEMA,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )?;
         Ok(conn)
-    }
-
-    fn apply_migrations(
-        conn: &mut rusqlite::Connection,
-        migrations: &[(i32, &str)],
-    ) -> rusqlite::Result<()> {
-        let current = supported_schema_version(conn, migrations)?;
-        apply_pending_migrations(conn, migrations, current)
     }
 
     fn cast_input(name: &str) -> CastInput {
@@ -2177,18 +2291,15 @@ mod tests {
     }
 
     #[test]
-    fn reserved_system_directory_names_are_rejected_as_event_names() {
-        for name in [SHARED_DIR, "SHARED", WEBVIEW_DATA_DIR, "ebwebview"] {
-            assert!(
-                validate_event_name(name).is_err(),
-                "{name} は予約名として拒否される必要があります"
-            );
-            assert!(
-                !is_event_directory_name(name),
-                "{name} はイベント一覧に表示されない必要があります"
-            );
-        }
-        for name in ["db", "LOGS", "archive"] {
+    fn event_names_are_not_restricted_by_internal_directory_names() {
+        for name in [
+            SHARED_DIR,
+            "SHARED",
+            WEBVIEW_DATA_DIR,
+            "ebwebview",
+            "db",
+            "LOGS",
+        ] {
             assert!(validate_event_name(name).is_ok());
             assert!(is_event_directory_name(name));
         }
@@ -2208,18 +2319,37 @@ mod tests {
         let dir = TestDir::new("open-existing-database");
         let db_path = dir.0.join("missing").join("shared.db");
 
-        assert!(open_existing_migrated_connection(&db_path, run_shared_migrations).is_err());
+        assert!(open_existing_schema_connection(
+            &db_path,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .is_err());
         assert!(!db_path.exists());
         assert!(!db_path
             .parent()
             .expect("DB親ディレクトリが必要です")
             .exists());
 
-        let conn = create_migrated_connection(&db_path, run_shared_migrations)
-            .expect("新規作成APIではDBを作成できる必要があります");
+        let conn = create_schema_connection(
+            &db_path,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .expect("新規作成APIではDBを作成できる必要があります");
         drop(conn);
         assert!(db_path.is_file());
-        assert!(create_migrated_connection(&db_path, run_shared_migrations).is_err());
+        assert!(create_schema_connection(
+            &db_path,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .is_err());
     }
 
     #[test]
@@ -2229,16 +2359,73 @@ mod tests {
         let db_path = dir.db_path("uninitialized.db");
         drop(Connection::open(&db_path)?);
 
-        assert!(open_existing_migrated_connection(&db_path, run_shared_migrations).is_err());
+        assert!(open_existing_schema_connection(
+            &db_path,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .is_err());
         let conn = Connection::open(&db_path)?;
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         let table_count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table'",
             [],
             |row| row.get(0),
         )?;
-        assert_eq!(version, 0);
         assert_eq!(table_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn new_shared_database_uses_current_schema() -> rusqlite::Result<()> {
+        let dir = TestDir::new("current-shared-schema");
+        let db_path = dir.db_path("shared.db");
+        let conn = create_schema_connection(
+            &db_path,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .expect("共有DBを新規作成できる必要があります");
+
+        validate_current_schema(
+            &conn,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )?;
+        let foreign_keys: i64 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0))?;
+        assert_eq!(foreign_keys, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn new_session_database_uses_current_schema_and_default_workflow() -> rusqlite::Result<()> {
+        let dir = TestDir::new("current-session-schema");
+        let db_path = dir.db_path("session.db");
+        let conn = create_schema_connection(
+            &db_path,
+            SESSION_SCHEMA,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )
+        .expect("セッションDBを新規作成できる必要があります");
+
+        validate_current_schema(
+            &conn,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )?;
+        let workflow: (String, i64, Option<i64>) = conn.query_row(
+            "SELECT matching_type_code, condition_revision, lottery_result_revision
+             FROM session_workflow_state WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        assert_eq!(workflow, ("M001".to_string(), 0, None));
         Ok(())
     }
 
@@ -2248,10 +2435,13 @@ mod tests {
         let final_dir = dir.0.join("Failed Event");
         let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
 
-        let result = create_migrated_directory_atomically(
+        let result = create_initialized_directory_atomically(
             &final_dir,
             &relative_db_path,
-            run_shared_migrations,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
             |_| Err("失敗注入".to_string()),
         );
 
@@ -2274,10 +2464,13 @@ mod tests {
         let final_dir = dir.0.join("Completed Event");
         let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
 
-        let db_path = create_migrated_directory_atomically(
+        let db_path = create_initialized_directory_atomically(
             &final_dir,
             &relative_db_path,
-            run_shared_migrations,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
             |_| Ok(()),
         )
         .expect("イベントDBを作成できる必要があります");
@@ -2290,32 +2483,69 @@ mod tests {
     fn database_family_mismatch_is_rejected() -> rusqlite::Result<()> {
         let dir = TestDir::new("database-family");
         let session_path = dir.db_path("session.db");
-        drop(open_migrated_session_db(&session_path)?);
+        drop(open_initialized_session_db(&session_path)?);
 
-        assert!(open_existing_migrated_connection(&session_path, run_shared_migrations).is_err());
+        assert!(open_existing_schema_connection(
+            &session_path,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .is_err());
+
+        let shared_path = dir.db_path("shared.db");
+        drop(open_initialized_shared_db(&shared_path)?);
+        assert!(open_existing_schema_connection(
+            &shared_path,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )
+        .is_err());
         assert!(session_path.is_file());
         Ok(())
     }
 
     #[test]
-    fn old_database_family_mismatch_is_rejected_before_migration() -> rusqlite::Result<()> {
-        let dir = TestDir::new("old-database-family");
-        let shared_path = dir.db_path("shared-v1.db");
-        let mut conn = Connection::open(&shared_path)?;
-        conn.execute_batch(SHARED_MIGRATION_V1)?;
-        conn.execute_batch("PRAGMA user_version = 1;")?;
+    fn shared_database_missing_required_table_is_rejected() -> rusqlite::Result<()> {
+        let dir = TestDir::new("shared-missing-table");
+        let db_path = dir.db_path("shared.db");
+        let conn = open_initialized_shared_db(&db_path)?;
+        conn.execute_batch("DROP TABLE settings;")?;
+        drop(conn);
 
-        assert!(run_session_migrations(&mut conn).is_err());
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let session_table_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_schema
-             WHERE type = 'table' AND name IN ('applicants', 'session_workflow_state')",
-            [],
-            |row| row.get(0),
+        let error = open_existing_schema_connection(
+            &db_path,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+        )
+        .err()
+        .expect("必須テーブルがない共有DBを開いてはいけません");
+        assert!(error.contains("settings"));
+        Ok(())
+    }
+
+    #[test]
+    fn session_database_missing_required_column_is_rejected() -> rusqlite::Result<()> {
+        let dir = TestDir::new("session-missing-column");
+        let db_path = dir.db_path("session.db");
+        let conn = open_initialized_session_db(&db_path)?;
+        conn.execute_batch(
+            "DROP INDEX idx_applicant_casts_cast_id;
+             ALTER TABLE applicant_casts DROP COLUMN cast_id;",
         )?;
+        drop(conn);
 
-        assert_eq!(version, 1);
-        assert_eq!(session_table_count, 0);
+        let error = open_existing_schema_connection(
+            &db_path,
+            "取込セッション",
+            SESSION_REQUIRED_TABLES,
+            SESSION_SCHEMA_QUERIES,
+        )
+        .err()
+        .expect("必須カラムがないセッションDBを開いてはいけません");
+        assert!(error.contains("現行schema"));
         Ok(())
     }
 
@@ -2337,19 +2567,15 @@ mod tests {
 
         assert_eq!(
             list_sessions_at(&dir.0),
-            vec![
-                "20260725120000".to_string(),
-                "20260724120000".to_string(),
-                "20260723120000".to_string(),
-            ]
+            vec!["20260725120000".to_string(), "20260724120000".to_string(),]
         );
     }
 
     #[test]
     fn same_cast_name_does_not_share_attendance_between_event_dbs() -> rusqlite::Result<()> {
         let dir = TestDir::new("event-attendance-isolation");
-        let source = open_migrated_shared_db(&dir.db_path("source.db"))?;
-        let target = open_migrated_shared_db(&dir.db_path("target.db"))?;
+        let source = open_initialized_shared_db(&dir.db_path("source.db"))?;
+        let target = open_initialized_shared_db(&dir.db_path("target.db"))?;
         let cast_name = "同名キャスト";
 
         source.execute("INSERT INTO casts (name) VALUES (?1)", [cast_name])?;
@@ -2383,441 +2609,9 @@ mod tests {
     }
 
     #[test]
-    fn newer_schema_version_is_rejected_without_downgrade() -> rusqlite::Result<()> {
-        let mut conn = Connection::open_in_memory()?;
-        let supported_version = SHARED_MIGRATIONS
-            .last()
-            .map(|(version, _)| *version)
-            .expect("共有DBにはmigrationが必要です");
-        let future_version = supported_version + 1;
-        conn.pragma_update(None, "user_version", future_version)?;
-
-        let error =
-            run_shared_migrations(&mut conn).expect_err("対応外の新しいschemaを開いてはいけません");
-        let unchanged_version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-
-        assert!(error.to_string().contains("より新しい"));
-        assert_eq!(unchanged_version, future_version);
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migration_v2_keeps_legacy_caution_metadata() -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v2");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        apply_migrations(&mut conn, &SHARED_MIGRATIONS[..1])?;
-        conn.execute(
-            "INSERT INTO caution_users
-               (username, account_id, registration_type, reason, notes, ng_cast_count)
-             VALUES ('Legacy User', '@legacy', 'auto', '理由', 'メモ', 3)",
-            [],
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let metadata: (String, String, String, i64) = conn.query_row(
-            "SELECT registration_type, reason, notes, ng_cast_count
-             FROM caution_users WHERE account_id = '@legacy'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )?;
-        assert_eq!(
-            metadata,
-            (
-                "auto".to_string(),
-                "理由".to_string(),
-                "メモ".to_string(),
-                3
-            )
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migration_v3_keeps_legacy_cast_presence_compatible() -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v3");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        apply_migrations(&mut conn, &SHARED_MIGRATIONS[..2])?;
-        conn.execute(
-            "INSERT INTO casts (name, is_attend) VALUES ('Legacy Cast', 1)",
-            [],
-        )?;
-        conn.execute(
-            "INSERT INTO event_cast_present (cast_id, is_present) VALUES (1, 0)",
-            [],
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let is_attend: i64 = conn.query_row(
-            "SELECT is_attend FROM casts WHERE name = 'Legacy Cast'",
-            [],
-            |row| row.get(0),
-        )?;
-        let legacy_table_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'table' AND name = 'event_cast_present'",
-            [],
-            |row| row.get(0),
-        )?;
-        let is_present: i64 = conn.query_row(
-            "SELECT is_present FROM event_cast_present WHERE cast_id = 1",
-            [],
-            |row| row.get(0),
-        )?;
-        assert_eq!(is_attend, 0);
-        assert_eq!(legacy_table_count, 1);
-        assert_eq!(is_present, 0);
-
-        conn.execute("UPDATE casts SET is_attend = 1 WHERE id = 1", [])?;
-        let synchronized_presence: i64 = conn.query_row(
-            "SELECT is_present FROM event_cast_present WHERE cast_id = 1",
-            [],
-            |row| row.get(0),
-        )?;
-        assert_eq!(synchronized_presence, 1);
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migration_v4_keeps_header_templates_and_rows() -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v4");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        apply_migrations(&mut conn, &SHARED_MIGRATIONS[..3])?;
-        conn.execute(
-            "INSERT INTO header_templates (signature) VALUES ('legacy-signature')",
-            [],
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let table_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'table' AND name = 'header_templates'",
-            [],
-            |row| row.get(0),
-        )?;
-        let row_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM header_templates", [], |row| {
-                row.get(0)
-            })?;
-        assert_eq!(table_count, 1);
-        assert_eq!(row_count, 1);
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migrations_restore_presence_mirror_from_current_source() -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v5-repair");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        conn.execute_batch(SHARED_MIGRATION_V1)?;
-        conn.execute(
-            "INSERT INTO casts (name, is_attend) VALUES ('Existing Cast', 0)",
-            [],
-        )?;
-        conn.execute_batch(
-            "DROP TABLE event_cast_present;
-             DROP TABLE header_templates;
-             PRAGMA user_version = 4;",
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let repaired_presence: (i64, i64) = conn.query_row(
-            "SELECT cast_id, is_present FROM event_cast_present",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        let header_table_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'table' AND name = 'header_templates'",
-            [],
-            |row| row.get(0),
-        )?;
-        assert_eq!(version, 7);
-        assert_eq!(repaired_presence, (1, 0));
-        assert_eq!(header_table_count, 1);
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migration_v6_adds_cast_aliases_and_ng_notes_without_losing_rows(
-    ) -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v6");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        apply_migrations(&mut conn, &SHARED_MIGRATIONS[..5])?;
-        conn.execute("INSERT INTO casts (name) VALUES ('Existing Cast')", [])?;
-        conn.execute(
-            "INSERT INTO cast_ng_entries (cast_id, username, userid)
-             VALUES (1, 'Existing User', '@existing')",
-            [],
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let existing_ng: (String, String, Option<String>) = conn.query_row(
-            "SELECT username, userid, notes FROM cast_ng_entries WHERE cast_id = 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
-        let alias_table_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'table' AND name = 'cast_aliases'",
-            [],
-            |row| row.get(0),
-        )?;
-
-        assert_eq!(version, 7);
-        assert_eq!(
-            existing_ng,
-            ("Existing User".to_string(), "@existing".to_string(), None)
-        );
-        assert_eq!(alias_table_count, 1);
-        Ok(())
-    }
-
-    #[test]
-    fn shared_migration_v7_repairs_only_missing_presence_mirror_rows() -> rusqlite::Result<()> {
-        let dir = TestDir::new("shared-migration-v7");
-        let mut conn = Connection::open(dir.db_path("shared.db"))?;
-        apply_migrations(&mut conn, &SHARED_MIGRATIONS[..6])?;
-        conn.execute(
-            "INSERT INTO casts (name, is_attend) VALUES ('Missing Mirror', 0)",
-            [],
-        )?;
-        conn.execute(
-            "INSERT INTO casts (name, is_attend) VALUES ('Existing Mirror', 0)",
-            [],
-        )?;
-        conn.execute("DELETE FROM event_cast_present WHERE cast_id = 1", [])?;
-        conn.execute(
-            "UPDATE event_cast_present SET is_present = 1 WHERE cast_id = 2",
-            [],
-        )?;
-
-        run_shared_migrations(&mut conn)?;
-
-        let repaired: i64 = conn.query_row(
-            "SELECT is_present FROM event_cast_present WHERE cast_id = 1",
-            [],
-            |row| row.get(0),
-        )?;
-        let preserved: i64 = conn.query_row(
-            "SELECT is_present FROM event_cast_present WHERE cast_id = 2",
-            [],
-            |row| row.get(0),
-        )?;
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        assert_eq!(repaired, 0);
-        assert_eq!(preserved, 1);
-        assert_eq!(version, 7);
-        Ok(())
-    }
-
-    #[test]
-    fn session_migration_v3_adds_nullable_cast_id_and_index() -> rusqlite::Result<()> {
-        let dir = TestDir::new("session-migration-v3");
-        let mut conn = Connection::open(dir.db_path("session.db"))?;
-        apply_migrations(&mut conn, &SESSION_MIGRATIONS[..2])?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@legacy')", [])?;
-        conn.execute(
-            "INSERT INTO applicant_casts (applicant_id, preference_order, cast_name)
-             VALUES (1, 0, 'Legacy Cast')",
-            [],
-        )?;
-
-        apply_migrations(&mut conn, &SESSION_MIGRATIONS[..3])?;
-        let user_version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let table_count: i64 = conn.query_row(
-            "SELECT COUNT(*)
-             FROM sqlite_master
-             WHERE type = 'table'
-               AND name IN ('lottery_saved_runs', 'lottery_saved_run_results')",
-            [],
-            |row| row.get(0),
-        )?;
-        let cast_id_column_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('applicant_casts') WHERE name = 'cast_id'",
-            [],
-            |row| row.get(0),
-        )?;
-        let cast_id_index_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_applicant_casts_cast_id'",
-            [],
-            |row| row.get(0),
-        )?;
-        let legacy_cast_id: Option<i64> =
-            conn.query_row("SELECT cast_id FROM applicant_casts", [], |row| row.get(0))?;
-
-        assert_eq!(user_version, 3);
-        assert_eq!(table_count, 2);
-        assert_eq!(cast_id_column_count, 1);
-        assert_eq!(cast_id_index_count, 1);
-        assert_eq!(legacy_cast_id, None);
-        Ok(())
-    }
-
-    #[test]
-    fn session_migration_keeps_existing_legacy_lottery_result_current() -> rusqlite::Result<()> {
-        let dir = TestDir::new("session-migration-v4");
-        let mut conn = Connection::open(dir.db_path("session.db"))?;
-        apply_migrations(&mut conn, &SESSION_MIGRATIONS[..3])?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@legacy')", [])?;
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 1)",
-            [],
-        )?;
-
-        run_session_migrations(&mut conn)?;
-
-        let user_version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        let (matching_type_code, condition_revision, result_revision): (String, i64, Option<i64>) =
-            conn.query_row(
-                "SELECT matching_type_code, condition_revision, lottery_result_revision
-             FROM session_workflow_state WHERE id = 1",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )?;
-        assert_eq!(user_version, 6);
-        assert_eq!(matching_type_code, "M001");
-        assert_eq!(condition_revision, 0);
-        assert_eq!(result_revision, Some(0));
-        Ok(())
-    }
-
-    #[test]
-    fn session_migration_v6_repairs_unconfirmed_legacy_result() -> rusqlite::Result<()> {
-        let dir = TestDir::new("session-migration-v6");
-        let mut conn = Connection::open(dir.db_path("session.db"))?;
-        apply_migrations(&mut conn, &SESSION_MIGRATIONS[..4])?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@legacy')", [])?;
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
-            [],
-        )?;
-        conn.execute_batch("PRAGMA user_version = 5;")?;
-
-        run_session_migrations(&mut conn)?;
-
-        let result_revision: Option<i64> = conn.query_row(
-            "SELECT lottery_result_revision FROM session_workflow_state WHERE id = 1",
-            [],
-            |row| row.get(0),
-        )?;
-        let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        assert_eq!(result_revision, Some(0));
-        assert_eq!(version, 6);
-        Ok(())
-    }
-
-    #[test]
-    fn session_migration_without_lottery_result_remains_unconfirmed() -> rusqlite::Result<()> {
-        let dir = TestDir::new("session-migration-without-lottery-result");
-        let mut conn = Connection::open(dir.db_path("session.db"))?;
-
-        run_session_migrations(&mut conn)?;
-
-        let result_revision: Option<i64> = conn.query_row(
-            "SELECT lottery_result_revision FROM session_workflow_state WHERE id = 1",
-            [],
-            |row| row.get(0),
-        )?;
-        assert_eq!(result_revision, None);
-        Ok(())
-    }
-
-    #[test]
-    fn untrusted_session_cast_ids_are_returned_to_unresolved_names() -> rusqlite::Result<()> {
-        let dir = TestDir::new("untrusted-session-cast-ids");
-        let mut session = open_migrated_session_db(&dir.db_path("session.db"))?;
-        session.execute("INSERT INTO applicants (x_id) VALUES ('@legacy')", [])?;
-        session.execute(
-            "INSERT INTO applicant_casts
-               (applicant_id, preference_order, cast_name, cast_id)
-             VALUES (1, 0, 'Cast A', 202)",
-            [],
-        )?;
-        session.execute(
-            "INSERT INTO meta (key, value) VALUES (?1, '1')",
-            [OBSOLETE_SESSION_CAST_ID_BACKFILL_META_KEY],
-        )?;
-
-        normalize_session_cast_id_provenance(&mut session)?;
-
-        let cast_id: Option<i64> =
-            session.query_row("SELECT cast_id FROM applicant_casts", [], |row| row.get(0))?;
-        let provenance: String = session.query_row(
-            "SELECT value FROM meta WHERE key = ?1",
-            [SESSION_CAST_ID_PROVENANCE_META_KEY],
-            |row| row.get(0),
-        )?;
-        let obsolete_marker_count: i64 = session.query_row(
-            "SELECT COUNT(*) FROM meta WHERE key = ?1",
-            [OBSOLETE_SESSION_CAST_ID_BACKFILL_META_KEY],
-            |row| row.get(0),
-        )?;
-        assert_eq!(cast_id, None);
-        assert_eq!(provenance, SESSION_CAST_ID_PROVENANCE_LEGACY);
-        assert_eq!(obsolete_marker_count, 0);
-        Ok(())
-    }
-
-    #[test]
-    fn native_session_cast_ids_are_not_cleared() -> rusqlite::Result<()> {
-        let dir = TestDir::new("native-session-cast-ids");
-        let mut session = open_migrated_session_db(&dir.db_path("session.db"))?;
-        mark_session_cast_ids_native(&session)?;
-        session.execute("INSERT INTO applicants (x_id) VALUES ('@native')", [])?;
-        session.execute(
-            "INSERT INTO applicant_casts
-               (applicant_id, preference_order, cast_name, cast_id)
-             VALUES (1, 0, 'Cast A', 101)",
-            [],
-        )?;
-
-        normalize_session_cast_id_provenance(&mut session)?;
-
-        let cast_id: Option<i64> =
-            session.query_row("SELECT cast_id FROM applicant_casts", [], |row| row.get(0))?;
-        assert_eq!(cast_id, Some(101));
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_session_cast_ids_are_cleared_again_if_an_old_version_restores_them(
-    ) -> rusqlite::Result<()> {
-        let dir = TestDir::new("legacy-session-restored-cast-ids");
-        let mut session = open_migrated_session_db(&dir.db_path("session.db"))?;
-        session.execute("INSERT INTO applicants (x_id) VALUES ('@legacy')", [])?;
-        session.execute(
-            "INSERT INTO applicant_casts
-               (applicant_id, preference_order, cast_name, cast_id)
-             VALUES (1, 0, 'Cast A', 303)",
-            [],
-        )?;
-        session.execute(
-            "INSERT INTO meta (key, value) VALUES (?1, ?2)",
-            rusqlite::params![
-                SESSION_CAST_ID_PROVENANCE_META_KEY,
-                SESSION_CAST_ID_PROVENANCE_LEGACY
-            ],
-        )?;
-
-        normalize_session_cast_id_provenance(&mut session)?;
-
-        let cast_id: Option<i64> =
-            session.query_row("SELECT cast_id FROM applicant_casts", [], |row| row.get(0))?;
-        assert_eq!(cast_id, None);
-        Ok(())
-    }
-
-    #[test]
     fn persist_applicants_uses_explicit_cast_ids_including_nulls() -> rusqlite::Result<()> {
         let dir = TestDir::new("persist-applicant-cast-ids");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         let users = vec![ApplicantInput {
             name: Some("Explicit".to_string()),
             x_id: "@explicit".to_string(),
@@ -2857,24 +2651,18 @@ mod tests {
         assert_eq!(
             rows,
             vec![
-                ("@explicit".to_string(), "Cast A".to_string(), Some(900)),
-                ("@explicit".to_string(), "Cast B".to_string(), None),
-                ("@explicit".to_string(), "Cast C".to_string(), None),
+                ("explicit".to_string(), "Cast A".to_string(), Some(900)),
+                ("explicit".to_string(), "Cast B".to_string(), None),
+                ("explicit".to_string(), "Cast C".to_string(), None),
             ]
         );
-        let provenance: String = conn.query_row(
-            "SELECT value FROM meta WHERE key = ?1",
-            [SESSION_CAST_ID_PROVENANCE_META_KEY],
-            |row| row.get(0),
-        )?;
-        assert_eq!(provenance, SESSION_CAST_ID_PROVENANCE_NATIVE);
         Ok(())
     }
 
     #[test]
     fn invalid_applicant_payload_is_rejected_before_replacement() -> rusqlite::Result<()> {
         let dir = TestDir::new("invalid-applicant-payload");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@existing')", [])?;
         let mut invalid = applicant_input("@new");
         invalid.casts = vec!["Cast A".to_string()];
@@ -2890,7 +2678,7 @@ mod tests {
     #[test]
     fn applicant_can_be_deleted_by_id_while_other_invalid_x_ids_remain() -> rusqlite::Result<()> {
         let dir = TestDir::new("delete-invalid-applicant");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@Duplicate')", [])?;
         let duplicate_id = conn.last_insert_rowid();
         conn.execute("INSERT INTO applicants (x_id) VALUES (' @duplicate ')", [])?;
@@ -2907,6 +2695,8 @@ mod tests {
             [],
         )?;
 
+        assert!(delete_applicant_in_connection(&mut conn, duplicate_id).is_err());
+        conn.execute("DELETE FROM lottery_saved_runs", [])?;
         delete_applicant_in_connection(&mut conn, duplicate_id)?;
         assert!(validate_stored_applicant_x_ids(&conn).is_err());
         delete_applicant_in_connection(&mut conn, empty_id)?;
@@ -2939,7 +2729,7 @@ mod tests {
     #[test]
     fn lottery_result_cannot_be_replaced_while_stored_x_ids_are_invalid() -> rusqlite::Result<()> {
         let dir = TestDir::new("invalid-stored-x-id-lottery");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@Duplicate')", [])?;
         let applicant_id = conn.last_insert_rowid();
         conn.execute("INSERT INTO applicants (x_id) VALUES (' @duplicate ')", [])?;
@@ -2962,14 +2752,7 @@ mod tests {
     }
 
     #[test]
-    fn applicant_validation_rejects_empty_duplicate_and_reserved_values() {
-        assert!(validate_applicant_inputs(&[applicant_input(" ")]).is_err());
-        assert!(validate_applicant_inputs(&[
-            applicant_input("@Duplicate"),
-            applicant_input(" @duplicate "),
-        ])
-        .is_err());
-
+    fn applicant_validation_rejects_inconsistent_preference_payloads() {
         let mut reserved_extra = applicant_input("@reserved");
         reserved_extra.raw_extra.push(RawExtraInput {
             key: PREFERENCE_MODE_EXTRA_KEY.to_string(),
@@ -2990,9 +2773,9 @@ mod tests {
     #[test]
     fn rename_cast_preserves_id_and_session_snapshot() -> rusqlite::Result<()> {
         let dir = TestDir::new("rename-cast-stable-id");
-        let mut shared = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let cast_id = insert_cast_in_connection(&mut shared, &cast_input("旧キャスト"))?;
-        let session = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let session = open_initialized_session_db(&dir.db_path("session.db"))?;
         session.execute("INSERT INTO applicants (x_id) VALUES ('@applicant')", [])?;
         session.execute(
             "INSERT INTO applicant_casts
@@ -3020,9 +2803,9 @@ mod tests {
     #[test]
     fn deleting_and_reinserting_same_name_does_not_relink_session_id() -> rusqlite::Result<()> {
         let dir = TestDir::new("delete-reinsert-cast-id");
-        let mut shared = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let original_id = insert_cast_in_connection(&mut shared, &cast_input("Cast A"))?;
-        let session = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let session = open_initialized_session_db(&dir.db_path("session.db"))?;
         session.execute("INSERT INTO applicants (x_id) VALUES ('@applicant')", [])?;
         session.execute(
             "INSERT INTO applicant_casts
@@ -3044,7 +2827,7 @@ mod tests {
     #[test]
     fn persist_applicants_failure_keeps_existing_rows_and_saved_runs() -> rusqlite::Result<()> {
         let dir = TestDir::new("persist-applicants-rollback");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute(
             "INSERT INTO applicants (x_id, name) VALUES (?1, ?2)",
             rusqlite::params!["@old_user", "Old User"],
@@ -3109,7 +2892,7 @@ mod tests {
     #[test]
     fn applicant_replacement_advances_revision_and_rejects_old_lottery() -> rusqlite::Result<()> {
         let dir = TestDir::new("applicant-replacement-revision");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
 
         persist_applicants_in_connection(&mut conn, &[applicant_input("@same")])?;
         let revision: i64 = conn.query_row(
@@ -3153,7 +2936,7 @@ mod tests {
     #[test]
     fn replace_lottery_results_failure_keeps_existing_rows() -> rusqlite::Result<()> {
         let dir = TestDir::new("replace-lottery-rollback");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@old_user')", [])?;
         let applicant_id = conn.last_insert_rowid();
         conn.execute(
@@ -3178,7 +2961,7 @@ mod tests {
     #[test]
     fn lottery_state_replace_is_atomic_and_rejects_changed_revision() -> rusqlite::Result<()> {
         let dir = TestDir::new("replace-lottery-state");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@first')", [])?;
         let first_id = conn.last_insert_rowid();
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@second')", [])?;
@@ -3224,7 +3007,7 @@ mod tests {
     #[test]
     fn saved_lottery_restore_updates_conditions_guarantees_and_results() -> rusqlite::Result<()> {
         let dir = TestDir::new("restore-saved-lottery");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute(
             "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@first', 0)",
             [],
@@ -3310,7 +3093,7 @@ mod tests {
     #[test]
     fn saved_lottery_restore_failure_rolls_back_all_state() -> rusqlite::Result<()> {
         let dir = TestDir::new("restore-saved-lottery-rollback");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute(
             "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@current', 1)",
             [],
@@ -3376,7 +3159,7 @@ mod tests {
     #[test]
     fn save_lottery_run_failure_rolls_back_heading_row() -> rusqlite::Result<()> {
         let dir = TestDir::new("save-lottery-run-rollback");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@winner')", [])?;
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
@@ -3415,7 +3198,7 @@ mod tests {
     #[test]
     fn stale_lottery_result_cannot_be_saved_as_history() -> rusqlite::Result<()> {
         let dir = TestDir::new("save-stale-lottery-run");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@winner')", [])?;
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
@@ -3434,7 +3217,7 @@ mod tests {
     #[test]
     fn saved_lottery_metadata_is_derived_from_database_state_and_rows() -> rusqlite::Result<()> {
         let dir = TestDir::new("save-lottery-run-metadata");
-        let mut conn = open_migrated_session_db(&dir.db_path("session.db"))?;
+        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@guaranteed')", [])?;
         let guaranteed_id = conn.last_insert_rowid();
         conn.execute("INSERT INTO applicants (x_id) VALUES ('@lottery')", [])?;
@@ -3480,7 +3263,7 @@ mod tests {
     #[test]
     fn insert_cast_saves_aliases_and_ng_notes_in_same_transaction() -> rusqlite::Result<()> {
         let dir = TestDir::new("insert-cast-aliases");
-        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut conn = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let mut cast = cast_input("Cast A");
         cast.aliases = vec!["別名A".to_string(), "別名B".to_string()];
         cast.ng_entries = vec![NgUserInput {
@@ -3509,7 +3292,7 @@ mod tests {
             ng,
             (
                 "対象者".to_string(),
-                "@target".to_string(),
+                "target".to_string(),
                 "NG理由".to_string()
             )
         );
@@ -3529,7 +3312,7 @@ mod tests {
     #[test]
     fn update_cast_fields_replaces_related_rows() -> rusqlite::Result<()> {
         let dir = TestDir::new("update-cast-fields");
-        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut conn = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         conn.execute(
             "INSERT INTO casts (name, group_name) VALUES ('Cast A', 'Old')",
             [],
@@ -3577,7 +3360,7 @@ mod tests {
         };
         assert_eq!(row, (None, 0, Some("updated".to_string())));
         assert_eq!(url, "https://example.test/new");
-        assert_eq!(ng, ("@new".to_string(), "NG理由".to_string()));
+        assert_eq!(ng, ("new".to_string(), "NG理由".to_string()));
         assert_eq!(aliases, vec!["別名A".to_string(), "別名B".to_string()]);
         Ok(())
     }
@@ -3585,7 +3368,7 @@ mod tests {
     #[test]
     fn missing_cast_id_fails_update_rename_and_delete() -> rusqlite::Result<()> {
         let dir = TestDir::new("missing-cast-write-target");
-        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut conn = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let missing_cast_id = 999_999;
 
         assert!(
@@ -3600,7 +3383,7 @@ mod tests {
     #[test]
     fn record_cast_attendance_replaces_same_day_rows() -> rusqlite::Result<()> {
         let dir = TestDir::new("record-attendance");
-        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut conn = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         conn.execute("INSERT INTO casts (name) VALUES ('Cast A')", [])?;
         let cast_a_id = conn.last_insert_rowid();
         conn.execute("INSERT INTO casts (name) VALUES ('Cast B')", [])?;
@@ -3628,7 +3411,7 @@ mod tests {
     #[test]
     fn missing_cast_id_aborts_attendance_replacement() -> rusqlite::Result<()> {
         let dir = TestDir::new("record-attendance-missing-cast");
-        let mut conn = open_migrated_shared_db(&dir.db_path("shared.db"))?;
+        let mut conn = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         conn.execute("INSERT INTO casts (name) VALUES ('Cast A')", [])?;
         let cast_a_id = conn.last_insert_rowid();
         conn.execute(

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { UserBean } from '@/common/types/entities';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { AppDialog } from '@/components/AppDialog';
 import dialogStyles from '@/components/ConfirmModal.module.css';
 import { getMsg } from '@/messages/getMsg';
@@ -23,13 +24,14 @@ interface GuaranteedApplicantButtonProps {
 
 function GuaranteedApplicantButton({ user, selected, onToggle }: GuaranteedApplicantButtonProps) {
   const handleClick = () => { void onToggle(user.x_id); };
-  const displayName = user.name || user.x_id;
+  const displayXId = formatXAccountIdForDisplay(user.x_id);
+  const displayName = user.name || displayXId;
 
   return (
     <button type="button" aria-pressed={selected} className={getGuaranteedApplicantClassName(selected)} onClick={handleClick}>
       <span className={styles.guaranteedSelectModalList__check}>{selected ? getMsg('LotteryPage.selected') : getMsg('LotteryPage.notSelected')}</span>
       <span className={styles.guaranteedSelectModalList__name}>{displayName}</span>
-      <span className={styles.guaranteedSelectModalList__id}>{user.x_id}</span>
+      <span className={styles.guaranteedSelectModalList__id}>{displayXId}</span>
     </button>
   );
 }

@@ -6,12 +6,7 @@
 import type { UserBean, CastBean } from '@/common/types/entities';
 import type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { isUserNGForCast, getNGReasonForCast } from './ng-judgment';
-import {
-  FIXED_NG_JUDGMENT_TYPE,
-  type NGJudgmentType,
-  type NGMatchingBehavior,
-  type MatchingSearchMode,
-} from '@/features/matching/types/matching-system-types';
+import type { MatchingSearchMode } from '@/features/matching/types/matching-system-types';
 import { runSingleCastMatching } from './matching-table-engine';
 import { runMultipleMatching } from './matching-m003';
 import { getPreferenceScore } from './matching-hungarian-engine';
@@ -75,18 +70,11 @@ export function runMatching(
   allCasts: CastBean[],
   matchingTypeCode: MatchingTypeCode,
   options: MatchingRunOptions,
-  ngJudgmentType: NGJudgmentType = FIXED_NG_JUDGMENT_TYPE,
-  ngMatchingBehavior: NGMatchingBehavior = 'exclude',
 ): MatchingResult {
   const activeCasts = allCasts.filter((cast) => cast.is_present);
   const userMap = new Map<string, MatchedCast[]>();
   if (winners.length === 0 || activeCasts.length === 0) {
-    return finalizeResult(
-      { userMap },
-      winners,
-      ngJudgmentType,
-      ngMatchingBehavior,
-    );
+    return finalizeResult({ userMap }, winners);
   }
 
   const rotationCount = Math.max(1, options.rotationCount || 1);
@@ -101,8 +89,6 @@ export function runMatching(
         allCasts,
         totalTables,
         rotationCount,
-        ngJudgmentType,
-        ngMatchingBehavior,
         matchingTypeCode === 'M001',
       );
       break;
@@ -119,37 +105,31 @@ export function runMatching(
           relaxedAfterMs: options.relaxedAfterMs,
           searchMode: options.searchMode,
         },
-        ngJudgmentType,
-        ngMatchingBehavior,
       );
       break;
     default:
       result = { userMap };
   }
 
-  return finalizeResult(result, winners, ngJudgmentType, ngMatchingBehavior);
+  return finalizeResult(result, winners);
 }
 
-/** アルゴリズム結果に NG 警告と確認可否の集計を付け、画面で扱う最終結果にする。 */
+/** アルゴリズム結果に表示情報と確認可否の集計を付け、画面で扱う最終結果にする。 */
 function finalizeResult(
   result: MatchingResult,
   winners: UserBean[],
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
-  const resultWithWarnings = attachWarnings(result, winners, ngJudgmentType, ngMatchingBehavior);
-  if (!resultWithWarnings.ngConflict) {
-    resultWithWarnings.scoreSummary = evaluateMatchingResult(resultWithWarnings, winners);
+  const finalizedResult = attachMatchMetadata(result, winners);
+  if (!finalizedResult.ngConflict) {
+    finalizedResult.scoreSummary = evaluateMatchingResult(finalizedResult, winners);
   }
-  return resultWithWarnings;
+  return finalizedResult;
 }
 
-/** warn モードで許容された NG 組み合わせに、表示用の警告情報を付与する。 */
-function attachWarnings(
+/** 点数を付与し、固定のNG排除契約に反する結果があれば理由を表示できる状態にする。 */
+function attachMatchMetadata(
   result: MatchingResult,
   winners: UserBean[],
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
   const winnerById = new Map(winners.map((winner) => [winner.x_id, winner]));
 
@@ -158,10 +138,8 @@ function attachWarnings(
     if (!user) return;
     matches.forEach((match) => {
       match.score = getPreferenceScore(user, match.cast);
-      if (ngMatchingBehavior === 'warn') {
-        match.isNGWarning = isUserNGForCast(user, match.cast, ngJudgmentType);
-        match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
-      }
+      match.isNGWarning = isUserNGForCast(user, match.cast);
+      match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
     });
   });
 
@@ -169,10 +147,8 @@ function attachWarnings(
     const user = slot.user;
     slot.matches.forEach((match) => {
       match.score = user ? getPreferenceScore(user, match.cast) : 0;
-      if (ngMatchingBehavior === 'warn') {
-        match.isNGWarning = user ? isUserNGForCast(user, match.cast, ngJudgmentType) : false;
-        match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
-      }
+      match.isNGWarning = user ? isUserNGForCast(user, match.cast) : false;
+      match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
     });
   });
   return result;

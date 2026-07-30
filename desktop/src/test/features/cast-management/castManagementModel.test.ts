@@ -30,13 +30,13 @@ describe('CONTACT_SITE_LINKS', () => {
     expect(CONTACT_SITE_LINKS).toEqual([
       {
         key: 'externalChat',
-        label: 'Discord',
+        label: 'DM(Discord)',
         marker: 'Discord',
         url: 'https://discord.com/channels/@me',
       },
       {
         key: 'x',
-        label: 'X',
+        label: 'DM(X)',
         marker: 'X',
         url: 'https://x.com/i/chat',
       },
@@ -89,7 +89,7 @@ describe('getFormalNameConflictMessage', () => {
       '「Alice」はすでにキャスト名として使われています。',
     );
     expect(getFormalNameConflictMessage('Bobby', casts)).toBe(
-      '「Bobby」は「Bob」の別名として登録されています。別のキャスト名を入力してください。',
+      '「Bobby」は「Bob」の別名義として登録されています。別のキャスト名を入力してください。',
     );
     expect(getFormalNameConflictMessage('Carol', casts)).toBeNull();
   });
@@ -100,16 +100,16 @@ describe('getAliasConflictMessage', () => {
     const owner = casts[0];
 
     expect(getAliasConflictMessage('Alice', casts, owner)).toBe(
-      '正式名と同じ「Alice」を別名に登録する必要はありません。',
+      '正式名と同じ「Alice」を別名義として登録する必要はありません。',
     );
     expect(getAliasConflictMessage('Ally', casts, owner)).toBe(
-      '「Ally」はこのキャストの別名に登録済みです。',
+      '「Ally」はこのキャストの別名義として登録済みです。',
     );
     expect(getAliasConflictMessage('Bob', casts, owner)).toBe(
-      '「Bob」は「Bob」の正式名として使われているため、別名には登録できません。',
+      '「Bob」は「Bob」の正式名として使われているため、別名義には登録できません。',
     );
     expect(getAliasConflictMessage('Bobby', casts, owner)).toBe(
-      '「Bobby」は「Bob」の別名として登録されています。',
+      '「Bobby」は「Bob」の別名義として登録されています。',
     );
   });
 
@@ -118,7 +118,7 @@ describe('getAliasConflictMessage', () => {
 
     expect(getAliasConflictMessage('Ally', casts, owner, 0)).toBeNull();
     expect(getAliasConflictMessage('Shared', casts, owner, 1)).toBe(
-      '「Shared」は「Bob」の別名として登録されています。',
+      '「Shared」は「Bob」の別名義として登録されています。',
     );
     expect(getAliasConflictMessage('New alias', casts, owner)).toBeNull();
   });

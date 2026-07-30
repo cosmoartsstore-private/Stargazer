@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { UserBean } from '@/common/types/entities';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { getMsg } from '@/messages/getMsg';
 import { NgCastResultCell } from './NgCastResultCell';
@@ -22,6 +23,7 @@ interface LotteryResultPanelProps {
   hasSavedRuns: boolean;
   savingLotteryRun: boolean;
   hasStaleLotteryResult: boolean;
+  readOnly?: boolean;
   isLotteryOnlyMode: boolean;
   canProceedToMatching: boolean;
   onLoadSavedLotteryRun: () => void;
@@ -38,6 +40,7 @@ export const LotteryResultPanel: React.FC<LotteryResultPanelProps> = ({
   hasSavedRuns,
   savingLotteryRun,
   hasStaleLotteryResult,
+  readOnly = false,
   isLotteryOnlyMode,
   canProceedToMatching,
   onLoadSavedLotteryRun,
@@ -47,7 +50,7 @@ export const LotteryResultPanel: React.FC<LotteryResultPanelProps> = ({
   const savedResultPlaceholder = hasSavedRuns
     ? getMsg('LotteryPage.selectSavedResult')
     : getMsg('LotteryPage.noSavedResults');
-  const saveResultDisabled = resultRows.length === 0 || savingLotteryRun || hasStaleLotteryResult;
+  const saveResultDisabled = readOnly || resultRows.length === 0 || savingLotteryRun || hasStaleLotteryResult;
   const saveResultLabel = savingLotteryRun ? getMsg('common.saving') : getMsg('LotteryPage.saveResult');
   const savedResultsLabelId = 'lottery-saved-results-label';
 
@@ -98,7 +101,7 @@ export const LotteryResultPanel: React.FC<LotteryResultPanelProps> = ({
             {resultRows.map((row) => (
               <tr key={row.x_id}>
                 <td className={shared.tableCell}>{row.name}</td>
-                <td className={shared.tableCell}>{row.x_id}</td>
+                <td className={shared.tableCell}>{formatXAccountIdForDisplay(row.x_id)}</td>
                 <td className={shared.tableCell}>{row.lotteryType}</td>
                 <td className={shared.tableCell}>{row.casts.join(', ') || getMsg('LotteryPage.noPreferredCasts')}</td>
                 <td className={shared.tableCell}><NgCastResultCell ngCastNames={row.ngCastNames} /></td>

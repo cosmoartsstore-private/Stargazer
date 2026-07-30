@@ -108,7 +108,6 @@
   min-width: 180px;
 }
 
-.ng-page__add-input--reason,
 .ng-page__add-input--notes {
   flex: 2 1 220px;
   min-width: 180px;
@@ -461,6 +460,18 @@
   opacity: 0.86;
 }
 
+/* サイドバー表示中に右パネルが狭くなる幅では、編集欄と保存状態を縦に並べる。 */
+@media (max-width: 1000px) {
+  .ng-entry-details {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .ng-entry-details-save {
+    width: 100%;
+  }
+}
+
 /* モバイル対応 */
 @media (max-width: 768px) {
   .ng-page__section {
@@ -473,7 +484,6 @@
 
   .ng-page__add-input--name,
   .ng-page__add-input--id,
-  .ng-page__add-input--reason,
   .ng-page__add-input--notes {
     flex: 1 1 auto;
     min-width: 0;
@@ -503,4 +513,9 @@
 :global([data-theme="skyblue"]) .caution-candidate-name-chip {
   background-color: #c9e4f6;
   color: #102b49;
+}
+
+:global([data-guide-theme-preview="dark"]) .caution-candidate-name-chip {
+  background-color: var(--surface-panel);
+  color: var(--text-default);
 }

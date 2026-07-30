@@ -56,8 +56,8 @@ export const MatchingPage: React.FC = () => {
   // ダイアログ、出力名、PNG化対象の要素を画面側で管理する。
   const [alertMessage, setAlertMessage] = useState<string | null>(globalMatchingError);
   const [backupFileName, setBackupFileName] = useState(DEFAULT_BACKUP_FILE_NAME);
-  const resultRef = useRef<HTMLDivElement>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
+  const castResultTableRef = useRef<HTMLDivElement>(null);
+  const tableResultTableRef = useRef<HTMLDivElement>(null);
   const { isComputing, scoreSummary, runMatching, cancelMatching } = useMatchingExecution();
 
   useEffect(() => {
@@ -121,11 +121,11 @@ export const MatchingPage: React.FC = () => {
     : '';
 
   const handleExportCastResults = () => {
-    void exportElementAsPng(resultRef.current, CAST_RESULT_IMAGE_FILE_NAME);
+    void exportElementAsPng(castResultTableRef.current, CAST_RESULT_IMAGE_FILE_NAME);
   };
 
   const handleExportTableResults = () => {
-    void exportElementAsPng(tableRef.current, TABLE_RESULT_IMAGE_FILE_NAME);
+    void exportElementAsPng(tableResultTableRef.current, TABLE_RESULT_IMAGE_FILE_NAME);
   };
 
   const handleBackupFileNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,7 +187,7 @@ export const MatchingPage: React.FC = () => {
         </aside>
       </div>
 
-      <section ref={resultRef} className={shared.sectionBlock} style={{ marginTop: 24 }}>
+      <section className={shared.sectionBlock} style={{ marginTop: 24 }}>
         <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
           <div>
             <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.castResultsHeading')}</h2>
@@ -198,7 +198,7 @@ export const MatchingPage: React.FC = () => {
           )}
         </div>
 
-        <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
+        <div ref={castResultTableRef} className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
           <table className={styles.matchingResultTable} style={{ minWidth: castResultTableMinWidth }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
@@ -229,7 +229,7 @@ export const MatchingPage: React.FC = () => {
         </div>
       </section>
 
-      <section ref={tableRef} className={shared.sectionBlock} style={{ marginTop: 24 }}>
+      <section className={shared.sectionBlock} style={{ marginTop: 24 }}>
         <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
           <div>
             <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.tableResultsHeading')}</h2>
@@ -245,7 +245,7 @@ export const MatchingPage: React.FC = () => {
           <div className={shared.pageCardNarrow} style={{ marginTop: 16, padding: 16 }}>{getMsg('MatchingPage.noTableResults')}</div>
         ) : (
           /* テーブル別結果の一覧 */
-          <div className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
+          <div ref={tableResultTableRef} className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
             <table className={`${styles.matchingResultTable} ${styles.matchingTableResultTable}`}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>

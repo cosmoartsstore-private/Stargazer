@@ -1,6 +1,5 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import { shuffleArray } from '@/common/arrayUtils';
-import type { NGJudgmentType, NGMatchingBehavior } from '@/features/matching/types/matching-system-types';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
 import { isUserNGForCast } from './ng-judgment';
 import {
@@ -58,8 +57,6 @@ function runSingleAttempt(
   winners: UserBean[],
   activeCasts: CastBean[],
   params: Required<Pick<MultipleMatchingParams, 'usersPerTable' | 'castsPerRotation' | 'rotationCount'>> & Pick<MultipleMatchingParams, 'totalTables'>,
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
   const userMap = new Map<string, MatchedCast[]>();
   const allCastUnits = buildCastUnits(activeCasts, params.castsPerRotation);
@@ -90,9 +87,7 @@ function runSingleAttempt(
         const casts = rotation[roundIndex][slotIndex];
         for (const cast of casts) {
           for (const winner of group) {
-            const shouldExclude =
-              ngMatchingBehavior === 'exclude' && isUserNGForCast(winner, cast, ngJudgmentType);
-            if (shouldExclude) {
+            if (isUserNGForCast(winner, cast)) {
               return Number.NEGATIVE_INFINITY;
             }
             totalScore += getPreferenceScore(winner, cast);
@@ -168,8 +163,6 @@ export function runMultipleMatching(
   winners: UserBean[],
   allCasts: CastBean[],
   params: MultipleMatchingParams,
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
 ): MatchingResult {
   const activeCasts = allCasts.filter((cast) => cast.is_present);
   const userMap = new Map<string, MatchedCast[]>();
@@ -197,8 +190,6 @@ export function runMultipleMatching(
       winners,
       activeCasts,
       normalizedParams,
-      ngJudgmentType,
-      ngMatchingBehavior,
     );
 
     if (!result.ngConflict) {

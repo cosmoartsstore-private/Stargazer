@@ -3,9 +3,9 @@ import { createEmptyColumnMapping } from '@/common/importFormat';
 import { mapRowToUserBeanWithMapping } from '@/common/sheetParsers';
 
 describe('mapRowToUserBeanWithMapping', () => {
-  it('標準の3希望列と X URL を UserBean に変換する', () => {
+  it('標準の3希望列と@形式のX IDを内部usernameへ変換する', () => {
     const user = mapRowToUserBeanWithMapping(
-      ['Alice', 'https://x.com/sample_user', 'https://vrchat.com/home/user/usr_sample_user', 'Cast A', 'Cast B', 'Cast C'],
+      ['Alice', '@sample_user', 'https://vrchat.com/home/user/usr_sample_user', 'Cast A', 'Cast B', 'Cast C'],
       { name: 0, x_id: 1, vrc_url: 2, cast1: 3, cast2: 4, cast3: 5, castInputType: 'single' },
     );
 
@@ -18,12 +18,11 @@ describe('mapRowToUserBeanWithMapping', () => {
     });
   });
 
-  it('名前の主列が空なら代替列を使い、追加列を raw_extra に保持する', () => {
+  it('選択した名前列が空なら空のままにし、追加列を raw_extra に保持する', () => {
     const user = mapRowToUserBeanWithMapping(
       ['', 'VRC Alice', '@alice', 'memo value'],
       {
         name: 0,
-        nameColumn2: 1,
         x_id: 2,
         vrc_url: -1,
         cast1: -1,
@@ -34,8 +33,17 @@ describe('mapRowToUserBeanWithMapping', () => {
       },
     );
 
-    expect(user.name).toBe('VRC Alice');
+    expect(user.name).toBe('');
     expect(user.raw_extra).toEqual([{ key: '備考', value: 'memo value' }]);
+  });
+
+  it('X ID形式に合わない値は問題行を確認できるよう原文を保持する', () => {
+    const user = mapRowToUserBeanWithMapping(
+      ['Alice', 'https://x.com/sample_user'],
+      { name: 0, x_id: 1, vrc_url: -1, cast1: -1, cast2: -1, cast3: -1, castInputType: 'single' },
+    );
+
+    expect(user.x_id).toBe('https://x.com/sample_user');
   });
 
   it('順位ありで希望列を1列だけ指定した場合はカンマ区切りを分割しない', () => {

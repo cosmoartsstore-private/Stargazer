@@ -1,5 +1,6 @@
 import { useId, type ChangeEvent, type KeyboardEvent } from 'react';
 import { ExternalLink } from 'lucide-react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import {
@@ -28,7 +29,7 @@ export interface CautionUserPanelController {
     addManual: () => Promise<void>;
     addCandidate: (candidate: CautionCandidate) => Promise<void>;
     requestDelete: (accountId: string) => void;
-    updateDetails: (accountId: string, reason: string, notes: string) => Promise<void>;
+    updateDetails: (accountId: string, notes: string) => Promise<void>;
   };
 }
 
@@ -44,13 +45,15 @@ interface CautionCandidateCardProps {
 }
 
 function CautionCandidateCard({ candidate, isSaving, onAdd }: CautionCandidateCardProps) {
+  const displayAccountId = formatXAccountIdForDisplay(candidate.accountId);
+
   function handleAddClick(): void {
     void onAdd(candidate);
   }
 
   return (
     <div className={styles.cautionCandidateCard}>
-      <div className={styles.cautionCandidateId}>{candidate.accountId}</div>
+      <div className={styles.cautionCandidateId}>{displayAccountId}</div>
       <div className={styles.cautionCandidateNames}>
         {candidate.usernames.length > 0
           ? candidate.usernames.map((name) => (
@@ -61,7 +64,7 @@ function CautionCandidateCard({ candidate, isSaving, onAdd }: CautionCandidateCa
       <div className={styles.cautionCandidateCasts}>
         <span className={styles.cautionCandidateCountText}>{getMsg('NGUserManagementPage.candidateNgCount', { count: candidate.castCount })}</span>
       </div>
-      <button type="button" className={`${shared.btnPrimary} ${styles.cautionCandidateAddBtn}`} aria-label={`${candidate.accountId} ${getMsg('NGUserManagementPage.addToCaution')}`} disabled={isSaving} onClick={handleAddClick}>{isSaving ? getMsg('common.saving') : getMsg('NGUserManagementPage.addToCaution')}</button>
+      <button type="button" className={`${shared.btnPrimary} ${styles.cautionCandidateAddBtn}`} aria-label={`${displayAccountId} ${getMsg('NGUserManagementPage.addToCaution')}`} disabled={isSaving} onClick={handleAddClick}>{isSaving ? getMsg('common.saving') : getMsg('NGUserManagementPage.addToCaution')}</button>
     </div>
   );
 }
@@ -70,7 +73,7 @@ interface CautionUserRowProps {
   user: CautionUser;
   isSaving: boolean;
   onRequestDelete: (accountId: string) => void;
-  onUpdateDetails: (accountId: string, reason: string, notes: string) => Promise<void>;
+  onUpdateDetails: (accountId: string, notes: string) => Promise<void>;
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
 
@@ -83,26 +86,29 @@ function CautionUserRow({
 }: CautionUserRowProps) {
   // 対象アカウントからリンク可否と各操作の表示ラベルを導出する。
   const hasProfileLink = buildXProfileUrl(user.accountId) !== null;
+  const displayAccountId = formatXAccountIdForDisplay(user.accountId);
+  const candidateNgCastCount = user.ngCastCount ?? 0;
+  const isCandidateRegistration = candidateNgCastCount > 0;
   const openProfileAriaLabel = getMsg(
     'NGUserManagementPage.openXAccountAriaLabel',
-    { accountId: user.accountId },
+    { accountId: displayAccountId },
   );
   const unregisterCautionAriaLabel = getMsg(
     'NGUserManagementPage.unregisterCautionAriaLabel',
-    { accountId: user.accountId },
+    { accountId: displayAccountId },
   );
 
   // この行の型付き対象を、各DOMイベントから直接親の操作へ渡す。
   function handleProfileLinkClick(): void {
-    onRequestProfileLink(user.accountId, user.accountId);
+    onRequestProfileLink(user.accountId, displayAccountId);
   }
 
   function handleDeleteClick(): void {
     onRequestDelete(user.accountId);
   }
 
-  function handleDetailsSave(reason: string, notes: string): Promise<void> {
-    return onUpdateDetails(user.accountId, reason, notes);
+  function handleDetailsSave(notes: string): Promise<void> {
+    return onUpdateDetails(user.accountId, notes);
   }
 
   return (
@@ -110,20 +116,20 @@ function CautionUserRow({
       <div className={styles.ngDetailSummary}>
         <div className={styles.ngCastGrid__text}>
           <span className={styles.ngCastGrid__textName}>{user.username}</span>
-          <span className={styles.ngCastGrid__textId}>{user.accountId}</span>
+          <span className={styles.ngCastGrid__textId}>{displayAccountId}</span>
         </div>
         {hasProfileLink && (
           <button type="button" className={styles.ngLinkButton} aria-label={openProfileAriaLabel} onClick={handleProfileLinkClick}><ExternalLink size={14} /></button>
         )}
-        {user.registrationType === 'auto' && user.ngCastCount != null && (
-          <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeAuto}`}>{getMsg('NGUserManagementPage.registeredNgCount', { count: user.ngCastCount })}</span>
+        {isCandidateRegistration && (
+          <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeAuto}`}>{getMsg('NGUserManagementPage.registeredNgCount', { count: candidateNgCastCount })}</span>
         )}
-        {user.registrationType === 'manual' && (
+        {!isCandidateRegistration && (
           <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeManual}`}>{getMsg('NGUserManagementPage.manualRegistration')}</span>
         )}
         <button type="button" className={styles.ngCastGrid__remove} aria-label={unregisterCautionAriaLabel} onClick={handleDeleteClick}>×</button>
       </div>
-      <EntryDetailsEditor reason={user.reason} notes={user.notes} showReason disabled={isSaving} saveTargetLabel={user.accountId} onSave={handleDetailsSave} />
+      <EntryDetailsEditor notes={user.notes} disabled={isSaving} saveTargetLabel={displayAccountId} onSave={handleDetailsSave} />
     </div>
   );
 }
@@ -175,10 +181,6 @@ export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUs
 
   function handleAccountIdChange(event: ChangeEvent<HTMLInputElement>): void {
     updateForm({ accountId: event.target.value });
-  }
-
-  function handleReasonChange(event: ChangeEvent<HTMLInputElement>): void {
-    updateForm({ reason: event.target.value });
   }
 
   function handleNotesChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -233,8 +235,7 @@ export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUs
         <div className={`${styles.ngPage__addRow} ${styles.ngPage__addRowSpaced}`}>
           <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputName}`} placeholder={getMsg('NGUserManagementPage.usernamePlaceholder')} aria-label={getMsg('NGUserManagementPage.usernamePlaceholder')} value={form.username} onChange={handleUsernameChange} />
           <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputId}`} placeholder={getMsg('NGUserManagementPage.xIdPlaceholder')} aria-label={getMsg('NGUserManagementPage.xIdPlaceholder')} value={form.accountId} onChange={handleAccountIdChange} onKeyDown={handleAddInputKeyDown} />
-          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputReason}`} placeholder={getMsg('NGUserManagementPage.optionalReason')} aria-label={getMsg('NGUserManagementPage.optionalReason')} value={form.reason} onChange={handleReasonChange} />
-          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalNotes')} aria-label={getMsg('NGUserManagementPage.optionalNotes')} value={form.notes} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
+          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalReasonAndNotes')} aria-label={getMsg('NGUserManagementPage.optionalReasonAndNotes')} value={form.notes} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
           <button type="button" className={`${shared.btnPrimary} ${shared.btnFixedH}`} disabled={isSaving} onClick={handleAddClick}>{isSaving ? getMsg('common.saving') : getMsg('NGUserManagementPage.registerCaution')}</button>
         </div>
 

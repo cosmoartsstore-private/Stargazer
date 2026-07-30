@@ -240,3 +240,17 @@ tbody tr:nth-child(even) {
 [data-theme="skyblue"] textarea::placeholder {
   color: hsl(var(--theme-check-hue, 204) 54% 23% / 0.45);
 }
+
+/* ガイド内の実画面プレビューでは、外側のテーマによるフォーム上書きを打ち消す。 */
+[data-guide-theme-preview="dark"] input[type="text"],
+[data-guide-theme-preview="dark"] input[type="number"],
+[data-guide-theme-preview="dark"] textarea {
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-default);
+  color: var(--text-default);
+}
+
+[data-guide-theme-preview="dark"] input::placeholder,
+[data-guide-theme-preview="dark"] textarea::placeholder {
+  color: var(--text-muted);
+}

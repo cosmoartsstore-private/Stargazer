@@ -1,21 +1,21 @@
 タイムスタンプ	お名前	X ID	VRChatプロフURL	第1希望	第2希望	第3希望	備考
 2026-03-20 10:00	基準ユーザー	@normal_user	https://vrchat.com/home/user/usr_normal	Noa	Rin	Mio	正常データ（比較用）
-2026-03-20 10:01	藤堂 蒼	https://x.com/xurl_user		Rin	Noa	Mio	X IDがhttps://x.com/形式
-2026-03-20 10:02	桜庭 凛	https://twitter.com/twitter_user		Mio	Sora	Noa	X IDがhttps://twitter.com/形式
-2026-03-20 10:03	水瀬 光	raw_no_at		Noa	Mio	Haru	X IDが@なしの生テキスト
+2026-03-20 10:01	藤堂 蒼	https://x.com/xurl_user		Rin	Noa	Mio	XプロフィールURLは形式不正
+2026-03-20 10:02	桜庭 凛	https://twitter.com/twitter_user		Mio	Sora	Noa	旧TwitterプロフィールURLは形式不正
+2026-03-20 10:03	水瀬 光	raw_no_at		Noa	Mio	Haru	@なし入力・画面では@付き
 2026-03-20 10:04	黒沢 詩	@with_at_user		Sora	Noa	Rin	X IDが@つきの正常形
 2026-03-20 10:05	音羽 雫	@UPPERCASE_ID		Rin	Mio	Sora	X IDが大文字混じり
 2026-03-20 10:06		@no_name_user		Noa	Rin	Mio	名前なし・X IDのみ
-2026-03-20 10:07	名前だけユーザー			Mio	Sora	Noa	X IDなし・名前のみ
-2026-03-20 10:08				Noa	Mio	Rin	名前・X ID両方なし（取込時スキップ対象）
+2026-03-20 10:07	名前だけユーザー			Mio	Sora	Noa	X IDなし・取込可・削除まで抽選不可
+2026-03-20 10:08				Noa	Mio	Rin	名前・X ID両方なし・取込可・削除まで抽選不可
 2026-03-20 10:09	希望ゼロ君	@no_cast_pref					全希望なし
 2026-03-20 10:10	第1希望だけ	@only_first		Noa			第1希望のみ
 2026-03-20 10:11	第1-2希望	@first_two		Rin	Mio		第1・第2のみ
 2026-03-20 10:12	幻のキャスト希望	@phantom_cast		ZZZ_NotExist	Noa	Rin	存在しないキャスト名が第1希望
 2026-03-20 10:13	全部存在しない	@all_phantom		AAA	BBB	CCC	全希望が未登録キャスト名
-2026-03-20 10:14	重複応募1回目	@duplicate_id		Noa	Rin	Mio	同一X IDの1回目
-2026-03-20 10:15	重複応募2回目	@duplicate_id		Mio	Sora	Haru	同一X IDの2回目（重複）
-2026-03-20 10:16	重複応募3回目	@duplicate_id		Sora	Noa	Rin	同一X IDの3回目（重複）
+2026-03-20 10:14	重複応募1回目	@duplicate_id		Noa	Rin	Mio	同一X IDのため3行すべて警告対象（1行目）
+2026-03-20 10:15	重複応募2回目	@duplicate_id		Mio	Sora	Haru	同一X IDのため3行すべて警告対象（2行目）
+2026-03-20 10:16	重複応募3回目	@duplicate_id		Sora	Noa	Rin	同一X IDのため3行すべて警告対象（3行目）
 2026-03-20 10:17	名前に　スペース　入り	@space_name		Noa	Mio	Rin	名前に全角スペース
 2026-03-20 10:18	【公式】テストユーザー★	@bracket_name		Rin	Sora	Noa	記号・括弧入り名前
 2026-03-20 10:19	ABCdefgh1234567890ABCdefgh	@long_ascii_name		Mio	Noa	Sora	英数字長名前
@@ -26,7 +26,7 @@
 2026-03-20 10:24	同名ユーザー	@same_name_1		Noa	Rin	Mio	同名1人目
 2026-03-20 10:25	同名ユーザー	@same_name_2		Mio	Noa	Sora	同名2人目（X IDは別）
 2026-03-20 10:26	希望重複ユーザー	@dup_cast_pref		Noa	Noa	Noa	同じキャストを3回希望
-2026-03-20 10:27	希望一部重複	@partial_dup_cast		Rin	Rin	Mio	第1・第2希望が同じ
+2026-03-20 10:27	希望一部重複	@partial_dup		Rin	Rin	Mio	第1・第2希望が同じ
 2026-03-20 10:28	確定当選者A	@guaranteed_a		Noa	Mio	Rin	確定
 2026-03-20 10:29	確定当選者B	@guaranteed_b		Sora	Haru	Noa	確定
 	通常ユーザー（TS欠損）	@no_timestamp		Rin	Mio	Noa	タイムスタンプ欠損

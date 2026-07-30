@@ -145,7 +145,7 @@ beforeEach(() => {
 });
 
 describe('getAllCasts', () => {
-  it('関連テーブルとキャスト本体の出席状態を統合して返す', async () => {
+  it('関連テーブルを統合し、NGのX IDを内部ユーザー名で返す', async () => {
     await expect(getAllCasts()).resolves.toEqual([
       {
         id: 1,
@@ -158,7 +158,7 @@ describe('getAllCasts', () => {
         contact_urls: ['https://example.test/profile'],
         ng_entries: [{
           username: 'Sample User',
-          accountId: '@sample_user',
+          accountId: 'sample_user',
           notes: '受付で確認',
         }],
       },
@@ -208,7 +208,7 @@ describe('getAllCasts', () => {
     ]);
     expect(casts[1]?.ng_entries).toEqual([
       { username: 'Blocked First', accountId: undefined, notes: undefined },
-      { username: undefined, accountId: '@blocked_second', notes: '連絡不要' },
+      { username: undefined, accountId: 'blocked_second', notes: '連絡不要' },
     ]);
     expect(casts[2]?.contact_urls).toBeUndefined();
     expect(casts[2]?.ng_entries).toBeUndefined();
@@ -233,6 +233,31 @@ describe('cast write operations', () => {
         photo_data_url: null,
         memo: null,
       },
+    });
+  });
+
+  it('キャスト追加時のNGエントリを内部Xユーザー名へ変換する', async () => {
+    invokeMock.mockResolvedValueOnce(43);
+
+    await expect(insertCast({
+      name: 'Cast B',
+      is_present: true,
+      ng_entries: [{
+        username: 'Blocked User',
+        accountId: '@Blocked_User',
+        notes: '受付で確認',
+      }],
+    })).resolves.toBe(43);
+
+    expect(invokeMock).toHaveBeenCalledWith('insert_cast_atomic', {
+      eventName: 'Sample Event',
+      cast: expect.objectContaining({
+        ng_entries: [{
+          username: 'Blocked User',
+          accountId: 'Blocked_User',
+          notes: '受付で確認',
+        }],
+      }),
     });
   });
 
@@ -285,7 +310,7 @@ describe('cast write operations', () => {
       aliases: ['Alias A', 'Alias B'],
       ng_entries: [{
         username: 'Blocked User',
-        accountId: '@blocked_user',
+        accountId: 'blocked_user',
         notes: '受付で責任者へ確認',
       }],
     });
@@ -299,7 +324,7 @@ describe('cast write operations', () => {
         update_ng_entries: true,
         ng_entries: [{
           username: 'Blocked User',
-          accountId: '@blocked_user',
+          accountId: 'blocked_user',
           notes: '受付で責任者へ確認',
         }],
       }),

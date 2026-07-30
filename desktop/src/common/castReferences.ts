@@ -24,7 +24,7 @@ function getCastNames(cast: CastBean): string[] {
 }
 
 /**
- * 正式名と別名から安定IDを引ける索引を作る。
+ * 正式名と別名義から安定IDを引ける索引を作る。
  * 同じ名称が複数キャストに属する場合は、誤った希望へ結び付けないため null にする。
  */
 function buildCastIdByName(casts: CastBean[]): Map<string, number | null> {
@@ -46,7 +46,7 @@ function buildCastIdByName(casts: CastBean[]): Map<string, number | null> {
   );
 }
 
-/** 指定した名称が、現在の名簿で正式名・別名のどちらに使われているか返す。 */
+/** 指定した名称が、現在の名簿で正式名・別名義のどちらに使われているか返す。 */
 export function findCastNameUsages(name: string, casts: CastBean[]): CastNameUsage[] {
   const usages: CastNameUsage[] = [];
   for (const cast of casts) {
@@ -74,7 +74,7 @@ export function getCastPreferenceIndex(user: UserBean, cast: CastBean): number {
   return user.casts.indexOf(cast.name);
 }
 
-/** 現在の正式名・別名と安定IDを完全一致で対応付け、応募者の希望順位へ付与する。 */
+/** 現在の正式名・別名義と安定IDを完全一致で対応付け、応募者の希望順位へ付与する。 */
 export function attachCastIdsToUsers(users: UserBean[], casts: CastBean[]): UserBean[] {
   const castIdByName = buildCastIdByName(casts);
 

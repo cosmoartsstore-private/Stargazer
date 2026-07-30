@@ -3,6 +3,7 @@ import type {
   KeyboardEvent,
 } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import {
@@ -85,7 +86,10 @@ function CastNgEntryRow({
 }: CastNgEntryRowProps) {
   // 登録内容から表示名、リンク可否、操作ラベルを導出する。
   const fallbackLabel = entry.username ?? getMsg('NGUserManagementPage.ngUserFallback');
-  const accountLabel = entry.accountId ?? fallbackLabel;
+  const displayAccountId = entry.accountId
+    ? formatXAccountIdForDisplay(entry.accountId)
+    : null;
+  const accountLabel = displayAccountId ?? fallbackLabel;
   const hasProfileLink = buildXProfileUrl(entry.accountId) !== null;
   const openProfileAriaLabel = getMsg(
     'NGUserManagementPage.openXAccountAriaLabel',
@@ -105,7 +109,7 @@ function CastNgEntryRow({
     onRequestDelete(castId, entry);
   }
 
-  function handleDetailsSave(_reason: string, notes: string): Promise<void> {
+  function handleDetailsSave(notes: string): Promise<void> {
     return onUpdateNotes(castId, entryIndex, notes);
   }
 
@@ -114,7 +118,7 @@ function CastNgEntryRow({
       <div className={styles.ngDetailSummary}>
         <div className={styles.ngCastGrid__text}>
           <span className={styles.ngCastGrid__textName}>{entry.username ?? getMsg('common.unnamed')}</span>
-          <span className={styles.ngCastGrid__textId}>{entry.accountId ?? getMsg('NGUserManagementPage.noId')}</span>
+          <span className={styles.ngCastGrid__textId}>{displayAccountId ?? getMsg('NGUserManagementPage.noId')}</span>
         </div>
         {hasProfileLink && (
           <button type="button" className={styles.ngLinkButton} aria-label={openProfileAriaLabel} onClick={handleProfileLinkClick}><ExternalLink size={14} /></button>

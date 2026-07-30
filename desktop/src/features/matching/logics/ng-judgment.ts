@@ -1,55 +1,35 @@
 /**
- * NGユーザー判定ロジック（仕様書 1-1 に基づく）。
- * 現行UIではアカウントIDのみで判定する。
- * 判定基準の引数は、旧データ互換と低レベル処理のために残している。
- * 大文字小文字・前後空白はトリムして比較。
+ * NGユーザー判定ロジック。
+ * XアカウントIDを共通の比較キーへ変換して判定する。
  */
 
 import type { UserBean, CastBean, NGUserEntry } from '@/common/types/entities';
-import type { NGJudgmentType } from '@/features/matching/types/matching-system-types';
+import { normalizeXAccountId } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 
-function normalize(s: string | undefined): string {
-  return (s ?? '').trim().toLowerCase();
-}
-
-function normalizeIdForCompare(s: string | undefined): string {
-  const n = normalize(s);
-  return n.startsWith('@') ? n.slice(1) : n;
-}
-
-function matchEntry(user: UserBean, entry: NGUserEntry, judgmentType: NGJudgmentType): boolean {
-  const nameMatch =
-    entry.username !== undefined &&
-    entry.username.trim() !== '' &&
-    normalize(user.name) === normalize(entry.username);
-  const idMatch =
-    entry.accountId !== undefined &&
-    entry.accountId.trim() !== '' &&
-    normalizeIdForCompare(user.x_id) === normalizeIdForCompare(entry.accountId);
-
-  if (judgmentType === 'username') return nameMatch;
-  if (judgmentType === 'accountId') return idMatch;
-  return nameMatch || idMatch;
+function matchEntry(user: UserBean, entry: NGUserEntry): boolean {
+  const userXId = normalizeXAccountId(user.x_id);
+  const entryXId = normalizeXAccountId(entry.accountId ?? '');
+  return (
+    userXId !== null
+    && entryXId !== null
+    && userXId === entryXId
+  );
 }
 
 /**
  * キャストのNGリスト（ng_entries）に対してユーザーがNGかどうか判定する。
  */
-export function isUserNGForCast(
-  user: UserBean,
-  cast: CastBean,
-  judgmentType: NGJudgmentType,
-): boolean {
+export function isUserNGForCast(user: UserBean, cast: CastBean): boolean {
   const entries = cast.ng_entries;
   if (entries && entries.length > 0) {
-    return entries.some((entry) => matchEntry(user, entry, judgmentType));
+    return entries.some((entry) => matchEntry(user, entry));
   }
   return false;
 }
 
 /**
- * NG理由文言を返す（警告モード表示用）。
+ * 結果整合性の確認でNG組み合わせを検出した場合の理由文言を返す。
  */
 export function getNGReasonForCast(castName: string): string {
   return getMsg('ngJudgment.ngReasonForCast', { castName });

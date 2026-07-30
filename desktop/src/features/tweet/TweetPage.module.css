@@ -69,24 +69,14 @@
 .tweet-placeholder-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   padding: 3px 10px;
   border-radius: 6px;
   background: var(--accent-primary);
   color: #fff;
   font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   transition: opacity 0.12s;
-}
-
-.tweet-placeholder-key {
-  font-family: monospace;
-  font-weight: 700;
-}
-
-.tweet-placeholder-description {
-  font-size: 11px;
-  opacity: 0.82;
 }
 
 .tweet-placeholder-chip:hover {

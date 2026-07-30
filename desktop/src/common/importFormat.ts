@@ -6,8 +6,6 @@ export interface ColumnMapping {
   cast1: number;
   cast2: number;
   cast3: number;
-  /** 2列目ユーザー名(例: VRC名)。name が空のときのフォールバック */
-  nameColumn2?: number;
   /** 応募リストに出す追加列(ラベル付きで raw_extra に入る) */
   extraColumns?: { columnIndex: number; label: string }[];
   /** 希望キャストの形式: 'multiple' = 複数指定可(カンマ区切り), 'single' = 単一項目 */

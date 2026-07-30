@@ -42,7 +42,10 @@ describe('buildDataManagementViewModel', () => {
       hasApplicantIdentityIssues: false,
       isLotteryOnly: false,
       showUnavailableCastWarning: false,
+      hasUnavailableApplicantCastReferences: false,
+      hasUnavailableMatchingResultCasts: false,
       hasUnresolvedCastReferences: false,
+      hasDeletedApplicantCastReferences: false,
       hasDeletedCastReferences: false,
       unavailableCastNames: '',
       disabledTabs: new Set(),
@@ -98,13 +101,16 @@ describe('buildDataManagementViewModel', () => {
     });
 
     expect(viewModel.showUnavailableCastWarning).toBe(true);
+    expect(viewModel.hasUnavailableApplicantCastReferences).toBe(true);
+    expect(viewModel.hasUnavailableMatchingResultCasts).toBe(true);
     expect(viewModel.hasUnresolvedCastReferences).toBe(true);
+    expect(viewModel.hasDeletedApplicantCastReferences).toBe(true);
     expect(viewModel.hasDeletedCastReferences).toBe(true);
     expect(viewModel.unavailableCastNames).toBe('未解決A、削除A、結果A、ほか1件');
     expect(viewModel.disabledTabs).toEqual(new Set());
   });
 
-  it('抽選のみでは参照問題を保持しつつ警告表示とマッチングを無効にする', () => {
+  it('抽選のみでも応募者の参照問題を警告し、結果由来の問題は対象外にする', () => {
     const applicant = user({ casts: ['未解決'], cast_ids: [null] });
 
     const viewModel = buildDataManagementViewModel({
@@ -119,7 +125,9 @@ describe('buildDataManagementViewModel', () => {
 
     expect(viewModel.isLotteryOnly).toBe(true);
     expect(viewModel.hasUnresolvedCastReferences).toBe(true);
-    expect(viewModel.showUnavailableCastWarning).toBe(false);
+    expect(viewModel.showUnavailableCastWarning).toBe(true);
+    expect(viewModel.hasUnavailableApplicantCastReferences).toBe(true);
+    expect(viewModel.hasUnavailableMatchingResultCasts).toBe(false);
     expect(viewModel.disabledTabs).toEqual(new Set(['matching']));
   });
 

@@ -8,6 +8,7 @@ import shared from '@/styles/shared.module.css';
 import styles from './AttendancePage.module.css';
 import type { AttendanceTab } from './models/types';
 import { useAttendanceState } from './viewmodels/useAttendanceState';
+import { AttendancePeriodDialog } from './views/AttendancePeriodDialog';
 import { AttendanceRecordsView } from './views/AttendanceRecordsView';
 import { AttendanceSetupView } from './views/AttendanceSetupView';
 import { SaveAttendanceModal } from './views/SaveAttendanceModal';
@@ -90,10 +91,21 @@ export function AttendancePage() {
           <AttendanceRecordsView
             attendanceDates={attendance.attendanceDates}
             attendanceRows={attendance.attendanceRows}
+            attendancePeriod={attendance.attendancePeriod}
+            periodDialogOpen={attendance.attendancePeriodDialogOpen}
             loadStatus={attendance.historyLoadStatus}
+            onOpenPeriodDialog={attendance.handleOpenAttendancePeriodDialog}
           />
         )}
       </div>
+
+      {attendance.attendancePeriodDialogOpen && (
+        <AttendancePeriodDialog
+          period={attendance.attendancePeriod}
+          onApply={attendance.handleApplyAttendancePeriod}
+          onClose={attendance.handleCloseAttendancePeriodDialog}
+        />
+      )}
 
       {attendance.confirmSave && (
         <SaveAttendanceModal

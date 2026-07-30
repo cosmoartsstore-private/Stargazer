@@ -3,6 +3,7 @@
 import React from 'react';
 import type { FeatureId } from '@/features/guide/guideSampleContext';
 import { getMsg } from '@/messages/getMsg';
+import styles from '../../GuidePage.module.css';
 
 const STEP_NUMBER_STYLE: React.CSSProperties = {
   width: 26,
@@ -154,7 +155,7 @@ export const NoteList: React.FC<{ items: string[] }> = ({ items }) => {
 
 export const ScreenSample: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   return (
-    <figure style={{ border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', margin: '0 0 16px' }}>
+    <figure className={styles.guideDarkSample} data-theme="dark" data-guide-theme-preview="dark" style={{ border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', margin: '0 0 16px' }}>
       <figcaption style={SCREEN_SAMPLE_HEADER_STYLE}><span style={SCREEN_SAMPLE_TITLE_STYLE}>{title}</span></figcaption>
       <div style={{ padding: '12px 14px', background: 'var(--surface-panel)', fontSize: 12 }}>
         {children}

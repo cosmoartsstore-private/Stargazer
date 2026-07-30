@@ -30,8 +30,7 @@ function PlaceholderButton({ placeholder, onSelect }: PlaceholderButtonProps) {
 
   return (
     <button type="button" className={styles.tweetPlaceholderChip} onClick={handleClick} aria-label={placeholder.ariaLabel}>
-      <span className={styles.tweetPlaceholderKey}>{placeholder.key}</span>
-      <span className={styles.tweetPlaceholderDescription}>{placeholder.label}</span>
+      {placeholder.label}
     </button>
   );
 }

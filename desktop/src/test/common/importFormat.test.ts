@@ -92,7 +92,6 @@ describe('getMappedColumnIndexes', () => {
   it('割当済みの標準項目だけを重複なく返す', () => {
     const indexes = getMappedColumnIndexes({
       name: 0,
-      nameColumn2: 6,
       x_id: 1,
       vrc_url: -1,
       cast1: 3,

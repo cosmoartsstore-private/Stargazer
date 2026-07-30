@@ -3,7 +3,12 @@ import type {
   CautionUser,
   NGUserEntry,
 } from '@/common/types/entities';
-import { formatXAccountId } from '@/common/xIdUtils';
+import {
+  formatXAccountIdForDisplay,
+  normalizeXAccountId,
+  parseXUsername,
+} from '@/common/xIdUtils';
+export { buildXProfileUrl } from '@/common/xIdUtils';
 import type { CautionCandidate } from '@/features/matching/logics/caution-user';
 
 export type {
@@ -22,7 +27,6 @@ export interface CastNgFormValues {
 export interface CautionFormValues {
   username: string;
   accountId: string;
-  reason: string;
   notes: string;
 }
 
@@ -37,7 +41,6 @@ export const EMPTY_CAST_NG_FORM: CastNgFormValues = {
 export const EMPTY_CAUTION_FORM: CautionFormValues = {
   username: '',
   accountId: '',
-  reason: '',
   notes: '',
 };
 
@@ -62,14 +65,6 @@ export function resolveDisplayedThreshold(draft: string, saved: number): number 
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : saved;
 }
 
-/** NG管理で受け付けるX ID表現を、確認後に開くプロフィールURLへ変換する。 */
-export function buildXProfileUrl(accountId: string | undefined): string | null {
-  if (!accountId) return null;
-  const username = formatXAccountId(accountId)?.replace(/^@+/, '');
-  if (!username) return null;
-  return `https://x.com/${username}`;
-}
-
 /** 現行画面と同じく、空白だけの検索は全件、それ以外は大小文字を無視して絞り込む。 */
 export function filterCastsByName(casts: CastBean[], search: string): CastBean[] {
   return search.trim()
@@ -79,7 +74,7 @@ export function filterCastsByName(casts: CastBean[], search: string): CastBean[]
 
 /** 追加フォームを保存用NG登録へ整え、X IDを解釈できない場合は拒否する。 */
 export function createCastNgEntry(form: CastNgFormValues): NGUserEntry | null {
-  const accountId = formatXAccountId(form.accountId);
+  const accountId = parseXUsername(form.accountId);
   if (!accountId) return null;
 
   return {
@@ -89,18 +84,18 @@ export function createCastNgEntry(form: CastNgFormValues): NGUserEntry | null {
   };
 }
 
-/** 保存表記を変えず、usernameとaccountIdがともに一致する登録だけを重複とする。 */
+/** 先頭の@と大文字小文字を除いたX IDが一致する登録を重複とする。 */
 export function isDuplicateCastNgEntry(
   entries: NGUserEntry[] | undefined,
   candidate: NGUserEntry,
 ): boolean {
-  return (entries ?? []).some((entry) => (
-    entry.username === candidate.username
-    && entry.accountId === candidate.accountId
-  ));
+  const candidateAccountId = normalizeXAccountId(candidate.accountId ?? '');
+  return candidateAccountId !== null && (entries ?? []).some(
+    (entry) => normalizeXAccountId(entry.accountId ?? '') === candidateAccountId,
+  );
 }
 
-/** usernameとaccountIdがともに一致する既存行を、従来どおりすべて除く。 */
+/** usernameと内部表現のaccountIdがともに一致する既存行をすべて除く。 */
 export function removeCastNgEntry(
   entries: NGUserEntry[] | undefined,
   target: NGUserEntry,
@@ -127,36 +122,34 @@ export function createManualCautionUser(
   form: CautionFormValues,
   registeredAt: string,
 ): CautionUser | null {
-  const accountId = formatXAccountId(form.accountId);
+  const accountId = parseXUsername(form.accountId);
   if (!accountId) return null;
 
   return {
-    username: form.username.trim() || accountId,
+    username: form.username.trim() || formatXAccountIdForDisplay(accountId),
     accountId,
-    registrationType: 'manual',
+    ngCastCount: 0,
     registeredAt,
-    reason: form.reason.trim() || undefined,
     notes: form.notes.trim() || undefined,
   };
 }
 
-/** 自動候補の名称・NG人数・理由を失わず固定要注意人物へ変換する。 */
+/** 自動候補の名称・NG人数・登録理由を失わず固定要注意人物へ変換する。 */
 export function createCandidateCautionUser(
   candidate: CautionCandidate,
   registeredAt: string,
-  reason: string,
+  notes: string,
 ): CautionUser | null {
-  const accountId = formatXAccountId(candidate.accountId);
+  const accountId = parseXUsername(candidate.accountId);
   if (!accountId) return null;
 
   return {
     username: candidate.usernames.length > 0
       ? candidate.usernames.join(' / ')
-      : accountId,
+      : formatXAccountIdForDisplay(accountId),
     accountId,
-    registrationType: 'auto',
     ngCastCount: candidate.castCount,
     registeredAt,
-    reason,
+    notes,
   };
 }

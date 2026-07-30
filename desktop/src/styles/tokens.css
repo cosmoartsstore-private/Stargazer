@@ -10,6 +10,10 @@
   --surface-page: transparent;
   --surface-panel-muted: rgba(255, 255, 255, 0.05);
   --surface-panel-elevated: rgba(255, 255, 255, 0.08);
+  --surface-sticky: #171620;
+  --surface-sticky-muted: #20202a;
+  --surface-sticky-subtle: #13121b;
+  --surface-sticky-hover: #26252f;
   --surface-hover: rgba(255, 255, 255, 0.08);
   --surface-selected: rgba(255, 255, 255, 0.08);
   --surface-tab-hover: var(--surface-hover);
@@ -17,14 +21,16 @@
   --text-default: #dbdee1;
   --text-muted: rgba(255, 255, 255, 0.4);
   --text-link: #00a8fc;
+  --text-external-link: #4eb2ff;
+  --text-external-link-on-warning: #004f9e;
   --text-heading: #f2f3f5;
-  --text-success: #23a559;
-  --text-warning: #f0b232;
+  --text-success: #6faa26;
+  --text-warning: #facc15;
   --text-danger: #ed4245;
 
   --accent-primary: #5865f2;
-  --accent-success: #23a559;
-  --accent-warning: #f0b232;
+  --accent-success: #5c961e;
+  --accent-warning: #facc15;
   --accent-danger: #ed4245;
   --color-switch: #7c3aed;
 
@@ -36,9 +42,19 @@
   --button-primary-hover-bg: #4752c4;
   --button-secondary-bg: rgba(255, 255, 255, 0.1);
   --button-secondary-hover-bg: rgba(255, 255, 255, 0.15);
-  --button-success-bg: #23a559;
-  --button-success-hover-bg: #2d7d46;
+  --button-success-bg: #4f7f18;
+  --button-success-hover-bg: #456f19;
   --button-danger-bg: #ed4245;
+  --status-success-bg: #4f7f18;
+  --status-success-text: #ffffff;
+  --status-success-border: #3e6713;
+  --status-info-bg: #122d42;
+  --status-info-text: #4eb2ff;
+  --status-info-solid: #0f77bd;
+  --status-warning-bg: #ffd43b;
+  --status-warning-hover-bg: #f4c62a;
+  --status-warning-text: #1a1503;
+  --status-warning-border: #d1a000;
 
   /* モーダル・ポップアップ（UI統一） */
   --modal-backdrop: rgba(0, 0, 0, 0.65);

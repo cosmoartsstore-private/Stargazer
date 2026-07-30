@@ -1,12 +1,14 @@
 // 応募者取込・抽選・マッチングの工程を切り替え、各工程への遷移条件を制御するページ。
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { ApplicantDataPage } from '@/features/data-management/ApplicantDataPage';
 import { LotteryPage } from '@/features/lottery/LotteryPage';
 import { MatchingPage } from '@/features/matching/MatchingPage';
 import { AppDialog } from '@/components/AppDialog';
 import dialogStyles from '@/components/ConfirmModal.module.css';
 import type { UserBean } from '@/common/types/entities';
+import type { ImportPageInitialData } from '@/features/import/ImportPage';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from '@/layout/appNavigation';
@@ -29,6 +31,8 @@ const DATA_MANAGEMENT_TABS: Array<{ id: DataManagementTab; label: string }> = [
 
 interface DataManagementPageProps {
   onImportUsers: (users: UserBean[], nextPage?: PageType) => void;
+  enableSavedLotteryHistory?: boolean;
+  initialImportData?: ImportPageInitialData;
 }
 
 function toTab(page: PageType): DataManagementTab {
@@ -53,7 +57,7 @@ function DataManagementTabButton({ id, label, className, selected, disabled, onS
   return <button id={`data-management-tab-${id}`} type="button" role="tab" aria-controls="data-management-tabpanel" aria-selected={selected} tabIndex={selected ? 0 : -1} className={className} disabled={disabled} onClick={handleClick} onKeyDown={handleKeyDown}>{label}</button>;
 }
 
-export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImportUsers }) => {
+export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImportUsers, enableSavedLotteryHistory = true, initialImportData }) => {
   // 工程切替と各工程の利用可否判定に使う共有データを取得する。
   const {
     activePage,
@@ -67,11 +71,15 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     },
     isLotteryResultCurrent,
     sessionWorkflow,
+    isSavedLotterySessionReadOnly,
   } = useAppContext();
 
   // 現在の工程と抽選前確認ダイアログの状態を管理する。
   const activeTab = toTab(activePage);
+  const isSavedLotteryReadOnly = isSavedLotterySessionReadOnly;
   const [preLotteryChecks, setPreLotteryChecks] = useState<PreLotteryCheckItem[] | null>(null);
+  const [dataIssueOpen, setDataIssueOpen] = useState(true);
+  const dataIssueBodyId = useId();
 
   // 工程可否と参照警告を、現在の応募者・キャスト・結果snapshotから導出する。
   const {
@@ -81,8 +89,10 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     hasApplicantIdentityIssues,
     isLotteryOnly,
     showUnavailableCastWarning,
+    hasUnavailableApplicantCastReferences,
+    hasUnavailableMatchingResultCasts,
     hasUnresolvedCastReferences,
-    hasDeletedCastReferences,
+    hasDeletedApplicantCastReferences,
     unavailableCastNames,
     disabledTabs,
   } = useMemo(() => buildDataManagementViewModel({
@@ -102,6 +112,18 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     sessionWorkflow.matchingTypeCode,
     isLotteryResultCurrent,
   ]);
+  const dataIssueSignature = [
+    hasUnavailableApplicantCastReferences,
+    hasUnavailableMatchingResultCasts,
+    hasUnresolvedCastReferences,
+    hasDeletedApplicantCastReferences,
+    unavailableCastNames,
+  ].join('|');
+
+  // 新しい不備が見つかった場合は本文を再表示し、利用者の見落としを防ぐ。
+  useEffect(() => {
+    if (showUnavailableCastWarning) setDataIssueOpen(true);
+  }, [dataIssueSignature, showUnavailableCastWarning]);
 
   // 入力条件が変わって現在の工程を維持できない場合は、安全な工程へ戻す。
   useEffect(() => {
@@ -198,6 +220,8 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
     setActivePage('lottery');
   };
   const handleClosePreLottery = () => setPreLotteryChecks(null);
+  const handleOpenApplicantCorrections = () => setActivePage('import');
+  const handleToggleDataIssue = () => setDataIssueOpen((open) => !open);
   const handlePreLotteryOpenChange = (open: boolean) => {
     if (!open) handleClosePreLottery();
   };
@@ -211,6 +235,14 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
       </div>
 
       <div id="data-management-tabpanel" className={shared.pageTabContent} role="tabpanel" aria-labelledby={`data-management-tab-${activeTab}`} tabIndex={0}>
+        {isSavedLotteryReadOnly && (
+          <div className={styles.savedLotteryReadOnlyNotice} role="status">
+            <strong>{getMsg('DataManagementPage.savedLotteryReadOnlyTitle')}</strong>
+            <span>{getMsg(isLotteryOnly
+              ? 'DataManagementPage.savedLotteryReadOnlyLotteryOnlyDescription'
+              : 'DataManagementPage.savedLotteryReadOnlyMatchingDescription')}</span>
+          </div>
+        )}
         {hasApplicantIdentityIssues && (
           <div className={shared.warningNotice} role="alert">
             <strong>{getMsg('DataManagementPage.identityIssueTitle')}</strong>
@@ -219,15 +251,29 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImport
           </div>
         )}
         {showUnavailableCastWarning && (
-          <div className={shared.warningNotice} role="status">
-            <strong>{getMsg('DataManagementPage.castReferenceTitle')}</strong>
-            {hasUnresolvedCastReferences && <span>{getMsg('DataManagementPage.unresolvedCastReference')}</span>}
-            {hasDeletedCastReferences && <span>{getMsg('DataManagementPage.deletedCastReference')}</span>}
-            <span>{getMsg('DataManagementPage.castReferenceWarning')}</span>
-            {unavailableCastNames && <span>{getMsg('DataManagementPage.castReferenceNames', { names: unavailableCastNames })}</span>}
-          </div>
+          <section className={styles.dataIssueNotice} aria-labelledby="data-issue-notice-title">
+            <button type="button" className={styles.dataIssueNoticeHeader} aria-expanded={dataIssueOpen} aria-controls={dataIssueBodyId} onClick={handleToggleDataIssue}>
+              <strong id="data-issue-notice-title">{getMsg('DataManagementPage.castReferenceTitle')}</strong>
+              <ChevronDown size={15} className={styles.dataIssueNoticeChevron} aria-hidden="true" />
+            </button>
+            <div id={dataIssueBodyId} className={styles.dataIssueNoticeBody} hidden={!dataIssueOpen}>
+              {hasUnavailableApplicantCastReferences && (
+                <>
+                  {hasUnresolvedCastReferences && <span>{getMsg('DataManagementPage.unresolvedCastReference')}</span>}
+                  {hasDeletedApplicantCastReferences && <span>{getMsg('DataManagementPage.deletedCastReference')}</span>}
+                  <span>{getMsg(isLotteryOnly ? 'DataManagementPage.lotteryOnlyCastReferenceImpact' : 'DataManagementPage.castReferenceWarning')}</span>
+                  <span>{getMsg('DataManagementPage.castReferenceCorrection')}</span>
+                </>
+              )}
+              {hasUnavailableMatchingResultCasts && <span>{getMsg('DataManagementPage.matchingResultCastReference')}</span>}
+              {unavailableCastNames && <span className={styles.dataIssueNoticeNames}>{getMsg('DataManagementPage.castReferenceNames', { names: unavailableCastNames })}</span>}
+              {hasUnavailableApplicantCastReferences && activeTab !== 'import' && (
+                <button type="button" className={`${shared.btnSecondary} ${styles.dataIssueNoticeAction}`} onClick={handleOpenApplicantCorrections}>{getMsg('DataManagementPage.openApplicantCorrections')}</button>
+              )}
+            </div>
+          </section>
         )}
-        {activeTab === 'import'   && <ApplicantDataPage onImportUsers={onImportUsers} />}
+        {activeTab === 'import'   && <ApplicantDataPage onImportUsers={onImportUsers} enableSavedLotteryHistory={enableSavedLotteryHistory} initialImportData={initialImportData} />}
         {activeTab === 'lottery' && !hasApplicantIdentityIssues && <LotteryPage />}
         {activeTab === 'matching' && !hasApplicantIdentityIssues && !isLotteryOnly && <MatchingPage />}
       </div>

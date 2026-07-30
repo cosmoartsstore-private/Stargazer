@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CastManagementPage } from '@/features/cast-management/CastManagementPage';
-import { NGUserManagementPage } from '@/features/ng-management/NGUserManagementPage';
+import { NGUserManagementPage, type NgManagementTab } from '@/features/ng-management/NGUserManagementPage';
 import { TweetPage } from '@/features/tweet/TweetPage';
 import { AttendancePage } from '@/features/attendance/AttendancePage';
 import { getMsg } from '@/messages/getMsg';
@@ -47,7 +47,12 @@ function InternalTabButton({ id, label, selected, onSelect, onKeyDown }: Interna
   return <button id={`internal-tab-${id}`} type="button" role="tab" aria-controls="internal-tabpanel" aria-selected={selected} tabIndex={selected ? 0 : -1} className={getTabClassName(selected)} onClick={handleClick} onKeyDown={handleKeyDown}>{label}</button>;
 }
 
-export const InternalManagementPage: React.FC = () => {
+interface InternalManagementPageProps {
+  initialSelectedCastId?: number;
+  initialNgTab?: NgManagementTab;
+}
+
+export const InternalManagementPage: React.FC<InternalManagementPageProps> = ({ initialSelectedCastId, initialNgTab }) => {
   // アプリ全体のページ状態を、内部管理の4タブへ正規化する。
   const { activePage, setActivePage } = useAppContext();
   const activeTab = toInternalTab(activePage);
@@ -71,9 +76,9 @@ export const InternalManagementPage: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'cast':
-        return <CastManagementPage />;
+        return <CastManagementPage initialSelectedCastId={initialSelectedCastId} />;
       case 'ngManagement':
-        return <NGUserManagementPage />;
+        return <NGUserManagementPage initialTab={initialNgTab} />;
       case 'tweet':
         return <TweetPage />;
       case 'attendance':

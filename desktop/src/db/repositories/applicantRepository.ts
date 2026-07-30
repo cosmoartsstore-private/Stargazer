@@ -3,6 +3,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getSessionDb, getSharedDb } from '../database';
 import type { UserBean } from '@/common/types/entities';
+import {
+  formatXAccountIdForDisplay,
+  parseXUsername,
+} from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import {
   enqueueSessionWrite,
@@ -95,7 +99,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
     return {
       id: row.id,
       name: row.name ?? '',
-      x_id: row.x_id,
+      x_id: parseXUsername(row.x_id) ?? row.x_id.trim(),
       vrc_url: row.vrc_url ?? undefined,
       is_guaranteed: row.is_guaranteed === 1,
       casts: normalizedPreferenceMode === 'flat'
@@ -120,7 +124,7 @@ export async function persistApplicants(
   const userWithoutCastIds = users.find((user) => user.cast_ids === undefined);
   if (userWithoutCastIds) {
     throw new Error(getMsg('applicantRepository.castIdUnresolved', {
-      xId: userWithoutCastIds.x_id,
+      xId: formatXAccountIdForDisplay(userWithoutCastIds.x_id),
     }));
   }
   await enqueueSessionWrite(context, () => invoke('persist_applicants_atomic', {
@@ -136,6 +140,20 @@ export async function persistApplicants(
       is_guaranteed: user.is_guaranteed === true,
       raw_extra: user.raw_extra,
     })),
+  }));
+}
+
+/** 応募者1件の希望キャストだけを更新し、現在および保存済みの抽選結果は維持する。 */
+export async function updateApplicantCastPreferences(
+  applicantId: number,
+  castIds: Array<number | null>,
+  context: SessionCommandContext,
+): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('update_applicant_cast_preferences_atomic', {
+    eventName: context.eventName,
+    timestamp: context.timestamp,
+    applicantId,
+    preferences: { cast_ids: castIds },
   }));
 }
 

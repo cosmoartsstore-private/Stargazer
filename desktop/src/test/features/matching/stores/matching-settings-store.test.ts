@@ -70,7 +70,7 @@ describe('getInitialMatchingSettings', () => {
     expect(getInitialMatchingSettings().searchMode).toBe('quality');
   });
 
-  it('旧設定から探索モードだけを移行し、イベントデータは採用しない', () => {
+  it('旧設定は移行せず、既定の探索モードと空のイベント設定を返す', () => {
     const storage = createStorage({
       stargazer_matching_settings: JSON.stringify({
         searchMode: 'quality',
@@ -86,16 +86,13 @@ describe('getInitialMatchingSettings', () => {
     installWindowWithStorage(storage);
 
     expect(getInitialMatchingSettings()).toEqual({
-      searchMode: 'quality',
+      searchMode: 'efficiency',
       caution: {
         candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
         cautionUsers: [],
       },
     });
-    expect(storage.setItem).toHaveBeenCalledWith(
-      STORAGE_KEYS.MATCHING_SEARCH_MODE,
-      'quality',
-    );
+    expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.removeItem).not.toHaveBeenCalledWith('stargazer_matching_settings');
   });
 });

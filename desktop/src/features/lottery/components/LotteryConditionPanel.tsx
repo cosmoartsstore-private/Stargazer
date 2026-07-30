@@ -2,6 +2,7 @@
 
 import React, { useId } from 'react';
 import type { UserBean } from '@/common/types/entities';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { CounterControl } from '@/components/CounterControl';
 import {
   MATCHING_TYPE_CODES,
@@ -26,12 +27,13 @@ function getMatchingTypeOptionClassName(isSelected: boolean): string {
 interface MatchingTypeOptionButtonProps {
   code: MatchingTypeCode;
   selected: boolean;
+  disabled: boolean;
   onSelect: (code: MatchingTypeCode) => void;
 }
 
-function MatchingTypeOptionButton({ code, selected, onSelect }: MatchingTypeOptionButtonProps) {
+function MatchingTypeOptionButton({ code, selected, disabled, onSelect }: MatchingTypeOptionButtonProps) {
   const handleClick = () => onSelect(code);
-  return <button type="button" className={getMatchingTypeOptionClassName(selected)} aria-pressed={selected} onClick={handleClick}>{MATCHING_TYPE_LABELS[code]}</button>;
+  return <button type="button" className={getMatchingTypeOptionClassName(selected)} aria-pressed={selected} disabled={disabled} onClick={handleClick}>{MATCHING_TYPE_LABELS[code]}</button>;
 }
 
 interface LotteryConditionPanelProps {
@@ -46,6 +48,7 @@ interface LotteryConditionPanelProps {
   allowM003EmptySeats: boolean;
   m003SameDaySlotCount: number;
   validation: LotteryValidationResult;
+  readOnly?: boolean;
   onLotteryCountChange: (value: number) => void;
   onOpenGuaranteedSelect: () => void;
   onMatchingTypeChange: (code: MatchingTypeCode) => void;
@@ -70,6 +73,7 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
   allowM003EmptySeats,
   m003SameDaySlotCount,
   validation,
+  readOnly = false,
   onLotteryCountChange,
   onOpenGuaranteedSelect,
   onMatchingTypeChange,
@@ -101,6 +105,7 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
     { count: hiddenGuaranteedWinnerCount },
   );
   const matchingTypeLabelId = useId();
+  const sameDaySlotToggleLabelId = useId();
 
   return (
     <section className={`${shared.sectionBlock} ${styles.workflowConditionBlock}`}>
@@ -118,35 +123,36 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
           <div className={styles.workflowFormGrid}>
             <div className={shared.formGroup}>
               <span className={shared.formLabel}>{getMsg('LotteryPage.lotteryCount')}</span>
-              <CounterControl label={getMsg('LotteryPage.lotteryCount')} value={lotteryCount} min={1} onChange={onLotteryCountChange} />
+              <CounterControl label={getMsg('LotteryPage.lotteryCount')} value={lotteryCount} min={1} disabled={readOnly} onChange={onLotteryCountChange} />
             </div>
 
             <div className={styles.workflowInlineCard}>
               <div className={styles.workflowInlineCard__header}>
                 <strong>{getMsg('LotteryPage.guaranteedWinners')}</strong>
                 <span className={styles.workflowInlineCard__meta}>{getMsg('LotteryPage.totalWinnerCount', { count: totalWinners })}</span>
-                <button type="button" className={shared.btnSecondary} onClick={onOpenGuaranteedSelect}>{getMsg('LotteryPage.selectGuaranteedWinners')}</button>
+                <button type="button" className={shared.btnSecondary} disabled={readOnly} onClick={onOpenGuaranteedSelect}>{getMsg('LotteryPage.selectGuaranteedWinners')}</button>
               </div>
               <div className={styles.workflowInlineCard__body}>
                 <div className={styles.workflowInlineCard__winnerList} role="group" aria-label={getMsg('LotteryPage.guaranteedWinners')}>
                   {guaranteedWinners.length > 0
                     ? visibleGuaranteedWinners.map((winner) => {
-                        const label = winner.name || winner.x_id;
+                        const displayXId = formatXAccountIdForDisplay(winner.x_id);
+                        const label = winner.name || displayXId;
                         const accessibleLabel = getMsg('LotteryPage.guaranteedWinnerAriaLabel', {
                           label,
-                          xId: winner.x_id,
+                          xId: displayXId,
                         });
                         return (
                           <span key={winner.x_id} className={styles.workflowInlineCard__winnerChip} role="group" aria-label={accessibleLabel}>
                             <span className={styles.workflowInlineCard__winnerName}>{label}</span>
-                            {winner.name && <span className={styles.workflowInlineCard__winnerId}>{winner.x_id}</span>}
+                            {winner.name && <span className={styles.workflowInlineCard__winnerId}>{displayXId}</span>}
                           </span>
                         );
                       })
                     : getMsg('LotteryPage.noGuaranteedWinners')}
                 </div>
                 {hiddenGuaranteedWinnerCount > 0 && (
-                  <button type="button" className={`${styles.workflowInlineCard__winnerChip} ${styles.workflowInlineCard__winnerChipMore}`} aria-label={hiddenGuaranteedWinnersAriaLabel} onClick={onOpenGuaranteedSelect}>+{hiddenGuaranteedWinnerCount}</button>
+                  <button type="button" className={`${styles.workflowInlineCard__winnerChip} ${styles.workflowInlineCard__winnerChipMore}`} aria-label={hiddenGuaranteedWinnersAriaLabel} disabled={readOnly} onClick={onOpenGuaranteedSelect}>+{hiddenGuaranteedWinnerCount}</button>
                 )}
               </div>
             </div>
@@ -155,7 +161,7 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
               <span id={matchingTypeLabelId} className={shared.formLabel}>{getMsg('LotteryPage.matchingType')}</span>
               <div className={styles.matchingTypeOptions} role="group" aria-labelledby={matchingTypeLabelId}>
                 {MATCHING_TYPE_CODES.map((code) => (
-                  <MatchingTypeOptionButton key={code} code={code} selected={matchingTypeCode === code} onSelect={onMatchingTypeChange} />
+                  <MatchingTypeOptionButton key={code} code={code} selected={matchingTypeCode === code} disabled={readOnly} onSelect={onMatchingTypeChange} />
                 ))}
               </div>
             </div>
@@ -171,12 +177,12 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
                 <>
                   <div className={shared.formGroup}>
                     <span className={shared.formLabel}>{getMsg('LotteryPage.rotationCount')}</span>
-                    <CounterControl label={getMsg('LotteryPage.rotationCount')} value={rotationCount} min={1} onChange={onRotationCountChange} />
+                    <CounterControl label={getMsg('LotteryPage.rotationCount')} value={rotationCount} min={1} disabled={readOnly} onChange={onRotationCountChange} />
                   </div>
 
                   <div className={shared.formGroup}>
                     <span className={shared.formLabel}>{getMsg('LotteryPage.totalTables')}</span>
-                    <CounterControl label={getMsg('LotteryPage.totalTables')} value={totalTables} min={1} onChange={onTotalTablesChange} />
+                    <CounterControl label={getMsg('LotteryPage.totalTables')} value={totalTables} min={1} disabled={readOnly} onChange={onTotalTablesChange} />
                   </div>
 
                   <div className={m003SettingsSlotClassName}>
@@ -186,24 +192,24 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
                         <div className={styles.m003SettingsGrid}>
                           <div className={shared.formGroup}>
                             <span className={shared.formLabel}>{getMsg('LotteryPage.guestsPerTable')}</span>
-                            <CounterControl label={getMsg('LotteryPage.guestsPerTable')} value={usersPerTable} min={1} onChange={onUsersPerTableChange} />
+                            <CounterControl label={getMsg('LotteryPage.guestsPerTable')} value={usersPerTable} min={1} disabled={readOnly} onChange={onUsersPerTableChange} />
                           </div>
 
                           <div className={shared.formGroup}>
                             <span className={shared.formLabel}>{getMsg('LotteryPage.castsPerRotation')}</span>
-                            <CounterControl label={getMsg('LotteryPage.castsPerRotation')} value={castsPerRotation} min={1} onChange={onCastsPerRotationChange} />
+                            <CounterControl label={getMsg('LotteryPage.castsPerRotation')} value={castsPerRotation} min={1} disabled={readOnly} onChange={onCastsPerRotationChange} />
                           </div>
                         </div>
 
                         <div className={styles.sameDaySlotPanel}>
-                          <div className={shared.formGroup}>
-                            <span className={shared.formLabel}>{getMsg('LotteryPage.includeSameDaySlots')}</span>
-                            <button type="button" className={workflowSwitchClassName} role="switch" aria-checked={allowM003EmptySeats} onClick={onAllowM003EmptySeatsToggle}><span className={styles.workflowSwitch__knob} aria-hidden /><span>{allowM003EmptySeats ? getMsg('LotteryPage.include') : getMsg('LotteryPage.doNotInclude')}</span></button>
+                          <div className={styles.sameDaySlotSetting}>
+                            <span id={sameDaySlotToggleLabelId} className={shared.formLabel}>{getMsg('LotteryPage.includeSameDaySlots')}</span>
+                            <button type="button" className={workflowSwitchClassName} role="switch" aria-checked={allowM003EmptySeats} aria-labelledby={sameDaySlotToggleLabelId} disabled={readOnly} onClick={onAllowM003EmptySeatsToggle}><span className={styles.workflowSwitch__knob} aria-hidden /><span className={styles.workflowSwitchStatus}>{allowM003EmptySeats ? getMsg('LotteryPage.include') : getMsg('LotteryPage.doNotInclude')}</span></button>
                           </div>
 
                           <div className={sameDaySlotControlClassName}>
-                            <span>{getMsg('LotteryPage.sameDaySlotCount')}</span>
-                            <CounterControl label={getMsg('LotteryPage.sameDaySlotCount')} value={m003SameDaySlotCount} min={allowM003EmptySeats ? 1 : 0} disabled={!allowM003EmptySeats} className={styles.sameDaySlotCounter} onChange={onSameDaySlotCountChange} />
+                            <span className={shared.formLabel}>{getMsg('LotteryPage.sameDaySlotCount')}</span>
+                            <CounterControl label={getMsg('LotteryPage.sameDaySlotCount')} value={m003SameDaySlotCount} min={allowM003EmptySeats ? 1 : 0} disabled={readOnly || !allowM003EmptySeats} className={styles.sameDaySlotCounter} onChange={onSameDaySlotCountChange} />
                           </div>
                         </div>
                       </>
@@ -224,6 +230,7 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
             title={getMsg('LotteryPage.statusTitle')}
             description={getMsg('LotteryPage.statusDescription')}
             onRunClick={onRunLottery}
+            runDisabled={readOnly}
           />
         </aside>
       </div>

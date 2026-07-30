@@ -1,6 +1,11 @@
-import type { CastAttendanceRecord } from './types';
+import type { AttendancePeriod, CastAttendanceRecord } from './types';
 import type { CastBean } from '@/common/types/entities';
 import type { AttendanceMatrixRow, GroupedCasts } from './types';
+
+function isDateInAttendancePeriod(date: string, period: AttendancePeriod): boolean {
+  return (!period.startDate || date >= period.startDate)
+    && (!period.endDate || date <= period.endDate);
+}
 
 /** グループ名ごとにキャストをまとめ、未所属キャストを独立した末尾グループに集約する。 */
 export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
@@ -26,10 +31,11 @@ export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
   return result;
 }
 
-/** 構造化履歴を1回走査し、出席履歴表の日付列とキャスト行を構築する。 */
+/** キャスト行を維持したまま、指定期間の出席回数と日付列を構築する。 */
 export function buildAttendanceMatrix(
   casts: CastBean[],
   history: CastAttendanceRecord[],
+  period: AttendancePeriod = { startDate: '', endDate: '' },
 ): { dates: string[]; rows: AttendanceMatrixRow[] } {
   const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
   const dates = new Set<string>();
@@ -37,18 +43,20 @@ export function buildAttendanceMatrix(
 
   for (const record of history) {
     const date = record.recordedAt.slice(0, 10);
-    dates.add(date);
-    const current = rowByCastName.get(record.castName);
-    if (current) {
-      current.totalCount += record.attendanceCount;
-      current.dates.add(date);
-    } else {
-      rowByCastName.set(record.castName, {
+    let row = rowByCastName.get(record.castName);
+    if (!row) {
+      row = {
         castName: record.castName,
-        totalCount: record.attendanceCount,
-        dates: new Set([date]),
-      });
+        totalCount: 0,
+        dates: new Set(),
+      };
+      rowByCastName.set(record.castName, row);
     }
+    if (!isDateInAttendancePeriod(date, period)) continue;
+
+    dates.add(date);
+    row.totalCount += record.attendanceCount;
+    row.dates.add(date);
   }
 
   for (const cast of casts) {

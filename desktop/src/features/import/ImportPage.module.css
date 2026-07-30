@@ -29,6 +29,43 @@
   margin-bottom: 12px;
 }
 
+.import-disclosure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.import-disclosure-toggle:hover {
+  color: var(--accent-primary);
+  background: transparent;
+}
+
+.import-disclosure-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+
+.import-disclosure-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  transform: rotate(-90deg);
+}
+
+.import-disclosure-chevron--open {
+  transform: rotate(0deg);
+}
+
 /* ── File selection ── */
 
 .import-file-section {
@@ -174,6 +211,11 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+.import-mapping-table[hidden],
+.import-preview-table-container[hidden] {
+  display: none;
 }
 
 .import-mapping-row {
@@ -322,21 +364,23 @@
   visibility: hidden;
 }
 
-.import-preview-row--warn td {
-  opacity: 0.45;
+.import-preview-id-cell--warn {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
 }
 
 .import-issue-panel {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-warning, #faa61a) 55%, transparent);
+  border: 1px solid var(--status-warning-border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent-warning, #faa61a) 8%, var(--surface-panel));
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
 }
 
 .import-issue-summary {
   margin-bottom: 10px;
-  color: var(--text-default);
+  color: var(--status-warning-text);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.6;
@@ -357,12 +401,13 @@
   gap: 12px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--surface-panel);
+  border: 1px solid rgba(22, 18, 10, 0.24);
+  background: var(--status-warning-bg);
 }
 
 .import-issue-text {
   min-width: 0;
-  color: var(--accent-warning, #faa61a);
+  color: var(--status-warning-text);
   font-size: 12px;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -376,6 +421,16 @@
   min-height: 30px;
   padding: 5px 10px;
   font-size: 11px;
+  border-color: rgba(22, 18, 10, 0.46);
+  background: transparent;
+  color: var(--status-warning-text);
+}
+
+.import-issue-delete-btn:hover {
+  border-color: rgba(22, 18, 10, 0.68);
+  background: rgba(22, 18, 10, 0.12);
+  color: var(--status-warning-text);
+  transform: none;
 }
 
 .import-cell-empty {
@@ -383,7 +438,7 @@
 }
 
 .import-cell-warn {
-  color: var(--accent-warning, #faa61a);
+  color: var(--status-warning-text);
   font-weight: 600;
   font-size: 11px;
 }
@@ -461,8 +516,9 @@
   border-bottom: none;
 }
 
-.import-raw-row--warn td {
-  background: color-mix(in srgb, var(--accent-warning, #faa61a) 8%, var(--surface-panel));
+.import-raw-cell--warn {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
 }
 
 .import-raw-table th:last-child,

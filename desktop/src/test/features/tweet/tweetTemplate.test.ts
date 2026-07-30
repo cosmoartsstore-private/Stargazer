@@ -32,9 +32,9 @@ describe('buildTweetPreview', () => {
     expect(preview).toBe('イベント\n（出席中のキャストはいません）');
   });
 
-  it('未使用プレースホルダーは空文字に置換する', () => {
+  it('未対応のプレースホルダーは原文のまま保持する', () => {
     const preview = buildTweetPreview('{date}|{cast_count}|{tags}', ['Cast A'], 'Sample Event');
 
-    expect(preview).toBe('||');
+    expect(preview).toBe('{date}|{cast_count}|{tags}');
   });
 });

@@ -68,11 +68,15 @@
   color: var(--theme-check-deep-text, #183a5f);
   --color-switch: var(--theme-check-accent, #2d8fd3);
   --accent-primary: var(--theme-check-accent, #2d8fd3);
-  --accent-success: var(--theme-check-success, #2f9f78);
+  --accent-success: #4f7f18;
   --surface-panel: rgba(255, 255, 255, 0.965);
   --surface-page: transparent;
   --surface-panel-muted: rgba(255, 255, 255, 0.91);
   --surface-panel-elevated: rgba(255, 255, 255, 0.98);
+  --surface-sticky: #f8fcff;
+  --surface-sticky-muted: #eef7fd;
+  --surface-sticky-subtle: #f4faff;
+  --surface-sticky-hover: #e6f3fb;
   --surface-hover: hsl(var(--theme-check-hue, 204) 65% 50% / 0.10);
   --surface-selected: hsl(var(--theme-check-hue, 204) 65% 50% / 0.16);
   --surface-tab-hover: var(--surface-hover);
@@ -80,7 +84,11 @@
   --text-default: var(--theme-check-deep-text, #183a5f);
   --text-muted: var(--theme-check-muted-text, rgba(24, 58, 95, 0.64));
   --text-link: var(--theme-check-link, #1b78be);
+  --text-external-link: #0067c5;
   --text-heading: hsl(var(--theme-check-hue, 204) 64% 18%);
+  --text-success: #456f19;
+  --text-warning: #827500;
+  --accent-warning: #827500;
   --border-default: hsl(var(--theme-check-hue, 204) 82% 68% / 0.32);
   --border-divider: hsl(var(--theme-check-hue, 204) 82% 68% / 0.22);
   --border-tab: var(--border-default);
@@ -88,10 +96,80 @@
   --button-primary-hover-bg: var(--theme-check-accent-hover, #247cc0);
   --button-secondary-bg: hsl(var(--theme-check-hue, 204) 82% 68% / 0.16);
   --button-secondary-hover-bg: hsl(var(--theme-check-hue, 204) 82% 68% / 0.26);
+  --button-success-bg: #4f7f18;
+  --button-success-hover-bg: #456f19;
+  --status-success-bg: #4f7f18;
+  --status-success-text: #ffffff;
+  --status-success-border: #3e6713;
+  --status-info-bg: #e7f3ff;
+  --status-info-text: #0067c5;
+  --status-info-solid: #0067c5;
+  --status-warning-bg: #ffd43b;
+  --status-warning-hover-bg: #f4c62a;
+  --status-warning-text: #1a1503;
+  --status-warning-border: #d1a000;
 }
 
 .app-container[data-theme="skyblue"] tbody tr:nth-child(even) {
   background-color: transparent;
+}
+
+/* ガイド内の実画面プレビューは、外側のテーマから独立したダーク配色で表示する。 */
+.app-container[data-guide-theme-preview="dark"] {
+  color: #dbdee1;
+  --surface-panel: rgba(0, 0, 0, 0.25);
+  --surface-page: transparent;
+  --surface-panel-muted: rgba(255, 255, 255, 0.05);
+  --surface-panel-elevated: rgba(255, 255, 255, 0.08);
+  --surface-sticky: #171620;
+  --surface-sticky-muted: #20202a;
+  --surface-sticky-subtle: #13121b;
+  --surface-sticky-hover: #26252f;
+  --surface-hover: var(--theme-dark-hover, rgba(255, 255, 255, 0.08));
+  --surface-selected: var(--theme-dark-selected, rgba(255, 255, 255, 0.08));
+  --surface-tab-hover: var(--surface-hover);
+  --surface-subtle: rgba(0, 0, 0, 0.15);
+  --text-default: #dbdee1;
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --text-link: var(--theme-dark-link, #00a8fc);
+  --text-external-link: #4eb2ff;
+  --text-heading: #f2f3f5;
+  --text-success: #6faa26;
+  --text-warning: #facc15;
+  --text-danger: #ed4245;
+  --accent-primary: var(--theme-dark-accent, #5865f2);
+  --accent-success: #5c961e;
+  --accent-warning: #facc15;
+  --accent-danger: #ed4245;
+  --color-switch: #7c3aed;
+  --border-default: rgba(255, 255, 255, 0.13);
+  --border-divider: rgba(255, 255, 255, 0.1);
+  --border-tab: var(--theme-dark-border, var(--border-default));
+  --button-primary-bg: var(--theme-dark-accent, #5865f2);
+  --button-primary-hover-bg: var(--theme-dark-accent-hover, #4752c4);
+  --button-secondary-bg: rgba(255, 255, 255, 0.1);
+  --button-secondary-hover-bg: rgba(255, 255, 255, 0.15);
+  --button-success-bg: #4f7f18;
+  --button-success-hover-bg: #456f19;
+  --button-danger-bg: #ed4245;
+  --status-success-bg: #4f7f18;
+  --status-success-text: #ffffff;
+  --status-success-border: #3e6713;
+  --status-info-bg: #122d42;
+  --status-info-text: #4eb2ff;
+  --status-info-solid: #0f77bd;
+  --status-warning-bg: #ffd43b;
+  --status-warning-hover-bg: #f4c62a;
+  --status-warning-text: #1a1503;
+  --status-warning-border: #d1a000;
+  --modal-backdrop: rgba(0, 0, 0, 0.65);
+  --modal-surface: var(--surface-panel);
+  --modal-border: var(--border-default);
+  --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.app-container[data-guide-theme-preview="dark"] tbody tr:nth-child(even) {
+  background-color: var(--surface-subtle);
 }
 
 /* スマホ: 通知欄直下に表示（上部の余白なし） */
@@ -330,5 +408,35 @@
 
 :global([data-theme="skyblue"]) .menu-toggle {
   background: var(--theme-check-accent, #2d8fd3);
+  color: #ffffff;
+}
+
+:global([data-guide-theme-preview="dark"]) .sidebar {
+  background: rgba(30, 31, 34, 0.6) !important;
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+:global([data-guide-theme-preview="dark"]) .sidebar-button {
+  color: #949ba4;
+}
+
+:global([data-guide-theme-preview="dark"]) .sidebar-button.active {
+  background: rgba(88, 101, 242, 0.18);
+  color: #ffffff;
+}
+
+:global([data-guide-theme-preview="dark"]) .sidebar-button:disabled,
+:global([data-guide-theme-preview="dark"]) .sidebar-button--disabled {
+  color: rgba(148, 155, 164, 0.46);
+  opacity: 0.58;
+}
+
+:global([data-guide-theme-preview="dark"]) .mobile-header {
+  background: rgba(13, 11, 30, 0.85);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:global([data-guide-theme-preview="dark"]) .menu-toggle {
+  background: #5865f2;
   color: #ffffff;
 }

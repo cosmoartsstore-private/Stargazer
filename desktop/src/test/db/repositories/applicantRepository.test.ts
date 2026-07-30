@@ -6,6 +6,7 @@ import {
   loadApplicants,
   persistApplicants,
   replaceApplicantGuarantees,
+  updateApplicantCastPreferences,
 } from '@/db/repositories/applicantRepository';
 
 interface FakeDb {
@@ -117,14 +118,14 @@ beforeEach(() => {
 });
 
 describe('loadApplicants', () => {
-  it('応募者、希望キャスト、追加列を UserBean に復元する', async () => {
+  it('応募者、希望キャスト、追加列を内部Xユーザー名の UserBean に復元する', async () => {
     const users = await loadApplicants();
 
     expect(users).toEqual<UserBean[]>([
       {
         id: 1,
         name: 'Sample User',
-        x_id: '@sample_user',
+        x_id: 'sample_user',
         vrc_url: undefined,
         is_guaranteed: true,
         casts: ['Cast A renamed', 'Cast C'],
@@ -168,7 +169,7 @@ describe('loadApplicants', () => {
   it('応募者数によらず固定4クエリで子行を応募者ごとに復元する', async () => {
     mockState.applicantRows.push({
       id: 2,
-      x_id: '@second_user',
+      x_id: 'second_user',
       name: null,
       vrc_url: 'https://vrchat.com/home/user/usr_second',
       is_guaranteed: 0,
@@ -191,7 +192,7 @@ describe('loadApplicants', () => {
     expect(users[1]).toEqual<UserBean>({
       id: 2,
       name: '',
-      x_id: '@second_user',
+      x_id: 'second_user',
       vrc_url: 'https://vrchat.com/home/user/usr_second',
       is_guaranteed: false,
       casts: ['Cast C current'],
@@ -208,7 +209,7 @@ describe('persistApplicants', () => {
     await persistApplicants([
       {
         name: 'Sample User',
-        x_id: '@sample_user',
+        x_id: 'sample_user',
         vrc_url: 'https://vrchat.com/home/user/usr_sample_user',
         is_guaranteed: true,
         casts: ['Cast A', '', 'Cast C'],
@@ -224,7 +225,7 @@ describe('persistApplicants', () => {
       users: [
         {
           name: 'Sample User',
-          x_id: '@sample_user',
+          x_id: 'sample_user',
           vrc_url: 'https://vrchat.com/home/user/usr_sample_user',
           casts: ['Cast A', '', 'Cast C'],
           cast_ids: [1, null, 3],
@@ -240,7 +241,7 @@ describe('persistApplicants', () => {
     await persistApplicants([
       {
         name: '',
-        x_id: '@sample_user',
+        x_id: 'sample_user',
         casts: [],
         cast_ids: [],
         raw_extra: [{ key: '備考', value: '' }],
@@ -253,7 +254,7 @@ describe('persistApplicants', () => {
       users: [
         {
           name: null,
-          x_id: '@sample_user',
+          x_id: 'sample_user',
           vrc_url: null,
           casts: [],
           cast_ids: [],
@@ -268,7 +269,7 @@ describe('persistApplicants', () => {
   it('希望キャストIDが未確定の応募者は backend へ渡さない', async () => {
     await expect(persistApplicants([{
       name: 'Sample User',
-      x_id: '@sample_user',
+      x_id: 'sample_user',
       casts: ['Cast A'],
       raw_extra: [],
     }], SESSION_CONTEXT)).rejects.toThrow('希望キャストIDが確定していません');
@@ -311,14 +312,27 @@ describe('deleteApplicant', () => {
   });
 });
 
+describe('updateApplicantCastPreferences', () => {
+  it('希望キャストIDを応募者の安定IDとともに backend command へ渡す', async () => {
+    await updateApplicantCastPreferences(42, [1, null, 3], SESSION_CONTEXT);
+
+    expect(invokeMock).toHaveBeenCalledWith('update_applicant_cast_preferences_atomic', {
+      eventName: 'Sample Event',
+      timestamp: '20260618120000',
+      applicantId: 42,
+      preferences: { cast_ids: [1, null, 3] },
+    });
+  });
+});
+
 describe('replaceApplicantGuarantees', () => {
   it('次回抽選の確定当選者をセッション単位の backend command へ渡す', async () => {
-    await replaceApplicantGuarantees(['@sample_user', '@sample_other'], SESSION_CONTEXT);
+    await replaceApplicantGuarantees(['sample_user', 'sample_other'], SESSION_CONTEXT);
 
     expect(invokeMock).toHaveBeenCalledWith('replace_applicant_guarantees_atomic', {
       eventName: 'Sample Event',
       timestamp: '20260618120000',
-      guaranteedXIds: ['@sample_user', '@sample_other'],
+      guaranteedXIds: ['sample_user', 'sample_other'],
     });
   });
 });

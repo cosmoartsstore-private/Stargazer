@@ -16,6 +16,7 @@ import type {
   SessionWorkflowState,
 } from '@/common/types/sessionWorkflow';
 import type { MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
+import type { SavedLotteryRunTarget } from '@/db/repositories/lotteryRepository';
 import {
   useMatchingContextState,
   type MatchingResultState,
@@ -53,13 +54,19 @@ export interface AppContextType {
   isDbReady: boolean;
   // ──────────────────────────────────────────────────────────────────────────
   // currentEventName はイベント共有DB、currentSessionTimestamp は現在の応募者取込DBを指す。
-  // セッション切替UIは公開せず、最新の取込セッションを内部状態として扱う。
   currentEventName: string | null;
   currentSessionTimestamp: string | null;
+  sessionReloadGeneration: number;
+  focusedSavedLotteryRunTarget: SavedLotteryRunTarget | null;
+  clearFocusedSavedLotteryRunTarget: () => void;
+  /** 保存済み抽選を持つセッションを読み取り専用で表示している状態。 */
+  isSavedLotterySessionReadOnly: boolean;
   ensureWritableSession: () => Promise<void>;
   events: string[];
   setEvents: React.Dispatch<React.SetStateAction<string[]>>;
   switchEvent: (name: string) => Promise<void>;
+  activateSavedLotteryRun: (target: SavedLotteryRunTarget) => Promise<void>;
+  markCurrentSessionReadOnlyAfterLotterySave: () => void;
   deleteManagedEvent: (name: string) => Promise<void>;
   renameManagedEvent: (oldName: string, newName: string) => Promise<void>;
 }
@@ -114,10 +121,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isDbReady,
     currentEventName,
     currentSessionTimestamp,
+    sessionReloadGeneration,
+    focusedSavedLotteryRunTarget,
+    clearFocusedSavedLotteryRunTarget,
+    isSavedLotterySessionReadOnly,
     ensureWritableSession,
     events,
     setEvents,
     switchEvent,
+    activateSavedLotteryRun,
+    markCurrentSessionReadOnlyAfterLotterySave,
     deleteManagedEvent,
     renameManagedEvent,
   } = useEventLifecycleState({
@@ -154,10 +167,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isDbReady,
     currentEventName,
     currentSessionTimestamp,
+    sessionReloadGeneration,
+    focusedSavedLotteryRunTarget,
+    clearFocusedSavedLotteryRunTarget,
+    isSavedLotterySessionReadOnly,
     ensureWritableSession,
     events,
     setEvents,
     switchEvent,
+    activateSavedLotteryRun,
+    markCurrentSessionReadOnlyAfterLotterySave,
     deleteManagedEvent,
     renameManagedEvent,
   };

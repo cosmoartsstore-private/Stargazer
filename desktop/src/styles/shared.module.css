@@ -578,6 +578,24 @@
   color: hsl(var(--theme-check-hue, 204) 64% 18%);
 }
 
+/* ガイドのダーク固定プレビューでは、外側テーマのモーダル配色を継承しない。 */
+:global([data-guide-theme-preview="dark"]) .modal-overlay {
+  background-color: var(--modal-backdrop);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+:global([data-guide-theme-preview="dark"]) .modal-content {
+  background-color: var(--modal-surface);
+  border-color: var(--modal-border);
+  color: var(--text-default);
+  box-shadow: var(--modal-shadow);
+}
+
+:global([data-guide-theme-preview="dark"]) .modal-title {
+  color: var(--text-heading);
+}
+
 /* ========================================
    一覧・詳細レイアウト（キャスト・イベント・NG管理で共用）
    ======================================== */

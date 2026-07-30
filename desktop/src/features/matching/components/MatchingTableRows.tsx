@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { RotationMatchList } from './MatchingResultCells';
 import type { TableSlotGroup } from '../presenters/matching-result-view';
 import { getMsg } from '@/messages/getMsg';
@@ -17,7 +18,7 @@ export const MatchingTableRows: React.FC<MatchingTableRowsProps> = ({ groups }) 
         <td className={`${shared.tableCell} ${styles.matchingResultTable__table}`}>{getMsg('MatchingPage.tableNumber', { number: tableIndex })}</td>
         <td className={`${shared.tableCell} ${styles.matchingResultTable__seat}`}>{index + 1}</td>
         <td className={`${shared.tableCell} ${styles.matchingResultTable__guest}`}>{slot.user?.name ?? getMsg('MatchingPage.emptySeat')}</td>
-        <td className={`${shared.tableCell} ${styles.matchingResultTable__id}`}>{slot.user?.x_id ?? getMsg('MatchingPage.unassigned')}</td>
+        <td className={`${shared.tableCell} ${styles.matchingResultTable__id}`}>{slot.user ? formatXAccountIdForDisplay(slot.user.x_id) : getMsg('MatchingPage.unassigned')}</td>
         <td className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}>
           {slot.matches.length === 0 ? (
             /* 割り当てキャストがいない席 */

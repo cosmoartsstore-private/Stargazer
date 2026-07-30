@@ -1,6 +1,7 @@
 // キャストの登録・編集・削除とプロフィール情報を管理するページ。
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getMsg } from '@/messages/getMsg';
 import type { CastBean } from '@/common/types/entities';
@@ -25,16 +26,22 @@ import { openExternalUrl } from '@/tauri';
 import { CastDetailPanel } from './components/CastDetailPanel';
 import { CastListPanel } from './components/CastListPanel';
 import {
+  COMMON_SHORTCUT_LINKS,
   getAliasConflictMessage,
   getEditableContactUrls,
   getFormalNameConflictMessage,
   getOpenableContactUrl,
+  type CommonShortcutLink,
   type EventMutationResult,
 } from './castManagementModel';
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-export const CastManagementPage: React.FC = () => {
+interface CastManagementPageProps {
+  initialSelectedCastId?: number;
+}
+
+export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialSelectedCastId }) => {
   // イベント名簿と、キャスト名変更に追従する画面内データ。
   const {
     casts,
@@ -46,7 +53,7 @@ export const CastManagementPage: React.FC = () => {
   } = useAppContext();
 
   // 選択・編集・検索・確認ダイアログのUI状態。
-  const [selectedCastId, setSelectedCastId] = useState<number | null>(null);
+  const [selectedCastId, setSelectedCastId] = useState<number | null>(() => initialSelectedCastId ?? null);
   const [memoEditing, setMemoEditing] = useState(false);
   const [inputCastName, setInputCastName] = useState('');
   const [inputAlias, setInputAlias] = useState('');
@@ -54,6 +61,7 @@ export const CastManagementPage: React.FC = () => {
   const [isSavingAliases, setIsSavingAliases] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CastBean | null>(null);
+  const shortcutGroupLabelId = useId();
 
   // 写真読込と連絡先保存の競合を、キャスト単位の世代番号で管理する。
   const photoMutationGenerationByCastRef = useRef(new Map<number, number>());
@@ -64,7 +72,7 @@ export const CastManagementPage: React.FC = () => {
   const selectedCast = casts.find((cast) => cast.id === selectedCastId) ?? null;
 
   useEffect(() => {
-    setSelectedCastId(null);
+    setSelectedCastId(initialSelectedCastId ?? null);
     setMemoEditing(false);
     setInputAlias('');
     setIsSavingAliases(false);
@@ -72,7 +80,7 @@ export const CastManagementPage: React.FC = () => {
     setDeleteTarget(null);
     photoMutationGenerationByCastRef.current.clear();
     contactMutationSequenceByCastRef.current.clear();
-  }, [currentEventName]);
+  }, [currentEventName, initialSelectedCastId]);
 
   useEffect(() => () => {
     photoMutationGenerationByCastRef.current.clear();
@@ -328,7 +336,7 @@ export const CastManagementPage: React.FC = () => {
     }
   };
 
-  // 正式名との競合を検査して別名を追加・変更・削除する。
+  // 正式名との競合を検査して別名義を追加・変更・削除する。
   const handleAddAlias = async (cast: CastBean) => {
     if (isSavingAliases) return;
     const alias = inputAlias.trim();
@@ -404,6 +412,16 @@ export const CastManagementPage: React.FC = () => {
     }
   };
 
+  const handleOpenCommonShortcut = async (shortcut: CommonShortcutLink) => {
+    try {
+      await openExternalUrl(shortcut.url);
+    } catch {
+      setAlertMessage(getMsg('CastManagementPage.openShortcutFailed', {
+        shortcut: shortcut.label,
+      }));
+    }
+  };
+
   // 表示コンポーネントから受け取った型付き引数を、選択中キャストの更新処理へ接続する。
   const handleSelectCast = (castId: number) => {
     setSelectedCastId(castId);
@@ -463,9 +481,26 @@ export const CastManagementPage: React.FC = () => {
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner}`}>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-        <div className={`${shared.pageHeaderRow} ${shared.pageHeaderRowFlexStart}`}>
+        <div className={`${shared.pageHeaderRow} ${shared.pageHeaderRowFlexStart} ${styles.castPageHeaderRow}`}>
           <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('CastManagementPage.pageTitle')}</h1>
-          <div className={shared.statusCard}>
+          <div className={styles.castShortcutGroup} role="group" aria-labelledby={shortcutGroupLabelId}>
+            <span id={shortcutGroupLabelId} className={styles.castShortcutGroupLabel}>{getMsg('CastManagementPage.commonShortcuts')}</span>
+            <div className={styles.castShortcutActions}>
+              {COMMON_SHORTCUT_LINKS.map((shortcut) => (
+                <button
+                  key={shortcut.key}
+                  type="button"
+                  className={styles.castShortcutButton}
+                  aria-label={getMsg('CastManagementPage.openShortcutAriaLabel', { shortcut: shortcut.label })}
+                  onClick={() => { void handleOpenCommonShortcut(shortcut); }}
+                >
+                  <span>{shortcut.label}</span>
+                  <ExternalLink size={13} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={`${shared.statusCard} ${styles.castHeaderStatus}`}>
             <div className={shared.statusCard__label}>{getMsg('CastManagementPage.registeredCount')}</div>
             <div className={shared.statusCard__value}><span className={shared.statusCard__valueAccent}>{casts.length}</span></div>
           </div>

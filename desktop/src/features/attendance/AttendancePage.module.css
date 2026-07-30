@@ -13,16 +13,13 @@
   --attendance-grid: #2e3542;
   --attendance-text: var(--text-heading);
   --attendance-muted: var(--text-muted);
-  --attendance-accent: var(--accent-success);
-  --attendance-accent-soft: rgba(35, 165, 89, 0.14);
-  --attendance-present: var(--accent-success);
-  --attendance-present-bg: rgba(35, 165, 89, 0.2);
-  --attendance-present-bg-alt: rgba(35, 165, 89, 0.26);
-  --attendance-present-border: rgba(35, 165, 89, 0.58);
+  --attendance-accent: #22c55e;
+  --attendance-accent-soft: #173824;
+  --attendance-accent-border: #22c55e;
+  --attendance-present: #15803d;
   --attendance-present-contrast: #ffffff;
   --attendance-empty-bg: var(--surface-panel);
-  --attendance-empty-bg-alt: var(--surface-subtle);
-  --attendance-empty-icon: #687386;
+  --attendance-absent-icon: #8b94a3;
 }
 
 .attendance-tabs {
@@ -128,7 +125,7 @@
 }
 
 .setup-count-present {
-  color: var(--attendance-present);
+  color: var(--attendance-accent);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -139,7 +136,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--attendance-present);
+  background: var(--attendance-accent);
   flex-shrink: 0;
 }
 
@@ -326,8 +323,7 @@
 .setup-chip-present {
   background: var(--attendance-present);
   color: var(--attendance-present-contrast);
-  border-color: var(--attendance-present-border);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: var(--attendance-present);
 }
 
 .setup-chip-wait {
@@ -375,6 +371,12 @@
   opacity: 0.72;
 }
 
+.setup-chip-wait::after,
+.setup-chip-wait-selected::after {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* ── 出席記録タブ ── */
 
 .records-section {
@@ -400,6 +402,7 @@
 }
 
 .records-title {
+  margin: 0;
   color: var(--attendance-text);
   font-size: 15px;
   font-weight: 800;
@@ -412,7 +415,7 @@
   min-height: 28px;
   padding: 3px 10px;
   background: var(--attendance-accent-soft);
-  border: 1px solid rgba(35, 165, 89, 0.36);
+  border: 1px solid var(--attendance-accent-border);
   border-radius: 999px;
   color: var(--attendance-accent);
   font-size: 12px;
@@ -434,25 +437,20 @@
   min-width: 0;
   border-collapse: separate;
   border-spacing: 0;
-  background: var(--attendance-grid);
-  font-size: 12px;
+  background: var(--attendance-sticky-bg);
+  font-size: 13px;
   table-layout: fixed;
 }
 
 .attendance-matrix th,
 .attendance-matrix td {
-  border-right: 1px solid var(--attendance-grid);
   border-bottom: 1px solid var(--attendance-grid);
-  padding: 8px 10px;
+  padding: 11px 16px;
   white-space: nowrap;
 }
 
-.attendance-matrix th:last-child,
-.attendance-matrix td:last-child {
-  border-right: none;
-}
-
-.attendance-matrix tbody tr:last-child td {
+.attendance-matrix tbody tr:last-child td,
+.attendance-matrix tbody tr:last-child th {
   border-bottom: none;
 }
 
@@ -465,6 +463,7 @@
   color: var(--attendance-muted);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   text-align: center;
   box-shadow: inset 0 -1px 0 var(--attendance-grid);
 }
@@ -490,7 +489,7 @@
 
 .attendance-matrix-cast-name {
   color: var(--attendance-text);
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -506,14 +505,59 @@
   background: var(--attendance-sticky-bg);
   background-clip: border-box;
   text-align: center;
-  box-shadow:
-    1px 0 0 var(--attendance-grid),
-    12px 0 18px -16px rgba(0, 0, 0, 0.9);
+  box-shadow: 1px 0 0 var(--attendance-grid);
 }
 
 .attendance-matrix-count-head {
   z-index: 8;
   background: var(--attendance-sticky-head-bg);
+}
+
+.attendance-matrix th.attendance-matrix-count-head {
+  padding: 0;
+}
+
+.attendance-matrix-count-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 45px;
+  padding: 7px 5px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.attendance-matrix-count-button:hover {
+  background: var(--surface-hover);
+  color: var(--attendance-text);
+}
+
+.attendance-matrix-count-button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -3px;
+}
+
+.attendance-matrix-count-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--attendance-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.attendance-matrix-count-button-active .attendance-matrix-count-period {
+  color: var(--attendance-accent);
 }
 
 .attendance-matrix-date-head {
@@ -528,42 +572,106 @@
   max-width: 104px;
   text-align: center;
   color: var(--attendance-muted);
-  background: var(--attendance-empty-bg);
+  background: var(--attendance-sticky-bg);
 }
 
-.attendance-matrix tbody tr:nth-child(even) .attendance-matrix-cell {
-  background: var(--attendance-empty-bg-alt);
-}
-
-.attendance-matrix-cell-present {
-  background: var(--attendance-present-bg);
-  box-shadow: inset 0 0 0 1px rgba(35, 165, 89, 0.2);
-}
-
-.attendance-matrix tbody tr:nth-child(even) .attendance-matrix-cell-present {
-  background: var(--attendance-present-bg-alt);
-}
-
-.attendance-check-mark {
+.attendance-present-mark,
+.attendance-absent-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--attendance-present);
-  font-weight: 800;
   line-height: 1;
 }
 
-.attendance-check-mark svg,
-.attendance-empty-mark svg {
+.attendance-present-mark {
+  color: var(--attendance-accent);
+}
+
+.attendance-present-mark svg,
+.attendance-absent-mark svg {
   display: block;
 }
 
-.attendance-empty-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--attendance-empty-icon);
-  opacity: 0.7;
+.attendance-absent-mark {
+  color: var(--attendance-absent-icon);
+}
+
+/* ── 出席期間ダイアログ ── */
+
+.attendance-period-dialog {
+  max-width: 460px;
+}
+
+.attendance-period-description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.attendance-period-form {
+  margin-top: 20px;
+}
+
+.attendance-period-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.attendance-period-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.attendance-period-field label {
+  color: var(--text-default);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.attendance-period-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  outline: none;
+  background: var(--surface-panel);
+  color: var(--text-default);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 13px;
+}
+
+.attendance-period-field input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(var(--theme-accent-rgb, 88, 101, 242), 0.2);
+}
+
+.attendance-period-field input[aria-invalid="true"] {
+  border-color: var(--accent-danger);
+}
+
+.attendance-period-error {
+  margin: 10px 0 0;
+  color: var(--accent-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.attendance-period-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.attendance-period-show-all {
+  margin-right: auto;
 }
 
 /* ── モーダル共通 ── */
@@ -729,7 +837,7 @@
   padding: 12px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--surface-panel-muted);
+  background: var(--surface-sticky-muted);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
 }
 
@@ -819,7 +927,7 @@
 .save-count-num {
   font-size: 48px;
   font-weight: 800;
-  color: var(--attendance-present);
+  color: var(--attendance-accent);
   line-height: 1;
 }
 
@@ -857,24 +965,42 @@
 }
 
 .modal-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: flex-end;
   gap: 12px;
   padding: 16px 20px;
   border-top: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
+.modal-footer-actions {
+  display: flex;
+  grid-column: 2;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-footer-actions > button {
+  min-width: 104px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.modal-footer-actions > button:last-child {
+  min-width: 140px;
+}
+
 .overwrite-note {
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-warning, #faa61a);
-  margin-right: auto;
   padding: 4px 10px;
   background: rgba(250, 166, 26, 0.1);
   border-radius: 4px;
   border: 1px solid rgba(250, 166, 26, 0.25);
+  line-height: 1.5;
 }
 
 /* ライトテーマ：bg-darkが白化するため明示的に有彩色を指定 */
@@ -890,16 +1016,13 @@
   --attendance-grid: #bfdbfe;
   --attendance-text: #102b49;
   --attendance-muted: #47708f;
-  --attendance-accent: #2f9f78;
-  --attendance-accent-soft: rgba(47, 159, 120, 0.13);
-  --attendance-present: #2f9f78;
-  --attendance-present-bg: rgba(47, 159, 120, 0.18);
-  --attendance-present-bg-alt: rgba(47, 159, 120, 0.24);
-  --attendance-present-border: rgba(47, 159, 120, 0.5);
+  --attendance-accent: #07af4a;
+  --attendance-accent-soft: #eaf8ef;
+  --attendance-accent-border: #78d49b;
+  --attendance-present: #15803d;
   --attendance-present-contrast: #ffffff;
   --attendance-empty-bg: #f8fbff;
-  --attendance-empty-bg-alt: #eef5fb;
-  --attendance-empty-icon: #7fa4c2;
+  --attendance-absent-icon: #858b95;
 }
 
 :global([data-theme="skyblue"]) .setup-chip-wait {
@@ -943,8 +1066,78 @@
 }
 
 :global([data-theme="skyblue"]) .save-cast-item {
-  background: #d4ecfb;
+  background: #ffffff;
   color: #102b49;
+}
+
+:global([data-theme="skyblue"]) .attendance-period-field input {
+  color-scheme: light;
+}
+
+/* ガイドの実画面プレビューでは、外側のskyblue配色を継承しない。 */
+:global([data-guide-theme-preview="dark"]) .attendance-page {
+  --attendance-surface: var(--surface-panel);
+  --attendance-surface-raised: var(--surface-panel-muted);
+  --attendance-surface-deep: var(--surface-panel);
+  --attendance-sticky-bg: #171b24;
+  --attendance-sticky-head-bg: #10131a;
+  --attendance-border: var(--border-default);
+  --attendance-border-strong: rgba(255, 255, 255, 0.18);
+  --attendance-grid: #2e3542;
+  --attendance-text: var(--text-heading);
+  --attendance-muted: var(--text-muted);
+  --attendance-accent: #22c55e;
+  --attendance-accent-soft: #173824;
+  --attendance-accent-border: #22c55e;
+  --attendance-present: #15803d;
+  --attendance-present-contrast: #ffffff;
+  --attendance-empty-bg: var(--surface-panel);
+  --attendance-absent-icon: #8b94a3;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: var(--attendance-border);
+  border-style: dashed;
+  color: var(--attendance-muted);
+  opacity: 0.56;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait:hover {
+  border-style: solid;
+  opacity: 0.76;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait-selected {
+  background: var(--surface-panel-muted);
+  border-color: var(--attendance-border);
+  border-style: solid;
+  color: var(--attendance-text);
+  opacity: 1;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait-selected:hover {
+  border-color: var(--attendance-border-strong);
+  opacity: 1;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait::after {
+  color: var(--attendance-muted);
+  opacity: 0.8;
+}
+
+:global([data-guide-theme-preview="dark"]) .setup-chip-wait-selected::after {
+  color: var(--attendance-muted);
+  opacity: 0.72;
+}
+
+:global([data-guide-theme-preview="dark"]) .save-modal-panel {
+  background: #20232c;
+}
+
+:global([data-guide-theme-preview="dark"]) .save-cast-item {
+  background: var(--surface-panel);
+  color: var(--text-default);
 }
 
 @media (max-width: 640px) {
@@ -986,6 +1179,23 @@
 
   .save-modal-body {
     grid-template-columns: 1fr;
+  }
+
+  .modal-footer {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .modal-footer-actions {
+    grid-column: 1;
+  }
+
+  .attendance-period-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-period-actions {
+    flex-wrap: wrap;
   }
 
   .save-modal-col {

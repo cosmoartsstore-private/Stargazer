@@ -38,11 +38,10 @@ export function mapRowToUserBeanWithMapping(
     while (casts.length < 3) casts.push('');
   }
 
-  const namePrimary = mapping.name >= 0 ? getCell(row, mapping.name) : '';
-  const nameFallback = mapping.nameColumn2 != null && mapping.nameColumn2 >= 0 ? getCell(row, mapping.nameColumn2) : '';
-  const name = namePrimary || nameFallback;
+  const name = mapping.name >= 0 ? getCell(row, mapping.name) : '';
 
   const rawXId = mapping.x_id >= 0 ? getCell(row, mapping.x_id) : '';
+  // 有効なX IDは内部表現のusernameへ統一し、形式不正値は利用者が確認できるよう残す。
   const normalizedXId = rawXId ? (parseXUsername(rawXId) ?? rawXId) : '';
 
   const vrcUrl = mapping.vrc_url >= 0 ? getCell(row, mapping.vrc_url) : '';

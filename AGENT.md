@@ -7,15 +7,14 @@
 1. 利用方法と機能範囲: `README.md`
 2. 実装境界と状態・DBの流れ: `docs/ARCHITECTURE.md`
 3. 未決定のプロダクト仕様: `SPEC_DECISION_ITEMS.md`
-4. 現在の技術的な残課題: `.claude/audits/refactoring-audit-20260725.md`
-5. 過去のUI検討資料: `.claude/design-references/README.md`
+4. 過去のUI検討資料: `.claude/design-references/README.md`
 
 `.claude/` のその他の調査メモ、UIキャプチャ、実行ログは内部資料です。公開仕様として扱わず、必要な案件に対応する資料だけを参照してください。
 
 ## 実装上の制約
 
 - 実装の起点は `desktop/` です。Frontend は React / TypeScript、Backend は Tauri / Rust です。
-- SQLite schema の正は `desktop/src-tauri/src/lib.rs` の migration とします。Frontend repository に DDL を重複させません。
+- SQLite schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義とします。Frontend repository に DDL を重複させません。
 - 複数SQLを伴う更新は Rust command の transaction で実行します。Frontend repository は読み取りと command 呼び出しの境界です。
 - イベント共有DBと取込セッションDBの所有データを混在させません。詳細は `docs/ARCHITECTURE.md` を参照してください。
 - `AppContextType` を変更した場合は、ヘルプ画面の実画面プレビュー用 context (`GuidePage.tsx`) も追従させます。

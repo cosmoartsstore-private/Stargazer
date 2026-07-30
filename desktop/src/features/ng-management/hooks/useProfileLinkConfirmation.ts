@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { openExternalUrl } from '@/tauri';
 import { buildXProfileUrl } from '../ngUserManagementModel';
@@ -25,7 +26,10 @@ export function useProfileLinkConfirmation({
   function request(accountId: string | undefined, fallbackLabel: string): void {
     const url = buildXProfileUrl(accountId);
     if (!url) return;
-    setPendingLink({ label: accountId ?? fallbackLabel, url });
+    setPendingLink({
+      label: accountId ? formatXAccountIdForDisplay(accountId) : fallbackLabel,
+      url,
+    });
   }
 
   async function confirm(): Promise<void> {

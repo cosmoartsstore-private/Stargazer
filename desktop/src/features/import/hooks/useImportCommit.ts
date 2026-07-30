@@ -51,6 +51,7 @@ export function useImportCommit({
     setCurrentWinners,
     hydrateSessionWorkflow,
     ensureWritableSession,
+    isSavedLotterySessionReadOnly,
     resetMatching,
     beginSessionUiMutation,
     isCurrentSessionUiMutation,
@@ -70,10 +71,7 @@ export function useImportCommit({
         rowNumber: index + 1,
         xId: user.x_id,
       })));
-      if (identityIssues.length > 0) {
-        onAlert(getMsg('AppContainer.invalidApplicants'));
-        return;
-      }
+      const destinationPage = identityIssues.length > 0 ? 'dataManagement' : nextPage;
       const usersWithCastIds = attachCastIdsToUsers(users, casts);
       await ensureWritableSession();
       const context = getRequiredSessionContext();
@@ -133,7 +131,7 @@ export function useImportCommit({
         isLotteryResultCurrent: false,
       });
       resetMatching();
-      setActivePage(nextPage);
+      setActivePage(destinationPage);
     } catch {
       onAlert(failureMessage);
     } finally {
@@ -142,7 +140,7 @@ export function useImportCommit({
   };
 
   const importUsers = (users: UserBean[], nextPage?: PageType) => {
-    if (applicants.length > 0 || currentWinners.length > 0) {
+    if (!isSavedLotterySessionReadOnly && (applicants.length > 0 || currentWinners.length > 0)) {
       setPendingImport({ users, nextPage });
       return;
     }

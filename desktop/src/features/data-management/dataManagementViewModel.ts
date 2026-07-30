@@ -14,7 +14,10 @@ export interface DataManagementViewModel {
   hasApplicantIdentityIssues: boolean;
   isLotteryOnly: boolean;
   showUnavailableCastWarning: boolean;
+  hasUnavailableApplicantCastReferences: boolean;
+  hasUnavailableMatchingResultCasts: boolean;
   hasUnresolvedCastReferences: boolean;
+  hasDeletedApplicantCastReferences: boolean;
   hasDeletedCastReferences: boolean;
   unavailableCastNames: string;
   disabledTabs: Set<'import' | 'lottery' | 'matching'>;
@@ -56,17 +59,23 @@ export function buildDataManagementViewModel({
     tableSlots,
     casts,
   );
+  const relevantUnavailableResultCasts = isLotteryOnly ? [] : unavailableResultCasts;
   const hasUnavailableCastReferences = unavailableCastReferences.length > 0
-    || unavailableResultCasts.length > 0;
+    || relevantUnavailableResultCasts.length > 0;
+  const hasUnavailableApplicantCastReferences = unavailableCastReferences.length > 0;
+  const hasUnavailableMatchingResultCasts = relevantUnavailableResultCasts.length > 0;
   const hasUnresolvedCastReferences = unavailableCastReferences.some(
     (reference) => reference.reason === 'unresolved',
   );
-  const hasDeletedCastReferences = unavailableResultCasts.length > 0
+  const hasDeletedApplicantCastReferences = unavailableCastReferences.some(
+    (reference) => reference.reason === 'deleted',
+  );
+  const hasDeletedCastReferences = relevantUnavailableResultCasts.length > 0
     || unavailableCastReferences.some((reference) => reference.reason === 'deleted');
   const names = [...new Set(
     unavailableCastReferences
       .map((reference) => reference.castName)
-      .concat(unavailableResultCasts.map((cast) => cast.name))
+      .concat(relevantUnavailableResultCasts.map((cast) => cast.name))
       .filter(Boolean),
   )];
   const unavailableCastNames = names.length <= 3
@@ -82,8 +91,11 @@ export function buildDataManagementViewModel({
     applicantIdentityIssues,
     hasApplicantIdentityIssues,
     isLotteryOnly,
-    showUnavailableCastWarning: hasUnavailableCastReferences && !isLotteryOnly,
+    showUnavailableCastWarning: hasUnavailableCastReferences,
+    hasUnavailableApplicantCastReferences,
+    hasUnavailableMatchingResultCasts,
     hasUnresolvedCastReferences,
+    hasDeletedApplicantCastReferences,
     hasDeletedCastReferences,
     unavailableCastNames,
     disabledTabs: getDisabledDataManagementTabs({

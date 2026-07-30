@@ -63,9 +63,6 @@ const CHECK_THEME_RECIPE = {
   mutedTextAlpha: 0.66,
   linkSaturation: 72,
   linkLightness: 41,
-  successHueOffset: 136,
-  successSaturation: 43,
-  successLightness: 41,
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
@@ -246,11 +243,6 @@ function buildCheckVariables(customization: CheckThemeCustomization): Record<str
       CHECK_THEME_RECIPE.mutedTextAlpha,
     ),
     '--theme-check-link': hslToHex(hue, CHECK_THEME_RECIPE.linkSaturation, CHECK_THEME_RECIPE.linkLightness),
-    '--theme-check-success': hslToHex(
-      (hue + CHECK_THEME_RECIPE.successHueOffset) % 360,
-      CHECK_THEME_RECIPE.successSaturation,
-      CHECK_THEME_RECIPE.successLightness,
-    ),
     '--theme-accent-rgb': rgbTriplet(accentRgb),
   };
 }

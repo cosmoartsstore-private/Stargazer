@@ -35,9 +35,11 @@ export interface ImportPreviewModel {
   issueRowNumbers: Set<number>;
   mappedRowByNumber: Map<number, MappedImportRow>;
   emptyIdCount: number;
+  invalidIdCount: number;
   duplicateIdCount: number;
   validCount: number;
   canImport: boolean;
+  canProceedToLottery: boolean;
 }
 
 // 列未選択値と画面プレビューの最大行数。
@@ -117,8 +119,11 @@ export function buildImportPreviewModel(
   const issueRowNumbers = new Set(identityIssues.map((issue) => issue.rowNumber));
   const mappedRowByNumber = new Map(mappedRows.map((row) => [row.sourceRow.rowNumber, row]));
   const emptyIdCount = identityIssues.filter((issue) => issue.kind === 'empty').length;
+  const invalidIdCount = identityIssues.filter((issue) => issue.kind === 'invalid').length;
   const duplicateIdCount = identityIssues.filter((issue) => issue.kind === 'duplicate').length;
   const validCount = hasIdentityColumn ? mappedRows.length - identityIssues.length : 0;
+
+  const canImport = mappedRows.length > 0 && hasIdentityColumn;
 
   return {
     columnOptions,
@@ -131,8 +136,10 @@ export function buildImportPreviewModel(
     issueRowNumbers,
     mappedRowByNumber,
     emptyIdCount,
+    invalidIdCount,
     duplicateIdCount,
     validCount,
-    canImport: mappedRows.length > 0 && hasIdentityColumn && identityIssues.length === 0,
+    canImport,
+    canProceedToLottery: canImport && identityIssues.length === 0,
   };
 }

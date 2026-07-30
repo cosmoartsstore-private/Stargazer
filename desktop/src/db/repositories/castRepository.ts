@@ -3,6 +3,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getSharedDb } from '../database';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
+import { parseXUsername } from '@/common/xIdUtils';
 import { enqueueEventWrite, getRequiredEventName } from './commandContext';
 import { groupRowsBy } from './groupRowsBy';
 
@@ -45,7 +46,12 @@ function toCastPayload(cast: Omit<CastBean, 'id'>): {
     aliases: cast.aliases ?? [],
     is_present: cast.is_present,
     contact_urls: cast.contact_urls ?? [],
-    ng_entries: cast.ng_entries ?? [],
+    ng_entries: (cast.ng_entries ?? []).map((entry) => ({
+      ...entry,
+      accountId: entry.accountId
+        ? (parseXUsername(entry.accountId) ?? entry.accountId.trim())
+        : undefined,
+    })),
     group_name: cast.group_name ?? null,
     photo_data_url: cast.photo_data_url ?? null,
     memo: cast.memo ?? null,
@@ -76,7 +82,9 @@ export async function getAllCasts(): Promise<CastBean[]> {
     const ngEntries = ngRowsByCastId.get(row.id)?.flatMap((ngRow) => {
       const entry: NGUserEntry = {
         username: ngRow.username ?? undefined,
-        accountId: ngRow.userid ?? undefined,
+        accountId: ngRow.userid
+          ? (parseXUsername(ngRow.userid) ?? ngRow.userid.trim())
+          : undefined,
         notes: ngRow.notes ?? undefined,
       };
       return entry.username || entry.accountId ? [entry] : [];

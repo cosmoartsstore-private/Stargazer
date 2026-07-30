@@ -14,6 +14,7 @@ interface RawColumnsDialogProps {
   sourceRows: ImportSourceRow[];
   columnIndexes: number[];
   issueRowNumbers: Set<number>;
+  xIdColumnIndex: number;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -24,6 +25,7 @@ export const RawColumnsDialog: React.FC<RawColumnsDialogProps> = ({
   sourceRows,
   columnIndexes,
   issueRowNumbers,
+  xIdColumnIndex,
   onOpenChange,
 }) => {
   return (
@@ -50,11 +52,13 @@ export const RawColumnsDialog: React.FC<RawColumnsDialogProps> = ({
           </thead>
           <tbody>
             {sourceRows.map((row) => (
-              <tr key={row.rowNumber} className={issueRowNumbers.has(row.rowNumber) ? styles.importRawRowWarn : ''}>
+              <tr key={row.rowNumber}>
                 <th className={styles.importRawRowIndex} scope="row">{row.rowNumber}</th>
                 {columnIndexes.map((columnIndex) => {
                   const cell = row.cells[columnIndex] ?? '';
-                  return <td key={columnIndex}>{cell || <span className={styles.importCellEmpty}>{getMsg('common.emptyMarker')}</span>}</td>;
+                  const hasIdentityIssue = issueRowNumbers.has(row.rowNumber)
+                    && columnIndex === xIdColumnIndex;
+                  return <td key={columnIndex} className={hasIdentityIssue ? styles.importRawCellWarn : undefined}>{cell || <span className={styles.importCellEmpty}>{getMsg('common.emptyMarker')}</span>}</td>;
                 })}
               </tr>
             ))}

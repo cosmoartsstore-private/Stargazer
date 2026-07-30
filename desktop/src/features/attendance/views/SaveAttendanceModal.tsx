@@ -173,8 +173,10 @@ export function SaveAttendanceModal({
       </div>
       <div className={styles.modalFooter}>
         {recordStatusMessage && <span className={styles.overwriteNote} role={dateRecordStatus === 'failed' ? 'alert' : 'status'}>{recordStatusMessage}</span>}
-        <button type="button" className={shared.btnSecondary} onClick={onClose}>{getMsg('common.cancel')}</button>
-        <button type="button" className={shared.btnPrimary} disabled={saving || !canSave} onClick={handleSaveClick}>{saveButtonLabel}</button>
+        <div className={styles.modalFooterActions}>
+          <button type="button" className={shared.btnSecondary} onClick={onClose}>{getMsg('common.cancel')}</button>
+          <button type="button" className={shared.btnPrimary} disabled={saving || !canSave} onClick={handleSaveClick}>{saveButtonLabel}</button>
+        </div>
       </div>
     </AppDialog>
   );

@@ -57,6 +57,861 @@
   --guide-accent-output-border: rgba(220, 91, 102, 0.32);
 }
 
+/* 静的な画面例は、ガイド本体のテーマにかかわらずダーク配色で表示する。 */
+.guide-dark-sample {
+  background: #1e1f22;
+  color: #dbdee1;
+  --surface-panel: #1e1f22;
+  --surface-page: #18191c;
+  --surface-panel-muted: #2b2d31;
+  --surface-panel-elevated: #313338;
+  --surface-hover: #35373c;
+  --surface-selected: #35373c;
+  --surface-tab-hover: #35373c;
+  --surface-subtle: #232428;
+  --text-default: #dbdee1;
+  --text-muted: #949ba4;
+  --text-link: #00a8fc;
+  --text-external-link: #4eb2ff;
+  --text-heading: #f2f3f5;
+  --text-success: #22c55e;
+  --text-warning: #facc15;
+  --text-danger: #ed4245;
+  --accent-primary: #5865f2;
+  --accent-success: #22c55e;
+  --accent-warning: #facc15;
+  --accent-danger: #ed4245;
+  --border-default: #3f4147;
+  --border-divider: #35373c;
+  --border-tab: #3f4147;
+  --button-primary-bg: #5865f2;
+  --button-primary-hover-bg: #4752c4;
+  --button-secondary-bg: #383a40;
+  --button-secondary-hover-bg: #46484f;
+  --button-success-bg: #15803d;
+  --button-success-hover-bg: #16a34a;
+  --button-danger-bg: #ed4245;
+  --status-success-bg: #15803d;
+  --status-success-text: #ffffff;
+  --status-success-border: #22c55e;
+  --status-info-bg: #122d42;
+  --status-info-text: #4eb2ff;
+  --status-info-solid: #0f77bd;
+  --status-warning-bg: #ffd43b;
+  --status-warning-hover-bg: #f4c62a;
+  --status-warning-text: #1a1503;
+  --status-warning-border: #d1a000;
+  --modal-backdrop: rgba(0, 0, 0, 0.65);
+  --modal-surface: #1e1f22;
+  --modal-border: #3f4147;
+  --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --guide-accent-primary: #5865f2;
+  --guide-accent-primary-bg: #242849;
+  --guide-accent-primary-border: #4650b8;
+  --guide-accent-import: #8b5cf6;
+  --guide-accent-import-bg: #30264c;
+  --guide-accent-import-border: #6947b9;
+  --guide-accent-cast: #06b6d4;
+  --guide-accent-cast-bg: #153d46;
+  --guide-accent-cast-border: #087f93;
+  --guide-accent-lottery: #10b981;
+  --guide-accent-lottery-bg: #153d32;
+  --guide-accent-lottery-border: #0c8060;
+  --guide-accent-matching: #f59e0b;
+  --guide-accent-matching-bg: #493713;
+  --guide-accent-matching-border: #a36a05;
+  --guide-accent-output: #ef4444;
+  --guide-accent-output-bg: #472326;
+  --guide-accent-output-border: #a73535;
+}
+
+.guideImportSample {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.guideImportFileSection,
+.guideImportSection {
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--surface-panel-muted);
+}
+
+.guideImportFileSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+}
+
+.guideImportFileButton,
+.guideImportFileName,
+.guideImportRawColumns,
+.guideImportSecondaryAction,
+.guideImportPrimaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.guideImportFileButton {
+  padding: 5px 8px;
+  background: var(--button-primary-bg);
+  color: #ffffff;
+  font-size: 10px;
+}
+
+.guideImportFileName {
+  min-width: 0;
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  background: var(--surface-panel);
+  color: var(--text-heading);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.guideImportSection {
+  padding: 9px 10px;
+}
+
+.guideImportSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 7px;
+  color: var(--text-default);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.guideImportSectionChevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.guideImportMappingTable {
+  display: flex;
+  flex-direction: column;
+}
+
+.guideImportMappingRow {
+  display: grid;
+  grid-template-columns: 106px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.guideImportMappingLabel,
+.guideImportCastFormatLabel {
+  color: var(--text-heading);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.guideImportRequired {
+  color: var(--accent-danger);
+}
+
+.guideImportSelect {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--surface-panel);
+  color: var(--text-default);
+  font-size: 9px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guideImportSelect svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.guideImportCastFormatRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 7px;
+}
+
+.guideImportCastFormatLabel {
+  color: var(--text-muted);
+}
+
+.guideImportSegmented {
+  display: inline-flex;
+  min-width: 0;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-panel);
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.guideImportSegmented > span {
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.guideImportSegmented .guideImportSegmentSelected {
+  background: var(--surface-panel-muted);
+  color: var(--accent-primary);
+}
+
+.guideImportPreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.guideImportPreviewCount {
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--surface-panel);
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.guideImportRawColumns {
+  padding: 3px 6px;
+  background: var(--button-secondary-bg);
+  color: var(--text-default);
+  font-size: 8px;
+}
+
+.guideImportPreviewTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+}
+
+.guideImportPreviewTable {
+  min-width: 520px;
+  border-radius: 0;
+  background: var(--surface-panel);
+  font-size: 8px;
+}
+
+.guideImportPreviewTable th,
+.guideImportPreviewTable td {
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.guideImportPreviewTable th {
+  color: var(--text-muted);
+  font-size: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.guideImportPreviewTable td {
+  color: var(--text-default);
+  font-size: 8px;
+}
+
+.guideImportFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border-default);
+}
+
+.guideImportValidation {
+  color: var(--accent-success);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.guideImportActions {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.guideImportSecondaryAction,
+.guideImportPrimaryAction {
+  padding: 4px 7px;
+  font-size: 8px;
+}
+
+.guideImportSecondaryAction {
+  background: var(--button-secondary-bg);
+  color: var(--text-default);
+}
+
+.guideImportPrimaryAction {
+  background: var(--button-primary-bg);
+  color: #ffffff;
+}
+
+/* 基本的な流れの画面例は、実画面のパネル、状態表示、ボタン階層を縮小して再現する。 */
+.guideFlowSample {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.guideFlowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.guideFlowActionPrimary {
+  background: var(--button-primary-bg);
+  color: #ffffff;
+}
+
+.guideFlowActionSecondary {
+  background: var(--button-secondary-bg);
+  color: var(--text-default);
+}
+
+.guideFlowActionSuccess {
+  background: var(--button-success-bg);
+  color: #ffffff;
+}
+
+.guideFlowActionExport {
+  border-color: var(--border-default);
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
+}
+
+.guideFlowAttendanceToolbar,
+.guideFlowExecutionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--surface-panel-muted);
+}
+
+.guideFlowAttendanceToolbar {
+  flex-wrap: wrap;
+}
+
+.guideFlowAttendanceSummary,
+.guideFlowAttendanceActions,
+.guideFlowOutputActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.guideFlowAttendanceSummary {
+  gap: 10px;
+}
+
+.guideFlowAttendancePresentCount,
+.guideFlowAttendanceAbsentCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.guideFlowAttendancePresentCount {
+  color: var(--text-success);
+}
+
+.guideFlowAttendancePresentCount::before,
+.guideFlowAttendanceAbsentCount::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.guideFlowAttendanceColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.guideFlowMiniPanel,
+.guideFlowResultPanel,
+.guideFlowOutputPanel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--surface-panel-muted);
+}
+
+.guideFlowMiniPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-height: 30px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
+}
+
+.guideFlowMiniPanelHeader strong,
+.guideFlowOutputHeader strong,
+.guideFlowResultHeader strong,
+.guideFlowExportRow strong {
+  color: var(--text-heading);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.guideFlowCountBadge {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--button-secondary-bg);
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.guideFlowCountBadgePresent {
+  background: var(--button-success-bg);
+  color: #ffffff;
+}
+
+.guideFlowCastList {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+}
+
+.guideFlowCastRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 26px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.guideFlowCastRowPresent {
+  border-color: var(--button-success-bg);
+  background: var(--button-success-bg);
+  color: #ffffff;
+}
+
+.guideFlowCastRowAbsent {
+  border-color: var(--border-default);
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
+}
+
+.guideFlowCastStatus {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.guideFlowLotteryLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(145px, 0.85fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.guideFlowPanelHeading {
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 2px;
+}
+
+.guideFlowPanelHeading span,
+.guideFlowOutputHeader span,
+.guideFlowResultHeader div > span {
+  color: var(--text-muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.guideFlowLotteryFields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.guideFlowLotteryFieldWide {
+  grid-column: 1 / -1;
+}
+
+.guideFlowFieldLabel {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.guideFlowSegmentedControl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-panel);
+}
+
+.guideFlowSegmentedControl > span {
+  padding: 4px 3px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.guideFlowSegmentedControl .guideFlowSegmentedSelected {
+  background: var(--button-primary-bg);
+  color: #ffffff;
+}
+
+.guideFlowCounter {
+  display: grid;
+  grid-template-columns: 20px minmax(22px, 1fr) 20px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-panel);
+  color: var(--text-default);
+  font-size: 8px;
+  text-align: center;
+}
+
+.guideFlowCounter > span,
+.guideFlowCounter > strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+}
+
+.guideFlowCounter > span {
+  background: var(--button-secondary-bg);
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.guideFlowValidationPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.guideFlowValidationBody {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  flex: 1;
+  padding: 8px;
+}
+
+.guideFlowInfoBadge {
+  justify-self: start;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--button-primary-bg);
+  color: #ffffff;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.guideFlowValidationInfo {
+  display: grid;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid var(--guide-accent-primary-border);
+  border-radius: 5px;
+  background: var(--guide-accent-primary-bg);
+  color: var(--text-default);
+  font-size: 8px;
+}
+
+.guideFlowValidationInfo strong {
+  color: var(--text-heading);
+  font-size: 8px;
+}
+
+.guideFlowReadyState,
+.guideFlowExecutionStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-success);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.guideFlowReadyState {
+  padding: 6px 7px;
+  border: 1px solid #22c55e;
+  border-radius: 5px;
+  background: #173824;
+}
+
+.guideFlowPanelActionBar {
+  display: flex;
+  justify-content: stretch;
+  padding: 7px 8px;
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-panel);
+}
+
+.guideFlowPanelActionBar .guideFlowAction {
+  width: 100%;
+}
+
+.guideFlowExecutionBar {
+  padding: 7px 8px;
+}
+
+.guideFlowResultHeader,
+.guideFlowOutputHeader,
+.guideFlowExportRow,
+.guideFlowTsvBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.guideFlowResultHeader,
+.guideFlowOutputHeader {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
+}
+
+.guideFlowResultHeader > div,
+.guideFlowOutputHeader {
+  min-width: 0;
+}
+
+.guideFlowResultHeader div,
+.guideFlowOutputHeader {
+  display: grid;
+  align-items: start;
+  justify-content: stretch;
+  gap: 2px;
+}
+
+.guideFlowResultTableWrap {
+  overflow-x: auto;
+}
+
+.guideFlowResultTable {
+  width: 100%;
+  min-width: 440px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.guideFlowResultTable th,
+.guideFlowResultTable td {
+  padding: 5px;
+  border-right: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  text-align: left;
+  vertical-align: top;
+}
+
+.guideFlowResultTable tr > :last-child {
+  border-right: 0;
+}
+
+.guideFlowResultTable tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.guideFlowResultTable thead th {
+  background: var(--surface-panel-muted);
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.guideFlowResultTable tbody th {
+  width: 78px;
+  background: var(--surface-panel);
+  color: var(--text-heading);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.guideFlowAssignment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 5px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.guideFlowAssignment strong {
+  grid-column: 1 / -1;
+  color: inherit;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+
+.guideFlowAssignmentId {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.guideFlowAssignmentRank {
+  align-self: start;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--surface-panel);
+  color: inherit;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.guideFlowAssignmentFirst {
+  border-color: #9e7b05;
+  background: #493d16;
+  color: #f6d65e;
+}
+
+.guideFlowAssignmentSecond {
+  border-color: #62666f;
+  background: #35373c;
+  color: #d2d5dc;
+}
+
+.guideFlowAssignmentThird {
+  border-color: #9c6634;
+  background: #46301f;
+  color: #d69b5a;
+}
+
+.guideFlowOutputPanel {
+  display: grid;
+}
+
+.guideFlowOutputControls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+}
+
+.guideFlowSavedResultControl {
+  min-width: 0;
+  flex: 1;
+}
+
+.guideFlowSelectMock,
+.guideFlowFileName {
+  display: flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-panel);
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.guideFlowSelectMock {
+  justify-content: space-between;
+}
+
+.guideFlowSelectMock::after {
+  color: var(--text-muted);
+  content: '⌄';
+}
+
+.guideFlowExportRow {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-panel);
+}
+
+.guideFlowTsvBar {
+  align-items: flex-end;
+  padding: 8px;
+}
+
+.guideFlowTsvBar > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.guideFlowFileName {
+  color: var(--text-default);
+}
+
 .guide-section {
   margin-bottom: 48px;
 }
@@ -137,6 +992,383 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+}
+
+.guideTsvSection {
+  margin-bottom: 40px;
+}
+
+.guideTsvDescription {
+  margin-bottom: 20px;
+  color: var(--text-muted);
+}
+
+.guideTsvStepLayout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.68fr) minmax(0, 1.32fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.guideTsvInstructions {
+  min-width: 0;
+}
+
+.guideTsvStepHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--text-heading);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.guideTsvSteps {
+  margin: 0;
+  padding-left: 24px;
+  color: var(--text-default);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.guideTsvSteps li::marker {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.guideTsvSample {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #f8f9fa;
+  box-shadow: 0 4px 14px rgba(32, 33, 36, 0.12);
+  color: #202124;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+}
+
+.guideTsvSampleCaption {
+  padding: 8px 12px;
+  border-bottom: 1px solid #dadce0;
+  background: #f8f9fa;
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.guideFormsMock {
+  position: relative;
+  min-height: 252px;
+  padding: 14px 18px 22px;
+  background: #f0ebf8;
+}
+
+.guideFormsTitlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 9px;
+  border-radius: 8px 8px 0 0;
+  background: #ffffff;
+  color: #202124;
+  font-size: 15px;
+}
+
+.guideFormsTabs {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #ffffff;
+  color: #5f6368;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.guideFormsTabs > span {
+  padding: 10px 2px 8px;
+}
+
+.guideFormsTabs .guideFormsTabActive {
+  border-bottom: 3px solid #673ab7;
+  color: #673ab7;
+}
+
+.guideFormsResponseCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.14);
+}
+
+.guideFormsResponseCard > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.guideFormsResponseCard strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.guideFormsResponseCard span {
+  color: #5f6368;
+  font-size: 11px;
+}
+
+.guideFormsActions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: #5f6368;
+}
+
+.guideFormsSheetIcon {
+  display: inline-flex;
+  color: #188038 !important;
+}
+
+.guideFormsMenu {
+  position: absolute;
+  z-index: 2;
+  top: 89px;
+  right: 24px;
+  width: 210px;
+  padding: 6px 0;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(60, 64, 67, 0.26);
+}
+
+.guideFormsMenuItemActive {
+  display: block;
+  padding: 9px 14px;
+  background: #f1f3f4;
+  color: #202124;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.guideFormsCallout {
+  position: absolute;
+  right: 26px;
+  bottom: 7px;
+  color: #673ab7;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.guideSpreadsheetMock {
+  position: relative;
+  min-height: 374px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.guideSpreadsheetTitlebar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px 5px;
+  color: #3c4043;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.guideSpreadsheetAppIcon {
+  display: inline-flex;
+  color: #188038;
+}
+
+.guideSpreadsheetMenuBar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 9px 5px 46px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #3c4043;
+  font-size: 11px;
+}
+
+.guideSpreadsheetMenuBar > span {
+  padding: 4px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.guideSpreadsheetMenuBar .guideSpreadsheetMenuActive {
+  background: #e8f0fe;
+  color: #1967d2;
+}
+
+.guideSpreadsheetFormulaBar {
+  display: grid;
+  grid-template-columns: 52px 34px 1fr;
+  min-height: 27px;
+  border-bottom: 1px solid #dadce0;
+  color: #5f6368;
+  font-size: 11px;
+}
+
+.guideSpreadsheetFormulaBar > span {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid #dadce0;
+}
+
+.guideSpreadsheetFormulaIcon {
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
+.guideSpreadsheetGridWrap {
+  overflow: hidden;
+}
+
+.guideSpreadsheetGrid {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: #202124;
+  font-size: 10px;
+}
+
+.guideSpreadsheetGrid th,
+.guideSpreadsheetGrid td {
+  height: 24px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border-right: 1px solid #dadce0;
+  border-bottom: 1px solid #dadce0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guideSpreadsheetGrid tbody td {
+  background: #ffffff;
+  color: #202124;
+}
+
+.guideSpreadsheetGrid thead th,
+.guideSpreadsheetGrid tbody th {
+  background: #f8f9fa;
+  color: #5f6368;
+  font-weight: 400;
+  text-align: center;
+}
+
+.guideSpreadsheetGrid th:first-child {
+  width: 28px;
+}
+
+.guideSpreadsheetGrid th:nth-child(2),
+.guideSpreadsheetGrid td:nth-child(2) {
+  width: 142px;
+}
+
+.guideSpreadsheetGrid th:nth-child(3),
+.guideSpreadsheetGrid td:nth-child(3) {
+  width: 114px;
+}
+
+.guideSpreadsheetGrid th:nth-child(4),
+.guideSpreadsheetGrid td:nth-child(4) {
+  width: 105px;
+}
+
+.guideSpreadsheetGrid tbody .guideSpreadsheetHeaderCell {
+  background: #e6f4ea;
+  color: #202124;
+  font-weight: 700;
+}
+
+.guideSpreadsheetTabs {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 30px;
+  padding: 0 13px;
+  border-top: 1px solid #dadce0;
+  background: #f8f9fa;
+  color: #5f6368;
+  font-size: 10px;
+}
+
+.guideSpreadsheetTabs strong {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 2px solid #188038;
+  color: #188038;
+  font-weight: 600;
+}
+
+.guideSpreadsheetFileMenu,
+.guideSpreadsheetDownloadMenu {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border: 1px solid #dadce0;
+  border-radius: 3px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(60, 64, 67, 0.28);
+  color: #202124;
+  font-size: 11px;
+}
+
+.guideSpreadsheetFileMenu {
+  top: 63px;
+  left: 47px;
+  width: 148px;
+}
+
+.guideSpreadsheetDownloadMenu {
+  top: 117px;
+  left: 198px;
+  width: 276px;
+}
+
+.guideSpreadsheetFileMenu > span,
+.guideSpreadsheetDownloadMenu > span,
+.guideSpreadsheetDownloadMenu > strong {
+  padding: 8px 12px;
+  font-weight: 400;
+}
+
+.guideSpreadsheetDownloadItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e8f0fe;
+  color: #1967d2;
+}
+
+.guideSpreadsheetDownloadMenu > strong {
+  background: #e6f4ea;
+  color: #137333;
+  font-weight: 700;
 }
 
 .guide-features-layout {
@@ -259,13 +1491,14 @@
 }
 
 .featureGuideSampleLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   padding: 14px;
 }
 
 .guidePreviewAppFrame {
+  position: relative;
   min-width: 0;
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -273,10 +1506,50 @@
   overflow: hidden;
 }
 
+.guidePreviewScenes {
+  display: grid;
+  gap: 14px;
+}
+
+.guidePreviewScene {
+  min-width: 0;
+}
+
+.guidePreviewSceneTitle {
+  margin: 0 0 7px;
+  color: var(--text-heading);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guidePreviewMarker {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.48);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.guidePreviewMarkerLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
 .guideScaledViewport {
   position: relative;
   width: 100%;
-  min-height: 320px;
   overflow: hidden;
 }
 
@@ -299,8 +1572,8 @@
 }
 
 .featureGuideLegend {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -348,8 +1621,23 @@
 @media (max-width: 768px) {
 
   .guide-section-grid,
-  .featureGuideSampleLayout {
+  .guideTsvStepLayout {
     grid-template-columns: 1fr !important;
+  }
+
+  .guideSpreadsheetMenuBar {
+    gap: 0;
+    padding-left: 8px;
+  }
+
+  .guideSpreadsheetMenuBar > span:nth-child(n + 5) {
+    display: none;
+  }
+
+  .guideSpreadsheetDownloadMenu {
+    right: 8px;
+    left: 198px;
+    width: auto;
   }
 
   .featureGuideSampleHeader {

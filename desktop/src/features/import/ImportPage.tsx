@@ -27,19 +27,29 @@ import shared from '@/styles/shared.module.css';
 
 interface ImportPageProps {
   onImportUsers: (users: UserBean[], nextPage?: PageType) => void;
+  initialData?: ImportPageInitialData;
 }
 
-export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
+export interface ImportPageInitialData {
+  headers: string[];
+  sourceRows: ImportSourceRow[];
+  fileName: string;
+  mapping: ColumnMapping;
+}
+
+export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialData }) => {
   // 選択ファイル、列設定、補助ダイアログの表示状態。
   const inputRef = useRef<HTMLInputElement>(null);
-  const [sourceRows, setSourceRows] = useState<ImportSourceRow[] | null>(null);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [fileName, setFileName] = useState('');
+  const [sourceRows, setSourceRows] = useState<ImportSourceRow[] | null>(() => initialData?.sourceRows ?? null);
+  const [headers, setHeaders] = useState<string[]>(() => initialData?.headers ?? []);
+  const [fileName, setFileName] = useState(() => initialData?.fileName ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [mapping, setMapping] = useState<ColumnMapping>(() => createEmptyColumnMapping());
+  const [mapping, setMapping] = useState<ColumnMapping>(() => initialData?.mapping ?? createEmptyColumnMapping());
   const [rawColumnsOpen, setRawColumnsOpen] = useState(false);
   const [fileAreaShake, setFileAreaShake] = useState(false);
   const [xIdShake, setXIdShake] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(true);
 
   // プレビューと取込実行で同じ列変換・本人確認結果を共有する。
   const previewModel = useMemo(
@@ -86,6 +96,8 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
       setSourceRows(dataRows.map((cells, index) => ({ rowNumber: index + 1, cells })));
       setFileName(file.name);
       setMapping(detectedMapping);
+      setMappingOpen(true);
+      setPreviewOpen(true);
       setError(null);
       if (detectedMapping.x_id < 0) setXIdShake(true);
     } catch {
@@ -95,13 +107,9 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
     }
   };
 
-  const handleRemoveSourceRow = (rowNumber: number) => {
-    setSourceRows((current) => current?.filter((row) => row.rowNumber !== rowNumber) ?? null);
-    setError(null);
-  };
-
   const importUsers = (nextPage?: PageType) => {
     if (!previewModel.canImport) return;
+    if (nextPage === 'lottery' && !previewModel.canProceedToLottery) return;
     onImportUsers(previewModel.mappedRows.map(({ user }) => user), nextPage);
   };
 
@@ -130,10 +138,12 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
 
       {headers.length > 0 && (
         <ImportMappingPanel
+          open={mappingOpen}
           mapping={mapping}
           columnOptions={previewModel.columnOptions}
           hasSourceRows={sourceRows !== null}
           xIdShake={xIdShake}
+          onOpenChange={setMappingOpen}
           onColumnChange={handleColumnChange}
           onCastInputTypeChange={handleCastInputTypeChange}
           onXIdAnimationEnd={handleXIdAnimationEnd}
@@ -144,11 +154,12 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
         <div className={styles.importPreviewEmpty}>{getMsg('ImportPage.previewEmpty')}</div>
       ) : (
         <ImportPreviewPanel
+          open={previewOpen}
           sourceRowCount={sourceRows.length}
           castInputType={mapping.castInputType}
           model={previewModel}
+          onOpenChange={setPreviewOpen}
           onOpenRawColumns={handleOpenRawColumns}
-          onRemoveSourceRow={handleRemoveSourceRow}
           onImportAndOpenLottery={handleImportAndOpenLottery}
           onImportOnly={handleImportOnly}
         />
@@ -161,6 +172,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers }) => {
           sourceRows={sourceRows}
           columnIndexes={previewModel.rawColumnIndexes}
           issueRowNumbers={previewModel.issueRowNumbers}
+          xIdColumnIndex={previewModel.importMapping.x_id}
           onOpenChange={setRawColumnsOpen}
         />
       )}

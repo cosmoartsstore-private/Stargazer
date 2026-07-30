@@ -7,6 +7,7 @@ import {
   getSessionWorkflowSnapshot,
   loadApplicants,
   persistApplicants,
+  updateApplicantCastPreferences,
 } from '@/db';
 import {
   captureSessionWriteActivity,
@@ -41,12 +42,14 @@ export function useApplicantMutations({
     getSessionUiMutationGeneration,
     hydrateSessionWorkflow,
     isCurrentSessionUiMutation,
+    isSavedLotterySessionReadOnly,
   } = useAppContext();
 
   // 確認対象と、保存・復旧結果を通知するダイアログ状態。
   const [removeTarget, setRemoveTarget] = useState<UserBean | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [isPreferenceSaving, setIsPreferenceSaving] = useState(false);
 
   const clearApplicantDependentResults = () => {
     setCurrentWinners([]);
@@ -77,6 +80,10 @@ export function useApplicantMutations({
       if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
       setApplicants(reloadedApplicants);
       setCurrentWinners(restoreLotteryWinners(lotteryRows, reloadedApplicants));
+      setSelectedUser((current) => {
+        if (current?.id === undefined) return current;
+        return reloadedApplicants.find((user) => user.id === current.id) ?? null;
+      });
       hydrateSessionWorkflow(workflowSnapshot);
       resetMatching();
       return true;
@@ -86,6 +93,11 @@ export function useApplicantMutations({
 
   // 応募者の削除を先行反映し、保存失敗時は同じセッションの永続状態へ復元する。
   const removeApplicant = async () => {
+    if (isSavedLotterySessionReadOnly) {
+      setRemoveTarget(null);
+      setAlertMessage(getMsg('ApplicantDataPage.savedLotteryReadOnly'));
+      return;
+    }
     if (removeTarget === null) return;
     const target = removeTarget;
     if (target.id === undefined) {
@@ -127,8 +139,67 @@ export function useApplicantMutations({
     }
   };
 
+  // 希望キャストだけを先行反映し、抽選結果を維持したままマッチング結果を失効させる。
+  const saveApplicantPreferences = async (updatedUser: UserBean): Promise<boolean> => {
+    if (isSavedLotterySessionReadOnly) {
+      setAlertMessage(getMsg('ApplicantDataPage.savedLotteryReadOnly'));
+      return false;
+    }
+    if (
+      updatedUser.id === undefined
+      || updatedUser.cast_ids === undefined
+      || updatedUser.casts.length !== updatedUser.cast_ids.length
+    ) {
+      setAlertMessage(getMsg('ApplicantDataPage.targetUnavailable'));
+      return false;
+    }
+    let context: ReturnType<typeof getRequiredSessionContext>;
+    try {
+      context = getRequiredSessionContext();
+    } catch {
+      setAlertMessage(getMsg('ApplicantDataPage.sessionUnavailable'));
+      return false;
+    }
+    if (isSessionRecoveryActive(context)) {
+      setAlertMessage(getMsg('ApplicantDataPage.recoveryInProgress'));
+      return false;
+    }
+
+    const applicantId = updatedUser.id;
+    const generation = beginSessionUiMutation();
+    const replaceApplicant = (users: UserBean[]) => users.map(
+      (user) => user.id === applicantId ? updatedUser : user,
+    );
+    setIsPreferenceSaving(true);
+    setApplicants(replaceApplicant);
+    setCurrentWinners(replaceApplicant);
+    setSelectedUser(updatedUser);
+    resetMatching();
+    try {
+      await updateApplicantCastPreferences(applicantId, updatedUser.cast_ids, context);
+      return isCurrentSessionContext(context) && isCurrentSessionUiMutation(generation);
+    } catch {
+      try {
+        await reconcilePersistedSessionState(context);
+      } catch {
+        // 再同期に失敗しても、元の保存失敗を画面へ通知して終了する。
+      }
+      if (isCurrentSessionContext(context) && isCurrentSessionUiMutation(generation)) {
+        setAlertMessage(getMsg('ApplicantDataPage.preferenceSaveFailed'));
+      }
+      return false;
+    } finally {
+      setIsPreferenceSaving(false);
+    }
+  };
+
   // 応募者全件と依存結果を先行消去し、保存失敗時は永続状態へ復元する。
   const clearApplicants = async () => {
+    if (isSavedLotterySessionReadOnly) {
+      setShowClearConfirm(false);
+      setAlertMessage(getMsg('ApplicantDataPage.savedLotteryReadOnly'));
+      return;
+    }
     let context: ReturnType<typeof getRequiredSessionContext>;
     try {
       context = getRequiredSessionContext();
@@ -164,8 +235,20 @@ export function useApplicantMutations({
   };
 
   // 一覧と確認ダイアログから呼ぶ、対象を型付きで束縛した操作。
-  const handleRemoveClick = useCallback((user: UserBean) => setRemoveTarget(user), []);
-  const handleOpenClearConfirm = () => setShowClearConfirm(true);
+  const handleRemoveClick = useCallback((user: UserBean) => {
+    if (isSavedLotterySessionReadOnly) {
+      setAlertMessage(getMsg('ApplicantDataPage.savedLotteryReadOnly'));
+      return;
+    }
+    setRemoveTarget(user);
+  }, [isSavedLotterySessionReadOnly]);
+  const handleOpenClearConfirm = () => {
+    if (isSavedLotterySessionReadOnly) {
+      setAlertMessage(getMsg('ApplicantDataPage.savedLotteryReadOnly'));
+      return;
+    }
+    setShowClearConfirm(true);
+  };
   const handleConfirmRemove = () => { void removeApplicant(); };
   const handleConfirmClearAll = () => { void clearApplicants(); };
   const handleDismissAlert = () => setAlertMessage(null);
@@ -176,6 +259,8 @@ export function useApplicantMutations({
     alertMessage,
     removeTarget,
     showClearConfirm,
+    isPreferenceSaving,
+    saveApplicantPreferences,
     handleRemoveClick,
     handleOpenClearConfirm,
     handleConfirmRemove,

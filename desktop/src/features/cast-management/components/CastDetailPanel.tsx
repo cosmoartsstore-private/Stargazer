@@ -5,12 +5,10 @@ import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../CastManagementPage.module.css';
 import {
-  CONTACT_SITE_LINKS,
   getContactMarker,
   getEditableContactUrls,
   getOpenableContactUrl,
   type ContactMarkerKind,
-  type ContactSiteLink,
   type EventMutationResult,
 } from '../castManagementModel';
 
@@ -99,25 +97,6 @@ const AliasEditor = ({ cast, inputAlias, isSaving, onInputChange, onAdd, onUpdat
   );
 };
 
-interface ContactSiteButtonProps {
-  item: ContactSiteLink;
-  onOpen: (url: string) => void;
-}
-
-const ContactSiteButton = ({ item, onOpen }: ContactSiteButtonProps) => {
-  const handleClick = () => onOpen(item.url);
-
-  return (
-    <button type="button" className={`${styles.castContactQuickBtn} ${styles.castContactSiteBtn}`} onClick={handleClick}>
-      <span className={styles.castContactQuickIcon}><ExternalLink size={12} /></span>
-      <span className={styles.castContactQuickText}>
-        <strong>{item.label}</strong>
-        <small>{getMsg('CastManagementPage.openSite')}</small>
-      </span>
-    </button>
-  );
-};
-
 function getContactMarkerClassName(kind: ContactMarkerKind): string {
   switch (kind) {
     case 'externalChat': return `${styles.castContactMarker} ${styles.castContactMarkerExternalChat}`;
@@ -176,12 +155,6 @@ const ContactEditor = ({ cast, onChange, onAdd, onOpen, onDelete }: ContactEdito
   return (
     <div className={styles.castContactSection} role="group" aria-labelledby={contactHeadingId}>
       <span id={contactHeadingId} className={shared.managementDetailLabel}>{getMsg('CastManagementPage.contactLabel')}</span>
-      <div className={styles.castContactSiteLinks}>
-        <span className={styles.castContactSiteLabel}>{getMsg('CastManagementPage.externalSites')}</span>
-        <div className={styles.castContactSiteActions}>
-          {CONTACT_SITE_LINKS.map((item) => <ContactSiteButton key={item.key} item={item} onOpen={onOpen} />)}
-        </div>
-      </div>
       <div className={styles.castContactList}>
         {getEditableContactUrls(cast).map((url, index) => (
           <ContactRow key={`${cast.id}-${index}`} url={url} index={index} onChange={onChange} onOpen={onOpen} onDelete={onDelete} />
@@ -291,18 +264,6 @@ export const CastDetailPanel = ({
           <input type="text" className={styles.castCharNameInput} defaultValue={cast.name} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} onBlur={handleCastNameBlur} />
           <input type="text" className={styles.castCharGroupBadge} defaultValue={cast.group_name ?? ''} placeholder={getMsg('CastManagementPage.groupPlaceholder')} aria-label={getMsg('CastManagementPage.groupPlaceholder')} onBlur={handleGroupNameBlur} />
 
-          <AliasEditor
-            cast={cast}
-            inputAlias={inputAlias}
-            isSaving={isSavingAliases}
-            onInputChange={onAliasInputChange}
-            onAdd={onAddAlias}
-            onUpdate={onUpdateAlias}
-            onDelete={onDeleteAlias}
-          />
-
-          <div className={styles.castCharDivider} />
-
           <div className={styles.castCharMemoSection}>
             <div className={styles.castCharMemoHeader}>
               <span id={profileLabelId} className={shared.managementDetailLabel}>{getMsg('CastManagementPage.profileLabel')}</span>
@@ -316,6 +277,18 @@ export const CastDetailPanel = ({
               <button type="button" className={memoTextClassName} onClick={handleMemoEditClick}>{cast.memo ?? getMsg('CastManagementPage.profilePrompt')}</button>
             )}
           </div>
+
+          <div className={styles.castCharDivider} />
+
+          <AliasEditor
+            cast={cast}
+            inputAlias={inputAlias}
+            isSaving={isSavingAliases}
+            onInputChange={onAliasInputChange}
+            onAdd={onAddAlias}
+            onUpdate={onUpdateAlias}
+            onDelete={onDeleteAlias}
+          />
 
           <div className={styles.castCharDivider} />
 

@@ -1,6 +1,7 @@
 // キャスト別NGと要注意人物の二つの管理ワークフローを切り替えるページ。
 
 import { useState, type FC, type KeyboardEvent } from 'react';
+import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
@@ -17,7 +18,11 @@ export {
   resolveSelectedCastId,
 } from './ngUserManagementModel';
 
-type NgTab = 'cast-ng' | 'caution';
+export type NgManagementTab = 'cast-ng' | 'caution';
+
+interface NGUserManagementPageProps {
+  initialTab?: NgManagementTab;
+}
 
 /** 選択中のタブだけへ強調classを加える。 */
 function getNgSubTabClassName(isActive: boolean): string {
@@ -27,9 +32,9 @@ function getNgSubTabClassName(isActive: boolean): string {
   ].filter(Boolean).join(' ');
 }
 
-export const NGUserManagementPage: FC = () => {
+export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab = 'cast-ng' }) => {
   // ページ全体で共有するタブ選択と、操作結果を通知するalert。
-  const [ngTab, setNgTab] = useState<NgTab>('cast-ng');
+  const [ngTab, setNgTab] = useState<NgManagementTab>(initialTab);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // 両ワークフローが参照するイベント共有データとContext更新契約。
@@ -66,7 +71,7 @@ export const NGUserManagementPage: FC = () => {
     setNgTab('caution');
   }
 
-  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, tab: NgTab): void {
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, tab: NgManagementTab): void {
     const currentIndex = tab === 'cast-ng' ? 0 : 1;
     let nextIndex = currentIndex;
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') nextIndex = currentIndex === 0 ? 1 : 0;
@@ -75,7 +80,7 @@ export const NGUserManagementPage: FC = () => {
     else return;
 
     event.preventDefault();
-    const nextTab: NgTab = nextIndex === 0 ? 'cast-ng' : 'caution';
+    const nextTab: NgManagementTab = nextIndex === 0 ? 'cast-ng' : 'caution';
     setNgTab(nextTab);
     document.getElementById(`ng-management-tab-${nextTab}`)?.focus();
   }
@@ -109,13 +114,15 @@ export const NGUserManagementPage: FC = () => {
   const deleteNgRegistrationMessage = castNg.pendingDelete
     ? getMsg('NGUserManagementPage.deleteNgRegistrationMessage', {
         label: castNg.pendingDelete.entry.username?.trim()
-          || castNg.pendingDelete.entry.accountId?.trim()
+          || (castNg.pendingDelete.entry.accountId
+            ? formatXAccountIdForDisplay(castNg.pendingDelete.entry.accountId)
+            : '')
           || getMsg('NGUserManagementPage.ngUserFallback'),
       })
     : '';
   const unregisterCautionMessage = cautionUsers.pendingDeleteAccountId
     ? getMsg('NGUserManagementPage.unregisterCautionMessage', {
-        accountId: cautionUsers.pendingDeleteAccountId,
+        accountId: formatXAccountIdForDisplay(cautionUsers.pendingDeleteAccountId),
       })
     : '';
   const openProfileMessage = profileLink.pendingLink

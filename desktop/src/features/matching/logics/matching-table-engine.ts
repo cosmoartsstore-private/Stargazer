@@ -1,6 +1,5 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import { shuffleArray } from '@/common/arrayUtils';
-import type { NGJudgmentType, NGMatchingBehavior } from '@/features/matching/types/matching-system-types';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
 import { isUserNGForCast } from './ng-judgment';
 import {
@@ -15,8 +14,6 @@ interface TableBasedMatchingInput {
   baseSlots: CastBean[];
   totalTables: number;
   rotationCount: number;
-  ngJudgmentType: NGJudgmentType;
-  ngMatchingBehavior: NGMatchingBehavior;
 }
 
 /** 1テーブルの全ローテーションについて、NG排除と同一キャスト重複を点数化する。 */
@@ -24,17 +21,13 @@ function scoreTableSlot(
   winner: UserBean,
   rotation: CastBean[][],
   slotIndex: number,
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
 ): number {
   let totalScore = 0;
   const seenCastIds = new Set<number>();
 
   for (let roundIndex = 0; roundIndex < rotation.length; roundIndex += 1) {
     const cast = rotation[roundIndex][slotIndex];
-    const shouldExclude =
-      ngMatchingBehavior === 'exclude' && isUserNGForCast(winner, cast, ngJudgmentType);
-    if (shouldExclude || seenCastIds.has(cast.id)) {
+    if (isUserNGForCast(winner, cast) || seenCastIds.has(cast.id)) {
       return Number.NEGATIVE_INFINITY;
     }
 
@@ -63,7 +56,7 @@ function buildSlotMatches(
 
 /** M001/M002 共通の、1テーブル1応募者型マッチング結果を構築する。 */
 function runTableBasedMatching(input: TableBasedMatchingInput): MatchingResult {
-  const { winners, baseSlots, totalTables, rotationCount, ngJudgmentType, ngMatchingBehavior } = input;
+  const { winners, baseSlots, totalTables, rotationCount } = input;
   const userMap = new Map<string, MatchedCast[]>();
 
   if (winners.length === 0 || baseSlots.length === 0) {
@@ -79,8 +72,6 @@ function runTableBasedMatching(input: TableBasedMatchingInput): MatchingResult {
         winners[winnerIndex],
         rotation,
         slotIndex,
-        ngJudgmentType,
-        ngMatchingBehavior,
       ),
   );
 
@@ -118,8 +109,6 @@ export function runSingleCastMatching(
   allCasts: CastBean[],
   totalTables: number,
   rotationCount: number,
-  ngJudgmentType: NGJudgmentType,
-  ngMatchingBehavior: NGMatchingBehavior,
   randomizeCasts: boolean,
 ): MatchingResult {
   const activeCasts = allCasts.filter((cast) => cast.is_present);
@@ -143,7 +132,5 @@ export function runSingleCastMatching(
     baseSlots,
     totalTables,
     rotationCount,
-    ngJudgmentType,
-    ngMatchingBehavior,
   });
 }

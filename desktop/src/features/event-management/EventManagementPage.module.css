@@ -247,8 +247,9 @@
 
 .event-char-switch-btn--current,
 .event-char-switch-btn:disabled {
-  background: var(--accent-success);
-  color: #fff;
+  border: 1px solid var(--status-success-border);
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
   cursor: default;
   opacity: 1;
 }

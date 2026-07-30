@@ -5,15 +5,15 @@ import { getMsg } from '@/messages/getMsg';
 export type ContactMarkerKind = 'externalChat' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
 export type EventMutationResult = 'saved' | 'failed' | 'stale';
 
-export interface ContactSiteLink {
+export interface CommonShortcutLink {
   key: 'externalChat' | 'x' | 'vrchat';
   label: string;
   marker: string;
   url: string;
 }
 
-// 連絡先欄から直接開けるサービスと、入力値の表示分類を一つの定義に揃える。
-export const CONTACT_SITE_LINKS: readonly ContactSiteLink[] = [
+// 名簿全体から開く共通ショートカットと、連絡先入力値の表示分類を一つの定義に揃える。
+export const COMMON_SHORTCUT_LINKS: readonly CommonShortcutLink[] = [
   {
     key: 'externalChat',
     label: getMsg('CastManagementPage.discordLabel'),
@@ -33,6 +33,9 @@ export const CONTACT_SITE_LINKS: readonly ContactSiteLink[] = [
     url: 'https://vrchat.com/home',
   },
 ];
+
+// 既存の外部参照を保つため、従来の公開名も共通ショートカットと同じ定義へ接続する。
+export const CONTACT_SITE_LINKS = COMMON_SHORTCUT_LINKS;
 
 function isHttpsContactUrl(url: string): boolean {
   return url.trim().toLowerCase().startsWith('https://');
@@ -55,7 +58,7 @@ export function getOpenableContactUrl(url: string): string | null {
 export function getContactMarker(url: string): { label: string; kind: ContactMarkerKind } {
   const trimmed = url.trim();
   const lowerUrl = trimmed.toLowerCase();
-  const matched = CONTACT_SITE_LINKS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
+  const matched = COMMON_SHORTCUT_LINKS.find((item) => lowerUrl.startsWith(item.url.toLowerCase()));
   if (matched) return { label: matched.marker, kind: matched.key };
   if (!trimmed) return { label: getMsg('CastManagementPage.urlMarker'), kind: 'empty' };
   if (lowerUrl.startsWith('https://vrchat.com/')) {

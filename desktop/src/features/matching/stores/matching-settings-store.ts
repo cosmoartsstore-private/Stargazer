@@ -15,9 +15,7 @@ import type {
 
 const DEFAULT_SEARCH_MODE: MatchingSearchMode = 'efficiency';
 export const DEFAULT_CAUTION_THRESHOLD = 2;
-// 保存キーは旧版とのDB互換のため維持し、Runtime上は候補表示の閾値として扱う。
 const CAUTION_CANDIDATE_THRESHOLD_SETTING_KEY = 'caution_auto_register_threshold';
-const LEGACY_MATCHING_SETTINGS_STORAGE_KEY = 'stargazer_matching_settings';
 
 export interface MatchingSettingsState {
   searchMode: MatchingSearchMode;
@@ -28,24 +26,13 @@ function isSearchMode(value: unknown): value is MatchingSearchMode {
   return value === 'quality' || value === 'efficiency';
 }
 
-/**
- * 旧 matchingSettings から探索モードだけを一度移行する。
- * イベント識別子を持たない要注意人物・閾値・NG例外は別イベントへ混入し得るため移行しない。
- */
+/** 端末に保存された探索モードを読み込む。 */
 function readInitialSearchMode(): MatchingSearchMode {
   const storage = getBrowserStorage();
   if (!storage) return DEFAULT_SEARCH_MODE;
   try {
     const stored = storage.getItem(STORAGE_KEYS.MATCHING_SEARCH_MODE);
-    if (isSearchMode(stored)) return stored;
-
-    const legacyRaw = storage.getItem(LEGACY_MATCHING_SETTINGS_STORAGE_KEY);
-    if (!legacyRaw) return DEFAULT_SEARCH_MODE;
-    const legacy = JSON.parse(legacyRaw) as { searchMode?: unknown };
-    const migrated = isSearchMode(legacy.searchMode) ? legacy.searchMode : DEFAULT_SEARCH_MODE;
-    storage.setItem(STORAGE_KEYS.MATCHING_SEARCH_MODE, migrated);
-    // 要注意人物などの移行先イベントを自動決定できないため、旧値は明示移行まで削除しない。
-    return migrated;
+    return isSearchMode(stored) ? stored : DEFAULT_SEARCH_MODE;
   } catch {
     return DEFAULT_SEARCH_MODE;
   }

@@ -1,30 +1,71 @@
 // キャスト別の出欠履歴を日付ごとの一覧表として表示する。
 
-import { Check, Minus } from 'lucide-react';
+import { CalendarDays, Circle, X } from 'lucide-react';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
-import type { AttendanceHistoryLoadStatus, AttendanceMatrixRow } from '../models/types';
+import type { AttendanceHistoryLoadStatus, AttendanceMatrixRow, AttendancePeriod } from '../models/types';
 import styles from '../AttendancePage.module.css';
 
 interface AttendanceRecordsViewProps {
   attendanceDates: string[];
   attendanceRows: AttendanceMatrixRow[];
+  attendancePeriod: AttendancePeriod;
+  periodDialogOpen: boolean;
   loadStatus: AttendanceHistoryLoadStatus;
+  onOpenPeriodDialog: () => void;
 }
 
-export function AttendanceRecordsView({ attendanceDates, attendanceRows, loadStatus }: AttendanceRecordsViewProps) {
+function getAttendancePeriodLabel(period: AttendancePeriod): string {
+  if (period.startDate && period.endDate) {
+    return getMsg('AttendanceRecordsView.periodRange', {
+      startDate: period.startDate,
+      endDate: period.endDate,
+    });
+  }
+  if (period.startDate) {
+    return getMsg('AttendanceRecordsView.periodFrom', { startDate: period.startDate });
+  }
+  if (period.endDate) {
+    return getMsg('AttendanceRecordsView.periodUntil', { endDate: period.endDate });
+  }
+  return getMsg('AttendanceRecordsView.allPeriod');
+}
+
+export function AttendanceRecordsView({
+  attendanceDates,
+  attendanceRows,
+  attendancePeriod,
+  periodDialogOpen,
+  loadStatus,
+  onOpenPeriodDialog,
+}: AttendanceRecordsViewProps) {
+  const hasPeriodFilter = Boolean(attendancePeriod.startDate || attendancePeriod.endDate);
+  const periodStatus = getMsg(
+    hasPeriodFilter
+      ? 'AttendanceRecordsView.customPeriod'
+      : 'AttendanceRecordsView.allPeriod',
+  );
+  const periodButtonLabel = getMsg('AttendanceRecordsView.openPeriodDialog', {
+    period: getAttendancePeriodLabel(attendancePeriod),
+  });
+  const periodButtonClassName = `${styles.attendanceMatrixCountButton}${
+    hasPeriodFilter ? ` ${styles.attendanceMatrixCountButtonActive}` : ''
+  }`;
+  const showEmpty = attendanceRows.length === 0
+    || (!hasPeriodFilter && attendanceDates.length === 0);
+
   return (
     <div className={styles.recordsTab}>
-      <div className={styles.recordsSection}>
+      <section className={styles.recordsSection} aria-labelledby="attendance-records-title">
         <div className={styles.recordsSectionHeader}>
-          <span className={styles.recordsTitle}>{getMsg('AttendanceRecordsView.title')}</span>
-          {loadStatus === 'ready' && <span className={styles.recordsSummary}>{getMsg('AttendanceRecordsView.summary', { castCount: attendanceRows.length, dayCount: attendanceDates.length })}</span>}
+          <h2 id="attendance-records-title" className={styles.recordsTitle}>{getMsg('AttendanceRecordsView.title')}</h2>
+          {loadStatus === 'ready' && <span className={styles.recordsSummary} role="status">{getMsg('AttendanceRecordsView.summary', { castCount: attendanceRows.length, dayCount: attendanceDates.length })}</span>}
         </div>
         {loadStatus === 'idle' || loadStatus === 'loading' ? (
           <div className={styles.attendanceEmpty}>{getMsg('common.loading')}</div>
         ) : loadStatus === 'failed' ? (
           <div className={styles.attendanceEmpty}>{getMsg('AttendanceRecordsView.loadFailed')}</div>
-        ) : attendanceRows.length === 0 || attendanceDates.length === 0 ? (
+        ) : showEmpty ? (
           /* 出欠履歴がない場合 */
           <div className={styles.attendanceEmpty}>{getMsg('AttendanceRecordsView.empty')}</div>
         ) : (
@@ -33,17 +74,22 @@ export function AttendanceRecordsView({ attendanceDates, attendanceRows, loadSta
             <table className={styles.attendanceMatrix}>
               <thead>
                 <tr>
-                  <th className={styles.attendanceMatrixCastHead}>{getMsg('AttendanceRecordsView.castNameHeader')}</th>
-                  <th className={styles.attendanceMatrixCountHead}>{getMsg('AttendanceRecordsView.attendanceCountHeader')}</th>
+                  <th scope="col" className={styles.attendanceMatrixCastHead}>{getMsg('AttendanceRecordsView.castNameHeader')}</th>
+                  <th scope="col" className={styles.attendanceMatrixCountHead}>
+                    <button type="button" className={periodButtonClassName} aria-label={periodButtonLabel} aria-haspopup="dialog" aria-expanded={periodDialogOpen} onClick={onOpenPeriodDialog}>
+                      <span>{getMsg('AttendanceRecordsView.attendanceCountHeader')}</span>
+                      <span className={styles.attendanceMatrixCountPeriod}><CalendarDays size={11} aria-hidden />{periodStatus}</span>
+                    </button>
+                  </th>
                   {attendanceDates.map((date) => (
-                    <th key={date} className={styles.attendanceMatrixDateHead}>{date}</th>
+                    <th key={date} scope="col" className={styles.attendanceMatrixDateHead}>{date}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {attendanceRows.map((row) => (
                   <tr key={row.castName}>
-                    <td className={styles.attendanceMatrixCastName}>{row.castName}</td>
+                    <th scope="row" className={styles.attendanceMatrixCastName}>{row.castName}</th>
                     <td className={styles.attendanceMatrixCountCell}><span className={styles.attendanceCountText}>{row.totalCount}</span></td>
                     {attendanceDates.map((date) => (
                       <AttendanceMatrixCell key={`${row.castName}-${date}`} castName={row.castName} date={date} isPresent={row.dates.has(date)} />
@@ -54,7 +100,7 @@ export function AttendanceRecordsView({ attendanceDates, attendanceRows, loadSta
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -72,15 +118,15 @@ function AttendanceMatrixCell({ castName, date, isPresent }: AttendanceMatrixCel
 
   return (
     <td
-      className={`${styles.attendanceMatrixCell}${isPresent ? ` ${styles.attendanceMatrixCellPresent}` : ''}`}
+      className={styles.attendanceMatrixCell}
       aria-label={getMsg('AttendanceRecordsView.cellLabel', { date, castName, status })}
     >
       {isPresent ? (
         /* 出席の場合 */
-        <span className={styles.attendanceCheckMark} aria-hidden="true"><Check size={13} strokeWidth={3} aria-hidden="true" /></span>
+        <span className={styles.attendancePresentMark} aria-hidden="true"><Circle size={24} strokeWidth={3.25} /></span>
       ) : (
         /* 欠席の場合 */
-        <span className={styles.attendanceEmptyMark} aria-hidden="true"><Minus size={12} strokeWidth={2.5} aria-hidden="true" /></span>
+        <span className={styles.attendanceAbsentMark} aria-hidden="true"><X size={23} strokeWidth={3} /></span>
       )}
     </td>
   );

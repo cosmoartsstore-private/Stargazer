@@ -1,0 +1,9 @@
+タイムスタンプ	お名前	X ID	VRChatプロフURL	希望キャスト（カンマ区切り）	参加区分	確認事項	連絡事項1	連絡事項2	連絡事項3	連絡事項4	連絡事項5	連絡事項6
+2026-07-30 18:00	モーダル縦長確認	@modal_scroll	https://vrchat.com/home/user/usr_modal_scroll	Noa,Rin,Mio,Sora,Yuki,Haru,Hina,Kana,Rei,Toa,未登録A,未登録B,未登録C,未登録D,未登録E,未登録F	一般	希望キャスト修正モーダルの本文スクロールを確認	長い詳細1	長い詳細2	長い詳細3	長い詳細4	長い詳細5	保存ボタンが常に表示されること
+2026-07-30 18:01	X ID空欄1		https://vrchat.com/home/user/usr_empty_1	Noa,Rin,Mio	一般	取り込み可能・抽選不可を確認	空X ID 1件目	確認済み	確認済み	確認済み	確認済み	削除後に抽選可能
+2026-07-30 18:02	X ID空欄2			Sora,Yuki,Haru	一般	取り込み可能・抽選不可を確認	空X ID 2件目	確認済み	確認済み	確認済み	確認済み	削除後に抽選可能
+2026-07-30 18:03	正規化重複1	@DuplicateCase		Hina,Kana,Rei	一般	正規化後の重複を確認	@付き	大文字混在	重複1件目	確認済み	確認済み	2行とも警告対象
+2026-07-30 18:04	正規化重複2	duplicatecase		Toa,Noa,Rin	一般	正規化後の重複を確認	@なし	小文字	重複2件目	確認済み	確認済み	2行とも警告対象
+2026-07-30 18:05	X URL確認	https://x.com/url_boundary		Mio,Sora,Yuki	一般	XプロフィールURLの形式不正を確認	URL形式	確認済み	確認済み	確認済み	確認済み	削除後に抽選可能
+2026-07-30 18:06	旧Twitter URL確認	https://twitter.com/url_boundary_old		Haru,Hina,Kana	一般	旧URL形式の形式不正を確認	URL形式	確認済み	確認済み	確認済み	確認済み	削除後に抽選可能
+2026-07-30 18:07	正常確認	@validation_ok	https://vrchat.com/home/user/usr_validation_normal	Rei,Toa,Noa	一般	正常系の比較用	正常X ID	確認済み	確認済み	確認済み	確認済み	正常データ

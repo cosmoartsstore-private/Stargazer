@@ -378,8 +378,8 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
         <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>{getMsg('GuidePage.feature.tweet.placeholderListTitle')}</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {([
-            { ph: getMsg('GuidePage.feature.tweet.castsPlaceholder'), desc: getMsg('GuidePage.feature.tweet.castsDescription') },
-            { ph: getMsg('GuidePage.feature.tweet.eventNamePlaceholder'), desc: getMsg('GuidePage.feature.tweet.eventNameDescription') },
+            { ph: getMsg('GuidePage.feature.tweet.castsToken'), desc: getMsg('GuidePage.feature.tweet.castsDescription') },
+            { ph: getMsg('GuidePage.feature.tweet.eventNameToken'), desc: getMsg('GuidePage.feature.tweet.eventNameDescription') },
           ] as const).map(({ ph, desc }) => (
             <div
               key={ph}

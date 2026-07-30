@@ -33,6 +33,7 @@ import {
 import type {
   AttendanceDateRecordStatus,
   AttendanceHistoryLoadStatus,
+  AttendancePeriod,
   AttendanceTab,
   CastAttendanceRecord,
 } from '../models/types';
@@ -44,9 +45,13 @@ interface UseAttendanceStateParams {
   setCasts: Dispatch<SetStateAction<CastBean[]>>;
 }
 
+function createAllAttendancePeriod(): AttendancePeriod {
+  return { startDate: '', endDate: '' };
+}
+
 /** 出欠画面の入力・履歴読込・保存と、失敗時のイベント共有DB再同期を管理する。 */
 export function useAttendanceState({ currentEventName, casts, setCasts }: UseAttendanceStateParams) {
-  // タブ、保存モーダル、履歴、通知の画面状態。
+  // タブ、ダイアログ、履歴、通知の画面状態。
   const [activeTab, setActiveTab] = useState<AttendanceTab>('setup');
   const [history, setHistory] = useState<CastAttendanceRecord[]>([]);
   const [historyLoadStatus, setHistoryLoadStatus] = useState<AttendanceHistoryLoadStatus>('idle');
@@ -56,6 +61,8 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   const [dateRecordStatus, setDateRecordStatus] = useState<AttendanceDateRecordStatus>('idle');
   const [dateCheckRequest, setDateCheckRequest] = useState(0);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [attendancePeriod, setAttendancePeriod] = useState<AttendancePeriod>(createAllAttendancePeriod);
+  const [attendancePeriodDialogOpen, setAttendancePeriodDialogOpen] = useState(false);
 
   // 履歴読込と出席状態更新の競合を判定する世代・トークン。
   const historyLoadGenerationRef = useRef(0);
@@ -66,7 +73,10 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   const presentCasts = useMemo(() => casts.filter((cast) => cast.is_present), [casts]);
   const presentCount = presentCasts.length;
   const groupedPresent = useMemo(() => groupCastsByGroupName(presentCasts), [presentCasts]);
-  const attendanceMatrix = useMemo(() => buildAttendanceMatrix(casts, history), [casts, history]);
+  const attendanceMatrix = useMemo(
+    () => buildAttendanceMatrix(casts, history, attendancePeriod),
+    [attendancePeriod, casts, history],
+  );
 
   // 現在のイベント世代だけに出欠履歴の読込結果を反映する。
   const loadData = useCallback(async () => {
@@ -136,6 +146,8 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
     setHistoryLoadStatus('idle');
     setDateRecordStatus('idle');
     setAlertMessage(null);
+    setAttendancePeriod(createAllAttendancePeriod());
+    setAttendancePeriodDialogOpen(false);
     presenceMutationByCastIdRef.current.clear();
   }, [currentEventName]);
 
@@ -219,6 +231,19 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
     if (hasRecordDateFormat(value)) {
       setDateCheckRequest((request) => request + 1);
     }
+  }, []);
+
+  const handleOpenAttendancePeriodDialog = useCallback(() => {
+    setAttendancePeriodDialogOpen(true);
+  }, []);
+
+  const handleCloseAttendancePeriodDialog = useCallback(() => {
+    setAttendancePeriodDialogOpen(false);
+  }, []);
+
+  const handleApplyAttendancePeriod = useCallback((period: AttendancePeriod) => {
+    setAttendancePeriod(period);
+    setAttendancePeriodDialogOpen(false);
   }, []);
 
   // 個別・一括の出席状態を楽観更新し、失敗時は永続化済み名簿へ戻す。
@@ -305,6 +330,11 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
     groupedPresent,
     attendanceDates: attendanceMatrix.dates,
     attendanceRows: attendanceMatrix.rows,
+    attendancePeriod,
+    attendancePeriodDialogOpen,
+    handleOpenAttendancePeriodDialog,
+    handleCloseAttendancePeriodDialog,
+    handleApplyAttendancePeriod,
     historyLoadStatus,
     saving,
     confirmSave,

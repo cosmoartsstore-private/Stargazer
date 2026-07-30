@@ -63,7 +63,7 @@ describe('initializeApp', () => {
     });
   });
 
-  it('保存済みイベントとセッション候補を一組で復元する', async () => {
+  it('旧キーだけではイベントとセッション候補を復元しない', async () => {
     installWindowWithStorage(createStorage({
       'stargazer:lastEvent': 'Event A',
       'stargazer:lastSession': '2026-06-19T12:00:00.000Z',
@@ -71,16 +71,19 @@ describe('initializeApp', () => {
 
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
-      lastUsedEvent: 'Event A',
-      lastUsedSession: '2026-06-19T12:00:00.000Z',
+      lastUsedEvent: null,
+      lastUsedSession: null,
     });
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
-  it('保存済みイベントが存在しない場合は保存済みセッションを破棄する', async () => {
+  it('保存済みイベントが存在しない場合は保存済み位置を破棄する', async () => {
     const storage = createStorage({
-      'stargazer:lastEvent': 'Missing Event',
-      'stargazer:lastSession': '2026-06-19T12:00:00.000Z',
+      'stargazer:lastLocation': JSON.stringify({
+        version: 1,
+        eventName: 'Missing Event',
+        sessionTimestamp: '2026-06-19T12:00:00.000Z',
+      }),
     });
     installWindowWithStorage(storage);
 
@@ -89,16 +92,17 @@ describe('initializeApp', () => {
       lastUsedEvent: null,
       lastUsedSession: null,
     });
-    expect(storage.getItem('stargazer:lastEvent')).toBeNull();
-    expect(storage.getItem('stargazer:lastSession')).toBeNull();
     expect(storage.getItem('stargazer:lastLocation')).toBeNull();
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('セッション候補の実在確認はイベントを開く処理へ委ねる', async () => {
     installWindowWithStorage(createStorage({
-      'stargazer:lastEvent': 'Event A',
-      'stargazer:lastSession': 'missing-session',
+      'stargazer:lastLocation': JSON.stringify({
+        version: 1,
+        eventName: 'Event A',
+        sessionTimestamp: 'missing-session',
+      }),
     }));
 
     await expect(initializeApp()).resolves.toEqual({
@@ -123,14 +127,17 @@ describe('initializeApp', () => {
     });
   });
 
-  it('保存済みイベントの読み取りに失敗した場合は保存済みセッションを削除しない', async () => {
+  it('保存済み位置の読み取りに失敗した場合は保存値を削除しない', async () => {
     const storage = createStorage({
-      'stargazer:lastEvent': 'Event A',
-      'stargazer:lastSession': '2026-06-19T12:00:00.000Z',
+      'stargazer:lastLocation': JSON.stringify({
+        version: 1,
+        eventName: 'Event A',
+        sessionTimestamp: '2026-06-19T12:00:00.000Z',
+      }),
     });
     storage.getItem = vi.fn((key: string) => {
-      if (key === 'stargazer:lastEvent') throw new Error('read blocked');
-      return key === 'stargazer:lastSession' ? '2026-06-19T12:00:00.000Z' : null;
+      if (key === 'stargazer:lastLocation') throw new Error('read blocked');
+      return null;
     });
     installWindowWithStorage(storage);
 
@@ -173,19 +180,15 @@ describe('最後に使用した位置の保存と初期化', () => {
     });
   });
 
-  it('現在イベントの削除後に新旧の最終位置を消去する', () => {
+  it('現在イベントの削除後に最終位置を消去する', () => {
     const storage = createStorage({
       'stargazer:lastLocation': '{"version":1,"eventName":"Event A","sessionTimestamp":null}',
-      'stargazer:lastEvent': 'Event A',
-      'stargazer:lastSession': '20260725120000',
     });
     installWindowWithStorage(storage);
 
     clearSavedLocation();
 
     expect(storage.getItem('stargazer:lastLocation')).toBeNull();
-    expect(storage.getItem('stargazer:lastEvent')).toBeNull();
-    expect(storage.getItem('stargazer:lastSession')).toBeNull();
   });
 
   it('保存に失敗しても例外を送出しない', () => {
@@ -200,8 +203,11 @@ describe('最後に使用した位置の保存と初期化', () => {
 
   it('存在しない保存済みイベントの削除に失敗しても初期化を継続する', async () => {
     const storage = createStorage({
-      'stargazer:lastEvent': 'Missing Event',
-      'stargazer:lastSession': '2026-06-19T12:00:00.000Z',
+      'stargazer:lastLocation': JSON.stringify({
+        version: 1,
+        eventName: 'Missing Event',
+        sessionTimestamp: '2026-06-19T12:00:00.000Z',
+      }),
     });
     storage.removeItem = vi.fn(() => {
       throw new Error('remove blocked');
@@ -212,5 +218,6 @@ describe('最後に使用した位置の保存と初期化', () => {
       lastUsedEvent: null,
       lastUsedSession: null,
     });
+    expect(storage.removeItem).toHaveBeenCalledWith('stargazer:lastLocation');
   });
 });

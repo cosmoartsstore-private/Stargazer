@@ -1,4 +1,5 @@
-import type { AnimationEvent } from 'react';
+import { useId, type AnimationEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { AppSelect } from '@/components/AppSelect';
 import type { ColumnMapping } from '@/common/importFormat';
 import { getMsg } from '@/messages/getMsg';
@@ -39,10 +40,12 @@ const CastFormatButton: React.FC<CastFormatButtonProps> = ({ inputType, selected
 };
 
 interface ImportMappingPanelProps {
+  open: boolean;
   mapping: ColumnMapping;
   columnOptions: ImportColumnOption[];
   hasSourceRows: boolean;
   xIdShake: boolean;
+  onOpenChange: (open: boolean) => void;
   onColumnChange: (key: ImportColumnKey, value: string) => void;
   onCastInputTypeChange: (inputType: ColumnMapping['castInputType']) => void;
   onXIdAnimationEnd: (event: AnimationEvent<HTMLDivElement>) => void;
@@ -50,21 +53,31 @@ interface ImportMappingPanelProps {
 
 /** TSVの各列を応募者項目へ割り当てる操作だけを表示する。 */
 export const ImportMappingPanel: React.FC<ImportMappingPanelProps> = ({
+  open,
   mapping,
   columnOptions,
   hasSourceRows,
   xIdShake,
+  onOpenChange,
   onColumnChange,
   onCastInputTypeChange,
   onXIdAnimationEnd,
 }) => {
+  const contentId = useId();
   const xIdMappingClassName = `${styles.importMappingRow}${xIdShake ? ` ${shared.shake}` : ''}`;
+  const chevronClassName = `${styles.importDisclosureChevron}${open ? ` ${styles.importDisclosureChevronOpen}` : ''}`;
+  const handleToggle = () => onOpenChange(!open);
 
   return (
     <div className={styles.importMappingSection}>
-      <div className={styles.importSectionHeader}>{getMsg('ImportPage.mappingSettings')}</div>
+      <div className={styles.importSectionHeader}>
+        <button type="button" className={styles.importDisclosureToggle} aria-expanded={open} aria-controls={contentId} onClick={handleToggle}>
+          <ChevronDown size={14} className={chevronClassName} aria-hidden="true" />
+          <span>{getMsg('ImportPage.mappingSettings')}</span>
+        </button>
+      </div>
 
-      <div className={styles.importMappingTable}>
+      <div id={contentId} className={styles.importMappingTable} hidden={!open}>
         <div className={styles.importMappingRow}>
           <span className={styles.importMappingLabel}>{getMsg('ImportPage.userNameLabel')}</span>
           <div className={styles.importMappingControl}><MappingSelect columnKey="name" columnIndex={mapping.name} label={getMsg('ImportPage.userNameLabel')} options={columnOptions} onChange={onColumnChange} /></div>

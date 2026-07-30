@@ -45,6 +45,12 @@ describe('isCautionUser', () => {
     ])).toBe(true);
   });
 
+  it('名前未入力時にX IDから補完した表示名は名前照合へ使わない', () => {
+    expect(isCautionUser(user, [
+      { username: '@alice', accountId: 'alice' },
+    ])).toBe(true);
+  });
+
   it('応募ユーザーの accountId が空なら判定しない', () => {
     expect(isCautionUser({ ...user, x_id: '' }, [
       { username: 'Alice', accountId: '' },
@@ -53,7 +59,7 @@ describe('isCautionUser', () => {
 });
 
 describe('computeCautionCandidates', () => {
-  it('同じ表記のIDを集計し、同じ表記で登録済みのIDを候補から除外する', () => {
+  it('正規化後に同じIDを集計し、登録済みのIDを候補から除外する', () => {
     const candidateCasts: CastBean[] = [
       {
         id: 1,
@@ -85,24 +91,26 @@ describe('computeCautionCandidates', () => {
 
     expect(computeCautionCandidates(candidateCasts, 2, ['@registered_id'])).toEqual([
       {
-        accountId: '@bob_id',
+        accountId: 'bob_id',
         usernames: ['Bob'],
         castCount: 3,
       },
       {
-        accountId: '@alice_id',
+        accountId: 'alice_id',
         usernames: ['Alice', 'Alice B'],
         castCount: 2,
       },
     ]);
   });
 
-  it('大小文字や先頭@が異なるIDは別の候補として扱う', () => {
+  it('大小文字や先頭@が異なるIDを同じ候補として扱う', () => {
     const variedIds: CastBean[] = [
       { id: 1, name: 'Cast A', is_present: true, ng_entries: [{ accountId: '@Alice' }] },
       { id: 2, name: 'Cast B', is_present: true, ng_entries: [{ accountId: 'alice' }] },
     ];
 
-    expect(computeCautionCandidates(variedIds, 2, [])).toEqual([]);
+    expect(computeCautionCandidates(variedIds, 2, [])).toEqual([
+      { accountId: 'Alice', usernames: [], castCount: 2 },
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CastBean, UserBean } from '@/common/types/entities';
 import type { MatchedCast } from '@/features/matching/logics/matching-io';
 import type { CastResultRow } from '@/features/matching/presenters/matching-result-view';
@@ -25,8 +25,28 @@ function installDocumentStub(anchor: FakeAnchor): ReturnType<typeof vi.fn> {
   return createElement;
 }
 
-const user: UserBean = { name: 'Alice', x_id: '@alice', casts: ['Cast A'], raw_extra: [] };
+function createElementStub(): HTMLElement {
+  return {
+    clientWidth: 320,
+    scrollWidth: 640,
+    clientHeight: 180,
+    scrollHeight: 480,
+  } as HTMLElement;
+}
+
+const getComputedStyle = vi.fn(() => ({
+  borderLeftWidth: '1px',
+  borderRightWidth: '2px',
+  borderTopWidth: '3px',
+  borderBottomWidth: '4px',
+} as CSSStyleDeclaration));
+
+const user: UserBean = { name: 'Alice', x_id: 'alice', casts: ['Cast A'], raw_extra: [] };
 const cast: CastBean = { id: 1, name: 'Cast A', is_present: true };
+
+beforeEach(() => {
+  vi.stubGlobal('window', { getComputedStyle });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -41,14 +61,24 @@ describe('exportElementAsPng', () => {
   });
 
   it('高解像度PNGを生成し、拡張子を補完したファイル名でダウンロードする', async () => {
-    const node = {} as HTMLElement;
+    const node = createElementStub();
     const anchor: FakeAnchor = { href: '', download: '', click: vi.fn() };
     const createElement = installDocumentStub(anchor);
     imageMocks.toPng.mockResolvedValue('data:image/png;base64,result');
 
     await exportElementAsPng(node, 'matching-result');
 
-    expect(imageMocks.toPng).toHaveBeenCalledWith(node, { cacheBust: true, pixelRatio: 2 });
+    expect(getComputedStyle).toHaveBeenCalledWith(node);
+    expect(imageMocks.toPng).toHaveBeenCalledWith(node, {
+      cacheBust: true,
+      pixelRatio: 2,
+      width: 643,
+      height: 487,
+      style: {
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      },
+    });
     expect(createElement).toHaveBeenCalledWith('a');
     expect(anchor.href).toBe('data:image/png;base64,result');
     expect(anchor.download).toBe('matching-result.png');
@@ -60,7 +90,7 @@ describe('exportElementAsPng', () => {
     installDocumentStub(anchor);
     imageMocks.toPng.mockResolvedValue('data:image/png;base64,result');
 
-    await exportElementAsPng({} as HTMLElement, 'matching-result.png');
+    await exportElementAsPng(createElementStub(), 'matching-result.png');
 
     expect(anchor.download).toBe('matching-result.png');
   });
@@ -71,7 +101,7 @@ describe('exportElementAsPng', () => {
     const createElement = installDocumentStub(anchor);
     imageMocks.toPng.mockRejectedValue(imageError);
 
-    await expect(exportElementAsPng({} as HTMLElement, 'matching-result')).rejects.toBe(imageError);
+    await expect(exportElementAsPng(createElementStub(), 'matching-result')).rejects.toBe(imageError);
     expect(createElement).not.toHaveBeenCalled();
     expect(anchor.click).not.toHaveBeenCalled();
   });
@@ -88,7 +118,7 @@ describe('exportElementAsPng', () => {
     installDocumentStub(anchor);
     imageMocks.toPng.mockResolvedValue('data:image/png;base64,result');
 
-    await expect(exportElementAsPng({} as HTMLElement, 'matching-result')).rejects.toBe(clickError);
+    await expect(exportElementAsPng(createElementStub(), 'matching-result')).rejects.toBe(clickError);
   });
 });
 

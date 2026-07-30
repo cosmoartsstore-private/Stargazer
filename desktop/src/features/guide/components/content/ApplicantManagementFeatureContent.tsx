@@ -5,6 +5,7 @@ import { BarChart3, CheckCircle, Database, FileText } from 'lucide-react';
 import type { FeatureId } from '@/features/guide/guideSampleContext';
 import { getMsg } from '@/messages/getMsg';
 import { FeatureGuideSample } from '../GuideFeatureSample';
+import { GuideImportScreenSample } from '../GuideImportScreenSample';
 import {
   FeatureHeader,
   FeatureList,
@@ -19,43 +20,6 @@ import {
 } from './GuideContentPrimitives';
 
 type ApplicantManagementFeatureId = Extract<FeatureId, 'applicant-data' | 'import' | 'lottery' | 'matching'>;
-
-const IMPORT_FILE_STATUS_STYLE: React.CSSProperties = {
-  marginBottom: 10,
-  padding: '6px 10px',
-  background: 'var(--guide-accent-import-bg)',
-  border: '1px solid var(--guide-accent-import-border)',
-  borderRadius: 6,
-  fontSize: 11,
-  color: 'var(--text-muted)',
-};
-
-const IMPORT_MAPPING_VALUE_STYLE: React.CSSProperties = {
-  padding: '3px 8px',
-  background: 'var(--surface-panel-muted)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 4,
-  fontSize: 11,
-  color: 'var(--accent-primary)',
-};
-
-const IMPORT_LOTTERY_ACTION_STYLE: React.CSSProperties = {
-  padding: '5px 12px',
-  background: 'var(--button-secondary-bg)',
-  color: 'var(--text-default)',
-  borderRadius: 5,
-  fontSize: 11,
-  fontWeight: 700,
-};
-
-const IMPORT_CONFIRM_ACTION_STYLE: React.CSSProperties = {
-  padding: '5px 14px',
-  background: 'var(--accent-primary)',
-  color: '#fff',
-  borderRadius: 5,
-  fontSize: 11,
-  fontWeight: 700,
-};
 
 const LOTTERY_SETTING_VALUE_STYLE: React.CSSProperties = {
   padding: '3px 8px',
@@ -207,29 +171,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       />
       <FeatureGuideSample feature="import" />
 
-      <ScreenSample title={getMsg('GuidePage.feature.import.sampleTitle')}>
-        <div style={IMPORT_FILE_STATUS_STYLE}>{getMsg('GuidePage.feature.import.sampleFileStatus')}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[
-            { label: getMsg('GuidePage.label.userName'), value: getMsg('GuidePage.label.name') },
-            { label: getMsg('GuidePage.label.xId'), value: getMsg('GuidePage.feature.import.xTwitterId'), required: true },
-            { label: getMsg('GuidePage.feature.import.preferredCast1'), value: getMsg('GuidePage.feature.import.firstChoice') },
-            { label: getMsg('GuidePage.feature.import.preferredCast2'), value: getMsg('GuidePage.feature.import.secondChoice') },
-          ].map(row => (
-            <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 110, fontSize: 11, color: 'var(--text-default)', flexShrink: 0 }}>
-                {row.label}{row.required && <span style={{ color: '#ed4245', marginLeft: 2 }}>*</span>}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>→</span>
-              <span style={IMPORT_MAPPING_VALUE_STYLE}>{row.value}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 10, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-          <span style={IMPORT_LOTTERY_ACTION_STYLE}>{getMsg('GuidePage.feature.import.proceedToLottery')}</span>
-          <span style={IMPORT_CONFIRM_ACTION_STYLE}>{getMsg('GuidePage.feature.import.importButton')}</span>
-        </div>
-      </ScreenSample>
+      <GuideImportScreenSample />
 
       <Section title={getMsg('GuidePage.feature.import.stepsTitle')}>
         <StepList items={[
