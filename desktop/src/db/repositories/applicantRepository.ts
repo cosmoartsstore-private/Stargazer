@@ -15,8 +15,6 @@ import {
 } from './commandContext';
 import { groupRowsBy } from './groupRowsBy';
 
-const PREFERENCE_MODE_EXTRA_KEY = '__preference_mode';
-
 /** 呼出済みの応募者更新が終わるまで待つ。後続の再取込を含む操作順確認に使用する。 */
 export async function flushApplicantWrites(context: SessionCommandContext): Promise<void> {
   await waitForSessionWritesToSettle(context);
@@ -27,6 +25,7 @@ interface ApplicantRow {
   x_id: string;
   name: string | null;
   vrc_url: string | null;
+  preference_mode: 'ranked' | 'flat';
   is_guaranteed: number;
 }
 
@@ -55,7 +54,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
   const [sharedCasts, rows, castPrefs, extras] = await Promise.all([
     sharedDb.select<SharedCastRow[]>('SELECT id, name FROM casts'),
     sessionDb.select<ApplicantRow[]>(
-      'SELECT id, x_id, name, vrc_url, is_guaranteed FROM applicants ORDER BY id',
+      'SELECT id, x_id, name, vrc_url, preference_mode, is_guaranteed FROM applicants ORDER BY id',
     ),
     sessionDb.select<CastPrefRow[]>(
       `SELECT applicant_id, preference_order, cast_name, cast_id
@@ -89,10 +88,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
           : currentCastNameById.get(preference.cast_id)) ?? preference.cast_name;
       rankedCastIds[preference.preference_order] = preference.cast_id;
     }
-    const preferenceMode = applicantExtras.find(
-      (extra) => extra.field_key === PREFERENCE_MODE_EXTRA_KEY,
-    )?.field_value;
-    const normalizedPreferenceMode = preferenceMode === 'flat' ? 'flat' : 'ranked';
+    const preferenceMode = row.preference_mode;
     const activePreferenceIndexes = rankedCasts.flatMap(
       (castName, index) => castName ? [index] : [],
     );
@@ -102,16 +98,17 @@ export async function loadApplicants(): Promise<UserBean[]> {
       x_id: parseXUsername(row.x_id) ?? row.x_id.trim(),
       vrc_url: row.vrc_url ?? undefined,
       is_guaranteed: row.is_guaranteed === 1,
-      casts: normalizedPreferenceMode === 'flat'
+      casts: preferenceMode === 'flat'
         ? activePreferenceIndexes.map((index) => rankedCasts[index])
         : rankedCasts,
-      cast_ids: normalizedPreferenceMode === 'flat'
+      cast_ids: preferenceMode === 'flat'
         ? activePreferenceIndexes.map((index) => rankedCastIds[index])
         : rankedCastIds,
-      preference_mode: normalizedPreferenceMode,
-      raw_extra: applicantExtras
-        .filter((extra) => extra.field_key !== PREFERENCE_MODE_EXTRA_KEY)
-        .map((extra) => ({ key: extra.field_key, value: extra.field_value ?? '' })),
+      preference_mode: preferenceMode,
+      raw_extra: applicantExtras.map((extra) => ({
+        key: extra.field_key,
+        value: extra.field_value ?? '',
+      })),
     };
   });
 }
@@ -136,7 +133,7 @@ export async function persistApplicants(
       vrc_url: user.vrc_url ?? null,
       casts: user.casts,
       cast_ids: user.cast_ids,
-      preference_mode: user.preference_mode ?? 'ranked',
+      preference_mode: user.preference_mode,
       is_guaranteed: user.is_guaranteed === true,
       raw_extra: user.raw_extra,
     })),

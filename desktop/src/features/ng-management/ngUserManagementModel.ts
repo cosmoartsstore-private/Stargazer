@@ -8,27 +8,16 @@ import {
   normalizeXAccountId,
   parseXUsername,
 } from '@/common/xIdUtils';
-export { buildXProfileUrl } from '@/common/xIdUtils';
 import type { CautionCandidate } from '@/features/matching/logics/caution-user';
 
-export type {
-  CastBean,
-  CautionCandidate,
-  CautionUser,
-  NGUserEntry,
-};
-
-export interface CastNgFormValues {
+export interface NgRegistrationFormValues {
   username: string;
   accountId: string;
   notes: string;
 }
 
-export interface CautionFormValues {
-  username: string;
-  accountId: string;
-  notes: string;
-}
+export type CastNgFormValues = NgRegistrationFormValues;
+export type CautionFormValues = NgRegistrationFormValues;
 
 /** キャスト別NGの登録成功後に、入力フォームを初期状態へ戻すための値。 */
 export const EMPTY_CAST_NG_FORM: CastNgFormValues = {
@@ -43,6 +32,18 @@ export const EMPTY_CAUTION_FORM: CautionFormValues = {
   accountId: '',
   notes: '',
 };
+
+/** 保存開始後に変更された入力は残し、送信時と同じ項目だけを空へ戻す。 */
+export function clearSubmittedNgFormValues(
+  current: NgRegistrationFormValues,
+  submitted: NgRegistrationFormValues,
+): NgRegistrationFormValues {
+  return {
+    username: current.username === submitted.username ? '' : current.username,
+    accountId: current.accountId === submitted.accountId ? '' : current.accountId,
+    notes: current.notes === submitted.notes ? '' : current.notes,
+  };
+}
 
 export interface PendingCastNgDeletion {
   castId: number;
@@ -117,6 +118,27 @@ export function updateCastNgEntryNotes(
   ));
 }
 
+/** 先頭の@と大文字小文字を除いたX IDが一致する固定要注意人物の有無を返す。 */
+export function hasCautionUserAccountId(users: CautionUser[], accountId: string): boolean {
+  const accountIdKey = normalizeXAccountId(accountId);
+  return accountIdKey !== null && users.some(
+    (user) => normalizeXAccountId(user.accountId) === accountIdKey,
+  );
+}
+
+/** 同じ正規化X IDの固定登録を一件へまとめ、最新の保存値を反映する。 */
+export function mergeCautionUser(users: CautionUser[], entry: CautionUser): CautionUser[] {
+  const entryKey = normalizeXAccountId(entry.accountId);
+  let replaced = false;
+  const merged = users.flatMap((user) => {
+    if (normalizeXAccountId(user.accountId) !== entryKey) return [user];
+    if (replaced) return [];
+    replaced = true;
+    return [entry];
+  });
+  return replaced ? merged : [...merged, entry];
+}
+
 /** 手動登録フォームを、入力時刻を保持した固定要注意人物へ変換する。 */
 export function createManualCautionUser(
   form: CautionFormValues,
@@ -134,7 +156,7 @@ export function createManualCautionUser(
   };
 }
 
-/** 自動候補の名称・NG人数・登録理由を失わず固定要注意人物へ変換する。 */
+/** 自動候補は名前未入力として固定し、応募時の表示名を本人照合条件へ混入させない。 */
 export function createCandidateCautionUser(
   candidate: CautionCandidate,
   registeredAt: string,
@@ -144,9 +166,7 @@ export function createCandidateCautionUser(
   if (!accountId) return null;
 
   return {
-    username: candidate.usernames.length > 0
-      ? candidate.usernames.join(' / ')
-      : formatXAccountIdForDisplay(accountId),
+    username: formatXAccountIdForDisplay(accountId),
     accountId,
     ngCastCount: candidate.castCount,
     registeredAt,

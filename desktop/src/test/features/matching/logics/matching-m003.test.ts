@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { CastBean, UserBean } from '@/common/types/entities';
 import { runMultipleMatching } from '@/features/matching/logics/matching-m003';
 
@@ -26,23 +26,18 @@ function averageScore(result: ReturnType<typeof runMultipleMatching>): number {
   return scores.reduce((total, score) => total + score, 0) / scores.length;
 }
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe('runMultipleMatching', () => {
   it('複数キャスト単位をテーブルへ割り当て、空席分も同じテーブルに補う', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const castA = cast('Cast A');
 
     const result = runMultipleMatching(
-      [user('Alice', '@alice', ['Cast A'])],
-      [cast('Cast A'), cast('Cast B')],
+      [user('Alice', '@alice', ['Cast A'], [castA.id])],
+      [castA, cast('Cast B')],
       {
         usersPerTable: 2,
         castsPerRotation: 2,
         rotationCount: 1,
         totalTables: 1,
-        searchTimeLimitMs: 10,
       },
     );
 
@@ -54,9 +49,31 @@ describe('runMultipleMatching', () => {
     expect(result.tableSlots?.[1].matches).toHaveLength(2);
   });
 
-  it('同名キャストの希望点と順位を安定IDごとに区別する', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+  it('応募者を割り当てない物理テーブルを当日枠用の空きテーブルとして残す', () => {
+    const result = runMultipleMatching(
+      [
+        user('Alice', '@alice', ['Cast A']),
+        user('Bob', '@bob', ['Cast A']),
+      ],
+      [cast('Cast A'), cast('Cast B')],
+      {
+        usersPerTable: 2,
+        castsPerRotation: 1,
+        rotationCount: 1,
+        totalTables: 2,
+      },
+    );
 
+    expect(result.ngConflict).toBeUndefined();
+    expect(result.tableSlots).toHaveLength(4);
+    const emptySlots = result.tableSlots?.filter((slot) => slot.user === null) ?? [];
+    expect(emptySlots).toHaveLength(2);
+    expect(new Set(emptySlots.map((slot) => slot.tableIndex)).size).toBe(1);
+    expect(emptySlots.every((slot) => slot.matches.length === 1)).toBe(true);
+    expect(new Set(result.tableSlots?.map((slot) => slot.tableIndex))).toEqual(new Set([1, 2]));
+  });
+
+  it('同名キャストの希望点と順位を安定IDごとに区別する', () => {
     const result = runMultipleMatching(
       [user('Alice', '@alice', ['同名キャスト'], [1])],
       [
@@ -68,8 +85,6 @@ describe('runMultipleMatching', () => {
         castsPerRotation: 2,
         rotationCount: 1,
         totalTables: 1,
-        searchTimeLimitMs: 1,
-        relaxedAfterMs: 0,
       },
     );
 
@@ -81,27 +96,23 @@ describe('runMultipleMatching', () => {
     ]);
   });
 
-  it('quality モードでは制限時間内の複数試行から平均点が最も高い候補を返す', () => {
-    const nowValues = [0, 0, 1, 1, 3];
-    const randomValues = [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.4, 0.9];
-    vi.spyOn(Date, 'now').mockImplementation(() => nowValues.shift() ?? 3);
-    vi.spyOn(Math, 'random').mockImplementation(() => randomValues.shift() ?? 0.9);
+  it('応募者グループ全体の希望点が最大になる割り当てを決定的に返す', () => {
+    const castA = cast('Cast A');
+    const castB = cast('Cast B');
 
     const result = runMultipleMatching(
       [
-        user('Alice', '@alice', ['Cast A']),
-        user('Bob', '@bob', ['Cast A']),
-        user('Carol', '@carol', ['Cast B']),
-        user('Dave', '@dave', ['Cast B']),
+        user('Alice', '@alice', ['Cast A'], [castA.id]),
+        user('Bob', '@bob', ['Cast A'], [castA.id]),
+        user('Carol', '@carol', ['Cast B'], [castB.id]),
+        user('Dave', '@dave', ['Cast B'], [castB.id]),
       ],
-      [cast('Cast A'), cast('Cast B')],
+      [castA, castB],
       {
         usersPerTable: 2,
         castsPerRotation: 1,
         rotationCount: 1,
         totalTables: 2,
-        searchTimeLimitMs: 3,
-        searchMode: 'quality',
       },
     );
 
@@ -110,68 +121,6 @@ describe('runMultipleMatching', () => {
     expect(result.userMap.get('@bob')?.[0].cast.name).toBe('Cast A');
     expect(result.userMap.get('@carol')?.[0].cast.name).toBe('Cast B');
     expect(result.userMap.get('@dave')?.[0].cast.name).toBe('Cast B');
-    expect(randomValues).toHaveLength(0);
-  });
-
-  it('quality モードでは初回の低スコア候補で早期終了せず、後続の高スコア候補を採用する', () => {
-    const nowValues = [0, 0, 1, 1, 3];
-    const randomValues = [0.9, 0.9, 0.4, 0.9, 0.9, 0.9, 0.9, 0.9];
-    vi.spyOn(Date, 'now').mockImplementation(() => nowValues.shift() ?? 3);
-    vi.spyOn(Math, 'random').mockImplementation(() => randomValues.shift() ?? 0.9);
-
-    const result = runMultipleMatching(
-      [
-        user('Alice', '@alice', ['Cast A']),
-        user('Bob', '@bob', ['Cast A']),
-        user('Carol', '@carol', ['Cast B']),
-        user('Dave', '@dave', ['Cast B']),
-      ],
-      [cast('Cast A'), cast('Cast B')],
-      {
-        usersPerTable: 2,
-        castsPerRotation: 1,
-        rotationCount: 1,
-        totalTables: 2,
-        searchTimeLimitMs: 3,
-        searchMode: 'quality',
-      },
-    );
-
-    expect(averageScore(result)).toBe(90);
-    expect(randomValues).toHaveLength(0);
-  });
-
-  it('efficiency モードでは緩和時間後に基準点未満の成立候補を返す', () => {
-    const nowValues = [0, 0, 1, 1, 2, 2];
-    const randomValues = [
-      0.9, 0.9, 0.4, 0.9,
-      0.9, 0.9, 0.4, 0.9,
-      0.9, 0.9, 0.9, 0.9,
-    ];
-    vi.spyOn(Date, 'now').mockImplementation(() => nowValues.shift() ?? 2);
-    vi.spyOn(Math, 'random').mockImplementation(() => randomValues.shift() ?? 0.9);
-
-    const result = runMultipleMatching(
-      [
-        user('Alice', '@alice', ['Cast A']),
-        user('Bob', '@bob', ['Cast A']),
-        user('Carol', '@carol', ['Cast B']),
-        user('Dave', '@dave', ['Cast B']),
-      ],
-      [cast('Cast A'), cast('Cast B')],
-      {
-        usersPerTable: 2,
-        castsPerRotation: 1,
-        rotationCount: 1,
-        totalTables: 2,
-        searchTimeLimitMs: 3,
-        relaxedAfterMs: 1,
-        searchMode: 'efficiency',
-      },
-    );
-
-    expect(averageScore(result)).toBe(45);
-    expect(randomValues).toHaveLength(4);
   });
 
   it('キャスト数が単位人数で割り切れない場合は invalid-settings を返す', () => {
@@ -221,7 +170,7 @@ describe('runMultipleMatching', () => {
     });
   });
 
-  it('NG 排除で成立する組み合わせがない場合は探索時間切れとして返す', () => {
+  it('NG 排除で成立する組み合わせがない場合はNG競合として返す', () => {
     const result = runMultipleMatching(
       [user('Alice', '@alice', ['Cast A'])],
       [cast('Cast A', '@alice')],
@@ -230,28 +179,26 @@ describe('runMultipleMatching', () => {
         castsPerRotation: 1,
         rotationCount: 1,
         totalTables: 1,
-        searchTimeLimitMs: 1,
       },
     );
 
     expect(result).toMatchObject({
       ngConflict: true,
-      failureReason: 'time-limit',
+      failureReason: 'ng-conflict',
     });
   });
 
   it('NG 排除で希望キャストを使えない場合は成立可能な別キャストへ割り当てる', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const castA = cast('Cast A', '@alice');
 
     const result = runMultipleMatching(
-      [user('Alice', '@alice', ['Cast A'])],
-      [cast('Cast A', '@alice'), cast('Cast B')],
+      [user('Alice', '@alice', ['Cast A'], [castA.id])],
+      [castA, cast('Cast B')],
       {
         usersPerTable: 1,
         castsPerRotation: 1,
         rotationCount: 1,
         totalTables: 2,
-        searchTimeLimitMs: 1,
       },
     );
 

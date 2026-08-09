@@ -3,6 +3,7 @@
  * UI は Tauri command 名を直接扱わず、この repository を経由する。
  */
 import { invoke } from '@tauri-apps/api/core';
+import type { UserBean } from '@/common/types/entities';
 import { getSharedDb } from '../database';
 import {
   enqueueEventWrite,
@@ -38,14 +39,33 @@ export async function renameEvent(oldName: string, newName: string): Promise<voi
   await invoke('rename_event', { oldName, newName });
 }
 
-/** 指定イベントの取込セッション一覧を backend から取得する。 */
-export async function listSessions(eventName: string): Promise<string[]> {
-  return invoke<string[]>('list_sessions', { eventName });
+/** 応募者の保存まで成功した新規取込セッションを作成する。 */
+export async function createImportSession(
+  eventName: string,
+  users: UserBean[],
+): Promise<string> {
+  const userWithoutCastIds = users.find((user) => user.cast_ids === undefined);
+  if (userWithoutCastIds) {
+    throw new Error('希望キャストIDが確定していない応募者は保存できません。');
+  }
+  return invoke<string>('create_import_session_atomic', {
+    eventName,
+    users: users.map((user) => ({
+      name: user.name || null,
+      x_id: user.x_id,
+      vrc_url: user.vrc_url ?? null,
+      casts: user.casts,
+      cast_ids: user.cast_ids,
+      preference_mode: user.preference_mode,
+      is_guaranteed: user.is_guaranteed === true,
+      raw_extra: user.raw_extra,
+    })),
+  });
 }
 
-/** 指定イベントに新しい取込セッションを作成し、timestamp を返す。 */
-export async function createSession(eventName: string): Promise<string> {
-  return invoke<string>('create_session', { eventName });
+/** 指定した作業セッションだけを一覧外へ隔離し、完全に破棄する。 */
+export async function discardSession(eventName: string, timestamp: string): Promise<void> {
+  await invoke('discard_session', { eventName, timestamp });
 }
 
 interface MetaRow {
@@ -63,6 +83,11 @@ export async function getEventMeta(): Promise<EventMeta> {
     notes: values.get('notes') ?? null,
     photo_data_url: values.get('photo_data_url') ?? null,
   };
+}
+
+/** 使用中ではないイベントの写真と説明メモを、共有DBから読み取り専用で取得する。 */
+export async function getEventMetaReadOnly(eventName: string): Promise<EventMeta> {
+  return invoke<EventMeta>('get_event_meta_read_only', { eventName });
 }
 
 /** 指定されたイベント写真または説明メモだけを共有DBへ保存する。 */

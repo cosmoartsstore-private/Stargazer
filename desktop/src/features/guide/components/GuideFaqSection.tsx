@@ -21,12 +21,12 @@ const QUESTION_MARKER_STYLE: React.CSSProperties = {
 
 const ANSWER_MARKER_STYLE: React.CSSProperties = {
   ...FAQ_MARKER_STYLE,
-  background: 'var(--accent-success, #3ba55d)',
+  background: 'var(--guide-accent-output)',
 };
 
 /** 全体フローに関する質問と回答を表示する。 */
 export const GuideFaqSection: React.FC = () => (
-  <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+  <section className={styles.guideSection}>
     <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><HelpCircle size={22} />{getMsg('GuidePage.faq.title')}</h2>
     <dl style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: 0 }}>
       {([
@@ -39,6 +39,7 @@ export const GuideFaqSection: React.FC = () => (
         { q: getMsg('GuidePage.faq.item7.question'), a: getMsg('GuidePage.faq.item7.answer') },
         { q: getMsg('GuidePage.faq.item8.question'), a: getMsg('GuidePage.faq.item8.answer') },
         { q: getMsg('GuidePage.faq.item9.question'), a: getMsg('GuidePage.faq.item9.answer') },
+        { q: getMsg('GuidePage.faq.item10.question'), a: getMsg('GuidePage.faq.item10.answer') },
       ] as const).map(({ q, a }) => (
         <div key={q} className={styles.guideCard} style={{ padding: '14px 18px' }}>
           <dt style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>

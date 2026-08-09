@@ -1,36 +1,48 @@
-// マッチングを実行し、キャスト別・テーブル別の結果を表示・出力します。
+// マッチングを実行し、結果の確認・明示保存・ファイル出力を行う。
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NoticeDialog } from '@/components/ConfirmModal';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
-import { downloadTsv } from '@/common/downloadTsv';
 import { LotteryValidationPanel } from '@/features/lottery/components/LotteryValidationPanel';
 import { validateLotteryConditions } from '@/features/lottery/services/lottery-validation';
 import { MatchingConditionPanel } from '@/features/matching/components/MatchingConditionPanel';
-import { CastAssignmentList } from '@/features/matching/components/MatchingResultCells';
-import { MatchingTableRows } from '@/features/matching/components/MatchingTableRows';
-import { buildCastMatchingTsvRows, exportElementAsPng } from '@/features/matching/presenters/matching-result-export';
+import { MatchingResultsView } from '@/features/matching/components/MatchingResultsView';
 import { useMatchingExecution } from '@/features/matching/hooks/useMatchingExecution';
 import {
-  buildCastResultRows,
-  buildResultRows,
-  getAssignmentsForColumn,
-  getCastResultColumnKeys,
-  getCastResultColumnLabel,
-  groupTableSlots,
-} from '@/features/matching/presenters/matching-result-view';
+  buildMatchingResultSnapshot,
+  saveMatchingResult,
+} from '@/db/repositories/matchingRepository';
+import {
+  captureSessionWriteActivity,
+  getRequiredEventContext,
+  getRequiredSessionContext,
+  isCurrentEventContext,
+  isCurrentSessionContext,
+  isSessionRecoveryActive,
+  isSessionWriteActivityUnchanged,
+  waitForEventWritesToSettle,
+  waitForSessionWritesToSettle,
+} from '@/db/repositories/commandContext';
+import { getAllCasts } from '@/db/repositories/castRepository';
+import { flushSessionWorkflowWrites } from '@/db/repositories/sessionWorkflowRepository';
+import { getMatchingCastFingerprint } from '@/features/matching/logics/matching-input-integrity';
 import { useAppContext } from '@/stores/AppContext';
 import { getMsg } from '@/messages/getMsg';
 import styles from './MatchingPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-// 利用者が保存・出力するときに使用する既定ファイル名。
-const DEFAULT_BACKUP_FILE_NAME = getMsg('MatchingPage.defaultBackupFileName');
-const CAST_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.castResultImageFileName');
-const TABLE_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.tableResultImageFileName');
+interface MatchingPageProps {
+  onBusyChange?: (busy: boolean) => void;
+}
 
-export const MatchingPage: React.FC = () => {
-  // 実行条件、抽選結果、表示中のマッチング結果を同じContextスナップショットから取得する。
+function formatSavedMatchingLabel(winnerCount: number): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const dateTime = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return getMsg('MatchingPage.savedResultLabel', { dateTime, winnerCount });
+}
+
+export const MatchingPage: React.FC<MatchingPageProps> = ({ onBusyChange }) => {
   const {
     currentWinners: winners,
     casts,
@@ -39,47 +51,84 @@ export const MatchingPage: React.FC = () => {
       tableSlots: globalTableSlots,
       error: globalMatchingError,
       isLocked: isMatchingLocked,
+      scoreSummary,
+      isSaved: isCurrentResultSaved,
     },
+    matchingResultCasts,
+    updateMatchingResult,
     resetMatching,
     isLotteryResultCurrent,
     sessionWorkflow,
+    hasSavedSessionResult,
+    markCurrentSessionResultSaved,
   } = useAppContext();
   const {
     matchingTypeCode,
     totalTables,
     usersPerTable,
     castsPerRotation,
-    allowM003EmptySeats,
-    m003SameDaySlotCount,
+    reserveSameDaySlots,
+    sameDaySlotCount,
+    sameDaySlotUnit,
   } = sessionWorkflow;
 
-  // ダイアログ、出力名、PNG化対象の要素を画面側で管理する。
   const [alertMessage, setAlertMessage] = useState<string | null>(globalMatchingError);
-  const [backupFileName, setBackupFileName] = useState(DEFAULT_BACKUP_FILE_NAME);
-  const castResultTableRef = useRef<HTMLDivElement>(null);
-  const tableResultTableRef = useRef<HTMLDivElement>(null);
-  const { isComputing, scoreSummary, runMatching, cancelMatching } = useMatchingExecution();
+  const [savingResult, setSavingResult] = useState(false);
+  const savingResultRef = useRef(false);
+  const matchingSaveInputRef = useRef({
+    winners,
+    casts,
+    result: globalMatchingResult,
+    tableSlots: globalTableSlots,
+    scoreSummary,
+    isLocked: isMatchingLocked,
+    isSaved: isCurrentResultSaved,
+    matchingTypeCode,
+  });
+  matchingSaveInputRef.current = {
+    winners,
+    casts,
+    result: globalMatchingResult,
+    tableSlots: globalTableSlots,
+    scoreSummary,
+    isLocked: isMatchingLocked,
+    isSaved: isCurrentResultSaved,
+    matchingTypeCode,
+  };
+  const { isComputing, runMatching, cancelMatching } = useMatchingExecution();
 
   useEffect(() => {
     setAlertMessage(globalMatchingError);
   }, [globalMatchingError]);
 
-  // 抽選結果とマッチング条件から、実行可否の表示内容を組み立てる。
+  useEffect(() => {
+    onBusyChange?.(savingResult);
+  }, [onBusyChange, savingResult]);
+
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+
   const guaranteedWinnerCount = winners.filter((winner) => winner.is_guaranteed).length;
   const validation = validateLotteryConditions({
     matchingTypeCode,
     totalWinners: winners.length,
     lotteryCount: Math.max(0, winners.length - guaranteedWinnerCount),
     guaranteedCount: guaranteedWinnerCount,
+    rotationCount: sessionWorkflow.rotationCount,
     totalTables,
     activeCastCount: casts.filter((cast) => cast.is_present).length,
     castsPerRotation,
     usersPerTable,
-    allowM003EmptySeats,
-    sameDaySlotCount: m003SameDaySlotCount,
+    reserveSameDaySlots,
+    sameDaySlotCount,
+    sameDaySlotUnit,
   });
-  // 抽選結果が古い場合は再抽選要求を優先し、マッチングを開始できない状態にする。
-  const effectiveValidation = isLotteryResultCurrent
+  const effectiveValidation = hasSavedSessionResult
+    ? {
+        errors: [getMsg('MatchingPage.savedMatchingReadOnly')],
+        warnings: [],
+        info: validation.info,
+      }
+    : isLotteryResultCurrent
     ? validation
     : {
         errors: [getMsg('MatchingPage.staleLotteryResult')],
@@ -87,61 +136,140 @@ export const MatchingPage: React.FC = () => {
         info: validation.info,
       };
 
-  // Context結果を、キャスト別・テーブル別の表示モデルへ変換する。
-  const resultRows = useMemo(
-    () => buildResultRows(winners, globalMatchingResult),
-    [globalMatchingResult, winners],
-  );
-
-  const castResultRows = useMemo(
-    () => buildCastResultRows(resultRows, casts),
-    [casts, resultRows],
-  );
-
-  const castResultColumnKeys = useMemo(
-    () => getCastResultColumnKeys(resultRows),
-    [resultRows],
-  );
-
-  const groupedTables = useMemo(
-    () => groupTableSlots(globalTableSlots),
-    [globalTableSlots],
-  );
-  const castResultTableMinWidth = Math.max(760, 220 + castResultColumnKeys.length * 260);
-  const scoreSummaryText = scoreSummary
-    ? getMsg('MatchingPage.scoreSummary', {
-        totalScore: scoreSummary.totalScore,
-        averageScore: scoreSummary.averageScore.toFixed(1),
-        firstChoiceCount: scoreSummary.firstChoiceCount,
-        secondChoiceCount: scoreSummary.secondChoiceCount,
-        thirdChoiceCount: scoreSummary.thirdChoiceCount,
-        flatPreferenceCount: scoreSummary.flatPreferenceCount,
-        unpreferredCount: scoreSummary.unpreferredCount,
-      })
-    : '';
-
-  const handleExportCastResults = () => {
-    void exportElementAsPng(castResultTableRef.current, CAST_RESULT_IMAGE_FILE_NAME);
+  const handleSaveResult = async () => {
+    if (
+      savingResultRef.current
+      || hasSavedSessionResult
+      || isCurrentResultSaved
+      || !isMatchingLocked
+      || globalMatchingResult === null
+      || globalTableSlots === undefined
+      || scoreSummary === null
+      || matchingTypeCode === 'M000'
+    ) return;
+    const context = getRequiredSessionContext();
+    const eventContext = getRequiredEventContext();
+    if (isSessionRecoveryActive(context)) {
+      setAlertMessage(getMsg('MatchingPage.recoveryInProgress'));
+      return;
+    }
+    const inputBeingSaved = matchingSaveInputRef.current;
+    const resultBeingSaved = inputBeingSaved.result;
+    const tableSlotsBeingSaved = inputBeingSaved.tableSlots;
+    const scoreSummaryBeingSaved = inputBeingSaved.scoreSummary;
+    if (resultBeingSaved === null || tableSlotsBeingSaved === undefined || scoreSummaryBeingSaved === null) return;
+    savingResultRef.current = true;
+    setSavingResult(true);
+    try {
+      await Promise.all([
+        flushSessionWorkflowWrites(context),
+        waitForEventWritesToSettle(eventContext),
+      ]);
+      await waitForSessionWritesToSettle(context);
+      if (
+        !isCurrentEventContext(eventContext)
+        || eventContext.eventName !== context.eventName
+        || !isCurrentSessionContext(context)
+      ) return;
+      const currentInput = matchingSaveInputRef.current;
+      if (
+        currentInput.winners !== inputBeingSaved.winners
+        || currentInput.casts !== inputBeingSaved.casts
+        || currentInput.result !== inputBeingSaved.result
+        || currentInput.tableSlots !== tableSlotsBeingSaved
+        || currentInput.scoreSummary !== scoreSummaryBeingSaved
+        || !currentInput.isLocked
+        || currentInput.isSaved
+        || currentInput.matchingTypeCode !== inputBeingSaved.matchingTypeCode
+      ) {
+        setAlertMessage(getMsg('MatchingPage.changedBeforeSave'));
+        return;
+      }
+      const writeActivity = captureSessionWriteActivity(context);
+      if (!isSessionWriteActivityUnchanged(context, writeActivity)) {
+        setAlertMessage(getMsg('MatchingPage.changedBeforeSave'));
+        return;
+      }
+      const persistedCasts = await getAllCasts();
+      if (
+        !isCurrentEventContext(eventContext)
+        || !isCurrentSessionContext(context)
+        || !isSessionWriteActivityUnchanged(context, writeActivity)
+        || getMatchingCastFingerprint(inputBeingSaved.casts)
+          !== getMatchingCastFingerprint(persistedCasts)
+      ) {
+        setAlertMessage(getMsg('MatchingPage.changedBeforeSave'));
+        return;
+      }
+      const snapshot = buildMatchingResultSnapshot(
+        inputBeingSaved.winners,
+        inputBeingSaved.casts,
+        resultBeingSaved,
+        tableSlotsBeingSaved,
+        scoreSummaryBeingSaved,
+      );
+      await saveMatchingResult(
+        formatSavedMatchingLabel(inputBeingSaved.winners.length),
+        inputBeingSaved.matchingTypeCode,
+        inputBeingSaved.winners.length,
+        snapshot,
+        context,
+      );
+      if (!isCurrentSessionContext(context)) return;
+      markCurrentSessionResultSaved();
+      const inputAfterSave = matchingSaveInputRef.current;
+      if (
+        inputAfterSave.winners === inputBeingSaved.winners
+        && inputAfterSave.casts === inputBeingSaved.casts
+        && inputAfterSave.result === resultBeingSaved
+        && inputAfterSave.tableSlots === tableSlotsBeingSaved
+        && inputAfterSave.scoreSummary === scoreSummaryBeingSaved
+        && inputAfterSave.isLocked
+        && !inputAfterSave.isSaved
+        && inputAfterSave.matchingTypeCode === inputBeingSaved.matchingTypeCode
+      ) {
+        updateMatchingResult({ isSaved: true });
+        setAlertMessage(getMsg('MatchingPage.savedSuccessfully'));
+      } else {
+        updateMatchingResult({
+          result: resultBeingSaved,
+          tableSlots: tableSlotsBeingSaved,
+          error: null,
+          isLocked: true,
+          scoreSummary: scoreSummaryBeingSaved,
+          isSaved: true,
+        }, inputBeingSaved.casts);
+        setAlertMessage(getMsg('MatchingPage.savedAfterViewChanged'));
+      }
+    } catch {
+      if (isCurrentSessionContext(context)) {
+        setAlertMessage(getMsg('MatchingPage.saveFailed'));
+      }
+    } finally {
+      savingResultRef.current = false;
+      if (isCurrentSessionContext(context)) setSavingResult(false);
+    }
   };
 
-  const handleExportTableResults = () => {
-    void exportElementAsPng(tableResultTableRef.current, TABLE_RESULT_IMAGE_FILE_NAME);
+  const handleRunMatching = () => {
+    if (hasSavedSessionResult) {
+      setAlertMessage(getMsg('MatchingPage.savedMatchingReadOnly'));
+      return;
+    }
+    if (savingResultRef.current || isMatchingLocked || isComputing) return;
+    void runMatching();
   };
 
-  const handleBackupFileNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setBackupFileName(event.target.value);
+  const handleResetMatching = () => {
+    if (hasSavedSessionResult) {
+      setAlertMessage(getMsg('MatchingPage.savedMatchingReadOnly'));
+      return;
+    }
+    if (savingResultRef.current || isComputing) return;
+    resetMatching();
   };
 
-  const handleSaveTsv = () => {
-    downloadTsv(
-      buildCastMatchingTsvRows(castResultRows, castResultColumnKeys),
-      backupFileName || DEFAULT_BACKUP_FILE_NAME,
-    );
-  };
-
-  const handleAlertConfirm = () => {
-    setAlertMessage(null);
-  };
+  const handleAlertConfirm = () => setAlertMessage(null);
 
   return (
     <div className={styles.matchingScreen} style={{ paddingBottom: 80, position: 'relative' }}>
@@ -158,117 +286,49 @@ export const MatchingPage: React.FC = () => {
               <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingPage.executionHeading')}</h2>
               <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.executionDescription')}</p>
             </div>
-
-            <MatchingConditionPanel disabled={isMatchingLocked} />
+            <MatchingConditionPanel disabled={hasSavedSessionResult || isMatchingLocked || savingResult || isComputing} />
           </section>
-
-          {scoreSummary && (
-            <section className={shared.sectionBlock} style={{ marginTop: 16 }}>
-              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingPage.scoreSummaryHeading')}</h2>
-              <p className={shared.pageHeaderSubtitle}>{scoreSummaryText}</p>
-              {scoreSummary.ngWarningCount > 0 && <div className={styles.scoreWarning}>{getMsg('MatchingPage.ngWarning')}</div>}
-            </section>
-          )}
         </div>
 
         <aside className={styles.workflowTwoPane__side}>
           <LotteryValidationPanel
             validation={effectiveValidation}
-            onRunClick={runMatching}
+            onRunClick={handleRunMatching}
             title={getMsg('MatchingPage.statusTitle')}
             description={getMsg('MatchingPage.statusDescription')}
             readySubtext={getMsg('MatchingPage.readySubtext')}
             runLabel={getMsg('MatchingPage.runLabel')}
-            runDisabled={!isLotteryResultCurrent}
+            runDisabled={!isLotteryResultCurrent || hasSavedSessionResult || isMatchingLocked || savingResult || isComputing}
           />
-          {isMatchingLocked && (
-            <button type="button" className={shared.btnDanger} style={{ width: '100%', marginTop: 12 }} onClick={resetMatching}>{getMsg('MatchingPage.unlockAndRerun')}</button>
+          {isMatchingLocked && !hasSavedSessionResult && (
+            <button type="button" className={shared.btnDanger} style={{ width: '100%', marginTop: 12 }} disabled={savingResult || isComputing} onClick={handleResetMatching}>{getMsg('MatchingPage.unlockAndRerun')}</button>
           )}
         </aside>
       </div>
 
-      <section className={shared.sectionBlock} style={{ marginTop: 24 }}>
-        <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
-          <div>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.castResultsHeading')}</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.castResultsDescription')}</p>
-          </div>
-          {isMatchingLocked && (
-            <button type="button" className={shared.btnExportSecondary} aria-label={getMsg('MatchingPage.exportCastPngAriaLabel')} onClick={handleExportCastResults}>{getMsg('MatchingPage.exportPng')}</button>
-          )}
-        </div>
+      <MatchingResultsView
+        winners={winners}
+        casts={matchingResultCasts ?? casts}
+        result={globalMatchingResult}
+        tableSlots={globalTableSlots}
+        scoreSummary={scoreSummary}
+        showExportActions={isMatchingLocked}
+      />
 
-        <div ref={castResultTableRef} className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
-          <table className={styles.matchingResultTable} style={{ minWidth: castResultTableMinWidth }}>
-            <thead>
-              <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
-                <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__cast}`}>{getMsg('MatchingPage.castHeader')}</th>
-                {castResultColumnKeys.map((columnKey) => (
-                  <th key={columnKey ?? 'none'} className={shared.tableHeaderCell}>{getCastResultColumnLabel(columnKey)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {castResultRows.length === 0 && (
-                <tr>
-                  <td className={shared.tableCell} colSpan={castResultColumnKeys.length + 1} style={{ textAlign: 'center' }}>{getMsg('MatchingPage.noMatchingResults')}</td>
-                </tr>
-              )}
-              {castResultRows.map((row) => (
-                <tr key={row.cast.id}>
-                  <td className={`${shared.tableCell} ${styles.matchingResultTable__cast}`}>{row.cast.name}</td>
-                  {castResultColumnKeys.map((columnKey) => (
-                    <td key={columnKey ?? 'none'} className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}>
-                      <CastAssignmentList assignments={getAssignmentsForColumn(row, columnKey)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className={shared.sectionBlock} style={{ marginTop: 24 }}>
-        <div className={`${styles.workflowSectionHeader} ${styles.workflowSectionHeaderRow}`}>
-          <div>
-            <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd}`}>{getMsg('MatchingPage.tableResultsHeading')}</h2>
-            <p className={`${shared.pageHeaderSubtitle} ${shared.sectionSubtitleInline}`}>{getMsg('MatchingPage.tableResultsDescription')}</p>
-          </div>
-          {isMatchingLocked && (
-            <button type="button" className={shared.btnExportSecondary} aria-label={getMsg('MatchingPage.exportTablePngAriaLabel')} onClick={handleExportTableResults}>{getMsg('MatchingPage.exportPng')}</button>
-          )}
-        </div>
-
-        {groupedTables.length === 0 ? (
-          /* テーブル別結果がない場合 */
-          <div className={shared.pageCardNarrow} style={{ marginTop: 16, padding: 16 }}>{getMsg('MatchingPage.noTableResults')}</div>
-        ) : (
-          /* テーブル別結果の一覧 */
-          <div ref={tableResultTableRef} className={`${shared.tableContainer} ${shared.customScrollbar}`} style={{ marginTop: 16 }}>
-            <table className={`${styles.matchingResultTable} ${styles.matchingTableResultTable}`}>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--surface-panel-muted)' }}>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__table}`}>{getMsg('MatchingPage.tableHeader')}</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__seat}`}>{getMsg('MatchingPage.seatHeader')}</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__guest}`}>{getMsg('MatchingPage.applicantHeader')}</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__id}`}>{getMsg('MatchingPage.xIdHeader')}</th>
-                  <th className={`${shared.tableHeaderCell} ${styles.matchingResultTable__matches}`}>{getMsg('MatchingPage.assignedCastsHeader')}</th>
-                </tr>
-              </thead>
-              <tbody><MatchingTableRows groups={groupedTables} /></tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {isMatchingLocked && castResultRows.length > 0 && (
+      {isMatchingLocked && globalMatchingResult !== null && (
         <div className={styles.workflowResultToolbar} style={{ marginTop: 24 }}>
-          <label className={`${shared.formGroup} ${styles.workflowResultToolbar__filename}`}>
-            <span className={shared.formLabel}>{getMsg('MatchingPage.backupFileName')}</span>
-            <input type="text" className={shared.formInput} value={backupFileName} onChange={handleBackupFileNameChange} placeholder={DEFAULT_BACKUP_FILE_NAME} />
-          </label>
-          <button type="button" className={shared.btnExportPrimary} onClick={handleSaveTsv}>{getMsg('MatchingPage.saveTsv')}</button>
+          <button
+            type="button"
+            className={shared.btnPrimary}
+            disabled={savingResult || hasSavedSessionResult || isCurrentResultSaved}
+            onClick={() => { void handleSaveResult(); }}
+          >
+            {getMsg(savingResult
+              ? 'common.saving'
+              : isCurrentResultSaved || hasSavedSessionResult
+                ? 'MatchingPage.resultSaved'
+                : 'MatchingPage.saveResult')}
+          </button>
         </div>
       )}
 

@@ -54,8 +54,7 @@ export function buildApplicantListViewModel(
 
   for (const user of applicants) {
     const ngCastNames = getCautionNGCastNames(user, casts);
-    const hasCandidateIdentity = user.name.trim() !== ''
-      && normalizeXAccountId(user.x_id) !== null;
+    const hasCandidateIdentity = normalizeXAccountId(user.x_id) !== null;
     const isAutoCaution = hasCandidateIdentity && ngCastNames.length >= candidateThreshold;
     const isCaution = isAutoCaution || isCautionUser(user, cautionUsers);
     const unavailablePreferenceIndexes = findUnavailableCastReferences([user], casts)

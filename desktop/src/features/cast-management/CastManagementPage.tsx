@@ -6,6 +6,9 @@ import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getMsg } from '@/messages/getMsg';
 import type { CastBean } from '@/common/types/entities';
 import { findCastNameUsages, renameCastInPreferences } from '@/common/castReferences';
+import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
+import { readFileAsDataUrl } from '@/common/fileReading';
+import { createSharedBusyTracker } from '@/common/sharedBusyTracker';
 import { useAppContext } from '@/stores/AppContext';
 import {
   deleteCast,
@@ -37,11 +40,24 @@ import {
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
-interface CastManagementPageProps {
-  initialSelectedCastId?: number;
+// 画面を再生成しても、同じ接続先・キャストへ最後に選択した写真だけを保存する。
+const castPhotoMutationTokenByTarget = new Map<string, symbol>();
+// 再生成前に始まった処理も含め、すべて完了した時点で親画面のbusyを解除する。
+const castManagementBusyTracker = createSharedBusyTracker();
+
+function getCastPhotoMutationKey(context: EventCommandContext, castId: number): string {
+  return `${context.eventName}\u0000${context.generation}\u0000${castId}`;
 }
 
-export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialSelectedCastId }) => {
+interface CastManagementPageProps {
+  initialSelectedCastId?: number;
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export const CastManagementPage: React.FC<CastManagementPageProps> = ({
+  initialSelectedCastId,
+  onBusyChange,
+}) => {
   // イベント名簿と、キャスト名変更に追従する画面内データ。
   const {
     casts,
@@ -58,15 +74,22 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
   const [inputCastName, setInputCastName] = useState('');
   const [inputAlias, setInputAlias] = useState('');
   const [castSearchQuery, setCastSearchQuery] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isPhotoSaving, setIsPhotoSaving] = useState(false);
   const [isSavingAliases, setIsSavingAliases] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CastBean | null>(null);
   const shortcutGroupLabelId = useId();
 
-  // 写真読込と連絡先保存の競合を、キャスト単位の世代番号で管理する。
-  const photoMutationGenerationByCastRef = useRef(new Map<number, number>());
-  const pendingPhotoReadersRef = useRef(new Set<FileReader>());
+  // 写真読込と連絡先保存の競合を、キャスト単位で管理する。
+  const isMountedRef = useRef(true);
+  const onBusyChangeRef = useRef(onBusyChange);
+  const isPhotoSavingRef = useRef(false);
+  const isSavingAliasesRef = useRef(false);
+  const activePhotoMutationTokensRef = useRef(new Set<symbol>());
   const contactMutationSequenceByCastRef = useRef(new Map<number, number>());
+  const isCreatingRef = useRef(false);
+  onBusyChangeRef.current = onBusyChange;
 
   // 一覧選択から詳細ペインの対象を確定する。
   const selectedCast = casts.find((cast) => cast.id === selectedCastId) ?? null;
@@ -78,20 +101,59 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     setIsSavingAliases(false);
     setAlertMessage(null);
     setDeleteTarget(null);
-    photoMutationGenerationByCastRef.current.clear();
     contactMutationSequenceByCastRef.current.clear();
   }, [currentEventName, initialSelectedCastId]);
 
-  useEffect(() => () => {
-    photoMutationGenerationByCastRef.current.clear();
-    for (const reader of pendingPhotoReadersRef.current) {
-      if (reader.readyState === FileReader.LOADING) reader.abort();
-    }
-    pendingPhotoReadersRef.current.clear();
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
+
+  const beginCastManagementBusy = (busyToken: symbol) => {
+    castManagementBusyTracker.begin(busyToken, onBusyChangeRef.current);
+  };
+
+  const finishCastManagementBusy = (busyToken: symbol) => {
+    castManagementBusyTracker.finish(busyToken);
+  };
+
+  const runAliasMutation = async <T,>(mutation: () => Promise<T>): Promise<T> => {
+    const busyToken = Symbol();
+    isSavingAliasesRef.current = true;
+    beginCastManagementBusy(busyToken);
+    setIsSavingAliases(true);
+    try {
+      return await mutation();
+    } finally {
+      isSavingAliasesRef.current = false;
+      if (isMountedRef.current) setIsSavingAliases(false);
+      finishCastManagementBusy(busyToken);
+    }
+  };
+
+  const beginPhotoSaving = (mutationToken: symbol) => {
+    beginCastManagementBusy(mutationToken);
+    activePhotoMutationTokensRef.current.add(mutationToken);
+    if (!isPhotoSavingRef.current) {
+      isPhotoSavingRef.current = true;
+      if (isMountedRef.current) setIsPhotoSaving(true);
+    }
+  };
+
+  const finishPhotoSaving = (mutationToken: symbol) => {
+    if (!activePhotoMutationTokensRef.current.delete(mutationToken)) return;
+    if (activePhotoMutationTokensRef.current.size === 0) {
+      isPhotoSavingRef.current = false;
+      if (isMountedRef.current) setIsPhotoSaving(false);
+    }
+    finishCastManagementBusy(mutationToken);
+  };
 
   // キャスト本体の追加・削除・名称・基本項目を永続化する。
   const handleAddCast = async () => {
+    if (isCreatingRef.current) return;
     const castName = inputCastName.trim();
     if (!castName) return;
     const conflictMessage = getFormalNameConflictMessage(castName, casts);
@@ -102,6 +164,10 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     const newCast: Omit<CastBean, 'id'> = { name: castName, is_present: false };
     const context = getOpenEventContext(currentEventName);
     if (context === null) return;
+    const busyToken = Symbol();
+    isCreatingRef.current = true;
+    beginCastManagementBusy(busyToken);
+    if (isMountedRef.current) setIsCreating(true);
     try {
       const id = await insertCast(newCast);
       if (!isCurrentEventContext(context)) return;
@@ -111,6 +177,10 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     } catch {
       if (!isCurrentEventContext(context)) return;
       setAlertMessage(getMsg('CastManagementPage.addFailed'));
+    } finally {
+      isCreatingRef.current = false;
+      if (isMountedRef.current) setIsCreating(false);
+      finishCastManagementBusy(busyToken);
     }
   };
 
@@ -124,14 +194,18 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     setDeleteTarget(null);
     const context = getOpenEventContext(currentEventName);
     if (context === null) return;
+    const busyToken = Symbol();
+    beginCastManagementBusy(busyToken);
     try {
       await deleteCast(cast.id);
       if (!isCurrentEventContext(context)) return;
       setCasts((prev) => prev.filter((current) => current.id !== cast.id));
-      if (selectedCastId === cast.id) setSelectedCastId(null);
+      setSelectedCastId((current) => (current === cast.id ? null : current));
     } catch {
       if (!isCurrentEventContext(context)) return;
       setAlertMessage(getMsg('CastManagementPage.deleteFailed'));
+    } finally {
+      finishCastManagementBusy(busyToken);
     }
   };
 
@@ -153,6 +227,8 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     }
     const context = getOpenEventContext(currentEventName);
     if (context === null) return 'stale';
+    const busyToken = Symbol();
+    beginCastManagementBusy(busyToken);
     try {
       // DB更新後に、現在プロセスで保持している表示名を同じ安定IDの希望へ反映する。
       await renameCastDb(renamedCast.id, trimmed);
@@ -161,10 +237,10 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
         cast.id === renamedCast.id ? { ...cast, name: trimmed } : cast
       )));
       setApplicants((current) => (
-        renameCastInPreferences(current, renamedCast, oldName, trimmed)
+        renameCastInPreferences(current, renamedCast, trimmed)
       ));
       setCurrentWinners((current) => (
-        renameCastInPreferences(current, renamedCast, oldName, trimmed)
+        renameCastInPreferences(current, renamedCast, trimmed)
       ));
       updateMatchingCastName(renamedCast.id, trimmed);
       return 'saved';
@@ -172,6 +248,8 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
       if (!isCurrentEventContext(context)) return 'stale';
       setAlertMessage(getMsg('CastManagementPage.renameFailed'));
       return 'failed';
+    } finally {
+      finishCastManagementBusy(busyToken);
     }
   };
 
@@ -181,6 +259,8 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
   ): Promise<EventMutationResult> => {
     const context = getOpenEventContext(currentEventName);
     if (context === null) return 'stale';
+    const busyToken = Symbol();
+    beginCastManagementBusy(busyToken);
     try {
       await updateCastFields(castId, patch);
       if (!isCurrentEventContext(context)) return 'stale';
@@ -192,6 +272,8 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
       if (!isCurrentEventContext(context)) return 'stale';
       setAlertMessage(getMsg('CastManagementPage.updateFailed'));
       return 'failed';
+    } finally {
+      finishCastManagementBusy(busyToken);
     }
   };
 
@@ -201,44 +283,53 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     if (!file) return;
     const context = getOpenEventContext(currentEventName);
     if (context === null) return;
-    const mutationGeneration = (photoMutationGenerationByCastRef.current.get(castId) ?? 0) + 1;
-    photoMutationGenerationByCastRef.current.set(castId, mutationGeneration);
-    const reader = new FileReader();
-    pendingPhotoReadersRef.current.add(reader);
-    reader.onloadend = () => {
-      pendingPhotoReadersRef.current.delete(reader);
-    };
-    reader.onload = () => {
-      if (
-        photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
-        || !isCurrentEventContext(context)
-      ) return;
-      const dataUrl = reader.result as string;
-      void updateCastFields(castId, { photo_data_url: dataUrl })
-        .then(() => {
-          if (!isCurrentEventContext(context)) return;
+    const mutationKey = getCastPhotoMutationKey(context, castId);
+    const mutationToken = Symbol();
+    castPhotoMutationTokenByTarget.set(mutationKey, mutationToken);
+    beginPhotoSaving(mutationToken);
+    void (async () => {
+      try {
+        let dataUrl: string;
+        try {
+          dataUrl = await readFileAsDataUrl(file);
+        } catch {
+          if (
+            isMountedRef.current
+            && castPhotoMutationTokenByTarget.get(mutationKey) === mutationToken
+            && isCurrentEventContext(context)
+          ) {
+            setAlertMessage(getMsg('common.imageReadFailed'));
+          }
+          return;
+        }
+        if (
+          castPhotoMutationTokenByTarget.get(mutationKey) !== mutationToken
+          || !isCurrentEventContext(context)
+        ) return;
+        try {
+          await updateCastFields(castId, { photo_data_url: dataUrl });
+          if (
+            castPhotoMutationTokenByTarget.get(mutationKey) !== mutationToken
+            || !isCurrentEventContext(context)
+          ) return;
           setCasts((prev) => prev.map((cast) => (
             cast.id === castId ? { ...cast, photo_data_url: dataUrl } : cast
           )));
-        })
-        .catch(() => {
+        } catch {
           if (
-            photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
+            !isMountedRef.current
+            || castPhotoMutationTokenByTarget.get(mutationKey) !== mutationToken
             || !isCurrentEventContext(context)
           ) return;
           setAlertMessage(getMsg('CastManagementPage.photoUpdateFailed'));
-        });
-    };
-    const handleReaderFailure = () => {
-      if (
-        photoMutationGenerationByCastRef.current.get(castId) !== mutationGeneration
-        || !isCurrentEventContext(context)
-      ) return;
-      setAlertMessage(getMsg('common.imageReadFailed'));
-    };
-    reader.onerror = handleReaderFailure;
-    reader.onabort = handleReaderFailure;
-    reader.readAsDataURL(file);
+        }
+      } finally {
+        if (castPhotoMutationTokenByTarget.get(mutationKey) === mutationToken) {
+          castPhotoMutationTokenByTarget.delete(mutationKey);
+        }
+        finishPhotoSaving(mutationToken);
+      }
+    })();
     e.target.value = '';
   };
 
@@ -278,67 +369,51 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     const contact_urls = normalized.length > 0 ? normalized : undefined;
     const sequence = (contactMutationSequenceByCastRef.current.get(castId) ?? 0) + 1;
     contactMutationSequenceByCastRef.current.set(castId, sequence);
-    setCasts((prev) => prev.map((current) => (
-      current.id === castId ? { ...current, contact_urls } : current
-    )));
+    const busyToken = Symbol();
+    beginCastManagementBusy(busyToken);
     try {
-      await updateCastFields(castId, { contact_urls });
-      if (!isCurrentEventContext(context)) return;
-    } catch {
-      if (!isCurrentEventContext(context)) return;
-      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return;
+      setCasts((prev) => prev.map((current) => (
+        current.id === castId ? { ...current, contact_urls } : current
+      )));
       try {
-        if (await restoreCastsAfterContactFailure(context, castId, sequence)) {
-          setAlertMessage(getMsg('CastManagementPage.contactRollback'));
-        }
+        await updateCastFields(castId, { contact_urls });
+        if (!isCurrentEventContext(context)) return;
       } catch {
-        if (
-          isCurrentEventContext(context)
-          && contactMutationSequenceByCastRef.current.get(castId) === sequence
-        ) {
-          setAlertMessage(getMsg('CastManagementPage.contactSaveFailed'));
+        if (!isCurrentEventContext(context)) return;
+        if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return;
+        try {
+          if (await restoreCastsAfterContactFailure(context, castId, sequence)) {
+            setAlertMessage(getMsg('CastManagementPage.contactRollback'));
+          }
+        } catch {
+          if (
+            isCurrentEventContext(context)
+            && contactMutationSequenceByCastRef.current.get(castId) === sequence
+          ) {
+            setAlertMessage(getMsg('CastManagementPage.contactSaveFailed'));
+          }
         }
       }
+    } finally {
+      finishCastManagementBusy(busyToken);
     }
   };
 
-  const handleAddContactUrl = async (castId: number) => {
+  const handleAddContactUrl = (castId: number) => {
     const cast = casts.find((current) => current.id === castId);
     if (!cast) return;
-    const context = getOpenEventContext(currentEventName);
-    if (context === null) return;
-    const contact_urls = [...(cast.contact_urls ?? []), ''];
-    const sequence = (contactMutationSequenceByCastRef.current.get(castId) ?? 0) + 1;
-    contactMutationSequenceByCastRef.current.set(castId, sequence);
-    setCasts((prev) => prev.map((cast) => (
-      cast.id === castId
-        ? { ...cast, contact_urls }
-        : cast
+    const contact_urls = [...getEditableContactUrls(cast), ''];
+    // 空欄は入力用の画面状態として保持し、値が入力された時点で永続化する。
+    setCasts((currentCasts) => currentCasts.map((current) => (
+      current.id === castId
+        ? { ...current, contact_urls }
+        : current
     )));
-    try {
-      await updateCastFields(castId, { contact_urls });
-      if (!isCurrentEventContext(context)) return;
-    } catch {
-      if (!isCurrentEventContext(context)) return;
-      if (contactMutationSequenceByCastRef.current.get(castId) !== sequence) return;
-      try {
-        if (await restoreCastsAfterContactFailure(context, castId, sequence)) {
-          setAlertMessage(getMsg('CastManagementPage.contactAddRollback'));
-        }
-      } catch {
-        if (
-          isCurrentEventContext(context)
-          && contactMutationSequenceByCastRef.current.get(castId) === sequence
-        ) {
-          setAlertMessage(getMsg('CastManagementPage.contactAddFailed'));
-        }
-      }
-    }
   };
 
   // 正式名との競合を検査して別名義を追加・変更・削除する。
   const handleAddAlias = async (cast: CastBean) => {
-    if (isSavingAliases) return;
+    if (isSavingAliasesRef.current) return;
     const alias = inputAlias.trim();
     if (!alias) return;
     const conflictMessage = getAliasConflictMessage(alias, casts, cast);
@@ -346,16 +421,12 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
       setAlertMessage(conflictMessage);
       return;
     }
-    setIsSavingAliases(true);
-    let result: EventMutationResult = 'stale';
-    try {
-      result = await handleFieldChange(cast.id, {
+    await runAliasMutation(async () => {
+      const result = await handleFieldChange(cast.id, {
         aliases: [...(cast.aliases ?? []), alias],
       });
-      if (result === 'saved') setInputAlias('');
-    } finally {
-      if (result !== 'stale') setIsSavingAliases(false);
-    }
+      if (result === 'saved' && isMountedRef.current) setInputAlias('');
+    });
   };
 
   const handleUpdateAlias = async (
@@ -363,7 +434,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     aliasIndex: number,
     nextAlias: string,
   ): Promise<EventMutationResult> => {
-    if (isSavingAliases) return 'failed';
+    if (isSavingAliasesRef.current) return 'failed';
     const alias = nextAlias.trim();
     if (!alias) {
       setAlertMessage(getMsg('CastManagementPage.emptyAlias'));
@@ -377,56 +448,49 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     }
     const aliases = [...(cast.aliases ?? [])];
     aliases[aliasIndex] = alias;
-    setIsSavingAliases(true);
-    let result: EventMutationResult = 'stale';
-    try {
-      result = await handleFieldChange(cast.id, { aliases });
-      return result;
-    } finally {
-      if (result !== 'stale') setIsSavingAliases(false);
-    }
+    return runAliasMutation(() => handleFieldChange(cast.id, { aliases }));
   };
 
   const handleDeleteAlias = async (cast: CastBean, aliasIndex: number) => {
-    if (isSavingAliases) return;
+    if (isSavingAliasesRef.current) return;
     const aliases = (cast.aliases ?? []).filter((_, index) => index !== aliasIndex);
-    setIsSavingAliases(true);
-    let result: EventMutationResult = 'stale';
-    try {
-      result = await handleFieldChange(cast.id, {
+    await runAliasMutation(() => (
+      handleFieldChange(cast.id, {
         aliases: aliases.length > 0 ? aliases : undefined,
-      });
-    } finally {
-      if (result !== 'stale') setIsSavingAliases(false);
-    }
+      })
+    ));
   };
 
   // 連絡先表示と外部リンク起動に必要な値を組み立てる。
-  const handleOpenContactUrl = async (url: string) => {
-    const openUrl = getOpenableContactUrl(url);
-    if (!openUrl) return;
+  const openExternalUrlWithAlert = async (url: string, failureMessage: string) => {
     try {
-      await openExternalUrl(openUrl);
+      await openExternalUrl(url);
     } catch {
-      setAlertMessage(getMsg('CastManagementPage.openContactFailed'));
+      setAlertMessage(failureMessage);
     }
   };
 
+  const handleOpenContactUrl = async (url: string) => {
+    const openUrl = getOpenableContactUrl(url);
+    if (!openUrl) return;
+    await openExternalUrlWithAlert(openUrl, getMsg('CastManagementPage.openContactFailed'));
+  };
+
   const handleOpenCommonShortcut = async (shortcut: CommonShortcutLink) => {
-    try {
-      await openExternalUrl(shortcut.url);
-    } catch {
-      setAlertMessage(getMsg('CastManagementPage.openShortcutFailed', {
-        shortcut: shortcut.label,
-      }));
-    }
+    await openExternalUrlWithAlert(
+      shortcut.url,
+      getMsg('CastManagementPage.openShortcutFailed', { shortcut: shortcut.label }),
+    );
   };
 
   // 表示コンポーネントから受け取った型付き引数を、選択中キャストの更新処理へ接続する。
   const handleSelectCast = (castId: number) => {
-    setSelectedCastId(castId);
-    setMemoEditing(false);
-    setInputAlias('');
+    void (async () => {
+      if (!await flushPendingPageCommits()) return;
+      setSelectedCastId(castId);
+      setMemoEditing(false);
+      setInputAlias('');
+    })();
   };
   const handleSelectedPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (selectedCast) handlePhotoUpload(selectedCast.id, event);
@@ -452,8 +516,11 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     if (selectedCast) void handleDeleteAlias(selectedCast, aliasIndex);
   };
   const handleMemoEditingChange = (editing: boolean) => setMemoEditing(editing);
-  const handleSelectedMemoChange = (memo: string | undefined) => {
-    if (selectedCast) void handleFieldChange(selectedCast.id, { memo });
+  const handleSelectedMemoChange = (
+    memo: string | undefined,
+  ): Promise<EventMutationResult> => {
+    if (!selectedCast) return Promise.resolve('stale');
+    return handleFieldChange(selectedCast.id, { memo });
   };
   const handleSelectedContactChange = (contactIndex: number, value: string) => {
     if (selectedCast) void handleContactUrlChange(selectedCast.id, contactIndex, value);
@@ -468,7 +535,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     if (selectedCast) void handleAddAlias(selectedCast);
   };
   const handleAddSelectedContact = () => {
-    if (selectedCast) void handleAddContactUrl(selectedCast.id);
+    if (selectedCast) handleAddContactUrl(selectedCast.id);
   };
   const handleInputAliasChange = (value: string) => setInputAlias(value);
   const handleDismissAlert = () => setAlertMessage(null);
@@ -479,7 +546,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
     : '';
 
   return (
-    <div className={`${shared.pageWrapper} ${shared.pageWrapperInner}`}>
+    <div className={`${shared.pageWrapper} ${shared.pageWrapperInner}`} aria-busy={isPhotoSaving || undefined}>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
         <div className={`${shared.pageHeaderRow} ${shared.pageHeaderRowFlexStart} ${styles.castPageHeaderRow}`}>
           <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('CastManagementPage.pageTitle')}</h1>
@@ -513,6 +580,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialS
           selectedCastId={selectedCastId}
           searchQuery={castSearchQuery}
           inputCastName={inputCastName}
+          isCreating={isCreating}
           onSearchQueryChange={setCastSearchQuery}
           onInputCastNameChange={setInputCastName}
           onAddCast={handleAddCast}

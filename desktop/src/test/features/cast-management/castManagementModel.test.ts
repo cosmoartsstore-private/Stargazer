@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CastBean } from '@/common/types/entities';
 import {
-  CONTACT_SITE_LINKS,
+  COMMON_SHORTCUT_LINKS,
   filterCasts,
   getAliasConflictMessage,
   getContactMarker,
@@ -25,9 +25,9 @@ const casts: CastBean[] = [
   cast({ id: 2, name: 'Bob', aliases: ['Bobby', 'Shared'] }),
 ];
 
-describe('CONTACT_SITE_LINKS', () => {
+describe('COMMON_SHORTCUT_LINKS', () => {
   it('直接開く外部サービスの表示とURLを同じ順序で定義する', () => {
-    expect(CONTACT_SITE_LINKS).toEqual([
+    expect(COMMON_SHORTCUT_LINKS).toEqual([
       {
         key: 'externalChat',
         label: 'DM(Discord)',

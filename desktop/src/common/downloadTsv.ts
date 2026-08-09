@@ -3,9 +3,12 @@ const TSV_MIME_TYPE = 'text/tab-separated-values;charset=utf-8';
 
 type TsvCellValue = string | number | null | undefined;
 
-/** TSV セルとして扱えるように、区切り文字と改行を半角スペースへ置換する。 */
+/** TSV セルを単一行へ整え、文字列が表計算ソフトの数式として実行されない形にする。 */
 function tsvCell(value: TsvCellValue): string {
-  return String(value ?? '').replace(/\t/g, ' ').replace(/[\r\n]+/g, ' ').trim();
+  const normalized = String(value ?? '').replace(/\t/g, ' ').replace(/[\r\n]+/g, ' ').trim();
+  return typeof value === 'string' && /^[=+\-@]/.test(normalized)
+    ? `'${normalized}`
+    : normalized;
 }
 
 /** TSV 拡張子で終わらないファイル名には拡張子を補完する。 */

@@ -19,23 +19,18 @@ export interface CastNameUsage {
   aliasIndex?: number;
 }
 
-function getCastNames(cast: CastBean): string[] {
-  return [cast.name, ...(cast.aliases ?? [])];
-}
-
 /**
- * 正式名と別名義から安定IDを引ける索引を作る。
+ * 正式名から安定IDを引ける索引を作る。
+ * 別名義は検索用の補助情報であり、応募データの希望判定には使わない。
  * 同じ名称が複数キャストに属する場合は、誤った希望へ結び付けないため null にする。
  */
-function buildCastIdByName(casts: CastBean[]): Map<string, number | null> {
+function buildCastIdByFormalName(casts: CastBean[]): Map<string, number | null> {
   const castIdsByName = new Map<string, Set<number>>();
   for (const cast of casts) {
-    for (const name of getCastNames(cast)) {
-      if (!name) continue;
-      const castIds = castIdsByName.get(name) ?? new Set<number>();
-      castIds.add(cast.id);
-      castIdsByName.set(name, castIds);
-    }
+    if (!cast.name) continue;
+    const castIds = castIdsByName.get(cast.name) ?? new Set<number>();
+    castIds.add(cast.id);
+    castIdsByName.set(cast.name, castIds);
   }
 
   return new Map(
@@ -62,21 +57,14 @@ export function findCastNameUsages(name: string, casts: CastBean[]): CastNameUsa
   return usages;
 }
 
-/**
- * 応募者の希望内にあるキャストの位置を返す。
- * cast_ids が明示されているデータでは名前を代替キーとして使わない。
- */
+/** 応募者の希望内にあるキャストの位置を、保存時に確定した安定IDで返す。 */
 export function getCastPreferenceIndex(user: UserBean, cast: CastBean): number {
-  if (user.cast_ids !== undefined) {
-    return user.cast_ids.indexOf(cast.id);
-  }
-  // 旧データの名前fallbackでは名簿全体の曖昧性を判定できないため、正式名だけを使う。
-  return user.casts.indexOf(cast.name);
+  return user.cast_ids?.indexOf(cast.id) ?? -1;
 }
 
-/** 現在の正式名・別名義と安定IDを完全一致で対応付け、応募者の希望順位へ付与する。 */
+/** 現在の正式名と安定IDを完全一致で対応付け、応募者の希望順位へ付与する。 */
 export function attachCastIdsToUsers(users: UserBean[], casts: CastBean[]): UserBean[] {
-  const castIdByName = buildCastIdByName(casts);
+  const castIdByName = buildCastIdByFormalName(casts);
 
   return users.map((user) => ({
     ...user,
@@ -84,23 +72,16 @@ export function attachCastIdsToUsers(users: UserBean[], casts: CastBean[]): User
   }));
 }
 
-/**
- * キャスト名変更を、安定IDで参照している応募者の希望表示名へ反映する。
- * cast_ids を持たない旧データだけは、変更前の正式名を代替キーとして使う。
- */
+/** キャスト名変更を、安定IDで参照している応募者の希望表示名へ反映する。 */
 export function renameCastInPreferences(
   users: UserBean[],
   renamedCast: CastBean,
-  oldName: string,
   newName: string,
 ): UserBean[] {
   return users.map((user) => {
     let changed = false;
     const castNames = user.casts.map((castName, index) => {
-      const isRenamedCast = user.cast_ids === undefined
-        ? castName === oldName
-        : user.cast_ids[index] === renamedCast.id;
-      if (!isRenamedCast) return castName;
+      if (user.cast_ids?.[index] !== renamedCast.id) return castName;
       changed = true;
       return newName;
     });
@@ -114,29 +95,13 @@ export function findUnavailableCastReferences(
   casts: CastBean[],
 ): UnavailableCastReference[] {
   const currentCastIds = new Set(casts.map((cast) => cast.id));
-  const currentCastNames = new Set(casts.map((cast) => cast.name));
   const issues: UnavailableCastReference[] = [];
 
   for (const user of users) {
-    if (user.cast_ids === undefined) {
-      user.casts.forEach((castName, preferenceIndex) => {
-        if (!castName || currentCastNames.has(castName)) return;
-        issues.push({
-          applicantName: user.name,
-          xId: user.x_id,
-          preferenceIndex,
-          castName,
-          castId: null,
-          reason: 'unresolved',
-        });
-      });
-      continue;
-    }
-
-    const preferenceCount = Math.max(user.casts.length, user.cast_ids.length);
+    const preferenceCount = Math.max(user.casts.length, user.cast_ids?.length ?? 0);
     for (let preferenceIndex = 0; preferenceIndex < preferenceCount; preferenceIndex += 1) {
       const castName = user.casts[preferenceIndex] ?? '';
-      const castId = user.cast_ids[preferenceIndex] ?? null;
+      const castId = user.cast_ids?.[preferenceIndex] ?? null;
       if (!castName && castId === null) continue;
 
       if (castId === null) {

@@ -10,7 +10,6 @@ import {
 } from '@/common/browserStorage';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
 import {
-  DEFAULT_THEME_CUSTOMIZATION,
   normalizeThemeCustomization,
   type ThemeCustomizationState,
 } from '@/common/themeCustomization';
@@ -38,7 +37,7 @@ export function getInitialThemeId(): ThemeId {
 /** localStorage からテーマカラー設定を復元する。壊れた値は既定設定に戻す。 */
 export function getInitialThemeCustomization(): ThemeCustomizationState {
   const stored = parseStoredObject(readBrowserStorageItem(STORAGE_KEYS.THEME_CUSTOMIZATION));
-  return stored ? normalizeThemeCustomization(stored) : DEFAULT_THEME_CUSTOMIZATION;
+  return normalizeThemeCustomization(stored);
 }
 
 /** テーマ選択を localStorage に保存する。 */

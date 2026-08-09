@@ -7,6 +7,7 @@ import {
 } from '@/db/initializer';
 import {
   closeEvent,
+  closeSession,
   getCurrentEventName,
   getCurrentSessionTimestamp,
   openEvent,
@@ -14,98 +15,90 @@ import {
 } from '@/db/database';
 import { runWithEventLifecycleLock } from '@/db/repositories/commandContext';
 import {
-  createSession,
+  createImportSession,
   deleteEvent as deleteEventStorage,
-  listSessions,
+  discardSession,
   renameEvent as renameEventStorage,
 } from '@/db/repositories/eventRepository';
 import {
-  activateSavedLotteryRunForLifecycle,
-  hasSavedLotteryRuns,
-  type SavedLotteryRunTarget,
+  createSessionFromSavedLotteryForLifecycle,
+  type SavedLotteryResultTarget,
 } from '@/db/repositories/lotteryRepository';
 import { getMsg } from '@/messages/getMsg';
+
+type SessionAccessState = 'none' | 'writable' | 'savedLotteryInput';
 
 export interface UseEventLifecycleStateOptions {
   setCasts: Dispatch<SetStateAction<CastBean[]>>;
   setApplicants: Dispatch<SetStateAction<UserBean[]>>;
   beginSessionUiMutation: () => number;
   clearSessionWorkflowState: () => void;
+  resetMatching: () => void;
 }
 
 export interface EventLifecycleContextState {
   isDbReady: boolean;
+  initializationError: string | null;
   currentEventName: string | null;
   currentSessionTimestamp: string | null;
   sessionReloadGeneration: number;
-  focusedSavedLotteryRunTarget: SavedLotteryRunTarget | null;
-  clearFocusedSavedLotteryRunTarget: () => void;
-  isSavedLotterySessionReadOnly: boolean;
+  /** 保存済み抽選から復元した入力を表示しており、抽選条件と応募者を変更できない状態。 */
+  isLotteryInputReadOnly: boolean;
+  /** 現在の作業セッションから、抽選またはマッチング結果を既に1回保存した状態。 */
+  hasSavedSessionResult: boolean;
   ensureWritableSession: () => Promise<void>;
+  startNewImportSession: (users: UserBean[]) => Promise<void>;
+  discardCurrentSession: () => Promise<void>;
+  closeCurrentEventForExit: () => Promise<void>;
+  discardInProgressWorkAndClose: () => Promise<void>;
   events: string[];
   setEvents: Dispatch<SetStateAction<string[]>>;
-  switchEvent: (name: string, preferredSession?: string | null) => Promise<void>;
-  activateSavedLotteryRun: (target: SavedLotteryRunTarget) => Promise<void>;
-  markCurrentSessionReadOnlyAfterLotterySave: () => void;
+  switchEvent: (name: string) => Promise<void>;
+  activateSavedLotteryResult: (target: SavedLotteryResultTarget) => Promise<void>;
+  markCurrentSessionResultSaved: () => void;
   deleteManagedEvent: (name: string) => Promise<void>;
   renameManagedEvent: (oldName: string, newName: string) => Promise<void>;
 }
 
-/** イベント・セッション接続の初期化、切替、作成、削除、改名と失敗時の接続復元を管理する。 */
+/** イベント共有DBと、1件だけ存在できる一時作業セッションのライフサイクルを管理する。 */
 export function useEventLifecycleState({
   setCasts,
   setApplicants,
   beginSessionUiMutation,
   clearSessionWorkflowState,
+  resetMatching,
 }: UseEventLifecycleStateOptions): EventLifecycleContextState {
   const [isDbReady, setIsDbReady] = useState(false);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
   const [currentEventName, setCurrentEventName] = useState<string | null>(null);
   const [currentSessionTimestamp, setCurrentSessionTimestamp] = useState<string | null>(null);
   const [sessionReloadGeneration, setSessionReloadGeneration] = useState(0);
-  const [focusedSavedLotteryRunTarget, setFocusedSavedLotteryRunTarget] = useState<SavedLotteryRunTarget | null>(null);
-  const [isSavedLotterySessionReadOnly, setIsSavedLotterySessionReadOnly] = useState(false);
+  const [sessionAccessState, setSessionAccessState] = useState<SessionAccessState>('none');
+  const [hasSavedSessionResult, setHasSavedSessionResult] = useState(false);
   const [events, setEvents] = useState<string[]>([]);
   const initializationStartedRef = useRef(false);
-  const clearFocusedSavedLotteryRunTarget = () => setFocusedSavedLotteryRunTarget(null);
+  const sessionAccessStateRef = useRef<SessionAccessState>('none');
+  const hasSavedSessionResultRef = useRef(false);
+  const isLotteryInputReadOnly = sessionAccessState === 'savedLotteryInput';
+
+  const updateSessionAccessState = (next: SessionAccessState) => {
+    sessionAccessStateRef.current = next;
+    setSessionAccessState(next);
+  };
+
+  const updateHasSavedSessionResult = (next: boolean) => {
+    hasSavedSessionResultRef.current = next;
+    setHasSavedSessionResult(next);
+  };
 
   const clearCurrentSessionState = () => {
     beginSessionUiMutation();
     setCurrentSessionTimestamp(null);
     setApplicants([]);
     clearSessionWorkflowState();
-    setFocusedSavedLotteryRunTarget(null);
-    setIsSavedLotterySessionReadOnly(false);
-  };
-
-  const ensureWritableSession = async (): Promise<void> => {
-    if (currentEventName === null) {
-      throw new Error(getMsg('AppContext.eventRequired'));
-    }
-    const eventName = currentEventName;
-
-    await runWithEventLifecycleLock([eventName], async () => {
-      if (getCurrentEventName() !== eventName) {
-        throw new Error(getMsg('AppContext.eventRequired'));
-      }
-      const openTimestamp = getCurrentSessionTimestamp();
-      if (openTimestamp !== null) {
-        // 保存済み抽選を持つセッションは履歴として維持し、新しい取込先を作成する。
-        if (!await hasSavedLotteryRuns()) {
-          setIsSavedLotterySessionReadOnly(false);
-          setCurrentSessionTimestamp(openTimestamp);
-          return;
-        }
-      }
-      const timestamp = await createSession(eventName);
-      await openSession(timestamp);
-      beginSessionUiMutation();
-      setApplicants([]);
-      clearSessionWorkflowState();
-      setFocusedSavedLotteryRunTarget(null);
-      setIsSavedLotterySessionReadOnly(false);
-      setCurrentSessionTimestamp(timestamp);
-      saveLastLocation(eventName, timestamp);
-    });
+    resetMatching();
+    updateSessionAccessState('none');
+    updateHasSavedSessionResult(false);
   };
 
   const clearOpenEventState = () => {
@@ -115,55 +108,161 @@ export function useEventLifecycleState({
     clearSavedLocation();
   };
 
-  const openEventState = async (name: string, preferredSession?: string | null) => {
-    await openEvent(name);
-    const list = await listSessions(name);
-    const sessionToOpen = preferredSession && list.includes(preferredSession)
-      ? preferredSession
-      : (list[0] ?? null);
-    let sessionIsReadOnly = false;
-    if (sessionToOpen !== null) {
-      await openSession(sessionToOpen);
-      sessionIsReadOnly = await hasSavedLotteryRuns();
-    }
-
-    // 接続とセッション確認が完了するまで、旧イベントの表示状態を維持する。
+  const applyEventOnlyState = (name: string) => {
     setCurrentEventName(name);
     setCasts([]);
     clearCurrentSessionState();
-    if (sessionToOpen !== null) {
-      setCurrentSessionTimestamp(sessionToOpen);
-      setIsSavedLotterySessionReadOnly(sessionIsReadOnly);
-    }
-    saveLastLocation(name, sessionToOpen);
+    saveLastLocation(name);
   };
 
   const restoreEventConnection = async (
     eventName: string,
-    sessionTimestamp: string | null,
+    timestamp: string | null,
   ): Promise<void> => {
     await closeEvent();
     await openEvent(eventName);
-    if (sessionTimestamp !== null) await openSession(sessionTimestamp);
-    saveLastLocation(eventName, sessionTimestamp);
+    if (timestamp !== null) await openSession(timestamp);
   };
 
-  const switchEvent = async (name: string, preferredSession?: string | null) => {
+  /** 接続を先に閉じ、Windowsでも対象ディレクトリを安全に隔離できる順序で破棄する。 */
+  const discardOpenSession = async (eventName: string, timestamp: string): Promise<void> => {
+    await closeSession();
+    try {
+      await discardSession(eventName, timestamp);
+    } catch (error) {
+      try {
+        await openSession(timestamp);
+      } catch {
+        clearCurrentSessionState();
+      }
+      throw error;
+    }
+  };
+
+  const ensureWritableSession = async (): Promise<void> => {
+    if (getCurrentEventName() === null) {
+      throw new Error(getMsg('AppContext.eventRequired'));
+    }
+    if (getCurrentSessionTimestamp() === null) {
+      throw new Error(getMsg('AppContext.sessionRequired'));
+    }
+    if (sessionAccessStateRef.current !== 'writable') {
+      throw new Error(getMsg('AppContext.lotteryInputReadOnly'));
+    }
+    if (hasSavedSessionResultRef.current) {
+      throw new Error(getMsg('AppContext.sessionResultAlreadySaved'));
+    }
+  };
+
+  /** 応募管理で選択した新規取込だけが、応募者を保存済みの新しい作業セッションを作成する。 */
+  const startNewImportSession = async (users: UserBean[]): Promise<void> => {
+    const eventName = getCurrentEventName();
+    if (eventName === null) {
+      throw new Error(getMsg('AppContext.eventRequired'));
+    }
+
+    await runWithEventLifecycleLock([eventName], async () => {
+      if (getCurrentEventName() !== eventName) {
+        throw new Error(getMsg('commandContext.eventSwitchInProgress', { eventName }));
+      }
+      if (getCurrentSessionTimestamp() !== null) {
+        throw new Error(getMsg('AppContext.sessionAlreadyOpen'));
+      }
+
+      const timestamp = await createImportSession(eventName, users);
+      try {
+        await openSession(timestamp);
+      } catch (error) {
+        await discardSession(eventName, timestamp).catch(() => undefined);
+        throw error;
+      }
+
+      clearCurrentSessionState();
+      setCurrentSessionTimestamp(timestamp);
+      setApplicants(users);
+      updateSessionAccessState('writable');
+      setSessionReloadGeneration((generation) => generation + 1);
+      saveLastLocation(eventName);
+    });
+  };
+
+  /** 現在開いている作業セッションだけを破棄し、イベント共有DBは開いたままにする。 */
+  const discardCurrentSession = async (): Promise<void> => {
+    const eventName = getCurrentEventName();
+    const timestamp = getCurrentSessionTimestamp();
+    if (eventName === null || timestamp === null) {
+      clearCurrentSessionState();
+      return;
+    }
+
+    await runWithEventLifecycleLock([eventName], async () => {
+      if (
+        getCurrentEventName() !== eventName
+        || getCurrentSessionTimestamp() !== timestamp
+      ) {
+        throw new Error(getMsg('commandContext.eventSwitchInProgress', { eventName }));
+      }
+      await discardOpenSession(eventName, timestamp);
+      clearCurrentSessionState();
+      saveLastLocation(eventName);
+    });
+  };
+
+  /** 作業セッションがない通常終了で、先行書込みを待ってイベント接続を閉じる。 */
+  const closeCurrentEventForExit = async (): Promise<void> => {
+    const eventName = getCurrentEventName();
+    if (eventName === null) return;
+    await runWithEventLifecycleLock([eventName], async () => {
+      if (getCurrentSessionTimestamp() !== null) {
+        throw new Error(getMsg('AppContext.sessionStillOpen'));
+      }
+      await closeEvent();
+    });
+    setCurrentEventName(null);
+    setCasts([]);
+    clearCurrentSessionState();
+    saveLastLocation(eventName);
+  };
+
+  /** 終了確認後に作業セッションを破棄し、イベント共有DBも閉じる。 */
+  const discardInProgressWorkAndClose = async (): Promise<void> => {
+    const eventName = getCurrentEventName();
+    if (eventName === null) return;
+    await runWithEventLifecycleLock([eventName], async () => {
+      const timestamp = getCurrentSessionTimestamp();
+      if (timestamp !== null) await discardOpenSession(eventName, timestamp);
+      await closeEvent();
+    });
+    setCurrentEventName(null);
+    setCasts([]);
+    clearCurrentSessionState();
+    saveLastLocation(eventName);
+  };
+
+  /** イベント切替では旧作業セッションを破棄し、切替先はセッションなしで開く。 */
+  const switchEvent = async (name: string) => {
     const previouslyOpenEvent = getCurrentEventName();
+    if (previouslyOpenEvent === name) return;
     const previousSession = getCurrentSessionTimestamp();
     await runWithEventLifecycleLock(
       previouslyOpenEvent === null ? [name] : [previouslyOpenEvent, name],
       async () => {
         try {
-          await openEventState(name, preferredSession);
+          // 切替先の接続確立後に旧セッションを破棄し、接続失敗時は作業状態を維持する。
+          await openEvent(name);
+          if (previouslyOpenEvent !== null && previousSession !== null) {
+            await discardSession(previouslyOpenEvent, previousSession);
+          }
+          applyEventOnlyState(name);
         } catch (error) {
           if (previouslyOpenEvent === null) {
-            try {
-              await closeEvent();
-            } catch {
-              // 接続を閉じられない場合も、失敗前の画面状態は破棄する。
-            }
+            await closeEvent().catch(() => undefined);
             clearOpenEventState();
+          } else if (
+            getCurrentEventName() === previouslyOpenEvent
+            && getCurrentSessionTimestamp() === previousSession
+          ) {
+            // 切替先を開けなかった場合は、接続も画面状態も変更されていない。
           } else {
             try {
               await restoreEventConnection(previouslyOpenEvent, previousSession);
@@ -177,8 +276,8 @@ export function useEventLifecycleState({
     );
   };
 
-  /** 保存済み抽選結果の所有セッションへ切り替え、復元完了後だけ画面状態を再読込させる。 */
-  const activateSavedLotteryRun = async (target: SavedLotteryRunTarget): Promise<void> => {
+  /** 保存済み抽選の自己完結スナップショットから、マッチング用の一時セッションを作成する。 */
+  const activateSavedLotteryResult = async (target: SavedLotteryResultTarget): Promise<void> => {
     const eventName = getCurrentEventName();
     if (eventName === null) {
       throw new Error(getMsg('AppContext.eventRequired'));
@@ -186,57 +285,45 @@ export function useEventLifecycleState({
 
     await runWithEventLifecycleLock([eventName], async () => {
       if (getCurrentEventName() !== eventName) {
-        throw new Error('表示中のイベントが切り替わったため、保存済み抽選結果を開けませんでした。');
+        throw new Error(getMsg('commandContext.eventSwitchInProgress', { eventName }));
       }
-      const previousSession = getCurrentSessionTimestamp();
-      const sessions = await listSessions(eventName);
-      if (!sessions.includes(target.sessionTimestamp)) {
-        throw new Error('選択した抽選結果の取り込みデータが見つかりません。');
-      }
-      if (!Number.isInteger(target.runId) || target.runId <= 0) {
-        throw new Error('選択した抽選結果を特定できません。');
+      if (getCurrentSessionTimestamp() !== null) {
+        throw new Error(getMsg('AppContext.sessionAlreadyOpen'));
       }
 
-      // 接続とDB復元が確定するまで、画面上は切替前のセッションを維持する。
-      beginSessionUiMutation();
+      const timestamp = await createSessionFromSavedLotteryForLifecycle(eventName, target);
       try {
-        if (target.sessionTimestamp !== previousSession) {
-          await openSession(target.sessionTimestamp);
-        }
-        await activateSavedLotteryRunForLifecycle(eventName, target);
+        await openSession(timestamp);
       } catch (error) {
-        if (target.sessionTimestamp !== previousSession) {
-          try {
-            await restoreEventConnection(eventName, previousSession);
-          } catch {
-            clearOpenEventState();
-          }
-        }
+        await discardSession(eventName, timestamp).catch(() => undefined);
         throw error;
       }
 
-      // 同じセッション内の別結果でも、reload世代を進めてDBを正として再読込する。
       clearCurrentSessionState();
-      setCurrentSessionTimestamp(target.sessionTimestamp);
-      setFocusedSavedLotteryRunTarget(target);
-      setIsSavedLotterySessionReadOnly(true);
+      setCurrentSessionTimestamp(timestamp);
+      updateSessionAccessState('savedLotteryInput');
+      updateHasSavedSessionResult(false);
       setSessionReloadGeneration((generation) => generation + 1);
-      saveLastLocation(eventName, target.sessionTimestamp);
+      saveLastLocation(eventName);
     });
   };
 
-  /** 保存成功済みの現行セッションを、追加のDB復元を行わず履歴表示へ切り替える。 */
-  const markCurrentSessionReadOnlyAfterLotterySave = () => {
+  /** 1セッション1保存を画面操作へ即時反映する。DB保存成功後にだけ呼び出す。 */
+  const markCurrentSessionResultSaved = () => {
     if (getCurrentSessionTimestamp() === null) {
       throw new Error(getMsg('database.sessionNotOpen'));
     }
-    setIsSavedLotterySessionReadOnly(true);
+    if (hasSavedSessionResultRef.current) {
+      throw new Error(getMsg('AppContext.sessionResultAlreadySaved'));
+    }
+    updateHasSavedSessionResult(true);
   };
 
   const deleteManagedEvent = async (name: string): Promise<void> => {
     await runWithEventLifecycleLock([name], () => deleteEventStorage(name));
   };
 
+  /** 現在イベントの改名では同じ作業セッションを開き直し、画面状態を保持する。 */
   const renameManagedEvent = async (oldName: string, newName: string): Promise<void> => {
     const isOpen = getCurrentEventName() === oldName;
     const previousSession = isOpen ? getCurrentSessionTimestamp() : null;
@@ -251,17 +338,22 @@ export function useEventLifecycleState({
         await closeEvent();
         await renameEventStorage(oldName, newName);
         renamed = true;
-        await openEventState(newName, previousSession);
+        await openEvent(newName);
+        if (previousSession !== null) await openSession(previousSession);
+        beginSessionUiMutation();
+        setCurrentEventName(newName);
+        setSessionReloadGeneration((generation) => generation + 1);
+        saveLastLocation(newName);
       } catch (error) {
         try {
           await closeEvent();
           if (renamed) await renameEventStorage(newName, oldName);
-          // 元のイベント名とセッションは変わらないため、表示キャッシュを消さず接続だけ戻す。
           await openEvent(oldName);
           if (previousSession !== null) await openSession(previousSession);
-          saveLastLocation(oldName, previousSession);
+          beginSessionUiMutation();
+          setSessionReloadGeneration((generation) => generation + 1);
+          saveLastLocation(oldName);
         } catch {
-          // 接続が閉じたままなら、画面だけが旧イベントを参照する状態を残さない。
           clearOpenEventState();
         }
         throw error;
@@ -269,27 +361,29 @@ export function useEventLifecycleState({
     });
   };
 
-  // StrictModeでeffectが再実行されても、DB初期化と最終接続先の復元は一度だけ開始する。
+  // StrictModeでeffectが再実行されても、DB初期化と最終イベントの復元は一度だけ開始する。
   useEffect(() => {
     if (initializationStartedRef.current) return;
     initializationStartedRef.current = true;
+    setInitializationError(null);
     initializeApp()
-      .then(async ({
-        events: eventNames,
-        lastUsedEvent,
-        lastUsedSession,
-      }) => {
+      .then(async ({ events: eventNames, lastUsedEvent, startupSessionCleanupError }) => {
         setEvents(eventNames);
+        if (startupSessionCleanupError !== null) {
+          setInitializationError(startupSessionCleanupError);
+        }
         if (lastUsedEvent) {
           try {
-            await switchEvent(lastUsedEvent, lastUsedSession);
+            await switchEvent(lastUsedEvent);
           } catch {
             clearOpenEventState();
+            setInitializationError(getMsg('AppContext.lastEventRestoreFailed'));
           }
         }
         setIsDbReady(true);
       })
       .catch(() => {
+        setInitializationError(getMsg('AppContext.initializationFailed'));
         setIsDbReady(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,18 +391,22 @@ export function useEventLifecycleState({
 
   return {
     isDbReady,
+    initializationError,
     currentEventName,
     currentSessionTimestamp,
     sessionReloadGeneration,
-    focusedSavedLotteryRunTarget,
-    clearFocusedSavedLotteryRunTarget,
-    isSavedLotterySessionReadOnly,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
     ensureWritableSession,
+    startNewImportSession,
+    discardCurrentSession,
+    closeCurrentEventForExit,
+    discardInProgressWorkAndClose,
     events,
     setEvents,
     switchEvent,
-    activateSavedLotteryRun,
-    markCurrentSessionReadOnlyAfterLotterySave,
+    activateSavedLotteryResult,
+    markCurrentSessionResultSaved,
     deleteManagedEvent,
     renameManagedEvent,
   };

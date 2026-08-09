@@ -145,7 +145,7 @@ export const GuideTsvSection: React.FC = () => (
         <div className={styles.guideTsvStepLayout}>
           <div className={styles.guideTsvInstructions}>
             <h3 className={styles.guideTsvStepHeading}><Sheet size={18} />{getMsg('GuidePage.tsv.stepATitle')}</h3>
-            <ol className={styles.guideTsvSteps}>
+            <ol className={styles.guideNumberedSteps}>
               <li>{getMsg('GuidePage.tsv.stepA1')}</li>
               <li>{getMsg('GuidePage.tsv.stepA2')}</li>
               <li>{getMsg('GuidePage.tsv.stepA3')}</li>
@@ -158,7 +158,7 @@ export const GuideTsvSection: React.FC = () => (
         <div className={styles.guideTsvStepLayout}>
           <div className={styles.guideTsvInstructions}>
             <h3 className={styles.guideTsvStepHeading}><Download size={18} />{getMsg('GuidePage.tsv.stepBTitle')}</h3>
-            <ol className={styles.guideTsvSteps}>
+            <ol className={styles.guideNumberedSteps}>
               <li>{getMsg('GuidePage.tsv.stepB1')}</li>
               <li>{getMsg('GuidePage.tsv.stepB2')}</li>
               <li>{getMsg('GuidePage.tsv.stepB3')}</li>

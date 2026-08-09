@@ -70,8 +70,8 @@ export function AttendanceRecordsView({
           <div className={styles.attendanceEmpty}>{getMsg('AttendanceRecordsView.empty')}</div>
         ) : (
           /* 出欠マトリクスを表示する場合 */
-          <div className={`${styles.attendanceMatrixWrap} ${shared.customScrollbar}`}>
-            <table className={styles.attendanceMatrix}>
+          <div className={styles.attendanceMatrixFrame}>
+            <table className={`${styles.attendanceMatrix} ${styles.attendanceMatrixSummary}`}>
               <thead>
                 <tr>
                   <th scope="col" className={styles.attendanceMatrixCastHead}>{getMsg('AttendanceRecordsView.castNameHeader')}</th>
@@ -81,9 +81,6 @@ export function AttendanceRecordsView({
                       <span className={styles.attendanceMatrixCountPeriod}><CalendarDays size={11} aria-hidden />{periodStatus}</span>
                     </button>
                   </th>
-                  {attendanceDates.map((date) => (
-                    <th key={date} scope="col" className={styles.attendanceMatrixDateHead}>{date}</th>
-                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -91,13 +88,30 @@ export function AttendanceRecordsView({
                   <tr key={row.castName}>
                     <th scope="row" className={styles.attendanceMatrixCastName}>{row.castName}</th>
                     <td className={styles.attendanceMatrixCountCell}><span className={styles.attendanceCountText}>{row.totalCount}</span></td>
-                    {attendanceDates.map((date) => (
-                      <AttendanceMatrixCell key={`${row.castName}-${date}`} castName={row.castName} date={date} isPresent={row.dates.has(date)} />
-                    ))}
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className={`${styles.attendanceMatrixWrap} ${shared.customScrollbar}`}>
+              <table className={`${styles.attendanceMatrix} ${styles.attendanceMatrixDates}`}>
+                <thead>
+                  <tr>
+                    {attendanceDates.map((date) => (
+                      <th key={date} scope="col" className={styles.attendanceMatrixDateHead}>{date}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceRows.map((row) => (
+                    <tr key={row.castName}>
+                      {attendanceDates.map((date) => (
+                        <AttendanceMatrixCell key={`${row.castName}-${date}`} castName={row.castName} date={date} isPresent={row.dates.has(date)} />
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>

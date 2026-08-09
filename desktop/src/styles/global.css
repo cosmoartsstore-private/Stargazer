@@ -78,7 +78,7 @@ input,
 textarea {
   background-color: var(--surface-panel-muted);
   color: var(--text-default);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-input, var(--border-default));
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 14px;
@@ -231,14 +231,14 @@ tbody tr:nth-child(even) {
 [data-theme="skyblue"] input[type="text"],
 [data-theme="skyblue"] input[type="number"],
 [data-theme="skyblue"] textarea {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid hsl(var(--theme-check-hue, 204) 82% 68% / 0.32);
+  background: #ffffff;
+  border: 1px solid var(--border-input, hsl(var(--theme-check-hue, 204) 72% 46% / 0.42));
   color: var(--theme-check-deep-text, #183a5f);
 }
 
 [data-theme="skyblue"] input::placeholder,
 [data-theme="skyblue"] textarea::placeholder {
-  color: hsl(var(--theme-check-hue, 204) 54% 23% / 0.45);
+  color: hsl(var(--theme-check-hue, 204) 54% 23% / 0.52);
 }
 
 /* ガイド内の実画面プレビューでは、外側のテーマによるフォーム上書きを打ち消す。 */
@@ -246,7 +246,7 @@ tbody tr:nth-child(even) {
 [data-guide-theme-preview="dark"] input[type="number"],
 [data-guide-theme-preview="dark"] textarea {
   background: var(--surface-panel-muted);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-input, var(--border-default));
   color: var(--text-default);
 }
 

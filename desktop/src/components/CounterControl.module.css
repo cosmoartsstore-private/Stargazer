@@ -64,3 +64,18 @@
 .counter-value:focus-visible {
   box-shadow: inset 0 0 0 2px var(--accent-primary);
 }
+
+:global([data-theme="skyblue"]) .counter-control--disabled,
+:global([data-theme="skyblue"]) .counter-button:disabled {
+  opacity: 1;
+}
+
+:global([data-theme="skyblue"]) .counter-control--disabled {
+  background: hsl(var(--theme-check-hue, 204) 30% 92%);
+  color: hsl(var(--theme-check-hue, 204) 30% 40%);
+}
+
+:global([data-theme="skyblue"]) .counter-control--disabled .counter-button {
+  background: hsl(var(--theme-check-hue, 204) 30% 88%);
+  color: hsl(var(--theme-check-hue, 204) 30% 40%);
+}

@@ -19,6 +19,9 @@ import {
   runAsSessionRecovery,
   runWithEventLifecycleLock,
   waitForEventWritesToSettle,
+  waitForSessionWritesToSettle,
+  waitForSuccessfulEventWrites,
+  waitForSuccessfulSessionWrites,
 } from '@/db/repositories/commandContext';
 
 const mockState = vi.hoisted(() => ({
@@ -143,6 +146,31 @@ describe('CommandWriteQueue', () => {
     await vi.waitFor(() => expect(queue.isIdle('same')).toBe(true));
     expect(queue.getActivityVersion('same')).toBe(before + 2);
   });
+
+  it('条件に一致するキーだけを対象に書込み終了を待つ', async () => {
+    const queue = new CommandWriteQueue();
+    let finishMatching: (() => void) | undefined;
+    let finishOther: (() => void) | undefined;
+    const matchingWrite = queue.enqueue('event\u0000session', () => new Promise<void>((resolve) => {
+      finishMatching = resolve;
+    }));
+    const otherWrite = queue.enqueue('other', () => new Promise<void>((resolve) => {
+      finishOther = resolve;
+    }));
+    const matchingIdle = queue.waitUntilIdleMatching((key) => key.startsWith('event\u0000'));
+
+    await vi.waitFor(() => {
+      expect(finishMatching).toBeTypeOf('function');
+      expect(finishOther).toBeTypeOf('function');
+    });
+    finishMatching?.();
+    await matchingWrite;
+    await expect(matchingIdle).resolves.toBeUndefined();
+    expect(queue.isIdle('other')).toBe(false);
+
+    finishOther?.();
+    await otherWrite;
+  });
 });
 
 describe('event lifecycle lock', () => {
@@ -224,6 +252,61 @@ describe('event lifecycle lock', () => {
       captureEventWriteActivity(context),
     )).toBe(true);
     expect(isEventWriteActivityUnchanged(context, activity)).toBe(false);
+  });
+
+  it('依存処理の前にイベント共有DBとセッションDBの先行書込みを待つ', async () => {
+    const eventContext = { eventName: 'Successful Wait Event', generation: 1 };
+    const sessionContext = {
+      eventName: eventContext.eventName,
+      timestamp: '20260808010101',
+      generation: 1,
+    };
+    let finishEvent: (() => void) | undefined;
+    let finishSession: (() => void) | undefined;
+    const eventWrite = enqueueEventWrite(eventContext.eventName, () => new Promise<void>((resolve) => {
+      finishEvent = resolve;
+    }));
+    const sessionWrite = enqueueSessionWrite(sessionContext, () => new Promise<void>((resolve) => {
+      finishSession = resolve;
+    }));
+    const eventWait = waitForSuccessfulEventWrites(eventContext);
+    const sessionWait = waitForSuccessfulSessionWrites(sessionContext);
+    let waitsFinished = false;
+    void Promise.all([eventWait, sessionWait]).then(() => {
+      waitsFinished = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(finishEvent).toBeTypeOf('function');
+      expect(finishSession).toBeTypeOf('function');
+    });
+    expect(waitsFinished).toBe(false);
+
+    finishEvent?.();
+    finishSession?.();
+    await Promise.all([eventWrite, sessionWrite, eventWait, sessionWait]);
+    expect(waitsFinished).toBe(true);
+  });
+
+  it('失敗後の再読込前は、失敗を再送出せずセッション書込みの終了まで待つ', async () => {
+    const context = {
+      eventName: 'Failed Settle Event',
+      timestamp: '20260808020202',
+      generation: 1,
+    };
+    let failWrite: (() => void) | undefined;
+    const write = enqueueSessionWrite(context, async () => {
+      await new Promise<void>((resolve) => {
+        failWrite = resolve;
+      });
+      throw new Error('保存失敗');
+    });
+    const settled = waitForSessionWritesToSettle(context);
+
+    await vi.waitFor(() => expect(failWrite).toBeTypeOf('function'));
+    failWrite?.();
+    await expect(write).rejects.toThrow('保存失敗');
+    await expect(settled).resolves.toBeUndefined();
   });
 });
 

@@ -97,7 +97,8 @@
   --cast-shortcut-button-hover: #353b45;
 }
 
-.cast-alias-section {
+.cast-alias-section,
+.cast-group-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -129,7 +130,8 @@
   gap: 6px;
 }
 
-.cast-alias-input {
+.cast-alias-input,
+.cast-group-input {
   box-sizing: border-box;
   flex: 1;
   min-width: 0;
@@ -145,9 +147,19 @@
   transition: border-color 0.12s, background 0.12s;
 }
 
-.cast-alias-input:focus {
+.cast-alias-input:focus,
+.cast-group-input:focus {
   border-color: var(--accent-primary);
   background: var(--surface-panel-muted);
+}
+
+.cast-group-input {
+  flex: none;
+  width: 100%;
+}
+
+.cast-group-section {
+  margin-bottom: 16px;
 }
 
 .cast-alias-add-btn {
@@ -225,36 +237,32 @@
   height: 22px;
   flex-shrink: 0;
   border-radius: 5px;
-  background: var(--surface-hover);
-  color: var(--text-muted);
+  background: #4b5563;
+  color: #ffffff;
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
 }
 
 .cast-contact-marker--external-chat {
-  background: rgba(88, 101, 242, 0.18);
-  color: #5865f2;
+  background: #5865f2;
 }
 
 .cast-contact-marker--vrchat {
-  background: rgba(18, 117, 226, 0.16);
-  color: #1275e2;
+  background: #ffffff;
+  color: #111111;
 }
 
 .cast-contact-marker--x {
-  background: rgba(20, 20, 20, 0.18);
-  color: var(--text-heading);
+  background: #202225;
 }
 
 .cast-contact-marker--https {
-  background: rgba(59, 165, 93, 0.14);
-  color: var(--accent-success);
+  background: var(--semantic-active-green);
 }
 
 .cast-contact-marker--text {
-  background: rgba(237, 66, 69, 0.12);
-  color: var(--text-danger);
+  background: var(--semantic-danger-solid);
 }
 
 .cast-contact-input-wrap .cast-contact-input[type="text"] {
@@ -299,12 +307,17 @@
 }
 
 .cast-contact-btn--delete {
-  background: rgba(237, 66, 69, 0.1);
-  color: var(--text-danger);
+  background: transparent;
+  color: var(--accent-danger);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .cast-contact-btn--delete:hover {
-  background: rgba(237, 66, 69, 0.2);
+  background: transparent;
+  color: #ff5a5d;
+  opacity: 0.86;
 }
 
 .cast-contact-add-btn {
@@ -377,12 +390,6 @@
   margin-bottom: 4px;
 }
 
-.cast-char-info-col .cast-char-group-badge {
-  align-self: flex-start;
-  margin-bottom: 10px;
-}
-
-
 /* 2. 名前 ─ ゴーストinput、見出し風 */
 .cast-char-name-input {
   font-size: 26px;
@@ -410,41 +417,7 @@
   background: var(--surface-panel);
 }
 
-/* 3. 所属バッジ ─ 1個だけ、ピル型ゴーストinput */
-.cast-char-group-badge {
-  font-size: 12px;
-  font-weight: 500;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 3px 14px;
-  color: var(--text-muted);
-  outline: none;
-  font-family: inherit;
-  text-align: center;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
-  margin-bottom: 16px;
-  max-width: 200px;
-  width: 100%;
-}
-
-.cast-char-group-badge:hover {
-  border-color: var(--border-default);
-}
-
-.cast-char-group-badge:focus {
-  border-color: var(--accent-primary);
-  background: var(--surface-panel);
-  color: var(--text-default);
-}
-
-.cast-char-group-badge:not(:placeholder-shown) {
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
-  background: var(--surface-panel);
-}
-
-/* 4. 写真フレーム：左カラム内でポートレート */
+/* 3. 写真フレーム：左カラム内でポートレート */
 .cast-char-photo-frame {
   position: relative;
   width: 100%;

@@ -1,15 +1,11 @@
 // 応募者データの一覧表示・絞り込み・削除・再取込を管理するページ。
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppDialog } from '@/components/AppDialog';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import dialogStyles from '@/components/ConfirmModal.module.css';
 import { ImportPage, type ImportPageInitialData } from '@/features/import/ImportPage';
-import {
-  listEventSavedLotteryRuns,
-  type EventSavedLotteryRunSummary,
-} from '@/db/repositories/lotteryRepository';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from '@/layout/appNavigation';
 import type { CastBean, UserBean } from '@/common/types/entities';
@@ -27,16 +23,14 @@ import shared from '@/styles/shared.module.css';
 
 interface ApplicantDataPageProps {
   onImportUsers: (users: UserBean[], nextPage?: PageType) => void;
-  enableSavedLotteryHistory?: boolean;
   initialImportData?: ImportPageInitialData;
+  onDraftChange?: (hasDraft: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
+  hasUnsavedImportDraft?: boolean;
 }
 
 const UNRESOLVED_PREFERENCE_VALUE = '__unresolved__';
 const REMOVE_PREFERENCE_VALUE = '__remove__';
-
-function getExtraMap(rawExtra: UserBean['raw_extra']): Map<string, string> {
-  return new Map(rawExtra.map((entry) => [entry.key, entry.value]));
-}
 
 function formatCastList(casts: string[]): string {
   return casts.filter(Boolean).join('、') || getMsg('common.emptyMarker');
@@ -46,44 +40,40 @@ function getCastGridStyle(columnCount: number): React.CSSProperties {
   return { gridTemplateColumns: `repeat(${columnCount}, minmax(128px, 128px))` };
 }
 
-function formatSessionTimestamp(timestamp: string): string {
-  if (!/^\d{14}$/.test(timestamp)) return timestamp;
-  return `${timestamp.slice(0, 4)}/${timestamp.slice(4, 6)}/${timestamp.slice(6, 8)} ${timestamp.slice(8, 10)}:${timestamp.slice(10, 12)}:${timestamp.slice(12, 14)}`;
-}
-
 function getPreferenceLabel(user: UserBean, index: number): string {
   return user.preference_mode === 'flat'
     ? getMsg('ApplicantDataPage.preferencePosition', { position: index + 1 })
     : getMsg('ApplicantDataPage.preferenceRank', { rank: index + 1 });
 }
 
-interface XProfileLinkProps {
-  accountId: string;
-  onOpenError: () => void;
+interface PendingXProfile {
+  label: string;
+  url: string;
 }
 
-/** 有効なX IDだけを、外部ブラウザで開けるプロフィールリンクとして表示する。 */
-const XProfileLink: React.FC<XProfileLinkProps> = ({ accountId, onOpenError }) => {
+interface XProfileButtonProps {
+  accountId: string;
+  onRequestOpen: (target: PendingXProfile) => void;
+}
+
+/** 有効なX IDだけを、確認ダイアログを開くプロフィール操作として表示する。 */
+const XProfileButton: React.FC<XProfileButtonProps> = ({ accountId, onRequestOpen }) => {
   const label = formatXAccountIdForDisplay(accountId);
   const profileUrl = buildXProfileUrl(accountId);
   if (!profileUrl) return <>{label || getMsg('ApplicantDataPage.xIdMissing')}</>;
 
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    void openExternalUrl(profileUrl).catch(onOpenError);
-  };
+  const handleClick = () => onRequestOpen({ label, url: profileUrl });
 
   return (
-    <a
-      href={profileUrl}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
       className={styles.applicantXProfileLink}
       aria-label={getMsg('ApplicantDataPage.openXProfileAriaLabel', { id: label })}
+      aria-haspopup="dialog"
       onClick={handleClick}
     >
       {label}
-    </a>
+    </button>
   );
 };
 
@@ -93,11 +83,11 @@ interface DetailModalProps {
   ngCastNames: string[];
   unavailablePreferenceIndexes: number[];
   casts: CastBean[];
-  extraMap: Map<string, string>;
+  extraFields: UserBean['raw_extra'];
   isSaving: boolean;
   readOnly: boolean;
   onSave: (updatedUser: UserBean) => Promise<boolean>;
-  onOpenXProfileError: () => void;
+  onRequestXProfileOpen: (target: PendingXProfile) => void;
   onClose: () => void;
 }
 
@@ -107,11 +97,11 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
   ngCastNames,
   unavailablePreferenceIndexes,
   casts,
-  extraMap,
+  extraFields,
   isSaving,
   readOnly,
   onSave,
-  onOpenXProfileError,
+  onRequestXProfileOpen,
   onClose,
 }) => {
   // 詳細ダイアログの警告状態と希望形式を応募者データから導出する。
@@ -252,7 +242,7 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
           )}
           <dl className={styles.applicantRow__detailGrid}>
             <dt>{getMsg('ApplicantDataPage.xIdLabel')}</dt>
-            <dd><XProfileLink accountId={user.x_id} onOpenError={onOpenXProfileError} /></dd>
+            <dd><XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} /></dd>
 
             {user.vrc_url && (
               <>
@@ -277,10 +267,10 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
               ))
             )}
 
-            {[...extraMap.entries()].map(([key, value]) => (
-              <React.Fragment key={key}>
-                <dt>{key}</dt>
-                <dd>{value}</dd>
+            {extraFields.map((field, index) => (
+              <React.Fragment key={`${field.key}-${index}`}>
+                <dt>{field.key}</dt>
+                <dd>{field.value}</dd>
               </React.Fragment>
             ))}
 
@@ -321,10 +311,10 @@ interface RowProps {
   readOnly: boolean;
   onSelect: (user: UserBean) => void;
   onRemove: (user: UserBean) => void;
-  onOpenXProfileError: () => void;
+  onRequestXProfileOpen: (target: PendingXProfile) => void;
 }
 
-const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, ngCastNames, unavailablePreferenceIndexes, isFlatList, flatCastColumnIndexes, flatCastGridStyle, readOnly, onSelect, onRemove, onOpenXProfileError }) => {
+const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, ngCastNames, unavailablePreferenceIndexes, isFlatList, flatCastColumnIndexes, flatCastGridStyle, readOnly, onSelect, onRemove, onRequestXProfileOpen }) => {
   // 行の警告表示と行内操作を、この応募者へ束縛する。
   const hasAttention = isCaution || ngCastNames.length > 0;
   const unavailablePreferenceIndexSet = new Set(unavailablePreferenceIndexes);
@@ -351,7 +341,7 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, 
     <tr className={rowClassName}>
       <td className={styles.applicantListNameCell}><button type="button" className={styles.applicantDetailButton} aria-label={getMsg('ApplicantDataPage.openDetailsAriaLabel', { label: applicantLabel })} onClick={handleSelect}>{user.name || getMsg('common.unnamed')}</button></td>
       <td className={styles.applicantListIdCell}>
-        <XProfileLink accountId={user.x_id} onOpenError={onOpenXProfileError} />
+        <XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} />
       </td>
       {isFlatList ? (
         /* 希望キャストを一覧形式の1列で表示 */
@@ -399,36 +389,40 @@ const NgCastCell: React.FC<NgCastCellProps> = ({ ngCastNames }) => {
   return <span className={styles.ngCastSummary}>{getMsg('ApplicantDataPage.ngCastSummary', { count: ngCastNames.length })}</span>;
 };
 
-export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUsers, enableSavedLotteryHistory = true, initialImportData }) => {
+export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
+  onImportUsers,
+  initialImportData,
+  onDraftChange,
+  onBusyChange,
+  hasUnsavedImportDraft = false,
+}) => {
   // 応募者一覧の表示・削除と、後続工程の失効処理に必要な共有状態を取得する。
   const {
     applicants,
     casts,
     matchingSettings,
-    currentEventName,
     currentSessionTimestamp,
-    isSavedLotterySessionReadOnly,
-    setActivePage,
-    activateSavedLotteryRun,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
   } = useAppContext();
-  const isSavedLotteryReadOnly = isSavedLotterySessionReadOnly;
+  const isSessionReadOnly = isLotteryInputReadOnly || hasSavedSessionResult;
 
   // 一覧の絞り込み、選択対象、各ダイアログの表示状態を保持する。
   const [filterMode, setFilterMode] = useState<ApplicantFilterMode>('all');
   const [selectedUser, setSelectedUser] = useState<UserBean | null>(null);
   const [showImportForm, setShowImportForm] = useState(false);
-  const [savedLotteryRuns, setSavedLotteryRuns] = useState<EventSavedLotteryRunSummary[]>([]);
-  const [selectedSavedLotteryKey, setSelectedSavedLotteryKey] = useState('');
-  const [isSavedLotteryListLoading, setIsSavedLotteryListLoading] = useState(false);
-  const [isSavedLotteryOpening, setIsSavedLotteryOpening] = useState(false);
-  const [savedLotteryAlertMessage, setSavedLotteryAlertMessage] = useState<string | null>(null);
+  const [confirmCloseImportForm, setConfirmCloseImportForm] = useState(false);
   const [xProfileAlertMessage, setXProfileAlertMessage] = useState<string | null>(null);
+  const [pendingXProfile, setPendingXProfile] = useState<PendingXProfile | null>(null);
+  const [isImportReading, setIsImportReading] = useState(false);
+  const isXProfileOpeningRef = useRef(false);
 
   const {
     alertMessage,
     removeTarget,
     showClearConfirm,
     isPreferenceSaving,
+    isMutatingApplicants,
     saveApplicantPreferences,
     handleRemoveClick,
     handleOpenClearConfirm,
@@ -439,39 +433,18 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     handleCancelClearAll,
   } = useApplicantMutations({ selectedUser, setSelectedUser, setShowImportForm });
 
-  // イベント内で明示保存された抽選結果を、所有セッションと組み合わせて読み込む。
+  // TSV読込とDB更新のどちらかが続く間、親画面の遷移ロックを維持する。
+  const isBusy = isImportReading || isMutatingApplicants;
   useEffect(() => {
-    let isCurrent = true;
-    if (!enableSavedLotteryHistory || currentEventName === null) {
-      setSavedLotteryRuns([]);
-      setSelectedSavedLotteryKey('');
-      setIsSavedLotteryListLoading(false);
-      setSavedLotteryAlertMessage(null);
-      return () => { isCurrent = false; };
-    }
-    setSavedLotteryRuns([]);
-    setSelectedSavedLotteryKey('');
-    setIsSavedLotteryListLoading(true);
-    void listEventSavedLotteryRuns(currentEventName)
-      .then((runs) => {
-        if (!isCurrent) return;
-        setSavedLotteryRuns(runs);
-        setSelectedSavedLotteryKey((current) => (
-          runs.some((run) => `${run.sessionTimestamp}:${run.runId}` === current) ? current : ''
-        ));
-      })
-      .catch(() => {
-        if (isCurrent) setSavedLotteryAlertMessage(getMsg('ApplicantDataPage.savedLotteryListFailed'));
-      })
-      .finally(() => {
-        if (isCurrent) setIsSavedLotteryListLoading(false);
-    });
-    return () => { isCurrent = false; };
-  }, [currentEventName, enableSavedLotteryHistory]);
+    onBusyChange?.(isBusy);
+  }, [isBusy, onBusyChange]);
+
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   useEffect(() => {
     setSelectedUser(null);
     setFilterMode('all');
+    setPendingXProfile(null);
   }, [currentSessionTimestamp]);
 
   // 応募者一覧の警告・絞り込み・希望列構造を純粋モデルから取得する。
@@ -499,75 +472,27 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
     ],
   );
   const flatCastGridStyle = getCastGridStyle(flatCastColumnIndexes.length);
-  const savedLotteryOptions: AppSelectOption[] = useMemo(
-    () => savedLotteryRuns.map((run) => ({
-      value: `${run.sessionTimestamp}:${run.runId}`,
-      label: getMsg('ApplicantDataPage.savedLotteryOption', {
-        label: run.label,
-        importedAt: formatSessionTimestamp(run.sessionTimestamp),
-        current: run.sessionTimestamp === currentSessionTimestamp
-          ? getMsg('ApplicantDataPage.currentLotterySessionSuffix')
-          : '',
-      }),
-    })),
-    [currentSessionTimestamp, savedLotteryRuns],
-  );
-  const selectedSavedLotteryRun = savedLotteryRuns.find(
-    (run) => `${run.sessionTimestamp}:${run.runId}` === selectedSavedLotteryKey,
-  ) ?? null;
-
   // 行コンポーネントへ渡す選択操作の参照を安定させる。
   const handleSelect = useCallback((user: UserBean) => setSelectedUser(user), []);
   const handleXProfileOpenError = useCallback(
     () => setXProfileAlertMessage(getMsg('ApplicantDataPage.openXProfileFailed')),
     [],
   );
-  const handleOpenSavedLotteryRun = () => {
-    if (selectedSavedLotteryRun === null || isSavedLotteryOpening) return;
-    setIsSavedLotteryOpening(true);
-    void activateSavedLotteryRun({
-      sessionTimestamp: selectedSavedLotteryRun.sessionTimestamp,
-      runId: selectedSavedLotteryRun.runId,
-    })
-      .then(() => setActivePage('lottery'))
-      .catch(() => setSavedLotteryAlertMessage(getMsg('ApplicantDataPage.savedLotteryOpenFailed')))
-      .finally(() => setIsSavedLotteryOpening(false));
+  const handleRequestXProfileOpen = useCallback((target: PendingXProfile) => {
+    if (!isXProfileOpeningRef.current) setPendingXProfile(target);
+  }, []);
+  const handleConfirmXProfileOpen = () => {
+    if (pendingXProfile === null || isXProfileOpeningRef.current) return;
+    const { url } = pendingXProfile;
+    isXProfileOpeningRef.current = true;
+    setPendingXProfile(null);
+    void openExternalUrl(url)
+      .catch(handleXProfileOpenError)
+      .finally(() => { isXProfileOpeningRef.current = false; });
   };
-  const handleDismissSavedLotteryAlert = () => setSavedLotteryAlertMessage(null);
-  const savedLotteryPicker = enableSavedLotteryHistory ? (
-    <section className={styles.applicantSavedLotteryPicker} aria-labelledby="applicant-saved-lottery-picker-title">
-      <div className={styles.applicantSavedLotteryPickerText}>
-        <h2 id="applicant-saved-lottery-picker-title">{getMsg('ApplicantDataPage.savedLotteryPickerTitle')}</h2>
-        <p id="applicant-saved-lottery-picker-help">{getMsg('ApplicantDataPage.savedLotteryPickerHelp')}</p>
-      </div>
-      <div className={styles.applicantSavedLotteryPickerControl}>
-        <span id="applicant-saved-lottery-picker-label" className={styles.applicantSavedLotteryPickerLabel}>{getMsg('ApplicantDataPage.savedLotteryPickerLabel')}</span>
-        <div className={styles.applicantSavedLotteryPickerActions}>
-          <AppSelect
-            id="applicant-saved-lottery-select"
-            value={selectedSavedLotteryKey}
-            onValueChange={setSelectedSavedLotteryKey}
-            options={savedLotteryOptions}
-            placeholder={isSavedLotteryListLoading
-              ? getMsg('ApplicantDataPage.loadingSavedLotteryRuns')
-              : savedLotteryRuns.length === 0
-                ? getMsg('ApplicantDataPage.noSavedLotteryRuns')
-                : getMsg('ApplicantDataPage.selectSavedLotteryRun')}
-            disabled={isSavedLotteryListLoading || isSavedLotteryOpening || savedLotteryRuns.length === 0}
-            className={styles.applicantSavedLotterySelect}
-            ariaLabelledBy="applicant-saved-lottery-picker-label"
-          />
-          <button type="button" className={shared.btnSecondary} disabled={selectedSavedLotteryRun === null || isSavedLotteryOpening} onClick={handleOpenSavedLotteryRun}>{getMsg(isSavedLotteryOpening ? 'ApplicantDataPage.openingSavedLotteryRun' : 'ApplicantDataPage.openSavedLotteryRun')}</button>
-        </div>
-        {(isSavedLotteryListLoading || isSavedLotteryOpening) && (
-          <span className={styles.applicantSavedLotteryPickerStatus} role="status">
-            {getMsg(isSavedLotteryOpening ? 'ApplicantDataPage.openingSavedLotteryStatus' : 'ApplicantDataPage.loadingSavedLotteryRuns')}
-          </span>
-        )}
-      </div>
-    </section>
-  ) : null;
-
+  const handleCancelXProfileOpen = () => {
+    if (!isXProfileOpeningRef.current) setPendingXProfile(null);
+  };
   if (applicants.length === 0) {
     return (
       <div className={shared.pageWrapper}>
@@ -575,15 +500,15 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
           <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('ApplicantDataPage.pageTitle')}</h1>
           <p className={shared.pageHeaderSubtitle}>{getMsg('ApplicantDataPage.emptyDescription')}</p>
         </div>
-        {savedLotteryPicker}
         <section className={shared.sectionBlock} aria-label={getMsg('ApplicantDataPage.importSectionAriaLabel')}>
-          <fieldset className={styles.applicantImportFieldset} disabled={isSavedLotteryOpening}>
-            <ImportPage onImportUsers={onImportUsers} initialData={initialImportData} />
-          </fieldset>
+          {isSessionReadOnly ? (
+            <p>{getMsg('ApplicantDataPage.savedResultReadOnly')}</p>
+          ) : (
+            <fieldset className={styles.applicantImportFieldset}>
+              <ImportPage onImportUsers={onImportUsers} initialData={initialImportData} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} />
+            </fieldset>
+          )}
         </section>
-        {enableSavedLotteryHistory && savedLotteryAlertMessage && (
-          <NoticeDialog title={getMsg('ApplicantDataPage.savedLotteryPickerTitle')} message={savedLotteryAlertMessage} closeLabel={getMsg('common.close')} onClose={handleDismissSavedLotteryAlert} />
-        )}
       </div>
     );
   }
@@ -604,18 +529,27 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
   const handleShowCautionFilter = () => setFilterMode('caution');
   const handleShowCastIssueFilter = () => setFilterMode('castIssue');
   const handleShowAllFilter = () => setFilterMode('all');
-  const handleToggleImportForm = () => setShowImportForm((open) => !open);
+  const handleToggleImportForm = () => {
+    if (showImportForm && hasUnsavedImportDraft) {
+      setConfirmCloseImportForm(true);
+      return;
+    }
+    setShowImportForm((open) => !open);
+  };
+  const handleConfirmCloseImportForm = () => {
+    setConfirmCloseImportForm(false);
+    setShowImportForm(false);
+    onDraftChange?.(false);
+  };
+  const handleCancelCloseImportForm = () => setConfirmCloseImportForm(false);
   const handleCloseDetail = () => setSelectedUser(null);
   const importFormButtonLabel = showImportForm
     ? getMsg('ApplicantDataPage.closeImport')
-    : getMsg(isSavedLotteryReadOnly ? 'ApplicantDataPage.importNewData' : 'ApplicantDataPage.reimport');
+    : getMsg('ApplicantDataPage.reimport');
 
   // 選択中の応募者だけ、詳細ダイアログ用の追加項目を展開する。
-  const selectedExtraMap = selectedUser ? getExtraMap(selectedUser.raw_extra) : null;
-
   return (
     <div className={pageClassName}>
-      {savedLotteryPicker}
       <div className={styles.applicantListHeader}>
         <div className={styles.applicantListHeader__stats}>
           <span className={styles.applicantListHeader__count}>{getMsg('ApplicantDataPage.applicantCount', { count: applicants.length })}</span>
@@ -638,17 +572,31 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
         </div>
 
         <div className={styles.applicantListHeader__actions}>
-          <button type="button" className={`${shared.btnSecondary} ${styles.applicantListHeader__actionButton}`} aria-expanded={showImportForm} aria-controls="applicant-reimport-form" onClick={handleToggleImportForm} disabled={isSavedLotteryOpening}>{importFormButtonLabel}</button>
-          <button type="button" className={`${shared.btnDanger} ${styles.applicantListHeader__actionButton}`} onClick={handleOpenClearConfirm} disabled={isSavedLotteryOpening || isSavedLotteryReadOnly}>{getMsg('ApplicantDataPage.deleteAllButton')}</button>
+          {!isSessionReadOnly && (
+            <button type="button" className={`${shared.btnSecondary} ${styles.applicantListHeader__actionButton}`} aria-expanded={showImportForm} aria-controls="applicant-reimport-form" onClick={handleToggleImportForm}>{importFormButtonLabel}</button>
+          )}
+          <button type="button" className={`${shared.btnDanger} ${styles.applicantListHeader__actionButton}`} onClick={handleOpenClearConfirm} disabled={isSessionReadOnly}>{getMsg('ApplicantDataPage.deleteAllButton')}</button>
         </div>
       </div>
 
       {showImportForm && (
         <section id="applicant-reimport-form" className={`${shared.sectionBlock} ${styles.applicantReimportSection}`} aria-label={getMsg('ApplicantDataPage.reimportSectionAriaLabel')}>
-          <fieldset className={styles.applicantImportFieldset} disabled={isSavedLotteryOpening}>
-            <ImportPage onImportUsers={onImportUsers} />
+          <fieldset className={styles.applicantImportFieldset}>
+            <ImportPage onImportUsers={onImportUsers} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} />
           </fieldset>
         </section>
+      )}
+
+      {confirmCloseImportForm && (
+        <ConfirmDialog
+          title={getMsg('DataManagementPage.discardImportDraftTitle')}
+          message={getMsg('DataManagementPage.discardImportDraftMessage')}
+          confirmLabel={getMsg('DataManagementPage.discardImportDraftConfirm')}
+          cancelLabel={getMsg('common.cancel')}
+          intent="danger"
+          onConfirm={handleConfirmCloseImportForm}
+          onCancel={handleCancelCloseImportForm}
+        />
       )}
 
       <div className={`${shared.tableContainer} ${shared.customScrollbar} ${styles.applicantListTableContainer}`}>
@@ -689,10 +637,10 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
                   isFlatList={isFlatList}
                   flatCastColumnIndexes={flatCastColumnIndexes}
                   flatCastGridStyle={flatCastGridStyle}
-                  readOnly={isSavedLotteryReadOnly}
+                  readOnly={isSessionReadOnly}
                   onSelect={handleSelect}
                   onRemove={handleRemoveClick}
-                  onOpenXProfileError={handleXProfileOpenError}
+                  onRequestXProfileOpen={handleRequestXProfileOpen}
                 />
               );
             })}
@@ -700,7 +648,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
         </table>
       </div>
 
-      {selectedUser && selectedRowData && selectedExtraMap && (
+      {selectedUser && selectedRowData && (
         <ApplicantDetailModal
           key={selectedUser.id ?? selectedUser.x_id}
           user={selectedUser}
@@ -708,12 +656,23 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
           ngCastNames={selectedRowData.ngCastNames}
           unavailablePreferenceIndexes={selectedRowData.unavailablePreferenceIndexes}
           casts={casts}
-          extraMap={selectedExtraMap}
+          extraFields={selectedUser.raw_extra}
           isSaving={isPreferenceSaving}
-          readOnly={isSavedLotteryReadOnly}
+          readOnly={isSessionReadOnly}
           onSave={saveApplicantPreferences}
-          onOpenXProfileError={handleXProfileOpenError}
+          onRequestXProfileOpen={handleRequestXProfileOpen}
           onClose={handleCloseDetail}
+        />
+      )}
+
+      {pendingXProfile && (
+        <ConfirmDialog
+          title={getMsg('ApplicantDataPage.openXProfileDialogTitle')}
+          message={getMsg('ApplicantDataPage.openXProfileConfirmMessage', { id: pendingXProfile.label })}
+          confirmLabel={getMsg('common.openLink')}
+          cancelLabel={getMsg('common.cancel')}
+          onConfirm={handleConfirmXProfileOpen}
+          onCancel={handleCancelXProfileOpen}
         />
       )}
 
@@ -723,14 +682,6 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUs
           message={alertMessage}
           closeLabel={getMsg('common.close')}
           onClose={handleDismissAlert}
-        />
-      )}
-      {enableSavedLotteryHistory && savedLotteryAlertMessage && (
-        <NoticeDialog
-          title={getMsg('ApplicantDataPage.savedLotteryPickerTitle')}
-          message={savedLotteryAlertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleDismissSavedLotteryAlert}
         />
       )}
       {xProfileAlertMessage && (

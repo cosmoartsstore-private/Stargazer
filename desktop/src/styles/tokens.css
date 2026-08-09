@@ -5,6 +5,13 @@
    ======================================== */
 
 :root {
+  /* 意味を持つ状態色の基準値。テーマのカスタマイズ変数とは分離する。 */
+  --semantic-active-green: #03b800;
+  --semantic-success-solid: var(--semantic-active-green);
+  --semantic-warning-solid: #ffd43b;
+  --semantic-warning-on-solid: #1a1503;
+  --semantic-danger-solid: #ed4245;
+
   /* アプリ共通の面・文字・状態色 */
   --surface-panel: rgba(0, 0, 0, 0.25);
   --surface-page: transparent;
@@ -19,22 +26,24 @@
   --surface-tab-hover: var(--surface-hover);
   --surface-subtle: rgba(0, 0, 0, 0.15);
   --text-default: #dbdee1;
-  --text-muted: rgba(255, 255, 255, 0.4);
+  --text-muted: rgba(255, 255, 255, 0.46);
   --text-link: #00a8fc;
   --text-external-link: #4eb2ff;
   --text-external-link-on-warning: #004f9e;
   --text-heading: #f2f3f5;
-  --text-success: #6faa26;
+  --text-success: var(--semantic-active-green);
   --text-warning: #facc15;
-  --text-danger: #ed4245;
+  --text-danger: var(--semantic-danger-solid);
 
+  /* 状態色はテーマの色相設定から生成せず、意味ごとの固定色を使う。 */
   --accent-primary: #5865f2;
-  --accent-success: #5c961e;
-  --accent-warning: #facc15;
-  --accent-danger: #ed4245;
-  --color-switch: #7c3aed;
+  --accent-success: var(--semantic-success-solid);
+  --accent-warning: var(--semantic-warning-solid);
+  --accent-danger: var(--semantic-danger-solid);
+  --color-switch: #2d8fd3;
 
   --border-default: rgba(255, 255, 255, 0.13);
+  --border-input: rgba(255, 255, 255, 0.18);
   --border-divider: rgba(255, 255, 255, 0.1);
   --border-tab: var(--border-default);
 
@@ -42,18 +51,18 @@
   --button-primary-hover-bg: #4752c4;
   --button-secondary-bg: rgba(255, 255, 255, 0.1);
   --button-secondary-hover-bg: rgba(255, 255, 255, 0.15);
-  --button-success-bg: #4f7f18;
-  --button-success-hover-bg: #456f19;
-  --button-danger-bg: #ed4245;
-  --status-success-bg: #4f7f18;
+  --button-success-bg: var(--semantic-success-solid);
+  --button-success-hover-bg: var(--semantic-active-green);
+  --button-danger-bg: var(--semantic-danger-solid);
+  --status-success-bg: var(--semantic-success-solid);
   --status-success-text: #ffffff;
-  --status-success-border: #3e6713;
+  --status-success-border: var(--semantic-active-green);
   --status-info-bg: #122d42;
   --status-info-text: #4eb2ff;
   --status-info-solid: #0f77bd;
-  --status-warning-bg: #ffd43b;
+  --status-warning-bg: var(--semantic-warning-solid);
   --status-warning-hover-bg: #f4c62a;
-  --status-warning-text: #1a1503;
+  --status-warning-text: var(--semantic-warning-on-solid);
   --status-warning-border: #d1a000;
 
   /* モーダル・ポップアップ（UI統一） */

@@ -8,10 +8,10 @@ import styles from '../GuidePage.module.css';
 export const GuideWorkflowOverview: React.FC = () => (
   <>
     {/* 概要グリッド */}
-    <section className={styles.guideSection} style={{ marginBottom: 32 }}>
+    <section className={styles.guideSection}>
       <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><BarChart3 size={22} />{getMsg('GuidePage.tab.flow')}</h2>
       <div className={styles.guideFlowBox}>
-        <div className={styles.guideFlowGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <div className={styles.guideFlowGrid}>
           {[
             { icon: FileText, text: getMsg('GuidePage.flow.import.title'), desc: getMsg('GuidePage.flow.import.description') },
             { icon: Database, text: getMsg('GuidePage.flow.applicantData.title'), desc: getMsg('GuidePage.flow.applicantData.description') },
@@ -30,32 +30,26 @@ export const GuideWorkflowOverview: React.FC = () => (
       </div>
     </section>
 
-    <section className={styles.guideSection} style={{ marginBottom: 40 }}>
+    <section className={styles.guideSection}>
       <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><Database size={22} />{getMsg('GuidePage.flow.applicantManagementTitle')}</h2>
-      <div className={styles.guideSectionGrid}>
+      <div className={`${styles.guideSectionGrid} ${styles.guideOverviewCardGrid}`}>
         {[
           {
             title: getMsg('GuidePage.nav.import'),
             body: getMsg('GuidePage.flow.applicantManagementImport'),
-            accent: 'var(--guide-accent-import)',
           },
           {
             title: getMsg('GuidePage.nav.lottery'),
             body: getMsg('GuidePage.flow.applicantManagementLottery'),
-            accent: 'var(--guide-accent-lottery)',
           },
           {
             title: getMsg('GuidePage.nav.matching'),
             body: getMsg('GuidePage.flow.applicantManagementMatching'),
-            accent: 'var(--guide-accent-matching)',
           },
         ].map((item) => (
-          <div key={item.title} className={styles.guideCard} style={{ padding: '18px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: item.accent, flexShrink: 0 }} />
-              <h3 style={{ margin: 0, color: 'var(--text-heading)', fontSize: 16, fontWeight: 800 }}>{item.title}</h3>
-            </div>
-            <p style={{ margin: 0, color: 'var(--text-default)', fontSize: 13, lineHeight: 1.75 }}>{item.body}</p>
+          <div key={item.title} className={`${styles.guideCard} ${styles.guideOverviewCard}`}>
+            <h3 className={styles.guideOverviewCardTitle}>{item.title}</h3>
+            <p className={styles.guideOverviewCardBody}>{item.body}</p>
           </div>
         ))}
       </div>

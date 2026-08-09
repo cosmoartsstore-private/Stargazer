@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getCastAttendanceHistory,
+  getCastAttendanceRecordDates,
   hasCastAttendanceForDate,
   recordCastAttendance,
 } from '@/db/repositories/attendanceRepository';
@@ -41,9 +42,15 @@ function createDb(options?: { emptyDateCount?: boolean; zeroDateCount?: boolean 
           },
         ] as T;
       }
-      if (query.includes('SELECT COUNT(*) AS n FROM cast_attendance')) {
+      if (query.includes('FROM attendance_record_dates WHERE recorded_at = ?')) {
         if (options?.emptyDateCount) return [] as T;
         return [{ n: options?.zeroDateCount ? 0 : 1 }] as T;
+      }
+      if (query.includes('FROM attendance_record_dates')) {
+        return [
+          { recorded_at: '2026-06-19' },
+          { recorded_at: '2026-06-18' },
+        ] as T;
       }
       return [] as T;
     }),
@@ -74,6 +81,16 @@ describe('attendance read operations', () => {
 
   it('指定日付の出席記録有無を返す', async () => {
     await expect(hasCastAttendanceForDate('2026-06-18')).resolves.toBe(true);
+  });
+
+  it('出席者0人の日を含む記録日を保存順のまま返す', async () => {
+    await expect(getCastAttendanceRecordDates()).resolves.toEqual([
+      '2026-06-19',
+      '2026-06-18',
+    ]);
+    expect(mockState.sharedDb?.select).toHaveBeenCalledWith(expect.stringContaining(
+      'ORDER BY recorded_at DESC',
+    ));
   });
 
   it('指定日付の出席記録がない場合は false を返す', async () => {

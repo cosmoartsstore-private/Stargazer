@@ -36,9 +36,14 @@ export function buildAttendanceMatrix(
   casts: CastBean[],
   history: CastAttendanceRecord[],
   period: AttendancePeriod = { startDate: '', endDate: '' },
+  recordDates: string[] = [],
 ): { dates: string[]; rows: AttendanceMatrixRow[] } {
   const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
-  const dates = new Set<string>();
+  const dates = new Set(
+    recordDates
+      .map((recordDate) => recordDate.slice(0, 10))
+      .filter((recordDate) => isDateInAttendancePeriod(recordDate, period)),
+  );
   const rowByCastName = new Map<string, AttendanceMatrixRow>();
 
   for (const record of history) {

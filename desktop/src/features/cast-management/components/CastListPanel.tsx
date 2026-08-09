@@ -1,4 +1,4 @@
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import type { CastBean } from '@/common/types/entities';
 import { getMsg } from '@/messages/getMsg';
@@ -33,6 +33,7 @@ export interface CastListPanelProps {
   selectedCastId: number | null;
   searchQuery: string;
   inputCastName: string;
+  isCreating: boolean;
   onSearchQueryChange: (value: string) => void;
   onInputCastNameChange: (value: string) => void;
   onAddCast: () => void | Promise<void>;
@@ -44,6 +45,7 @@ export const CastListPanel = ({
   selectedCastId,
   searchQuery,
   inputCastName,
+  isCreating,
   onSearchQueryChange,
   onInputCastNameChange,
   onAddCast,
@@ -57,10 +59,10 @@ export const CastListPanel = ({
   const handleInputCastNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     onInputCastNameChange(event.currentTarget.value);
   };
-  const handleAddCastKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') void onAddCast();
+  const handleAddCastSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isCreating) void onAddCast();
   };
-  const handleAddCastClick = () => { void onAddCast(); };
 
   return (
     <div className={`${shared.managementListPanel} ${styles.castPanelHeight}`}>
@@ -80,10 +82,10 @@ export const CastListPanel = ({
       </div>
 
       <div className={shared.managementListPanel__add}>
-        <div className={shared.managementListPanel__addRow}>
-          <input type="text" className={shared.managementListPanel__addInput} placeholder={getMsg('CastManagementPage.addCastPlaceholder')} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} value={inputCastName} onChange={handleInputCastNameChange} onKeyDown={handleAddCastKeyDown} />
-          <button type="button" className={`${shared.btnSuccess} ${shared.managementListPanel__addBtn}`} onClick={handleAddCastClick} aria-label={getMsg('CastManagementPage.addCastAriaLabel')}><UserPlus size={14} /></button>
-        </div>
+        <form className={shared.managementListPanel__addRow} onSubmit={handleAddCastSubmit}>
+          <input type="text" className={shared.managementListPanel__addInput} placeholder={getMsg('CastManagementPage.addCastPlaceholder')} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} value={inputCastName} onChange={handleInputCastNameChange} disabled={isCreating} />
+          <button type="submit" className={`${shared.btnSuccess} ${shared.managementListPanel__addBtn}`} disabled={isCreating} aria-label={getMsg('CastManagementPage.addCastAriaLabel')}><UserPlus size={14} /></button>
+        </form>
       </div>
     </div>
   );

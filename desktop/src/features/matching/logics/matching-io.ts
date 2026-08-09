@@ -1,31 +1,28 @@
 /**
  * マッチング実行の入出力エントリポイント。
- * 取込データの初期化、各種アルゴリズムへのプロキシ、警告判定付与を集約する。
+ * 取込データの初期化、各種アルゴリズムへのプロキシ、結果集計を集約する。
  */
 
 import type { UserBean, CastBean } from '@/common/types/entities';
 import type { MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
-import { isUserNGForCast, getNGReasonForCast } from './ng-judgment';
-import type { MatchingSearchMode } from '@/features/matching/types/matching-system-types';
 import { runSingleCastMatching } from './matching-table-engine';
 import { runMultipleMatching } from './matching-m003';
-import { getPreferenceScore } from './matching-hungarian-engine';
 
 export interface MatchedCast {
   cast: CastBean;
   rank: number;
   /** 0-based ローテーション番号。画面では 1-based で表示する。 */
-  rotationIndex?: number;
-  score?: number;
-  isNGWarning?: boolean;
-  ngReason?: string;
+  rotationIndex: number;
+  score: number;
+  isNGWarning: boolean;
+  ngReason: string | null;
 }
 
 export interface TableSlot {
   user: UserBean | null;
   matches: MatchedCast[];
-  /** 1-based テーブル番号。未指定時は表示側で配列順から補完する。 */
-  tableIndex?: number;
+  /** 1-based テーブル番号。 */
+  tableIndex: number;
 }
 
 export type MatchingFailureReason =
@@ -59,9 +56,6 @@ export interface MatchingRunOptions {
   totalTables?: number;
   usersPerTable?: number;
   castsPerRotation?: number;
-  searchTimeLimitMs?: number;
-  relaxedAfterMs?: number;
-  searchMode?: MatchingSearchMode;
 }
 
 /** 指定された方式コードに応じてマッチングを実行し、警告・スコア集計を付与する。 */
@@ -77,7 +71,7 @@ export function runMatching(
     return finalizeResult({ userMap }, winners);
   }
 
-  const rotationCount = Math.max(1, options.rotationCount || 1);
+  const rotationCount = Math.max(1, options.rotationCount);
   let result: MatchingResult;
   const totalTables = options.totalTables ?? winners.length;
 
@@ -101,9 +95,6 @@ export function runMatching(
           castsPerRotation: options.castsPerRotation ?? 1,
           rotationCount,
           totalTables: options.totalTables,
-          searchTimeLimitMs: options.searchTimeLimitMs,
-          relaxedAfterMs: options.relaxedAfterMs,
-          searchMode: options.searchMode,
         },
       );
       break;
@@ -114,43 +105,14 @@ export function runMatching(
   return finalizeResult(result, winners);
 }
 
-/** アルゴリズム結果に表示情報と確認可否の集計を付け、画面で扱う最終結果にする。 */
+/** 完了したアルゴリズム結果へ、画面表示と保存に使う評価集計を付ける。 */
 function finalizeResult(
   result: MatchingResult,
   winners: UserBean[],
 ): MatchingResult {
-  const finalizedResult = attachMatchMetadata(result, winners);
-  if (!finalizedResult.ngConflict) {
-    finalizedResult.scoreSummary = evaluateMatchingResult(finalizedResult, winners);
+  if (!result.ngConflict) {
+    result.scoreSummary = evaluateMatchingResult(result, winners);
   }
-  return finalizedResult;
-}
-
-/** 点数を付与し、固定のNG排除契約に反する結果があれば理由を表示できる状態にする。 */
-function attachMatchMetadata(
-  result: MatchingResult,
-  winners: UserBean[],
-): MatchingResult {
-  const winnerById = new Map(winners.map((winner) => [winner.x_id, winner]));
-
-  result.userMap.forEach((matches, xId) => {
-    const user = winnerById.get(xId);
-    if (!user) return;
-    matches.forEach((match) => {
-      match.score = getPreferenceScore(user, match.cast);
-      match.isNGWarning = isUserNGForCast(user, match.cast);
-      match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
-    });
-  });
-
-  result.tableSlots?.forEach((slot: TableSlot) => {
-    const user = slot.user;
-    slot.matches.forEach((match) => {
-      match.score = user ? getPreferenceScore(user, match.cast) : 0;
-      match.isNGWarning = user ? isUserNGForCast(user, match.cast) : false;
-      match.ngReason = match.isNGWarning ? getNGReasonForCast(match.cast.name) : undefined;
-    });
-  });
   return result;
 }
 
@@ -168,7 +130,7 @@ function evaluateMatchingResult(result: MatchingResult, winners: UserBean[]): Ma
   winners.forEach((winner) => {
     const matches = result.userMap.get(winner.x_id) ?? [];
     matches.forEach((match) => {
-      const score = match.score ?? getPreferenceScore(winner, match.cast);
+      const score = match.score;
       totalScore += score;
       matchCount += 1;
 

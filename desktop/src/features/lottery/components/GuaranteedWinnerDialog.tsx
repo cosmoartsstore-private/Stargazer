@@ -1,6 +1,7 @@
 // 確定当選者の選択一覧を表示し、対象X IDを直接通知する。
 
 import React from 'react';
+import { Check } from 'lucide-react';
 import type { UserBean } from '@/common/types/entities';
 import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { AppDialog } from '@/components/AppDialog';
@@ -29,7 +30,7 @@ function GuaranteedApplicantButton({ user, selected, onToggle }: GuaranteedAppli
 
   return (
     <button type="button" aria-pressed={selected} className={getGuaranteedApplicantClassName(selected)} onClick={handleClick}>
-      <span className={styles.guaranteedSelectModalList__check}>{selected ? getMsg('LotteryPage.selected') : getMsg('LotteryPage.notSelected')}</span>
+      <span className={styles.guaranteedSelectModalList__check}>{selected && <Check size={12} strokeWidth={2.5} aria-hidden />}{selected ? getMsg('LotteryPage.selected') : getMsg('LotteryPage.notSelected')}</span>
       <span className={styles.guaranteedSelectModalList__name}>{displayName}</span>
       <span className={styles.guaranteedSelectModalList__id}>{displayXId}</span>
     </button>
@@ -78,7 +79,7 @@ export const GuaranteedWinnerDialog: React.FC<GuaranteedWinnerDialogProps> = ({
         </div>
       </div>
       <footer className={dialogStyles.modalButtons}>
-        <button type="button" className={`${shared.btnPrimary} ${dialogStyles.modalBtnAction}`} onClick={onClose}>{getMsg('common.close')}</button>
+        <button type="button" className={dialogStyles.modalBtnCancel} onClick={onClose}>{getMsg('common.close')}</button>
       </footer>
     </AppDialog>
   );

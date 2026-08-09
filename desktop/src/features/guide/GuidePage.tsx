@@ -34,7 +34,7 @@ function getStellaRegisterButtonLabel(status: StellaStatus): string {
 }
 
 function getStellaMessageColor(status: StellaStatus): string {
-  if (status === 'success') return 'var(--accent-success, #3ba55d)';
+  if (status === 'success') return 'var(--text-success, #03b800)';
   if (status === 'error' || status === 'unavailable') return '#ed4245';
   return 'var(--text-muted)';
 }
@@ -116,7 +116,7 @@ export const GuidePage: React.FC = () => {
     padding: '8px 20px',
     border: 'none',
     borderRadius: 6,
-    background: stellaStatus === 'success' ? 'var(--accent-success, #3ba55d)' : 'var(--accent-primary)',
+    background: stellaStatus === 'success' ? 'var(--button-success-bg, #03b800)' : 'var(--accent-primary)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 600,
@@ -131,13 +131,6 @@ export const GuidePage: React.FC = () => {
 
   return (
     <div className={`${shared.pageWrapper} ${styles.guidePage}`} style={{ maxWidth: 1560, paddingBottom: 60 }}>
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(4px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-
       <div role="tablist" aria-label={getMsg('GuidePage.tabListLabel')} aria-orientation="horizontal" style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--border-default)' }}>
         {GUIDE_TABS.map((tab) => (
           <GuideTabButton

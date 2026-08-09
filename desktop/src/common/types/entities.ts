@@ -11,10 +11,10 @@ export interface UserBean {
   x_id: string;
   vrc_url?: string; // VRCアカウントURL(オプション)
   casts: string[];
-  /** casts と同じ順位に対応する安定ID。null は現在のキャストへ解決できない希望を表す。 */
+  /** casts と同じ順位に対応する安定ID。取込プレビューでは未確定、null は解決できない希望を表す。 */
   cast_ids?: Array<number | null>;
   /** 希望の扱い: ranked=第1〜3希望、flat=順不同の複数希望（全て50点） */
-  preference_mode?: 'ranked' | 'flat';
+  preference_mode: 'ranked' | 'flat';
   is_guaranteed?: boolean; // 確定枠フラグ
   raw_extra: UserExtraField[];
 }
@@ -43,7 +43,7 @@ export interface CastBean {
   /** イベント共有DBでキャストを識別する安定ID。 */
   id: number;
   name: string;
-  /** 取込時の希望名として正式名と同様に扱う別名義。 */
+  /** キャスト検索で正式名とあわせて照合する別名義。 */
   aliases?: string[];
   is_present: boolean;
   /** 連絡先一覧（DM(Discord)用URL・WebプロフィールURL・Xの @username など）。＋で複数追加可能 */

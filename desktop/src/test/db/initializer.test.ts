@@ -37,6 +37,7 @@ beforeEach(() => {
   invokeMock.mockReset();
   invokeMock.mockImplementation(async (command: string, args?: unknown) => {
     if (command === 'list_events') return ['Event A', 'Event B'];
+    if (command === 'get_startup_session_cleanup_error') return null;
     void args;
     throw new Error(`unexpected command: ${command}`);
   });
@@ -48,41 +49,24 @@ afterEach(() => {
 });
 
 describe('initializeApp', () => {
-  it('単一キーに保存したイベントとセッション候補を復元する', async () => {
+  it('単一キーに保存した最後のイベントを復元する', async () => {
     installWindowWithStorage(createStorage({
       'stargazer:lastLocation': JSON.stringify({
-        version: 1,
         eventName: 'Event B',
-        sessionTimestamp: '2026-07-25T12:00:00.000Z',
       }),
-    }));
-
-    await expect(initializeApp()).resolves.toMatchObject({
-      lastUsedEvent: 'Event B',
-      lastUsedSession: '2026-07-25T12:00:00.000Z',
-    });
-  });
-
-  it('旧キーだけではイベントとセッション候補を復元しない', async () => {
-    installWindowWithStorage(createStorage({
-      'stargazer:lastEvent': 'Event A',
-      'stargazer:lastSession': '2026-06-19T12:00:00.000Z',
     }));
 
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
-      lastUsedEvent: null,
-      lastUsedSession: null,
+      lastUsedEvent: 'Event B',
+      startupSessionCleanupError: null,
     });
-    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('保存済みイベントが存在しない場合は保存済み位置を破棄する', async () => {
     const storage = createStorage({
       'stargazer:lastLocation': JSON.stringify({
-        version: 1,
         eventName: 'Missing Event',
-        sessionTimestamp: '2026-06-19T12:00:00.000Z',
       }),
     });
     installWindowWithStorage(storage);
@@ -90,27 +74,27 @@ describe('initializeApp', () => {
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
       lastUsedEvent: null,
-      lastUsedSession: null,
+      startupSessionCleanupError: null,
     });
     expect(storage.getItem('stargazer:lastLocation')).toBeNull();
-    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledTimes(2);
   });
 
-  it('セッション候補の実在確認はイベントを開く処理へ委ねる', async () => {
+  it('起動時の一時セッション破棄エラーを画面へ返す', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'list_events') return ['Event A', 'Event B'];
+      if (command === 'get_startup_session_cleanup_error') return '一時セッションを破棄できませんでした。';
+      throw new Error(`unexpected command: ${command}`);
+    });
     installWindowWithStorage(createStorage({
-      'stargazer:lastLocation': JSON.stringify({
-        version: 1,
-        eventName: 'Event A',
-        sessionTimestamp: 'missing-session',
-      }),
+      'stargazer:lastLocation': JSON.stringify({ eventName: 'Event A' }),
     }));
 
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
       lastUsedEvent: 'Event A',
-      lastUsedSession: 'missing-session',
+      startupSessionCleanupError: '一時セッションを破棄できませんでした。',
     });
-    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('localStorage が拒否されてもイベント一覧を返す', async () => {
@@ -123,16 +107,14 @@ describe('initializeApp', () => {
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
       lastUsedEvent: null,
-      lastUsedSession: null,
+      startupSessionCleanupError: null,
     });
   });
 
   it('保存済み位置の読み取りに失敗した場合は保存値を削除しない', async () => {
     const storage = createStorage({
       'stargazer:lastLocation': JSON.stringify({
-        version: 1,
         eventName: 'Event A',
-        sessionTimestamp: '2026-06-19T12:00:00.000Z',
       }),
     });
     storage.getItem = vi.fn((key: string) => {
@@ -144,45 +126,44 @@ describe('initializeApp', () => {
     await expect(initializeApp()).resolves.toEqual({
       events: ['Event A', 'Event B'],
       lastUsedEvent: null,
-      lastUsedSession: null,
+      startupSessionCleanupError: null,
     });
     expect(storage.removeItem).not.toHaveBeenCalled();
   });
 });
 
 describe('最後に使用した位置の保存と初期化', () => {
-  it('最後に使用したイベントとセッションを書き込む', () => {
+  it('最後に使用したイベントだけを書き込む', () => {
     const storage = createStorage();
     installWindowWithStorage(storage);
 
-    saveLastLocation('Event A', '2026-06-19T12:00:00.000Z');
+    saveLastLocation('Event A');
 
     expect(JSON.parse(storage.getItem('stargazer:lastLocation') ?? '')).toEqual({
-      version: 1,
       eventName: 'Event A',
-      sessionTimestamp: '2026-06-19T12:00:00.000Z',
     });
-    expect(storage.getItem('stargazer:lastEvent')).toBeNull();
-    expect(storage.getItem('stargazer:lastSession')).toBeNull();
+    expect(storage.setItem).toHaveBeenCalledOnce();
+    expect(storage.setItem).toHaveBeenCalledWith(
+      'stargazer:lastLocation',
+      JSON.stringify({ eventName: 'Event A' }),
+    );
   });
 
-  it('イベントだけ保存するときは旧イベントのセッションを同じ書込で破棄する', () => {
+  it('最後に使用したイベントを単一書込で置き換える', () => {
     const storage = createStorage();
     installWindowWithStorage(storage);
 
-    saveLastLocation('Event A', '2026-06-19T12:00:00.000Z');
-    saveLastLocation('Event B', null);
+    saveLastLocation('Event A');
+    saveLastLocation('Event B');
 
     expect(JSON.parse(storage.getItem('stargazer:lastLocation') ?? '')).toEqual({
-      version: 1,
       eventName: 'Event B',
-      sessionTimestamp: null,
     });
   });
 
   it('現在イベントの削除後に最終位置を消去する', () => {
     const storage = createStorage({
-      'stargazer:lastLocation': '{"version":1,"eventName":"Event A","sessionTimestamp":null}',
+      'stargazer:lastLocation': '{"eventName":"Event A"}',
     });
     installWindowWithStorage(storage);
 
@@ -198,15 +179,13 @@ describe('最後に使用した位置の保存と初期化', () => {
     });
     installWindowWithStorage(storage);
 
-    expect(() => saveLastLocation('Event A', '2026-06-19T12:00:00.000Z')).not.toThrow();
+    expect(() => saveLastLocation('Event A')).not.toThrow();
   });
 
   it('存在しない保存済みイベントの削除に失敗しても初期化を継続する', async () => {
     const storage = createStorage({
       'stargazer:lastLocation': JSON.stringify({
-        version: 1,
         eventName: 'Missing Event',
-        sessionTimestamp: '2026-06-19T12:00:00.000Z',
       }),
     });
     storage.removeItem = vi.fn(() => {
@@ -216,7 +195,7 @@ describe('最後に使用した位置の保存と初期化', () => {
 
     await expect(initializeApp()).resolves.toMatchObject({
       lastUsedEvent: null,
-      lastUsedSession: null,
+      startupSessionCleanupError: null,
     });
     expect(storage.removeItem).toHaveBeenCalledWith('stargazer:lastLocation');
   });

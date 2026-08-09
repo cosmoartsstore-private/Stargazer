@@ -3,15 +3,15 @@ import type {
   KeyboardEvent,
 } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
-import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
-import { getMsg } from '@/messages/getMsg';
-import shared from '@/styles/shared.module.css';
+import type { CastBean, NGUserEntry } from '@/common/types/entities';
+import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
 import {
   buildXProfileUrl,
-  type CastBean,
-  type CastNgFormValues,
-  type NGUserEntry,
-} from '../ngUserManagementModel';
+  formatXAccountIdForDisplay,
+} from '@/common/xIdUtils';
+import { getMsg } from '@/messages/getMsg';
+import shared from '@/styles/shared.module.css';
+import type { CastNgFormValues } from '../ngUserManagementModel';
 import styles from '../NGUserManagementPage.module.css';
 import { EntryDetailsEditor } from './EntryDetailsEditor';
 
@@ -36,6 +36,8 @@ export interface CastNgPanelController {
 
 export interface CastNgPanelProps {
   controller: CastNgPanelController;
+  notesDiscardGeneration: number;
+  onEntryNotesDirtyChange: (editorId: string, dirty: boolean) => void;
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
 
@@ -70,7 +72,9 @@ interface CastNgEntryRowProps {
   entry: NGUserEntry;
   entryIndex: number;
   isSaving: boolean;
+  notesDiscardGeneration: number;
   onRequestDelete: (castId: number, entry: NGUserEntry) => void;
+  onEntryNotesDirtyChange: (editorId: string, dirty: boolean) => void;
   onUpdateNotes: (castId: number, entryIndex: number, notes: string) => Promise<void>;
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
@@ -80,7 +84,9 @@ function CastNgEntryRow({
   entry,
   entryIndex,
   isSaving,
+  notesDiscardGeneration,
   onRequestDelete,
+  onEntryNotesDirtyChange,
   onUpdateNotes,
   onRequestProfileLink,
 }: CastNgEntryRowProps) {
@@ -106,7 +112,10 @@ function CastNgEntryRow({
   }
 
   function handleDeleteClick(): void {
-    onRequestDelete(castId, entry);
+    void (async () => {
+      if (!await flushPendingPageCommits()) return;
+      onRequestDelete(castId, entry);
+    })();
   }
 
   function handleDetailsSave(notes: string): Promise<void> {
@@ -125,13 +134,13 @@ function CastNgEntryRow({
         )}
         <button type="button" className={styles.ngCastGrid__remove} aria-label={deleteNgRegistrationAriaLabel} onClick={handleDeleteClick}>×</button>
       </div>
-      <EntryDetailsEditor notes={entry.notes} disabled={isSaving} onSave={handleDetailsSave} />
+      <EntryDetailsEditor notes={entry.notes} disabled={isSaving} discardGeneration={notesDiscardGeneration} onSave={handleDetailsSave} onDirtyChange={onEntryNotesDirtyChange} />
     </div>
   );
 }
 
 /** キャストの検索・選択と、選択中キャストのNG登録を表示する。 */
-export function CastNgPanel({ controller, onRequestProfileLink }: CastNgPanelProps) {
+export function CastNgPanel({ controller, notesDiscardGeneration, onEntryNotesDirtyChange, onRequestProfileLink }: CastNgPanelProps) {
   // controllerが管理する表示状態。
   const {
     filteredCasts,
@@ -177,6 +186,15 @@ export function CastNgPanel({ controller, onRequestProfileLink }: CastNgPanelPro
     void add();
   }
 
+  async function selectCastWithGuard(castId: number): Promise<void> {
+    if (isSaving || castId === selectedCastId || !await flushPendingPageCommits()) return;
+    selectCast(castId);
+  }
+
+  function handleCastSelect(castId: number): void {
+    void selectCastWithGuard(castId);
+  }
+
   return (
     <div className={shared.managementDetailLayout}>
       <div className={shared.managementListPanel}>
@@ -189,7 +207,7 @@ export function CastNgPanel({ controller, onRequestProfileLink }: CastNgPanelPro
             <div className={shared.managementListPanel__empty}>{getMsg('NGUserManagementPage.noCasts')}</div>
           ) : (
             filteredCasts.map((cast) => (
-              <CastListItem key={cast.id} cast={cast} isSelected={selectedCastId === cast.id} onSelect={selectCast} />
+              <CastListItem key={cast.id} cast={cast} isSelected={selectedCastId === cast.id} onSelect={handleCastSelect} />
             ))
           )}
         </div>
@@ -212,7 +230,8 @@ export function CastNgPanel({ controller, onRequestProfileLink }: CastNgPanelPro
           ) : (
             <div className={styles.ngDetailList}>
               {selectedCast.ng_entries?.map((entry, entryIndex) => {
-                const entryKey = `${selectedCast.id}-${entry.username}-${entry.accountId}-${entryIndex}`;
+                // X IDは同一キャスト内で一意なため、並び順が変わっても編集行を維持できる。
+                const entryKey = `${selectedCast.id}-${entry.accountId}`;
                 return (
                   <CastNgEntryRow
                     key={entryKey}
@@ -220,7 +239,9 @@ export function CastNgPanel({ controller, onRequestProfileLink }: CastNgPanelPro
                     entry={entry}
                     entryIndex={entryIndex}
                     isSaving={isSaving}
+                    notesDiscardGeneration={notesDiscardGeneration}
                     onRequestDelete={requestDelete}
+                    onEntryNotesDirtyChange={onEntryNotesDirtyChange}
                     onUpdateNotes={updateNotes}
                     onRequestProfileLink={onRequestProfileLink}
                   />

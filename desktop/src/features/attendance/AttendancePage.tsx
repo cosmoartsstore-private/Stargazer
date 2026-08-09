@@ -1,7 +1,13 @@
 // 出欠管理の設定画面と記録画面を切り替え、出欠記録の保存を制御するページ。
 
-import type { KeyboardEvent } from 'react';
+import { useEffect, type KeyboardEvent } from 'react';
+import { registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { NoticeDialog } from '@/components/ConfirmModal';
+import {
+  getOpenEventContext,
+  isCurrentEventContext,
+  waitForSuccessfulEventWrites,
+} from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 import shared from '@/styles/shared.module.css';
@@ -35,10 +41,30 @@ function AttendanceTabButton({ id, label, selected, onSelect, onKeyDown }: Atten
   return <button id={`attendance-tab-${id}`} type="button" role="tab" aria-controls="attendance-tabpanel" aria-selected={selected} tabIndex={selected ? 0 : -1} className={className} onClick={handleClick} onKeyDown={handleKeyDown}>{label}</button>;
 }
 
-export function AttendancePage() {
+interface AttendancePageProps {
+  previewMode?: boolean;
+}
+
+export function AttendancePage({ previewMode = false }: AttendancePageProps) {
   // 画面表示と保存処理は、出欠管理用ViewModelの同一スナップショットを使う。
   const { currentEventName, casts, setCasts } = useAppContext();
   const attendance = useAttendanceState({ currentEventName, casts, setCasts });
+
+  // 表示中に開始した出欠・在席状態の書込みは、画面を離れる前に成功まで確認する。
+  useEffect(() => {
+    if (previewMode) return undefined;
+    return registerPendingPageCommit(async () => {
+      if (currentEventName === null) return true;
+      const context = getOpenEventContext(currentEventName);
+      if (context === null) return false;
+      try {
+        await waitForSuccessfulEventWrites(context);
+        return isCurrentEventContext(context);
+      } catch {
+        return false;
+      }
+    });
+  }, [currentEventName, previewMode]);
 
   // モーダルからViewModelへ入力を渡すUIイベント。
   const handleCloseSaveModal = () => attendance.setConfirmSave(false);

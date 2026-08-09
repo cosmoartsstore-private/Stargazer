@@ -1,40 +1,41 @@
 import {
   useEffect,
   useId,
-  useRef,
   useState,
   type ChangeEvent,
 } from 'react';
 import { Save } from 'lucide-react';
 import { getMsg } from '@/messages/getMsg';
+import { useExclusiveMutation } from '../hooks/useExclusiveMutation';
 import styles from '../NGUserManagementPage.module.css';
 
 export interface EntryDetailsEditorProps {
   notes?: string;
   disabled: boolean;
+  discardGeneration: number;
   saveTargetLabel?: string;
   onSave: (notes: string) => Promise<void>;
+  onDirtyChange: (editorId: string, dirty: boolean) => void;
 }
 
 /** 保存済みの理由・メモとは分離した下書きを編集し、変更分だけを保存する。 */
 export function EntryDetailsEditor({
   notes,
   disabled,
+  discardGeneration,
   saveTargetLabel,
   onSave,
+  onDirtyChange,
 }: EntryDetailsEditorProps) {
   const notesInputId = useId();
 
   // 保存済み値と分離した編集下書き、および保存中状態。
   const [notesDraft, setNotesDraft] = useState(notes ?? '');
-  const [isSaving, setIsSaving] = useState(false);
-
-  // state反映前の連続操作でも、同じ下書きを二重保存しないための同期ガード。
-  const saveInFlightRef = useRef(false);
+  const { isActive: isSaving, run: runSave } = useExclusiveMutation();
 
   useEffect(() => {
     setNotesDraft(notes ?? '');
-  }, [notes]);
+  }, [discardGeneration, notes]);
 
   // 保存済み値との差分を導出する。
   const savedNotes = (notes ?? '').trim();
@@ -42,17 +43,15 @@ export function EntryDetailsEditor({
   const changed = nextNotes !== savedNotes;
   const editorClassName = `${styles.ngEntryDetails} ${styles.ngEntryDetailsCompact}`;
 
+  useEffect(() => {
+    onDirtyChange(notesInputId, changed);
+    return () => onDirtyChange(notesInputId, false);
+  }, [changed, notesInputId, onDirtyChange]);
+
   // 入力と保存ボタンから、同一の詳細保存処理へ接続する。
   async function save(): Promise<void> {
-    if (!changed || disabled || saveInFlightRef.current) return;
-    saveInFlightRef.current = true;
-    setIsSaving(true);
-    try {
-      await onSave(nextNotes);
-    } finally {
-      saveInFlightRef.current = false;
-      setIsSaving(false);
-    }
+    if (!changed || disabled) return;
+    await runSave(() => onSave(nextNotes));
   }
 
   function handleNotesChange(event: ChangeEvent<HTMLTextAreaElement>): void {

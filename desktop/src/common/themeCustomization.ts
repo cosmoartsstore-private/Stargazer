@@ -60,7 +60,7 @@ const CHECK_THEME_RECIPE = {
   deepTextLightness: 23,
   mutedTextSaturation: 44,
   mutedTextLightness: 34,
-  mutedTextAlpha: 0.66,
+  mutedTextAlpha: 0.70,
   linkSaturation: 72,
   linkLightness: 41,
 } as const;
@@ -69,10 +69,14 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function numberInRange(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? clamp(Math.round(value), min, max)
-    : fallback;
+function isRecordWithExactKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === keys.length && keys.every((key) => actualKeys.includes(key));
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
 }
 
 export function isHexColor(value: string): boolean {
@@ -91,42 +95,39 @@ export function normalizeHexColor(value: unknown, fallback: string): string {
   return `#${expanded.toUpperCase()}`;
 }
 
-function normalizeDefaultThemeCustomization(value: unknown): DefaultThemeCustomization {
-  const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-  const colors = Array.isArray(source.colors)
-    ? source.colors
-        .map((color, index) => normalizeHexColor(color, DEFAULT_THEME_CUSTOMIZATION.dark.colors[index] ?? DEFAULT_THEME_CUSTOMIZATION.dark.colors[0]))
-        .filter((color, index, list) => color && list.indexOf(color) === index)
-        .slice(0, CUSTOM_THEME_MAX_COLORS)
-    : DEFAULT_THEME_CUSTOMIZATION.dark.colors;
-
-  return {
-    accent: normalizeHexColor(source.accent, DEFAULT_THEME_CUSTOMIZATION.dark.accent),
-    colors: colors.length >= CUSTOM_THEME_MIN_COLORS ? colors : DEFAULT_THEME_CUSTOMIZATION.dark.colors,
-    direction: numberInRange(source.direction, DEFAULT_THEME_CUSTOMIZATION.dark.direction, 0, 360),
-    intensity: numberInRange(source.intensity, DEFAULT_THEME_CUSTOMIZATION.dark.intensity, 0, 100),
-  };
+function isDefaultThemeCustomization(value: unknown): value is DefaultThemeCustomization {
+  if (!isRecordWithExactKeys(value, ['accent', 'colors', 'direction', 'intensity'])) return false;
+  return typeof value.accent === 'string'
+    && isHexColor(value.accent)
+    && Array.isArray(value.colors)
+    && value.colors.length >= CUSTOM_THEME_MIN_COLORS
+    && value.colors.length <= CUSTOM_THEME_MAX_COLORS
+    && value.colors.every((color) => typeof color === 'string' && isHexColor(color))
+    && isIntegerInRange(value.direction, 0, 360)
+    && isIntegerInRange(value.intensity, 0, 100);
 }
 
-function normalizeCheckThemeCustomization(value: unknown): CheckThemeCustomization {
-  const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-  return {
-    hue: numberInRange(source.hue, DEFAULT_THEME_CUSTOMIZATION.skyblue.hue, 0, 360),
-  };
+function isCheckThemeCustomization(value: unknown): value is CheckThemeCustomization {
+  return isRecordWithExactKeys(value, ['hue']) && isIntegerInRange(value.hue, 0, 360);
 }
 
-/** 保存済みテーマ設定を現在のスキーマへ正規化する。 */
+/** 現行設定を検証し、一項目でも不正なら設定全体を既定値へ戻す。 */
 export function normalizeThemeCustomization(value: unknown): ThemeCustomizationState {
-  const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  if (
+    !isRecordWithExactKeys(value, ['dark', 'skyblue'])
+    || !isDefaultThemeCustomization(value.dark)
+    || !isCheckThemeCustomization(value.skyblue)
+  ) {
+    return DEFAULT_THEME_CUSTOMIZATION;
+  }
   return {
-    dark: normalizeDefaultThemeCustomization(source.dark),
-    skyblue: normalizeCheckThemeCustomization(source.skyblue),
+    dark: {
+      accent: normalizeHexColor(value.dark.accent, value.dark.accent),
+      colors: value.dark.colors.map((color) => normalizeHexColor(color, color)),
+      direction: value.dark.direction,
+      intensity: value.dark.intensity,
+    },
+    skyblue: { hue: value.skyblue.hue },
   };
 }
 

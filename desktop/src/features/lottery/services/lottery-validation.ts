@@ -1,5 +1,6 @@
 import { selectM003Capacity } from '@/features/matching/logics/matching-capacity';
 import { isTableBasedMatching, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
+import type { SameDaySlotUnit } from '@/common/types/sessionWorkflow';
 import { getMsg } from '@/messages/getMsg';
 
 export interface LotteryValidationParams {
@@ -7,12 +8,15 @@ export interface LotteryValidationParams {
   totalWinners: number;
   lotteryCount?: number;
   guaranteedCount?: number;
+  availableLotteryCandidateCount?: number;
+  rotationCount: number;
   totalTables: number;
   activeCastCount: number;
   castsPerRotation: number;
   usersPerTable: number;
-  allowM003EmptySeats: boolean | undefined;
+  reserveSameDaySlots: boolean | undefined;
   sameDaySlotCount?: number;
+  sameDaySlotUnit?: SameDaySlotUnit;
 }
 
 export interface LotteryValidationResult {
@@ -27,33 +31,47 @@ export function validateLotteryConditions({
   totalWinners,
   lotteryCount,
   guaranteedCount = 0,
+  availableLotteryCandidateCount,
+  rotationCount,
   totalTables,
   activeCastCount,
   castsPerRotation,
   usersPerTable,
-  allowM003EmptySeats,
+  reserveSameDaySlots,
   sameDaySlotCount = 0,
+  sameDaySlotUnit = 'table',
 }: LotteryValidationParams): LotteryValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const info: string[] = [];
-  const normalizedSameDaySlotCount = allowM003EmptySeats && Number.isFinite(sameDaySlotCount)
+  const normalizedSameDaySlotCount = reserveSameDaySlots && Number.isFinite(sameDaySlotCount)
     ? Math.max(0, Math.floor(sameDaySlotCount))
     : 0;
   const displayedLotteryCount = lotteryCount ?? Math.max(0, totalWinners - guaranteedCount);
+
+  if (
+    availableLotteryCandidateCount !== undefined
+    && displayedLotteryCount > availableLotteryCandidateCount
+  ) {
+    errors.push(getMsg('lotteryValidation.insufficientCandidates', {
+      lotteryCount: displayedLotteryCount,
+      candidateCount: availableLotteryCandidateCount,
+    }));
+  }
 
   if (matchingTypeCode === 'M000') {
     info.push(getMsg('lotteryValidation.lotteryOnlyInfo'));
   } else if (matchingTypeCode === 'M003') {
     const {
-      baseSeatCount,
-      totalSeatCount,
-      effectiveTableCount,
-      userTableCount,
-      hasEmptySeats,
-      hasEmptyTables,
+      completeCastUnitCount,
+      physicalSeatCount,
+      reservedSeatCount,
+      lotterySeatCount,
+      unreservedEmptySeatCount,
+      hasUnreservedEmptySeats,
+      hasUnreservedEmptyTables,
       hasIncompleteCastUnit,
-      expectedTableCount,
+      staffedTableCount,
       expectedCapacity,
     } = selectM003Capacity({
       totalTables,
@@ -61,32 +79,43 @@ export function validateLotteryConditions({
       totalWinners,
       activeCastCount,
       castsPerRotation,
-      includedSameDaySlotCount: normalizedSameDaySlotCount,
+      reservedSameDaySlotCount: normalizedSameDaySlotCount,
+      sameDaySlotUnit,
     });
 
-    info.push(getMsg('lotteryValidation.groupSeatSummary', {
-      baseSeatCount,
+    info.push(getMsg(sameDaySlotUnit === 'table'
+      ? 'lotteryValidation.groupSeatSummaryByTable'
+      : 'lotteryValidation.groupSeatSummaryByPerson', {
+      totalTables,
+      physicalSeatCount,
       sameDaySlotCount: normalizedSameDaySlotCount,
-      totalSeatCount,
+      reservedSeatCount,
+      lotterySeatCount,
     }));
 
-    if (effectiveTableCount < userTableCount) {
+    if (reservedSeatCount > physicalSeatCount) {
+      errors.push(getMsg('lotteryValidation.sameDaySlotsExceedCapacity', {
+        reservedSeatCount,
+        physicalSeatCount,
+      }));
+    }
+
+    if (totalWinners > lotterySeatCount) {
       errors.push(getMsg('lotteryValidation.insufficientGroupSeats', {
-        totalSeatCount,
+        lotterySeatCount,
         totalWinners,
       }));
     }
 
-    if (!allowM003EmptySeats && hasEmptySeats) {
+    if (!reserveSameDaySlots && hasUnreservedEmptySeats) {
       errors.push(getMsg('lotteryValidation.emptySeatsDisallowed', {
-        totalWinners,
-        usersPerTable,
+        emptySeatCount: unreservedEmptySeatCount,
       }));
     }
-    if (hasEmptyTables && !allowM003EmptySeats) {
+    if (hasUnreservedEmptyTables && !reserveSameDaySlots) {
       errors.push(getMsg('lotteryValidation.emptyTablesDisallowed', {
         totalTables,
-        userTableCount,
+        winnerTableCount: Math.ceil(totalWinners / usersPerTable),
       }));
     }
 
@@ -97,44 +126,74 @@ export function validateLotteryConditions({
       }));
     }
 
-    if (allowM003EmptySeats && totalSeatCount > totalWinners) {
+    if (rotationCount > completeCastUnitCount) {
+      errors.push(getMsg('lotteryValidation.rotationCountExceedsCastUnits', {
+        rotationCount,
+        completeCastUnitCount,
+      }));
+    }
+
+    if (reserveSameDaySlots && unreservedEmptySeatCount > 0) {
       warnings.push(getMsg('lotteryValidation.extraSeats', {
-        extraSeatCount: totalSeatCount - totalWinners,
+        extraSeatCount: unreservedEmptySeatCount,
       }));
     }
 
     if (totalWinners > expectedCapacity) {
       errors.push(getMsg('lotteryValidation.groupCapacityExceeded', {
         totalWinners,
-        expectedTableCount,
-        usersPerTable,
+        staffedTableCount,
+        reservedSeatCount,
         expectedCapacity,
       }));
     } else if (totalWinners < expectedCapacity) {
       warnings.push(getMsg('lotteryValidation.groupCapacityShortfall', {
         totalWinners,
+        staffedTableCount,
+        reservedSeatCount,
         expectedCapacity,
       }));
     }
   } else {
-    info.push(getMsg('lotteryValidation.tableSeatSummary', { totalTables }));
+    const reservedTableCount = normalizedSameDaySlotCount;
+    const lotteryTableCount = Math.max(0, totalTables - reservedTableCount);
+    const requiredCastCount = totalWinners + reservedTableCount;
+    info.push(getMsg('lotteryValidation.tableSeatSummary', {
+      totalTables,
+      reservedTableCount,
+      lotteryTableCount,
+    }));
 
-    if (isTableBasedMatching(matchingTypeCode) && totalTables < totalWinners) {
-      errors.push(getMsg('lotteryValidation.insufficientTables', {
+    if (reservedTableCount > totalTables) {
+      errors.push(getMsg('lotteryValidation.sameDayTablesExceedCapacity', {
+        reservedTableCount,
         totalTables,
+      }));
+    }
+
+    if (isTableBasedMatching(matchingTypeCode) && lotteryTableCount < totalWinners) {
+      errors.push(getMsg('lotteryValidation.insufficientTables', {
+        lotteryTableCount,
         totalWinners,
       }));
     }
 
-    if (totalWinners > activeCastCount) {
-      errors.push(getMsg('lotteryValidation.moreWinnersThanCasts', {
-        totalWinners,
+    if (requiredCastCount > activeCastCount) {
+      errors.push(getMsg('lotteryValidation.moreRequiredTablesThanCasts', {
+        requiredCastCount,
         activeCastCount,
       }));
-    } else if (totalWinners < activeCastCount) {
+    } else if (requiredCastCount < activeCastCount) {
       warnings.push(getMsg('lotteryValidation.moreCastsThanWinners', {
         activeCastCount,
-        totalWinners,
+        requiredCastCount,
+      }));
+    }
+
+    if (rotationCount > activeCastCount) {
+      errors.push(getMsg('lotteryValidation.rotationCountExceedsCasts', {
+        rotationCount,
+        activeCastCount,
       }));
     }
   }

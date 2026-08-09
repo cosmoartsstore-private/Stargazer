@@ -1,8 +1,11 @@
 // サイドバーと各featureが共有する画面識別子。
-export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
+export type PageType = 'guide' | 'dataManagement' | 'internalManagement' | 'eventManagement' | 'importNew' | 'savedLottery' | 'matchingHistory' | 'import' | 'cast' | 'ngManagement' | 'lottery' | 'matching' | 'attendance' | 'tweet';
 
 const EVENT_REQUIRED_PAGES: PageType[] = [
   'dataManagement',
+  'importNew',
+  'savedLottery',
+  'matchingHistory',
   'lottery',
   'matching',
   'import',
@@ -15,7 +18,15 @@ const EVENT_REQUIRED_PAGES: PageType[] = [
 
 // サイドバー上では、各管理領域の子ページも親項目を選択中として扱う。
 const INTERNAL_PAGES: PageType[] = ['internalManagement', 'cast', 'ngManagement', 'tweet', 'attendance'];
-const APPLICATION_PAGES: PageType[] = ['dataManagement', 'lottery', 'matching', 'import'];
+export const APPLICATION_PAGES: PageType[] = [
+  'dataManagement',
+  'importNew',
+  'savedLottery',
+  'matchingHistory',
+  'lottery',
+  'matching',
+  'import',
+];
 
 /** イベント共有 DB を開いていない状態では遷移できないページかを判定する。 */
 function requiresOpenEvent(page: PageType): boolean {

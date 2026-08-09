@@ -1,8 +1,10 @@
 // 抽選・マッチング・永続化境界で共有するセッション条件の契約。
 
 export const MATCHING_TYPE_CODES = ['M000', 'M001', 'M002', 'M003'] as const;
+export const SAME_DAY_SLOT_UNITS = ['person', 'table'] as const;
 
 export type MatchingTypeCode = (typeof MATCHING_TYPE_CODES)[number];
+export type SameDaySlotUnit = (typeof SAME_DAY_SLOT_UNITS)[number];
 
 export interface SessionWorkflowState {
   matchingTypeCode: MatchingTypeCode;
@@ -11,8 +13,9 @@ export interface SessionWorkflowState {
   totalTables: number;
   usersPerTable: number;
   castsPerRotation: number;
-  allowM003EmptySeats: boolean;
-  m003SameDaySlotCount: number;
+  reserveSameDaySlots: boolean;
+  sameDaySlotCount: number;
+  sameDaySlotUnit: SameDaySlotUnit;
 }
 
 export interface SessionWorkflowSnapshot {
@@ -28,6 +31,7 @@ export const DEFAULT_SESSION_WORKFLOW_STATE: Readonly<SessionWorkflowState> = {
   totalTables: 15,
   usersPerTable: 1,
   castsPerRotation: 1,
-  allowM003EmptySeats: false,
-  m003SameDaySlotCount: 0,
+  reserveSameDaySlots: false,
+  sameDaySlotCount: 0,
+  sameDaySlotUnit: 'table',
 };

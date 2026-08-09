@@ -34,9 +34,6 @@ export const COMMON_SHORTCUT_LINKS: readonly CommonShortcutLink[] = [
   },
 ];
 
-// 既存の外部参照を保つため、従来の公開名も共通ショートカットと同じ定義へ接続する。
-export const CONTACT_SITE_LINKS = COMMON_SHORTCUT_LINKS;
-
 function isHttpsContactUrl(url: string): boolean {
   return url.trim().toLowerCase().startsWith('https://');
 }

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createEvent,
-  createSession,
+  createImportSession,
   deleteEvent,
+  discardSession,
   getEventMeta,
+  getEventMetaReadOnly,
   listEvents,
-  listSessions,
   renameEvent,
   setEventMeta,
 } from '@/db/repositories/eventRepository';
@@ -37,8 +38,7 @@ beforeEach(() => {
   repositoryState.execute.mockResolvedValue({});
   invokeMock.mockImplementation(async (command: string): Promise<unknown> => {
     if (command === 'list_events') return ['Event A', 'Event B'];
-    if (command === 'list_sessions') return ['20260619120000'];
-    if (command === 'create_session') return '20260619120000';
+    if (command === 'create_import_session_atomic') return '20260619120000';
     return undefined;
   });
 });
@@ -64,14 +64,36 @@ describe('event command façade', () => {
     expect(invokeMock).toHaveBeenCalledWith('rename_event', { oldName: 'Event A', newName: 'Event B' });
   });
 
-  it('取込セッション一覧を取得する', async () => {
-    await expect(listSessions('Event A')).resolves.toEqual(['20260619120000']);
-    expect(invokeMock).toHaveBeenCalledWith('list_sessions', { eventName: 'Event A' });
+  it('応募者を保存した取込セッションをatomic commandで作成する', async () => {
+    await expect(createImportSession('Event A', [{
+      name: '応募者A',
+      x_id: 'applicant_a',
+      casts: ['キャストA'],
+      cast_ids: [10],
+      preference_mode: 'ranked',
+      raw_extra: [],
+    }])).resolves.toBe('20260619120000');
+    expect(invokeMock).toHaveBeenCalledWith('create_import_session_atomic', {
+      eventName: 'Event A',
+      users: [{
+        name: '応募者A',
+        x_id: 'applicant_a',
+        vrc_url: null,
+        casts: ['キャストA'],
+        cast_ids: [10],
+        preference_mode: 'ranked',
+        is_guaranteed: false,
+        raw_extra: [],
+      }],
+    });
   });
 
-  it('取込セッション作成 command の timestamp を返す', async () => {
-    await expect(createSession('Event A')).resolves.toBe('20260619120000');
-    expect(invokeMock).toHaveBeenCalledWith('create_session', { eventName: 'Event A' });
+  it('指定した作業セッションだけを破棄する', async () => {
+    await discardSession('Event A', '20260619120000');
+    expect(invokeMock).toHaveBeenCalledWith('discard_session', {
+      eventName: 'Event A',
+      timestamp: '20260619120000',
+    });
   });
 
 });
@@ -96,6 +118,21 @@ describe('event meta', () => {
     await expect(getEventMeta()).resolves.toEqual({
       notes: null,
       photo_data_url: null,
+    });
+  });
+
+  it('使用中ではないイベントの写真と説明メモを読み取り専用commandから取得する', async () => {
+    invokeMock.mockResolvedValueOnce({
+      notes: '過去イベントの案内',
+      photo_data_url: 'data:image/png;base64,readonly',
+    });
+
+    await expect(getEventMetaReadOnly('Event B')).resolves.toEqual({
+      notes: '過去イベントの案内',
+      photo_data_url: 'data:image/png;base64,readonly',
+    });
+    expect(invokeMock).toHaveBeenCalledWith('get_event_meta_read_only', {
+      eventName: 'Event B',
     });
   });
 

@@ -1,11 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { STORAGE_KEYS } from '@/common/config';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_CAUTION_THRESHOLD,
   getEventCautionThreshold,
   getInitialMatchingSettings,
   persistEventCautionThreshold,
-  persistMatchingSearchMode,
 } from '@/features/matching/stores/matching-settings-store';
 
 const repositoryMocks = vi.hoisted(() => ({
@@ -15,28 +13,6 @@ const repositoryMocks = vi.hoisted(() => ({
 
 vi.mock('@/db/repositories/settingsRepository', () => repositoryMocks);
 
-function createStorage(initial: Record<string, string> = {}): Storage {
-  const values = new Map(Object.entries(initial));
-  return {
-    get length() {
-      return values.size;
-    },
-    clear: vi.fn(() => values.clear()),
-    getItem: vi.fn((key: string) => values.get(key) ?? null),
-    key: vi.fn((index: number) => Array.from(values.keys())[index] ?? null),
-    removeItem: vi.fn((key: string) => {
-      values.delete(key);
-    }),
-    setItem: vi.fn((key: string, value: string) => {
-      values.set(key, value);
-    }),
-  };
-}
-
-function installWindowWithStorage(storage: Storage): void {
-  vi.stubGlobal('window', { localStorage: storage });
-}
-
 beforeEach(() => {
   repositoryMocks.getSetting.mockReset();
   repositoryMocks.getSetting.mockResolvedValue(null);
@@ -44,80 +20,14 @@ beforeEach(() => {
   repositoryMocks.setSetting.mockResolvedValue(undefined);
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
-
 describe('getInitialMatchingSettings', () => {
-  it('ブラウザ外では既定の端末設定と空のイベント設定を返す', () => {
-    vi.stubGlobal('window', undefined);
-
+  it('DB読込前の空のイベント設定を返す', () => {
     expect(getInitialMatchingSettings()).toEqual({
-      searchMode: 'efficiency',
       caution: {
         candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
         cautionUsers: [],
       },
     });
-  });
-
-  it('探索モード専用キーから端末設定を復元する', () => {
-    installWindowWithStorage(createStorage({
-      [STORAGE_KEYS.MATCHING_SEARCH_MODE]: 'quality',
-    }));
-
-    expect(getInitialMatchingSettings().searchMode).toBe('quality');
-  });
-
-  it('旧設定は移行せず、既定の探索モードと空のイベント設定を返す', () => {
-    const storage = createStorage({
-      stargazer_matching_settings: JSON.stringify({
-        searchMode: 'quality',
-        caution: {
-          candidateThreshold: 9,
-          cautionUsers: [{ accountId: '@other_event' }],
-        },
-        ngExceptions: {
-          exceptions: [{ accountId: '@unused' }],
-        },
-      }),
-    });
-    installWindowWithStorage(storage);
-
-    expect(getInitialMatchingSettings()).toEqual({
-      searchMode: 'efficiency',
-      caution: {
-        candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
-        cautionUsers: [],
-      },
-    });
-    expect(storage.setItem).not.toHaveBeenCalled();
-    expect(storage.removeItem).not.toHaveBeenCalledWith('stargazer_matching_settings');
-  });
-});
-
-describe('persistMatchingSearchMode', () => {
-  it('探索モードだけを専用キーへ保存する', () => {
-    const storage = createStorage();
-    installWindowWithStorage(storage);
-
-    persistMatchingSearchMode('quality');
-
-    expect(storage.setItem).toHaveBeenCalledWith(
-      STORAGE_KEYS.MATCHING_SEARCH_MODE,
-      'quality',
-    );
-  });
-
-  it('保存失敗はUIを停止させない', () => {
-    const storage = createStorage();
-    storage.setItem = vi.fn(() => {
-      throw new Error('blocked');
-    });
-    installWindowWithStorage(storage);
-
-    expect(() => persistMatchingSearchMode('quality')).not.toThrow();
   });
 });
 

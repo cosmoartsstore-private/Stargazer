@@ -1,14 +1,25 @@
-import { useId, type ChangeEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ChangeEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+} from 'react';
 import { ExternalLink } from 'lucide-react';
-import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
-import { getMsg } from '@/messages/getMsg';
-import shared from '@/styles/shared.module.css';
+import type { CautionUser } from '@/common/types/entities';
+import {
+  flushPendingPageCommits,
+  registerPendingPageCommit,
+} from '@/common/pageCommitRegistry';
 import {
   buildXProfileUrl,
-  type CautionCandidate,
-  type CautionFormValues,
-  type CautionUser,
-} from '../ngUserManagementModel';
+  formatXAccountIdForDisplay,
+} from '@/common/xIdUtils';
+import { getMsg } from '@/messages/getMsg';
+import type { CautionCandidate } from '@/features/matching/logics/caution-user';
+import shared from '@/styles/shared.module.css';
+import type { CautionFormValues } from '../ngUserManagementModel';
 import styles from '../NGUserManagementPage.module.css';
 import { EntryDetailsEditor } from './EntryDetailsEditor';
 
@@ -24,7 +35,7 @@ export interface CautionUserPanelController {
   };
   actions: {
     setThresholdDraft: (value: string) => void;
-    commitThreshold: () => Promise<void>;
+    commitThreshold: (draft: string) => Promise<boolean>;
     updateForm: (patch: Partial<CautionFormValues>) => void;
     addManual: () => Promise<void>;
     addCandidate: (candidate: CautionCandidate) => Promise<void>;
@@ -35,6 +46,8 @@ export interface CautionUserPanelController {
 
 export interface CautionUserPanelProps {
   controller: CautionUserPanelController;
+  notesDiscardGeneration: number;
+  onEntryNotesDirtyChange: (editorId: string, dirty: boolean) => void;
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
 
@@ -72,7 +85,9 @@ function CautionCandidateCard({ candidate, isSaving, onAdd }: CautionCandidateCa
 interface CautionUserRowProps {
   user: CautionUser;
   isSaving: boolean;
+  notesDiscardGeneration: number;
   onRequestDelete: (accountId: string) => void;
+  onEntryNotesDirtyChange: (editorId: string, dirty: boolean) => void;
   onUpdateDetails: (accountId: string, notes: string) => Promise<void>;
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
@@ -80,15 +95,16 @@ interface CautionUserRowProps {
 function CautionUserRow({
   user,
   isSaving,
+  notesDiscardGeneration,
   onRequestDelete,
+  onEntryNotesDirtyChange,
   onUpdateDetails,
   onRequestProfileLink,
 }: CautionUserRowProps) {
   // 対象アカウントからリンク可否と各操作の表示ラベルを導出する。
   const hasProfileLink = buildXProfileUrl(user.accountId) !== null;
   const displayAccountId = formatXAccountIdForDisplay(user.accountId);
-  const candidateNgCastCount = user.ngCastCount ?? 0;
-  const isCandidateRegistration = candidateNgCastCount > 0;
+  const isCandidateRegistration = (user.ngCastCount ?? 0) > 0;
   const openProfileAriaLabel = getMsg(
     'NGUserManagementPage.openXAccountAriaLabel',
     { accountId: displayAccountId },
@@ -104,7 +120,10 @@ function CautionUserRow({
   }
 
   function handleDeleteClick(): void {
-    onRequestDelete(user.accountId);
+    void (async () => {
+      if (!await flushPendingPageCommits()) return;
+      onRequestDelete(user.accountId);
+    })();
   }
 
   function handleDetailsSave(notes: string): Promise<void> {
@@ -122,22 +141,23 @@ function CautionUserRow({
           <button type="button" className={styles.ngLinkButton} aria-label={openProfileAriaLabel} onClick={handleProfileLinkClick}><ExternalLink size={14} /></button>
         )}
         {isCandidateRegistration && (
-          <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeAuto}`}>{getMsg('NGUserManagementPage.registeredNgCount', { count: candidateNgCastCount })}</span>
+          <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeCandidate}`}>{getMsg('NGUserManagementPage.candidateRegistration')}</span>
         )}
         {!isCandidateRegistration && (
           <span className={`${styles.ngPage__badge} ${styles.ngPage__badgeManual}`}>{getMsg('NGUserManagementPage.manualRegistration')}</span>
         )}
         <button type="button" className={styles.ngCastGrid__remove} aria-label={unregisterCautionAriaLabel} onClick={handleDeleteClick}>×</button>
       </div>
-      <EntryDetailsEditor notes={user.notes} disabled={isSaving} saveTargetLabel={displayAccountId} onSave={handleDetailsSave} />
+      <EntryDetailsEditor notes={user.notes} disabled={isSaving} discardGeneration={notesDiscardGeneration} saveTargetLabel={displayAccountId} onSave={handleDetailsSave} onDirtyChange={onEntryNotesDirtyChange} />
     </div>
   );
 }
 
 /** 要注意人物候補と登録済み一覧を、同一の保存状態に合わせて表示する。 */
-export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUserPanelProps) {
+export function CautionUserPanel({ controller, notesDiscardGeneration, onEntryNotesDirtyChange, onRequestProfileLink }: CautionUserPanelProps) {
   const thresholdInputId = useId();
   const thresholdSuffixId = useId();
+  const thresholdInputRef = useRef<HTMLInputElement>(null);
 
   // controllerが管理する候補、登録済み一覧、入力状態。
   const {
@@ -160,14 +180,25 @@ export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUs
     requestDelete,
     updateDetails,
   } = controller.actions;
+  const thresholdCommitRef = useRef(commitThreshold);
+  thresholdCommitRef.current = commitThreshold;
+
+  // 入力欄の表示中だけ、画面遷移前に最新の閾値を確定できるよう登録する。
+  useEffect(
+    () => registerPendingPageCommit(() => {
+      const input = thresholdInputRef.current;
+      return input ? thresholdCommitRef.current(input.value) : Promise.resolve(true);
+    }),
+    [],
+  );
 
   // 候補閾値のDOMイベントを下書き更新と保存へ接続する。
   function handleThresholdChange(event: ChangeEvent<HTMLInputElement>): void {
     setThresholdDraft(event.target.value);
   }
 
-  function handleThresholdBlur(): void {
-    void commitThreshold();
+  function handleThresholdBlur(event: FocusEvent<HTMLInputElement>): void {
+    void commitThreshold(event.currentTarget.value);
   }
 
   function handleThresholdKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
@@ -207,7 +238,7 @@ export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUs
             </div>
             <div className={styles.cautionThresholdCtrl}>
               <label htmlFor={thresholdInputId} className={styles.cautionThresholdLabel}>{getMsg('NGUserManagementPage.ngCastCount')}</label>
-              <input id={thresholdInputId} type="number" min={1} className={`${shared.formInput} ${styles.cautionThresholdInput}`} value={thresholdDraft} disabled={isSavingThreshold} aria-describedby={thresholdSuffixId} onChange={handleThresholdChange} onBlur={handleThresholdBlur} onKeyDown={handleThresholdKeyDown} />
+              <input ref={thresholdInputRef} id={thresholdInputId} type="number" min={1} className={`${shared.formInput} ${styles.cautionThresholdInput}`} value={thresholdDraft} disabled={isSavingThreshold} aria-describedby={thresholdSuffixId} onChange={handleThresholdChange} onBlur={handleThresholdBlur} onKeyDown={handleThresholdKeyDown} />
               <span id={thresholdSuffixId} className={styles.cautionThresholdLabel}>{getMsg('NGUserManagementPage.candidateThresholdSuffix')}</span>
             </div>
           </div>
@@ -248,7 +279,9 @@ export function CautionUserPanel({ controller, onRequestProfileLink }: CautionUs
                 key={user.accountId}
                 user={user}
                 isSaving={isSaving}
+                notesDiscardGeneration={notesDiscardGeneration}
                 onRequestDelete={requestDelete}
+                onEntryNotesDirtyChange={onEntryNotesDirtyChange}
                 onUpdateDetails={updateDetails}
                 onRequestProfileLink={onRequestProfileLink}
               />

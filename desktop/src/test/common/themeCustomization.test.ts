@@ -26,11 +26,7 @@ describe('themeCustomization', () => {
       },
     });
 
-    expect(normalized.dark.colors).toEqual(['#123456', DEFAULT_THEME_CUSTOMIZATION.dark.colors[1], '#654321', '#ABCDEF', '#111111']);
-    expect(normalized.dark.accent).toBe('#778899');
-    expect(normalized.dark.direction).toBe(360);
-    expect(normalized.dark.intensity).toBe(0);
-    expect(normalized.skyblue.hue).toBe(360);
+    expect(normalized).toEqual(DEFAULT_THEME_CUSTOMIZATION);
   });
 
   it('デフォルトテーマ用の CSS 変数を生成する', () => {

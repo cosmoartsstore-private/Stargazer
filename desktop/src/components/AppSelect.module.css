@@ -16,7 +16,7 @@
   font-family: inherit;
   color: var(--text-heading);
   background-color: var(--surface-panel);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-input, var(--border-default));
   border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
@@ -100,7 +100,7 @@
 :global([data-theme="dark"]) .app-select__trigger {
   background-color: rgba(0, 0, 0, 0.45);
   color: #f2f3f5;
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 :global([data-theme="dark"]) .app-select__trigger:hover:not(:disabled) {
@@ -135,8 +135,14 @@
 
 :global([data-theme="skyblue"]) .app-select__trigger {
   background: #ffffff;
-  border: 1px solid rgba(70, 140, 210, 0.35);
+  border: 1px solid var(--border-input, rgba(70, 140, 210, 0.42));
   color: #152942;
+}
+
+:global([data-theme="skyblue"]) .app-select__trigger:disabled {
+  background: hsl(var(--theme-check-hue, 204) 30% 92%);
+  color: hsl(var(--theme-check-hue, 204) 30% 40%);
+  opacity: 1;
 }
 
 :global([data-theme="skyblue"]) .app-select__trigger:hover:not(:disabled) {
@@ -161,12 +167,12 @@
 
 :global([data-theme="skyblue"]) .app-select__item:hover,
 :global([data-theme="skyblue"]) .app-select__item[data-highlighted] {
-  background: rgba(74, 142, 200, 0.1);
+  background: #eef7fd;
   color: #152942;
 }
 
 :global([data-theme="skyblue"]) .app-select__item[data-state="checked"] {
-  background: rgba(74, 142, 200, 0.18);
+  background: #deedf7;
   color: #152942;
   font-weight: 600;
 }
@@ -175,7 +181,7 @@
 :global([data-guide-theme-preview="dark"]) .app-select__trigger {
   background-color: rgba(0, 0, 0, 0.45);
   color: #f2f3f5;
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 :global([data-guide-theme-preview="dark"]) .app-select__trigger:hover:not(:disabled) {

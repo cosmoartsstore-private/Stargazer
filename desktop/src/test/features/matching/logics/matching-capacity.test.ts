@@ -9,67 +9,117 @@ describe('selectM003Capacity', () => {
       totalWinners: 6,
       activeCastCount: 6,
       castsPerRotation: 2,
-      includedSameDaySlotCount: 0,
+      reservedSameDaySlotCount: 0,
+      sameDaySlotUnit: 'table',
     })).toEqual({
-      baseSeatCount: 6,
-      totalSeatCount: 6,
-      effectiveTableCount: 3,
+      physicalSeatCount: 6,
+      reservedSeatCount: 0,
+      lotterySeatCount: 6,
+      reservedTableCount: 0,
       executionTableCount: 3,
-      userTableCount: 3,
-      hasEmptySeats: false,
-      hasEmptyTables: false,
+      winnerTableCount: 3,
+      requiredTableCount: 3,
+      unreservedEmptySeatCount: 0,
+      hasUnreservedEmptySeats: false,
+      hasUnreservedEmptyTables: false,
       hasIncompleteCastUnit: false,
-      expectedTableCount: 3,
+      completeCastUnitCount: 3,
+      staffedTableCount: 3,
       expectedCapacity: 6,
     });
   });
 
-  it('同日枠を席数へ加え、端数席を1テーブルへ切り上げる', () => {
+  it('1名単位の当日枠は指定人数分の席を物理席から差し引く', () => {
     expect(selectM003Capacity({
-      totalTables: 2,
-      usersPerTable: 3,
-      totalWinners: 7,
-      activeCastCount: 12,
-      castsPerRotation: 3,
-      includedSameDaySlotCount: 4,
+      totalTables: 3,
+      usersPerTable: 2,
+      totalWinners: 5,
+      activeCastCount: 6,
+      castsPerRotation: 2,
+      reservedSameDaySlotCount: 1,
+      sameDaySlotUnit: 'person',
     })).toMatchObject({
-      baseSeatCount: 6,
-      totalSeatCount: 10,
-      effectiveTableCount: 4,
-      executionTableCount: 4,
-      userTableCount: 3,
-      hasEmptySeats: true,
-      hasEmptyTables: true,
+      physicalSeatCount: 6,
+      reservedSeatCount: 1,
+      lotterySeatCount: 5,
+      reservedTableCount: 0,
+      requiredTableCount: 3,
+      unreservedEmptySeatCount: 0,
+      expectedCapacity: 5,
     });
   });
 
-  it('完全なキャスト組が少ない場合はキャスト組数を収容上限にする', () => {
+  it('1テーブル単位の当日枠はテーブル内の全席を物理席から差し引く', () => {
+    expect(selectM003Capacity({
+      totalTables: 3,
+      usersPerTable: 2,
+      totalWinners: 4,
+      activeCastCount: 6,
+      castsPerRotation: 2,
+      reservedSameDaySlotCount: 1,
+      sameDaySlotUnit: 'table',
+    })).toMatchObject({
+      physicalSeatCount: 6,
+      reservedSeatCount: 2,
+      lotterySeatCount: 4,
+      reservedTableCount: 1,
+      winnerTableCount: 2,
+      requiredTableCount: 3,
+      unreservedEmptySeatCount: 0,
+      expectedCapacity: 4,
+    });
+  });
+
+  it('テーブル単位の当日枠は稼働可能なキャスト組からも先に確保する', () => {
     expect(selectM003Capacity({
       totalTables: 5,
       usersPerTable: 2,
-      totalWinners: 10,
+      totalWinners: 6,
       activeCastCount: 4,
       castsPerRotation: 2,
-      includedSameDaySlotCount: 0,
+      reservedSameDaySlotCount: 1,
+      sameDaySlotUnit: 'table',
     })).toMatchObject({
-      effectiveTableCount: 5,
-      expectedTableCount: 2,
-      expectedCapacity: 4,
+      completeCastUnitCount: 2,
+      staffedTableCount: 2,
+      reservedSeatCount: 2,
+      lotterySeatCount: 8,
+      expectedCapacity: 2,
     });
   });
 
-  it('完全なキャスト組が多い場合は実効テーブル数を収容上限にする', () => {
+  it('1名単位の当日枠は稼働可能な席から指定人数分だけ確保する', () => {
     expect(selectM003Capacity({
-      totalTables: 2,
+      totalTables: 5,
       usersPerTable: 2,
-      totalWinners: 4,
-      activeCastCount: 10,
+      totalWinners: 3,
+      activeCastCount: 4,
       castsPerRotation: 2,
-      includedSameDaySlotCount: 0,
+      reservedSameDaySlotCount: 1,
+      sameDaySlotUnit: 'person',
     })).toMatchObject({
-      effectiveTableCount: 2,
-      expectedTableCount: 2,
-      expectedCapacity: 4,
+      completeCastUnitCount: 2,
+      staffedTableCount: 2,
+      reservedSeatCount: 1,
+      expectedCapacity: 3,
+    });
+  });
+
+  it('当日枠を除いて残る空席と空きテーブルを区別して返す', () => {
+    expect(selectM003Capacity({
+      totalTables: 4,
+      usersPerTable: 2,
+      totalWinners: 3,
+      activeCastCount: 8,
+      castsPerRotation: 2,
+      reservedSameDaySlotCount: 1,
+      sameDaySlotUnit: 'table',
+    })).toMatchObject({
+      lotterySeatCount: 6,
+      unreservedEmptySeatCount: 3,
+      hasUnreservedEmptySeats: true,
+      hasUnreservedEmptyTables: true,
+      requiredTableCount: 3,
     });
   });
 
@@ -77,60 +127,34 @@ describe('selectM003Capacity', () => {
     expect(selectM003Capacity({
       totalTables: 4,
       usersPerTable: 2,
-      totalWinners: 7,
+      totalWinners: 4,
       activeCastCount: 7,
       castsPerRotation: 3,
-      includedSameDaySlotCount: 0,
+      reservedSameDaySlotCount: 0,
+      sameDaySlotUnit: 'table',
     })).toMatchObject({
-      hasEmptySeats: true,
-      hasEmptyTables: false,
       hasIncompleteCastUnit: true,
-      expectedTableCount: 2,
+      completeCastUnitCount: 2,
+      staffedTableCount: 2,
       expectedCapacity: 4,
     });
   });
 
-  it('席、当選者、キャストが0件でも実行用テーブル数だけは1に保つ', () => {
+  it('物理テーブルが0件でも実行用テーブル数だけは1に保つ', () => {
     expect(selectM003Capacity({
       totalTables: 0,
       usersPerTable: 2,
       totalWinners: 0,
       activeCastCount: 0,
       castsPerRotation: 2,
-      includedSameDaySlotCount: 0,
-    })).toEqual({
-      baseSeatCount: 0,
-      totalSeatCount: 0,
-      effectiveTableCount: 0,
+      reservedSameDaySlotCount: 0,
+      sameDaySlotUnit: 'person',
+    })).toMatchObject({
+      physicalSeatCount: 0,
+      lotterySeatCount: 0,
       executionTableCount: 1,
-      userTableCount: 0,
-      hasEmptySeats: false,
-      hasEmptyTables: false,
-      hasIncompleteCastUnit: false,
-      expectedTableCount: 0,
+      staffedTableCount: 0,
       expectedCapacity: 0,
-    });
-  });
-
-  it('設定テーブルが0件でも同日枠があれば必要テーブルを算出する', () => {
-    expect(selectM003Capacity({
-      totalTables: 0,
-      usersPerTable: 2,
-      totalWinners: 1,
-      activeCastCount: 2,
-      castsPerRotation: 2,
-      includedSameDaySlotCount: 1,
-    })).toEqual({
-      baseSeatCount: 0,
-      totalSeatCount: 1,
-      effectiveTableCount: 1,
-      executionTableCount: 1,
-      userTableCount: 1,
-      hasEmptySeats: true,
-      hasEmptyTables: false,
-      hasIncompleteCastUnit: false,
-      expectedTableCount: 1,
-      expectedCapacity: 2,
     });
   });
 });

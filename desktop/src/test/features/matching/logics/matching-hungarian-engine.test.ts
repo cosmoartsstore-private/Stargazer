@@ -10,6 +10,7 @@ const rankedUser: UserBean = {
   name: 'Alice',
   x_id: '@alice',
   casts: ['Cast A', 'Cast B', 'Cast C', 'Cast D'],
+  cast_ids: [1, 2, 3, 4],
   raw_extra: [],
 };
 
@@ -19,19 +20,19 @@ function cast(name: string, id = 0): CastBean {
 
 describe('getPreferenceScore', () => {
   it('ranked 希望では第1から第3希望だけに重みを付ける', () => {
-    expect(getPreferenceScore(rankedUser, cast('Cast A'))).toBe(90);
-    expect(getPreferenceScore(rankedUser, cast('Cast B'))).toBe(70);
-    expect(getPreferenceScore(rankedUser, cast('Cast C'))).toBe(50);
-    expect(getPreferenceScore(rankedUser, cast('Cast D'))).toBe(0);
-    expect(getPreferenceScore(rankedUser, cast('Other'))).toBe(0);
+    expect(getPreferenceScore(rankedUser, cast('Cast A', 1))).toBe(90);
+    expect(getPreferenceScore(rankedUser, cast('Cast B', 2))).toBe(70);
+    expect(getPreferenceScore(rankedUser, cast('Cast C', 3))).toBe(50);
+    expect(getPreferenceScore(rankedUser, cast('Cast D', 4))).toBe(0);
+    expect(getPreferenceScore(rankedUser, cast('Other', 5))).toBe(0);
   });
 
   it('flat 希望では候補内キャストを同じ点数にする', () => {
     const flatUser = { ...rankedUser, preference_mode: 'flat' as const };
 
-    expect(getPreferenceScore(flatUser, cast('Cast A'))).toBe(50);
-    expect(getPreferenceScore(flatUser, cast('Cast D'))).toBe(50);
-    expect(getPreferenceScore(flatUser, cast('Other'))).toBe(0);
+    expect(getPreferenceScore(flatUser, cast('Cast A', 1))).toBe(50);
+    expect(getPreferenceScore(flatUser, cast('Cast D', 4))).toBe(50);
+    expect(getPreferenceScore(flatUser, cast('Other', 5))).toBe(0);
   });
 
   it('cast_ids がある場合は同名の別IDへ希望点を付けない', () => {

@@ -1,4 +1,4 @@
-/** 入力配列を変更せず、Fisher-Yates 法でランダム順の配列を返す。 */
+/** 入力配列を変更せず、再現・監査を目的としない通常抽選用のFisher-Yates法で並べ替える。 */
 export function shuffleArray<T>(items: readonly T[]): T[] {
   const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {

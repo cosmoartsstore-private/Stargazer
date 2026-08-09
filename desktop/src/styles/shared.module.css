@@ -91,6 +91,18 @@
   cursor: not-allowed;
 }
 
+/* チェックテーマでは、模様が透けるdisabled面を避け、色と文字で非活性を示す。 */
+:global([data-theme="skyblue"]) .btn-primary:disabled,
+:global([data-theme="skyblue"]) .btn-success:disabled,
+:global([data-theme="skyblue"]) .btn-secondary:disabled,
+:global([data-theme="skyblue"]) .btn-danger:disabled,
+:global([data-theme="skyblue"]) .btn-export-primary:disabled,
+:global([data-theme="skyblue"]) .btn-export-secondary:disabled {
+  background-color: hsl(var(--theme-check-hue, 204) 30% 86%);
+  color: hsl(var(--theme-check-hue, 204) 30% 40%);
+  opacity: 1;
+}
+
 .btn-export-secondary {
   padding: 8px 16px;
   border-radius: 6px;
@@ -117,7 +129,7 @@
   padding: 8px 16px;
   border-radius: 6px;
   border: none;
-  background-color: var(--accent-success);
+  background-color: var(--button-success-bg);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -324,7 +336,7 @@
 
 .form-input {
   background-color: var(--surface-panel);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-input, var(--border-default));
   color: var(--text-default);
   padding: 10px 12px;
   border-radius: 4px;
@@ -445,7 +457,7 @@
 }
 
 .status-card__value-accent {
-  color: var(--accent-success);
+  color: var(--text-success);
 }
 
 /* ========================================
@@ -487,16 +499,16 @@
   gap: 4px;
   margin-bottom: 16px;
   padding: 12px 14px;
-  border: 1px solid rgba(250, 166, 26, 0.55);
+  border: 1px solid var(--status-warning-border);
   border-radius: 8px;
-  background: rgba(250, 166, 26, 0.1);
-  color: var(--text-default);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .warning-notice strong {
-  color: var(--accent-warning, #faa61a);
+  color: var(--status-warning-text);
 }
 
 /* ========================================
@@ -708,7 +720,7 @@
 .management-list-panel__add-input {
   flex: 1;
   background: var(--surface-panel-muted);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-input, var(--border-default));
   border-radius: 6px;
   color: var(--text-default);
   font-size: 12px;
@@ -723,12 +735,20 @@
 }
 
 .management-list-panel__add-btn {
+  --button-primary-bg: var(--semantic-active-green);
+  --button-primary-hover-bg: var(--semantic-active-green);
+  --button-success-bg: var(--semantic-active-green);
+  --button-success-hover-bg: var(--semantic-active-green);
   padding: 6px 8px;
   border-radius: 6px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.management-list-panel__add-btn:hover:not(:disabled) {
+  filter: brightness(0.94);
 }
 
 .management-detail-empty {

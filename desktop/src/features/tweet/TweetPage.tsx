@@ -1,7 +1,13 @@
 // 投稿テンプレートの編集・保存と投稿文プレビューの生成を提供するページ。
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { NoticeDialog } from '@/components/ConfirmModal';
+import {
+  getOpenEventContext,
+  isCurrentEventContext,
+  waitForSuccessfulEventWrites,
+} from '@/db/repositories/commandContext';
 import { useAppContext } from '@/stores/AppContext';
 import { getMsg } from '@/messages/getMsg';
 import styles from './TweetPage.module.css';
@@ -22,30 +28,60 @@ type Placeholder = (typeof PLACEHOLDERS)[number];
 
 interface PlaceholderButtonProps {
   placeholder: Placeholder;
+  disabled: boolean;
   onSelect: (placeholder: string) => void;
 }
 
-function PlaceholderButton({ placeholder, onSelect }: PlaceholderButtonProps) {
+function PlaceholderButton({ placeholder, disabled, onSelect }: PlaceholderButtonProps) {
   const handleClick = () => onSelect(placeholder.key);
 
   return (
-    <button type="button" className={styles.tweetPlaceholderChip} onClick={handleClick} aria-label={placeholder.ariaLabel}>
+    <button type="button" className={styles.tweetPlaceholderChip} disabled={disabled} onClick={handleClick} aria-label={placeholder.ariaLabel}>
       {placeholder.label}
     </button>
   );
 }
 
-export const TweetPage: React.FC = () => {
+interface TweetPageProps {
+  previewMode?: boolean;
+}
+
+export const TweetPage: React.FC<TweetPageProps> = ({ previewMode = false }) => {
   // イベント表示、コピー通知、永続化済みテンプレートの画面状態。
   const { casts: allCasts, currentEventName } = useAppContext();
   const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef<number | null>(null);
   const {
     template,
+    canEditTemplate,
+    isLoading,
     alertMessage,
     setAlertMessage,
     updateTemplate,
     appendPlaceholder,
-  } = useTweetTemplate(currentEventName);
+  } = useTweetTemplate(currentEventName, previewMode);
+
+  // 投稿テンプレートの書込み中は、失敗通知を表示するこの画面を確定前に破棄しない。
+  useEffect(() => {
+    if (previewMode) return undefined;
+    return registerPendingPageCommit(async () => {
+      if (currentEventName === null) return true;
+      const context = getOpenEventContext(currentEventName);
+      if (context === null) return false;
+      try {
+        await waitForSuccessfulEventWrites(context);
+        return isCurrentEventContext(context);
+      } catch {
+        return false;
+      }
+    });
+  }, [currentEventName, previewMode]);
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+  }, []);
 
   // 現在の出席キャストとイベント名から投稿プレビューを生成する。
   const casts = allCasts.filter((c) => c.is_present).map((c) => c.name);
@@ -53,9 +89,19 @@ export const TweetPage: React.FC = () => {
 
   // 編集、クリップボード、確認ダイアログのUIイベント。
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(preview);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(preview);
+      setCopied(true);
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopied(false);
+      }, 2000);
+    } catch {
+      setAlertMessage(getMsg('TweetPage.copyFailed'));
+    }
   };
 
   const handleAlertConfirm = () => {
@@ -109,18 +155,19 @@ export const TweetPage: React.FC = () => {
 
       <div className={styles.tweetLayout}>
         {/* 左: 編集 */}
-        <div className={styles.tweetLayout__editor}>
+        <div className={styles.tweetLayout__editor} aria-busy={isLoading}>
           <div className={styles.tweetEditorHeader}>
             <label className={shared.importSectionLabel} htmlFor="tweet-template">{getMsg('TweetPage.editorHeading')}</label>
-            <button type="button" className={`${shared.btnSecondary} ${styles.tweetResetButton}`} onClick={handleResetTemplate}>{getMsg('TweetPage.resetTemplate')}</button>
+            <button type="button" className={`${shared.btnSecondary} ${styles.tweetResetButton}`} disabled={!canEditTemplate} onClick={handleResetTemplate}>{getMsg('TweetPage.resetTemplate')}</button>
           </div>
 
-          <textarea id="tweet-template" name="tweet-template" className={`${styles.tweetTemplateTextarea} ${shared.customScrollbar}`} value={template} onChange={handleTemplateInputChange} rows={10} spellCheck={false} />
+          {isLoading && <p role="status" className={shared.pageHeaderSubtitle}>{getMsg('TweetPage.templateLoading')}</p>}
+          <textarea id="tweet-template" name="tweet-template" className={`${styles.tweetTemplateTextarea} ${shared.customScrollbar}`} value={template} disabled={!canEditTemplate} onChange={handleTemplateInputChange} rows={10} spellCheck={false} />
 
           <div className={styles.tweetPlaceholderList}>
             <span className={`${shared.importSectionLabel} ${styles.tweetPlaceholderHeading}`}>{getMsg('TweetPage.placeholdersHeading')}</span>
             {PLACEHOLDERS.map((placeholder) => (
-              <PlaceholderButton key={placeholder.key} placeholder={placeholder} onSelect={appendPlaceholder} />
+              <PlaceholderButton key={placeholder.key} placeholder={placeholder} disabled={!canEditTemplate} onSelect={appendPlaceholder} />
             ))}
           </div>
 
@@ -143,7 +190,7 @@ export const TweetPage: React.FC = () => {
           <div className={characterCountClassName}>{characterCountMessage}</div>
 
           <div className={styles.tweetActions}>
-            <button type="button" className={copyButtonClassName} onClick={handleCopyClick}>{copyButtonLabel}</button>
+            <button type="button" className={copyButtonClassName} disabled={!canEditTemplate} onClick={handleCopyClick}>{copyButtonLabel}</button>
           </div>
         </div>
       </div>

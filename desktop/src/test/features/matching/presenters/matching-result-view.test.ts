@@ -73,11 +73,10 @@ describe('matching result presenters', () => {
   });
 
   it('ローテーション表示とグループ順を整える', () => {
-    expect(getRotationLabel(undefined)).toBe('ラウンド未設定');
     expect(getRotationLabel(1)).toBe('第2ラウンド');
     expect(groupMatchesByRotation([{ ...bobMatch, rotationIndex: 2 }, { ...aliceMatch, rotationIndex: undefined }])).toEqual([
       { rotationIndex: 2, matches: [{ ...bobMatch, rotationIndex: 2 }] },
-      { rotationIndex: null, matches: [{ ...aliceMatch, rotationIndex: undefined }] },
+      { rotationIndex: undefined, matches: [{ ...aliceMatch, rotationIndex: undefined }] },
     ]);
   });
 
@@ -109,7 +108,7 @@ describe('matching result presenters', () => {
     const slots: TableSlot[] = [
       { user: alice, matches: [aliceMatch], tableIndex: 2 },
       { user: bob, matches: [bobMatch], tableIndex: 1 },
-      { user: null, matches: [] },
+      { user: null, matches: [], tableIndex: 3 },
     ];
 
     expect(groupTableSlots(slots)).toEqual([

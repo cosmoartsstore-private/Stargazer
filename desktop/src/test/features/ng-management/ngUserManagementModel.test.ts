@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { CastBean, CautionCandidate, NGUserEntry } from '@/features/ng-management/ngUserManagementModel';
+import { buildXProfileUrl } from '@/common/xIdUtils';
 import {
-  buildXProfileUrl,
+  clearSubmittedNgFormValues,
   createCandidateCautionUser,
   createCastNgEntry,
   createManualCautionUser,
   filterCastsByName,
+  hasCautionUserAccountId,
   isDuplicateCastNgEntry,
+  mergeCautionUser,
   removeCastNgEntry,
   resolveDisplayedThreshold,
   resolveSelectedCastId,
@@ -58,6 +61,18 @@ describe('buildXProfileUrl', () => {
 });
 
 describe('cast NG entries', () => {
+  it('保存開始後に変わっていない項目だけを空へ戻す', () => {
+    const submitted = { username: 'Alice', accountId: '@alice', notes: '理由' };
+
+    expect(clearSubmittedNgFormValues(submitted, submitted)).toEqual({
+      username: '', accountId: '', notes: '',
+    });
+    expect(clearSubmittedNgFormValues(
+      { username: 'Bob', accountId: '@alice', notes: '更新後' },
+      submitted,
+    )).toEqual({ username: 'Bob', accountId: '', notes: '更新後' });
+  });
+
   it('入力をトリムし、大文字小文字を保った内部usernameへ変換する', () => {
     expect(createCastNgEntry({
       username: '  Alice  ',
@@ -116,6 +131,30 @@ describe('cast NG entries', () => {
 });
 
 describe('caution user conversion', () => {
+  it('固定要注意人物を正規化したX IDで検索する', () => {
+    const users = [{ username: 'Alice', accountId: 'MixedCase' }];
+
+    expect(hasCautionUserAccountId(users, ' @mixedcase ')).toBe(true);
+    expect(hasCautionUserAccountId(users, '@other')).toBe(false);
+    expect(hasCautionUserAccountId(users, 'https://x.com/MixedCase')).toBe(false);
+  });
+
+  it('同じX IDの重複を最新値1件へまとめ、未登録なら末尾へ追加する', () => {
+    const original = [
+      { username: '旧登録1', accountId: 'Alice', notes: 'old-1' },
+      { username: 'Bob', accountId: 'bob' },
+      { username: '旧登録2', accountId: '@alice', notes: 'old-2' },
+    ];
+    const replacement = { username: '新登録', accountId: 'ALICE', notes: 'new' };
+
+    expect(mergeCautionUser(original, replacement)).toEqual([
+      replacement,
+      original[1],
+    ]);
+    const added = { username: 'Carol', accountId: 'carol' };
+    expect(mergeCautionUser(original, added)).toEqual([...original, added]);
+  });
+
   it('手動入力を登録時刻付き要注意人物へ変換する', () => {
     expect(createManualCautionUser({
       username: '  Alice  ',
@@ -145,7 +184,7 @@ describe('caution user conversion', () => {
     expect(createManualCautionUser({ username: 'Alice', accountId: '', notes: '' }, 'registered-at')).toBeNull();
   });
 
-  it('自動候補の名称・NG人数・理由を保持して固定登録へ変換する', () => {
+  it('自動候補はX IDを表示名に使い、応募時の名称を本人照合へ混入させない', () => {
     const candidate: CautionCandidate = {
       accountId: '@MixedCase',
       usernames: ['Alice', 'Alicia'],
@@ -153,7 +192,7 @@ describe('caution user conversion', () => {
     };
 
     expect(createCandidateCautionUser(candidate, 'registered-at', 'NG報告3件')).toEqual({
-      username: 'Alice / Alicia',
+      username: '@MixedCase',
       accountId: 'MixedCase',
       ngCastCount: 3,
       registeredAt: 'registered-at',

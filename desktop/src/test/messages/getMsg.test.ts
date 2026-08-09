@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('getMsg', () => {
   it('通常の文言キーを解決する', () => {
-    expect(getMsg('common.confirm')).toBe('確認');
+    expect(getMsg('common.close')).toBe('閉じる');
   });
 
   it('名前付き変数を文言へ埋め込む', () => {

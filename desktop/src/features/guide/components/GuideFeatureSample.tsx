@@ -260,14 +260,36 @@ const GuideActualSampleScreen: React.FC<GuideActualSampleScreenProps> = ({ featu
           <div ref={mainScrollRef} className={`${appStyles.mainContentScroll} ${shared.customScrollbar} ${styles.guideActualMainScroll}`}>
             {/* 応募管理系と内部管理系で、プレビューへ埋め込む実画面コンテナを切り替える。 */}
             {isApplicationFeature(feature)
-              ? <DataManagementPage onImportUsers={noopGuideSampleAction} enableSavedLotteryHistory={false} initialImportData={feature === 'import' ? GUIDE_IMPORT_INITIAL_DATA : undefined} />
-              : <InternalManagementPage initialSelectedCastId={feature === 'cast' ? context.casts[0]?.id : undefined} initialNgTab={initialNgTab} />}
+              ? <DataManagementPage onImportUsers={noopGuideSampleAction} initialImportData={feature === 'import' ? GUIDE_IMPORT_INITIAL_DATA : undefined} />
+              : <InternalManagementPage previewMode initialSelectedCastId={feature === 'cast' ? context.casts[0]?.id : undefined} initialNgTab={initialNgTab} />}
           </div>
         </div>
       </div>
     </AppContext.Provider>
   );
 };
+
+interface GuideActualFeaturePreviewProps extends GuideActualSampleScreenProps {
+  points?: AnnotationPoint[];
+}
+
+/** サンプルContextで構成した実画面を、ガイド内の表示領域へ縮小して埋め込む。 */
+export const GuideActualFeaturePreview: React.FC<GuideActualFeaturePreviewProps> = ({
+  feature,
+  initialScrollTop,
+  initialNgTab,
+  points = [],
+}) => (
+  <div className={styles.guidePreviewAppFrame}>
+    <GuideScaledAppFrame points={points}>
+      <GuideActualSampleScreen
+        feature={feature}
+        initialScrollTop={initialScrollTop}
+        initialNgTab={initialNgTab}
+      />
+    </GuideScaledAppFrame>
+  </div>
+);
 
 export const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
   const meta = FEATURE_SAMPLE_META[feature];
@@ -317,11 +339,12 @@ export const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }
           {scenes.map((scene) => (
             <div key={scene.key} className={styles.guidePreviewScene}>
               {scene.title && <h4 className={styles.guidePreviewSceneTitle}>{scene.title}</h4>}
-              <div className={styles.guidePreviewAppFrame}>
-                <GuideScaledAppFrame points={scene.points}>
-                  <GuideActualSampleScreen feature={feature} initialScrollTop={scene.initialScrollTop} initialNgTab={scene.initialNgTab} />
-                </GuideScaledAppFrame>
-              </div>
+              <GuideActualFeaturePreview
+                feature={feature}
+                initialScrollTop={scene.initialScrollTop}
+                initialNgTab={scene.initialNgTab}
+                points={scene.points}
+              />
             </div>
           ))}
         </div>

@@ -22,21 +22,20 @@ import {
   DEFAULT_CAUTION_THRESHOLD,
   getEventCautionThreshold,
 } from '@/features/matching/stores/matching-settings-store';
-import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 
-export interface UseAppDataHydrationOptions {
-  onAlert: (message: string) => void;
-}
+type DataLoadStatus = 'loading' | 'ready' | 'failed';
 
 export interface AppDataHydrationState {
   isSharedDataLoading: boolean;
   isSessionDataLoading: boolean;
+  dataLoadError: 'shared' | 'session' | null;
+  retryDataLoad: () => void;
   requestSessionReload: () => void;
 }
 
 /** 接続・書込み・画面操作の各世代を検証し、共有DBとセッションDBを画面状態へ反映する。 */
-export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): AppDataHydrationState {
+export function useAppDataHydration(): AppDataHydrationState {
   const {
     setCasts,
     setApplicants,
@@ -50,9 +49,15 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
     getSessionUiMutationGeneration,
     isCurrentSessionUiMutation,
   } = useAppContext();
-  const [isSharedDataLoading, setIsSharedDataLoading] = useState(true);
-  const [isSessionDataLoading, setIsSessionDataLoading] = useState(true);
+  const [sharedDataStatus, setSharedDataStatus] = useState<DataLoadStatus>('loading');
+  const [sessionDataStatus, setSessionDataStatus] = useState<DataLoadStatus>('loading');
+  const [dataReloadKey, setDataReloadKey] = useState(0);
   const [sessionReloadKey, setSessionReloadKey] = useState(0);
+  const retryDataLoad = useCallback(() => {
+    setSharedDataStatus('loading');
+    setSessionDataStatus('loading');
+    setDataReloadKey((current) => current + 1);
+  }, []);
   const requestSessionReload = useCallback(() => {
     setSessionReloadKey((current) => current + 1);
   }, []);
@@ -64,54 +69,53 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
       isCurrent = false;
     };
 
-    if (!isDbReady) return cancel;
-    setCasts([]);
-    setMatchingSettings((prev) => ({
-      ...prev,
-      caution: {
-        candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
-        cautionUsers: [],
-      },
-    }));
+    if (!isDbReady) {
+      setSharedDataStatus('loading');
+      return cancel;
+    }
     if (currentEventName === null) {
-      setIsSharedDataLoading(false);
+      setCasts([]);
+      setMatchingSettings((prev) => ({
+        ...prev,
+        caution: {
+          candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
+          cautionUsers: [],
+        },
+      }));
+      setSharedDataStatus('ready');
       return cancel;
     }
     let context: ReturnType<typeof getRequiredEventContext>;
     try {
       context = getRequiredEventContext();
     } catch {
-      setIsSharedDataLoading(false);
+      setSharedDataStatus('failed');
       return cancel;
     }
-    setIsSharedDataLoading(true);
+    setSharedDataStatus('loading');
     void (async () => {
-      await waitForEventWritesToSettle(context);
-      if (!isCurrent || !isCurrentEventContext(context)) return;
-      const [castsResult, cautionResult, thresholdResult] = await Promise.allSettled([
-        getAllCasts(),
-        getAllCautionUsers(),
-        getEventCautionThreshold(),
-      ]);
-      if (!isCurrent || !isCurrentEventContext(context)) return;
-
-      if (castsResult.status === 'fulfilled') {
-        setCasts(castsResult.value);
+      try {
+        await waitForEventWritesToSettle(context);
+        if (!isCurrent || !isCurrentEventContext(context)) return;
+        const [loadedCasts, cautionUsers, candidateThreshold] = await Promise.all([
+          getAllCasts(),
+          getAllCautionUsers(),
+          getEventCautionThreshold(),
+        ]);
+        if (!isCurrent || !isCurrentEventContext(context)) return;
+        setCasts(loadedCasts);
+        setMatchingSettings((prev) => ({
+          ...prev,
+          caution: { candidateThreshold, cautionUsers },
+        }));
+        setSharedDataStatus('ready');
+      } catch {
+        if (isCurrent && isCurrentEventContext(context)) setSharedDataStatus('failed');
       }
-      const cautionUsers = cautionResult.status === 'fulfilled' ? cautionResult.value : [];
-      const candidateThreshold = thresholdResult.status === 'fulfilled'
-        ? thresholdResult.value
-        : DEFAULT_CAUTION_THRESHOLD;
-      setMatchingSettings((prev) => ({
-        ...prev,
-        caution: { candidateThreshold, cautionUsers },
-      }));
-    })().finally(() => {
-      if (isCurrent) setIsSharedDataLoading(false);
-    });
+    })();
     return cancel;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventName]);
+  }, [isDbReady, currentEventName, dataReloadKey]);
 
   // セッションDBは、UI操作世代と書込み世代が読込前後で一致した結果だけを採用する。
   useEffect(() => {
@@ -120,25 +124,28 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
       isCurrent = false;
     };
 
-    if (!isDbReady) return cancel;
-    setApplicants([]);
-    setCurrentWinners([]);
-    hydrateSessionWorkflow({
-      state: { ...DEFAULT_SESSION_WORKFLOW_STATE },
-      isLotteryResultCurrent: false,
-    });
+    if (!isDbReady) {
+      setSessionDataStatus('loading');
+      return cancel;
+    }
     if (currentSessionTimestamp === null) {
-      setIsSessionDataLoading(false);
+      setApplicants([]);
+      setCurrentWinners([]);
+      hydrateSessionWorkflow({
+        state: { ...DEFAULT_SESSION_WORKFLOW_STATE },
+        isLotteryResultCurrent: false,
+      });
+      setSessionDataStatus('ready');
       return cancel;
     }
     let context: ReturnType<typeof getRequiredSessionContext>;
     try {
       context = getRequiredSessionContext();
     } catch {
-      setIsSessionDataLoading(false);
+      setSessionDataStatus('failed');
       return cancel;
     }
-    setIsSessionDataLoading(true);
+    setSessionDataStatus('loading');
     void (async () => {
       try {
         while (isCurrent && isCurrentSessionContext(context)) {
@@ -183,19 +190,28 @@ export function useAppDataHydration({ onAlert }: UseAppDataHydrationOptions): Ap
             isLotteryResultCurrent:
               workflowSnapshot.isLotteryResultCurrent && winners.length > 0,
           });
+          setSessionDataStatus('ready');
           return;
         }
       } catch {
         if (isCurrent && isCurrentSessionContext(context)) {
-          onAlert(getMsg('AppContainer.sessionLoadFailed'));
+          setSessionDataStatus('failed');
         }
-      } finally {
-        if (isCurrent) setIsSessionDataLoading(false);
       }
     })();
     return cancel;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDbReady, currentEventName, currentSessionTimestamp, sessionReloadGeneration, sessionReloadKey]);
+  }, [isDbReady, currentEventName, currentSessionTimestamp, sessionReloadGeneration, sessionReloadKey, dataReloadKey]);
 
-  return { isSharedDataLoading, isSessionDataLoading, requestSessionReload };
+  return {
+    isSharedDataLoading: sharedDataStatus === 'loading',
+    isSessionDataLoading: sessionDataStatus === 'loading',
+    dataLoadError: sessionDataStatus === 'failed'
+      ? 'session'
+      : sharedDataStatus === 'failed'
+        ? 'shared'
+        : null,
+    retryDataLoad,
+    requestSessionReload,
+  };
 }

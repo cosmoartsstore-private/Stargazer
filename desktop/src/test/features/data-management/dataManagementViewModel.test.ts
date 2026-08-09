@@ -80,12 +80,12 @@ describe('buildDataManagementViewModel', () => {
 
   it('未解決・削除済み・結果内の参照をまとめ、4件以上は先頭3件と残数で表示する', () => {
     const applicants = [
-      user({ name: 'Legacy', x_id: '@legacy', casts: ['未解決A'] }),
+      user({ name: 'MissingIds', x_id: '@missing_ids', casts: ['未解決A'] }),
       user({ name: 'Deleted', x_id: '@deleted', casts: ['削除A'], cast_ids: [99] }),
     ];
     const resultCast = cast(100, '結果A');
     const slotCast = cast(101, '結果B');
-    const matchingResult = new Map([['@legacy', [match(resultCast)]]]);
+    const matchingResult = new Map([['@missing_ids', [match(resultCast)]]]);
     const tableSlots: TableSlot[] = [
       { user: null, matches: [match(slotCast), match(resultCast)] },
     ];

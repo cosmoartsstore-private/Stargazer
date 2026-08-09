@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTSV } from '@/common/csvParse';
+import { DelimitedParseError, parseTSV } from '@/common/csvParse';
 
 describe('parseTSV', () => {
   it('タブ区切りと複数種類の改行を二次元配列に変換する', () => {
@@ -30,5 +30,19 @@ describe('parseTSV', () => {
       ['name', 'note', ''],
       ['Alice', '', ''],
     ]);
+  });
+
+  it.each([
+    ['引用されていないフィールド内の引用符', 'Alice\tbroken"value', 1, 13],
+    ['閉じ引用符後の文字', 'Alice\t"value"x', 1, 14],
+    ['閉じていない引用フィールド', 'Alice\t"value', 1, 7],
+  ])('%sを行・列情報つきで拒否する', (_label, source, line, column) => {
+    try {
+      parseTSV(source);
+      throw new Error('parseTSVが不正な引用符を受け付けました');
+    } catch (error) {
+      expect(error).toBeInstanceOf(DelimitedParseError);
+      expect(error).toMatchObject({ line, column });
+    }
   });
 });

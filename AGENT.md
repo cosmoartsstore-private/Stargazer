@@ -1,40 +1,28 @@
-# Stargazer エージェント向け索引
+# Stargazer Agent Entry
 
-このファイルはプロジェクト固有情報への索引です。共通の開発方針は Codex のグローバルルールを正とし、ここでは重複させません。
+The global Codex rules apply. This file contains only Stargazer-specific routing and constraints.
 
-## 読む順序
+## Read next
 
-1. 利用方法と機能範囲: `README.md`
-2. 実装境界と状態・DBの流れ: `docs/ARCHITECTURE.md`
-3. 未決定のプロダクト仕様: `SPEC_DECISION_ITEMS.md`
-4. 過去のUI検討資料: `.claude/design-references/README.md`
+- Usage and scope: `README.md`
+- Architecture and state/DB flow: `docs/ARCHITECTURE.md`
+- Unresolved product decisions: `SPEC_DECISION_ITEMS.md`
+- Historical UI references: `.claude/design-references/README.md`
 
-`.claude/` のその他の調査メモ、UIキャプチャ、実行ログは内部資料です。公開仕様として扱わず、必要な案件に対応する資料だけを参照してください。
+Other `.claude/` material is internal working context, not public specification; read only what the task needs.
 
-## 実装上の制約
+## Constraints
 
-- 実装の起点は `desktop/` です。Frontend は React / TypeScript、Backend は Tauri / Rust です。
-- SQLite schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義とします。Frontend repository に DDL を重複させません。
-- 複数SQLを伴う更新は Rust command の transaction で実行します。Frontend repository は読み取りと command 呼び出しの境界です。
-- イベント共有DBと取込セッションDBの所有データを混在させません。詳細は `docs/ARCHITECTURE.md` を参照してください。
-- `AppContextType` を変更した場合は、ヘルプ画面の実画面プレビュー用 context (`GuidePage.tsx`) も追従させます。
-- 業務結果に影響する抽選・マッチング・取込・永続化の純粋処理には回帰テストを追加します。
-- 単純な属性列挙、短い引数、短いオブジェクトは、1行で意図を追える範囲なら機械的に縦へ分割しません。formatter が改行する長さや、条件・副作用を含む処理は読みやすさを優先します。
+- Work under `desktop/`: React/TypeScript frontend and Tauri/Rust backend.
+- Current schema definitions in `desktop/src-tauri/src/lib.rs` are authoritative; do not duplicate DDL in frontend repositories.
+- Run multi-statement updates in Rust command transactions; the frontend remains a read and command-call boundary. Keep event-shared and import-session-owned data separate; see `docs/ARCHITECTURE.md`.
+- When changing `AppContextType`, update the real-screen preview context in `desktop/src/features/guide/guideSampleContext.ts`.
+- When tests are explicitly in scope, cover pure lottery, matching, import, and persistence logic that affects business results.
+- Treat every request to launch the app as a manual-testing handoff. Before launching, ensure the executable reflects the current production source and verify every local test DB under the active `Data/` root matches the current Rust schema. Because the project is pre-release, rebuild stale disposable test data instead of launching against or migrating it.
+- Keep short attributes, arguments, and object literals on one line when clear; wrap for conditions, side effects, formatter limits, or readability.
 
-## 検証
+## Verification commands and files
 
-```bash
-npm test
-npm run test:coverage
-npm run build --prefix desktop
-cargo test --manifest-path desktop/src-tauri/Cargo.toml
-```
-
-配布物まで確認する場合は、上記に加えてルートで `npm run build` を実行します。
-
-## 文書の配置
-
-- 利用者・開発者向けの正式情報: `README.md`, `docs/`
-- 未決定の仕様判断: `SPEC_DECISION_ITEMS.md`
-- 調査メモ、監査引き継ぎ、ログ、キャプチャ: `.claude/`
-- ルート直下へ検証用ファイルを追加せず、公開対象か内部資料かを先に分類してください。
+- Relevant commands: `npm test`, `npm run test:coverage`, `npm run build --prefix desktop`, `cargo test --manifest-path desktop/src-tauri/Cargo.toml`.
+- Use root `npm run build` only when distribution output is in scope.
+- Keep public information in `README.md` or `docs/`, unresolved decisions in `SPEC_DECISION_ITEMS.md`, and internal artifacts in `.claude/`; add no verification artifacts at repository root.

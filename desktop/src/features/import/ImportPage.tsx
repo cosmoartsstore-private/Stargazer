@@ -1,8 +1,8 @@
 // 応募データをTSVから解析し、列設定と検証結果を確認して取り込むページ。
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
-import { parseTSV } from '@/common/csvParse';
+import { DelimitedParseError, parseTSV } from '@/common/csvParse';
 import {
   createEmptyColumnMapping,
   detectColumnMapping,
@@ -22,12 +22,18 @@ import {
 } from './components/ImportMappingPanel';
 import { ImportPreviewPanel } from './components/ImportPreviewPanel';
 import { RawColumnsDialog } from './components/RawColumnsDialog';
+import {
+  getCachedImportColumnMapping,
+  persistImportColumnMapping,
+} from './importMappingCache';
 import styles from './ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 interface ImportPageProps {
   onImportUsers: (users: UserBean[], nextPage?: PageType) => void;
   initialData?: ImportPageInitialData;
+  onDraftChange?: (hasDraft: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export interface ImportPageInitialData {
@@ -37,9 +43,16 @@ export interface ImportPageInitialData {
   mapping: ColumnMapping;
 }
 
-export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialData }) => {
+export const ImportPage: React.FC<ImportPageProps> = ({
+  onImportUsers,
+  initialData,
+  onDraftChange,
+  onBusyChange,
+}) => {
   // 選択ファイル、列設定、補助ダイアログの表示状態。
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileReadGenerationRef = useRef(0);
+  const fileReadInProgressRef = useRef(false);
   const [sourceRows, setSourceRows] = useState<ImportSourceRow[] | null>(() => initialData?.sourceRows ?? null);
   const [headers, setHeaders] = useState<string[]>(() => initialData?.headers ?? []);
   const [fileName, setFileName] = useState(() => initialData?.fileName ?? '');
@@ -50,12 +63,29 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialDa
   const [xIdShake, setXIdShake] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
+  const [isFileReading, setIsFileReading] = useState(false);
 
   // プレビューと取込実行で同じ列変換・本人確認結果を共有する。
   const previewModel = useMemo(
     () => buildImportPreviewModel(headers, sourceRows, mapping),
     [headers, sourceRows, mapping],
   );
+
+  useEffect(() => {
+    onDraftChange?.(sourceRows !== null);
+    return () => onDraftChange?.(false);
+  }, [onDraftChange, sourceRows]);
+
+  useEffect(() => {
+    onBusyChange?.(isFileReading);
+  }, [isFileReading, onBusyChange]);
+
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+
+  useEffect(() => () => {
+    fileReadGenerationRef.current += 1;
+    fileReadInProgressRef.current = false;
+  }, []);
 
   const handleColumnChange = (key: ImportColumnKey, value: string) => {
     setMapping((current) => ({
@@ -68,10 +98,26 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialDa
     setMapping((current) => ({ ...current, castInputType }));
   };
 
+  const resetSelectedFile = () => {
+    setSourceRows(null);
+    setHeaders([]);
+    setFileName('');
+    setMapping(createEmptyColumnMapping());
+    setRawColumnsOpen(false);
+    setMappingOpen(true);
+    setPreviewOpen(true);
+  };
+
   // ファイル境界で形式を検証し、元行番号を固定したまま画面状態へ取り込む。
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const readGeneration = ++fileReadGenerationRef.current;
+    fileReadInProgressRef.current = true;
+    setIsFileReading(true);
+    event.target.value = '';
+    resetSelectedFile();
+    setError(null);
     try {
       if (!file.name.toLowerCase().endsWith('.tsv')) {
         setError(getMsg('ImportPage.invalidExtension'));
@@ -79,37 +125,45 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialDa
         return;
       }
       const content = await file.text();
-      const firstLine = content.split('\n').find((line) => line.trim());
-      if (firstLine && !firstLine.includes('\t')) {
-        setError(getMsg('ImportPage.invalidFormat'));
-        setFileAreaShake(true);
-        return;
-      }
+      if (readGeneration !== fileReadGenerationRef.current) return;
       const parsed = parseTSV(content);
       if (parsed.length <= 1) {
         setError(getMsg('ImportPage.noDataRows'));
         return;
       }
       const [headerRow, ...dataRows] = parsed;
-      const detectedMapping = detectColumnMapping(headerRow ?? []);
-      setHeaders(headerRow ?? []);
+      const nextHeaders = headerRow ?? [];
+      const nextMapping = getCachedImportColumnMapping(nextHeaders)
+        ?? detectColumnMapping(nextHeaders);
+      setHeaders(nextHeaders);
       setSourceRows(dataRows.map((cells, index) => ({ rowNumber: index + 1, cells })));
       setFileName(file.name);
-      setMapping(detectedMapping);
+      setMapping(nextMapping);
       setMappingOpen(true);
       setPreviewOpen(true);
       setError(null);
-      if (detectedMapping.x_id < 0) setXIdShake(true);
-    } catch {
-      setError(getMsg('ImportPage.readFailed'));
+      if (nextMapping.x_id < 0) setXIdShake(true);
+    } catch (caughtError) {
+      if (readGeneration !== fileReadGenerationRef.current) return;
+      setError(caughtError instanceof DelimitedParseError
+        ? getMsg('ImportPage.invalidQuotedField', {
+            line: caughtError.line,
+            column: caughtError.column,
+          })
+        : getMsg('ImportPage.readFailed'));
     } finally {
-      event.target.value = '';
+      if (readGeneration === fileReadGenerationRef.current) {
+        fileReadInProgressRef.current = false;
+        setIsFileReading(false);
+      }
     }
   };
 
   const importUsers = (nextPage?: PageType) => {
+    if (fileReadInProgressRef.current) return;
     if (!previewModel.canImport) return;
     if (nextPage === 'lottery' && !previewModel.canProceedToLottery) return;
+    persistImportColumnMapping(headers, mapping);
     onImportUsers(previewModel.mappedRows.map(({ user }) => user), nextPage);
   };
 
@@ -122,13 +176,17 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialDa
   const handleImportOnly = () => importUsers();
   const fileSectionClassName = `${styles.importFileSection}${fileAreaShake ? ` ${shared.shake}` : ''}`;
   const fileNameClassName = `${styles.importFileName}${fileName ? ` ${styles.importFileNameActive}` : ''}`;
-  const filePickerLabel = sourceRows ? getMsg('ImportPage.reselectTsv') : getMsg('ImportPage.selectTsv');
+  const filePickerLabel = isFileReading
+    ? getMsg('ImportPage.readingTsv')
+    : sourceRows
+      ? getMsg('ImportPage.reselectTsv')
+      : getMsg('ImportPage.selectTsv');
 
   return (
     <div className={styles.importFlow}>
       <input ref={inputRef} type="file" accept=".tsv,text/tab-separated-values" onChange={handleFileChange} className={styles.importHiddenInput} />
 
-      <div className={fileSectionClassName} onAnimationEnd={handleFileAreaAnimationEnd}>
+      <div className={fileSectionClassName} aria-busy={isFileReading} onAnimationEnd={handleFileAreaAnimationEnd}>
         <div className={styles.importFileRow}>
           <button type="button" className={styles.importFileBtn} onClick={handleFilePickerClick}><Upload size={14} />{filePickerLabel}</button>
           <span className={fileNameClassName}>{fileName ? <><FileText size={13} />{fileName}</> : getMsg('ImportPage.noFileSelected')}</span>
@@ -158,6 +216,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialDa
           sourceRowCount={sourceRows.length}
           castInputType={mapping.castInputType}
           model={previewModel}
+          disabled={isFileReading}
           onOpenChange={setPreviewOpen}
           onOpenRawColumns={handleOpenRawColumns}
           onImportAndOpenLottery={handleImportAndOpenLottery}

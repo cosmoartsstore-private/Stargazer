@@ -70,6 +70,19 @@ export class CommandWriteQueue {
     await this.entries.get(key)?.successful;
   }
 
+  /** 待機中に追加された同じキーの処理まで完了させ、連続操作内の失敗も呼出元へ返す。 */
+  async waitUntilSuccessfulIdle(key: string): Promise<void> {
+    while (true) {
+      const entry = this.entries.get(key);
+      if (!entry) return;
+      await entry.successful;
+      if (this.entries.get(key) === entry) {
+        this.entries.delete(key);
+        return;
+      }
+    }
+  }
+
   /** 失敗の有無にかかわらず、待機中に追加された同じキーの処理まで終了を待つ。 */
   async waitUntilIdle(key: string): Promise<void> {
     while (true) {
@@ -89,6 +102,17 @@ export class CommandWriteQueue {
       const keys = [...this.entries.keys()].filter(matches);
       if (keys.length === 0) return;
       await Promise.all(keys.map((key) => this.waitUntilIdle(key)));
+    }
+  }
+
+  /** 条件に一致する全キーの処理を完了させ、いずれかの失敗も呼出元へ返す。 */
+  async waitUntilSuccessfulIdleMatching(
+    matches: (key: string) => boolean,
+  ): Promise<void> {
+    while (true) {
+      const keys = [...this.entries.keys()].filter(matches);
+      if (keys.length === 0) return;
+      await Promise.all(keys.map((key) => this.waitUntilSuccessfulIdle(key)));
     }
   }
 }
@@ -243,8 +267,8 @@ export async function runWithEventLifecycleLock<T>(
   names.forEach((name) => eventLifecycleLocks.add(name));
   try {
     await Promise.all(names.flatMap((name) => [
-      eventCommandWriteQueue.waitUntilIdle(name),
-      sessionCommandWriteQueue.waitUntilIdleMatching(
+      eventCommandWriteQueue.waitUntilSuccessfulIdle(name),
+      sessionCommandWriteQueue.waitUntilSuccessfulIdleMatching(
         (key) => isSessionCommandKeyForEvent(key, name),
       ),
     ]));
@@ -259,6 +283,13 @@ export async function waitForEventWritesToSettle(
   context: EventCommandContext,
 ): Promise<void> {
   await eventCommandWriteQueue.waitUntilIdle(context.eventName);
+}
+
+/** 画面を離れる前に、同じイベント共有DBの先行書込み完了と成功を確認する。 */
+export async function waitForSuccessfulEventWrites(
+  context: EventCommandContext,
+): Promise<void> {
+  await eventCommandWriteQueue.waitUntilSuccessfulIdle(context.eventName);
 }
 
 /** 失敗時の再読込前に、同じ取込セッションDBへの書込みがすべて終わるまで待つ。 */

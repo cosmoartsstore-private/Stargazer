@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   MATCHING_TYPE_CODES,
+  SAME_DAY_SLOT_UNITS,
   type MatchingTypeCode,
-  DEFAULT_SESSION_WORKFLOW_STATE,
+  type SameDaySlotUnit,
   type SessionWorkflowSnapshot,
   type SessionWorkflowState,
 } from '@/common/types/sessionWorkflow';
@@ -27,8 +28,9 @@ interface SessionWorkflowRow {
   total_tables: number;
   users_per_table: number;
   casts_per_rotation: number;
-  allow_m003_empty_seats: number;
-  m003_same_day_slot_count: number;
+  reserve_same_day_slots: number;
+  same_day_slot_count: number;
+  same_day_slot_unit: string;
   condition_revision: number;
   is_lottery_result_current: number;
 }
@@ -41,8 +43,9 @@ const SELECT_SESSION_WORKFLOW_SQL = `
     total_tables,
     users_per_table,
     casts_per_rotation,
-    allow_m003_empty_seats,
-    m003_same_day_slot_count,
+    reserve_same_day_slots,
+    same_day_slot_count,
+    same_day_slot_unit,
     condition_revision,
     CASE
       WHEN EXISTS (SELECT 1 FROM lottery_results)
@@ -53,57 +56,68 @@ const SELECT_SESSION_WORKFLOW_SQL = `
   WHERE id = 1
 `;
 
-function positiveInteger(value: number, fallback: number): number {
-  return Number.isInteger(value) && value >= 1 ? value : fallback;
+function requirePositiveInteger(value: number, fieldName: string): number {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`セッション条件「${fieldName}」が不正です。`);
+  }
+  return value;
 }
 
-function nonNegativeInteger(value: number, fallback: number): number {
-  return Number.isInteger(value) && value >= 0 ? value : fallback;
+function requireNonNegativeInteger(value: number, fieldName: string): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`セッション条件「${fieldName}」が不正です。`);
+  }
+  return value;
 }
 
-function normalizeMatchingTypeCode(value: string): MatchingTypeCode {
-  return MATCHING_TYPE_CODES.includes(value as MatchingTypeCode)
-    ? value as MatchingTypeCode
-    : DEFAULT_SESSION_WORKFLOW_STATE.matchingTypeCode;
+function requireMatchingTypeCode(value: string): MatchingTypeCode {
+  if (!MATCHING_TYPE_CODES.includes(value as MatchingTypeCode)) {
+    throw new Error('セッション条件「マッチング方式」が不正です。');
+  }
+  return value as MatchingTypeCode;
 }
 
-/** DB行を画面で利用可能なセッション条件へ正規化する。 */
-function normalizeSessionWorkflowRow(
+function requireSameDaySlotUnit(value: string): SameDaySlotUnit {
+  if (!SAME_DAY_SLOT_UNITS.includes(value as SameDaySlotUnit)) {
+    throw new Error('セッション条件「当日枠の計数単位」が不正です。');
+  }
+  return value as SameDaySlotUnit;
+}
+
+/** 現行schemaのDB行を検証し、画面で利用するセッション条件へ変換する。 */
+function readSessionWorkflowRow(
   row: SessionWorkflowRow | undefined,
 ): SessionWorkflowSnapshot {
   if (!row) {
-    return {
-      state: { ...DEFAULT_SESSION_WORKFLOW_STATE },
-      isLotteryResultCurrent: false,
-      conditionRevision: 0,
-    };
+    throw new Error('セッション条件が保存されていません。');
+  }
+  if (row.reserve_same_day_slots !== 0 && row.reserve_same_day_slots !== 1) {
+    throw new Error('セッション条件「当日枠の確保」が不正です。');
+  }
+  if (row.is_lottery_result_current !== 0 && row.is_lottery_result_current !== 1) {
+    throw new Error('抽選結果の状態が不正です。');
   }
   return {
     state: {
-      matchingTypeCode: normalizeMatchingTypeCode(row.matching_type_code),
-      lotteryCount: positiveInteger(row.lottery_count, DEFAULT_SESSION_WORKFLOW_STATE.lotteryCount),
-      rotationCount: positiveInteger(row.rotation_count, DEFAULT_SESSION_WORKFLOW_STATE.rotationCount),
-      totalTables: positiveInteger(row.total_tables, DEFAULT_SESSION_WORKFLOW_STATE.totalTables),
-      usersPerTable: positiveInteger(row.users_per_table, DEFAULT_SESSION_WORKFLOW_STATE.usersPerTable),
-      castsPerRotation: positiveInteger(
-        row.casts_per_rotation,
-        DEFAULT_SESSION_WORKFLOW_STATE.castsPerRotation,
-      ),
-      allowM003EmptySeats: row.allow_m003_empty_seats === 1,
-      m003SameDaySlotCount: nonNegativeInteger(
-        row.m003_same_day_slot_count,
-        DEFAULT_SESSION_WORKFLOW_STATE.m003SameDaySlotCount,
-      ),
+      matchingTypeCode: requireMatchingTypeCode(row.matching_type_code),
+      lotteryCount: requirePositiveInteger(row.lottery_count, '抽選人数'),
+      rotationCount: requirePositiveInteger(row.rotation_count, 'ラウンド数'),
+      totalTables: requirePositiveInteger(row.total_tables, '総テーブル数'),
+      usersPerTable: requirePositiveInteger(row.users_per_table, '1テーブルの応募者数'),
+      castsPerRotation: requirePositiveInteger(row.casts_per_rotation, '1ラウンドのキャスト数'),
+      reserveSameDaySlots: row.reserve_same_day_slots === 1,
+      sameDaySlotCount: requireNonNegativeInteger(row.same_day_slot_count, '当日枠'),
+      sameDaySlotUnit: requireSameDaySlotUnit(row.same_day_slot_unit),
     },
     isLotteryResultCurrent: row.is_lottery_result_current === 1,
-    conditionRevision: nonNegativeInteger(row.condition_revision, 0),
+    conditionRevision: requireNonNegativeInteger(row.condition_revision, '条件revision'),
   };
 }
 
 /** 現在セッションの条件と、保存済み抽選結果がその条件に対応するかを読み込む。 */
 export async function getSessionWorkflowSnapshot(): Promise<SessionWorkflowSnapshot> {
   const rows = await getSessionDb().select<SessionWorkflowRow[]>(SELECT_SESSION_WORKFLOW_SQL);
-  return normalizeSessionWorkflowRow(rows[0]);
+  return readSessionWorkflowRow(rows[0]);
 }
 
 /**
@@ -127,8 +141,9 @@ export function persistSessionWorkflowState(
         total_tables: state.totalTables,
         users_per_table: state.usersPerTable,
         casts_per_rotation: state.castsPerRotation,
-        allow_m003_empty_seats: state.allowM003EmptySeats,
-        m003_same_day_slot_count: state.m003SameDaySlotCount,
+        reserve_same_day_slots: state.reserveSameDaySlots,
+        same_day_slot_count: state.sameDaySlotCount,
+        same_day_slot_unit: state.sameDaySlotUnit,
       },
     },
   ));

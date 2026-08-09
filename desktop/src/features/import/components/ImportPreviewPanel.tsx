@@ -19,6 +19,7 @@ interface ImportPreviewPanelProps {
   sourceRowCount: number;
   castInputType: ColumnMapping['castInputType'];
   model: ImportPreviewModel;
+  disabled?: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenRawColumns: () => void;
   onImportAndOpenLottery: () => void;
@@ -31,6 +32,7 @@ export const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
   sourceRowCount,
   castInputType,
   model,
+  disabled = false,
   onOpenChange,
   onOpenRawColumns,
   onImportAndOpenLottery,
@@ -119,8 +121,8 @@ export const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
           <span className={styles.importValidationOk}>{getMsg('ImportPage.importableCount', { count: importCount })}</span>
         </div>
         <div className={styles.importFooterActions}>
-          <button type="button" className={`${shared.btnSecondary} ${styles.importSubmitBtn}`} disabled={!model.canProceedToLottery} onClick={onImportAndOpenLottery}>{getMsg('ImportPage.proceedToLottery')}</button>
-          <button type="button" className={`${shared.btnPrimary} ${styles.importSubmitBtn}`} disabled={!model.canImport} onClick={onImportOnly}>{getMsg('ImportPage.importCount', { count: importCount })}</button>
+          <button type="button" className={`${shared.btnSecondary} ${styles.importSubmitBtn}`} disabled={disabled || !model.canProceedToLottery} onClick={onImportAndOpenLottery}>{getMsg('ImportPage.proceedToLottery')}</button>
+          <button type="button" className={`${shared.btnPrimary} ${styles.importSubmitBtn}`} disabled={disabled || !model.canImport} onClick={onImportOnly}>{getMsg('ImportPage.importCount', { count: importCount })}</button>
         </div>
       </div>
     </div>

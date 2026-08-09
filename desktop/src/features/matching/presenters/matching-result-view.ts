@@ -29,8 +29,6 @@ export interface TableSlotGroup {
   slots: TableSlot[];
 }
 
-const UNGROUPED_ROTATION_KEY = -1;
-
 /** 応募者一覧の順序を保って、ユーザー別の結果表示行を作る。 */
 export function buildResultRows(winners: UserBean[], resultMap: Map<string, MatchedCast[]> | null): ResultRow[] {
   if (!resultMap) {
@@ -105,15 +103,15 @@ export function getMatchPreference(match: MatchedCast): { label: string; tone: M
   if (match.rank === 1) return { label: getMsg('matchingResultView.firstChoice'), tone: 'First' };
   if (match.rank === 2) return { label: getMsg('matchingResultView.secondChoice'), tone: 'Second' };
   if (match.rank === 3) return { label: getMsg('matchingResultView.thirdChoice'), tone: 'Third' };
-  if (typeof match.score === 'number' && match.score > 0) {
+  if (match.score > 0) {
     return { label: getMsg('matchingResultView.preferred'), tone: 'Flat' };
   }
   return { label: getMsg('matchingResultView.outsidePreference'), tone: 'Outside' };
 }
 
 /** 0-based のローテーション番号を画面用のラベルへ変換する。 */
-export function getRotationLabel(rotationIndex: number | null | undefined): string {
-  if (typeof rotationIndex !== 'number' || rotationIndex < 0) {
+export function getRotationLabel(rotationIndex: number | null): string {
+  if (rotationIndex === null || rotationIndex < 0) {
     return getMsg('matchingResultView.rotationNotConfigured');
   }
   return getMsg('matchingResultView.rotationLabel', { number: rotationIndex + 1 });
@@ -123,20 +121,16 @@ export function getRotationLabel(rotationIndex: number | null | undefined): stri
 export function groupMatchesByRotation(matches: MatchedCast[]): RotationMatchGroup[] {
   const grouped = new Map<number, MatchedCast[]>();
   matches.forEach((match) => {
-    const key = typeof match.rotationIndex === 'number' ? match.rotationIndex : UNGROUPED_ROTATION_KEY;
+    const key = match.rotationIndex;
     const current = grouped.get(key) ?? [];
     current.push(match);
     grouped.set(key, current);
   });
 
   return [...grouped.entries()]
-    .sort((left, right) => {
-      if (left[0] === UNGROUPED_ROTATION_KEY) return 1;
-      if (right[0] === UNGROUPED_ROTATION_KEY) return -1;
-      return left[0] - right[0];
-    })
+    .sort((left, right) => left[0] - right[0])
     .map(([rotationIndex, groupMatches]) => ({
-      rotationIndex: rotationIndex === UNGROUPED_ROTATION_KEY ? null : rotationIndex,
+      rotationIndex,
       matches: groupMatches,
     }));
 }
@@ -146,9 +140,7 @@ function collectRotationIndexes(rows: ResultRow[]): number[] {
   const indexes = new Set<number>();
   rows.forEach(({ matches }) => {
     matches.forEach((match) => {
-      if (typeof match.rotationIndex === 'number') {
-        indexes.add(match.rotationIndex);
-      }
+      indexes.add(match.rotationIndex);
     });
   });
   return [...indexes].sort((left, right) => left - right);
@@ -182,8 +174,8 @@ export function groupTableSlots(tableSlots: TableSlot[] | undefined): TableSlotG
   }
 
   const grouped = new Map<number, TableSlot[]>();
-  tableSlots.forEach((slot, index) => {
-    const tableIndex = slot.tableIndex ?? index + 1;
+  tableSlots.forEach((slot) => {
+    const tableIndex = slot.tableIndex;
     const current = grouped.get(tableIndex) ?? [];
     current.push(slot);
     grouped.set(tableIndex, current);

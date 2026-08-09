@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {
   getCastAttendanceHistory,
+  getCastAttendanceRecordDates,
   getAllCasts,
   hasCastAttendanceForDate,
   recordCastAttendance,
@@ -37,7 +38,7 @@ import type {
   AttendanceTab,
   CastAttendanceRecord,
 } from '../models/types';
-import { formatRecordDateValue, hasRecordDateFormat } from '../models/recordDate';
+import { formatRecordDateValue, parseRecordDate } from '../models/recordDate';
 
 interface UseAttendanceStateParams {
   currentEventName: string | null;
@@ -54,6 +55,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   // タブ、ダイアログ、履歴、通知の画面状態。
   const [activeTab, setActiveTab] = useState<AttendanceTab>('setup');
   const [history, setHistory] = useState<CastAttendanceRecord[]>([]);
+  const [recordDates, setRecordDates] = useState<string[]>([]);
   const [historyLoadStatus, setHistoryLoadStatus] = useState<AttendanceHistoryLoadStatus>('idle');
   const [saving, setSaving] = useState(false);
   const [confirmSave, setConfirmSave] = useState(false);
@@ -74,8 +76,8 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   const presentCount = presentCasts.length;
   const groupedPresent = useMemo(() => groupCastsByGroupName(presentCasts), [presentCasts]);
   const attendanceMatrix = useMemo(
-    () => buildAttendanceMatrix(casts, history, attendancePeriod),
-    [attendancePeriod, casts, history],
+    () => buildAttendanceMatrix(casts, history, attendancePeriod, recordDates),
+    [attendancePeriod, casts, history, recordDates],
   );
 
   // 現在のイベント世代だけに出欠履歴の読込結果を反映する。
@@ -84,12 +86,14 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
     historyLoadGenerationRef.current = generation;
     if (currentEventName === null) {
       setHistory([]);
+      setRecordDates([]);
       setHistoryLoadStatus('idle');
       return;
     }
     const context = getOpenEventContext(currentEventName);
     if (context === null) {
       setHistory([]);
+      setRecordDates([]);
       setHistoryLoadStatus('failed');
       return;
     }
@@ -101,12 +105,16 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
         historyLoadGenerationRef.current !== generation
         || !isCurrentEventContext(context)
       ) return;
-      const nextHistory = await getCastAttendanceHistory();
+      const [nextHistory, nextRecordDates] = await Promise.all([
+        getCastAttendanceHistory(),
+        getCastAttendanceRecordDates(),
+      ]);
       if (
         historyLoadGenerationRef.current !== generation
         || !isCurrentEventContext(context)
       ) return;
       setHistory(nextHistory);
+      setRecordDates(nextRecordDates);
       setHistoryLoadStatus('ready');
     } catch (error) {
       if (
@@ -114,6 +122,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
         || !isCurrentEventContext(context)
       ) return;
       setHistory([]);
+      setRecordDates([]);
       setHistoryLoadStatus('failed');
       throw error;
     }
@@ -141,6 +150,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
 
   useEffect(() => {
     setHistory([]);
+    setRecordDates([]);
     setSaving(false);
     setConfirmSave(false);
     setHistoryLoadStatus('idle');
@@ -158,7 +168,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   }, [loadData]);
 
   useEffect(() => {
-    if (!confirmSave || currentEventName === null || !hasRecordDateFormat(recordDate)) {
+    if (!confirmSave || currentEventName === null || parseRecordDate(recordDate) === null) {
       setDateRecordStatus('idle');
       return;
     }
@@ -188,7 +198,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
     if (
       saving
       || currentEventName === null
-      || !hasRecordDateFormat(recordDate)
+      || parseRecordDate(recordDate) === null
       || (dateRecordStatus !== 'absent' && dateRecordStatus !== 'exists')
     ) return;
     const context = getOpenEventContext(currentEventName);
@@ -227,8 +237,8 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
 
   const handleRecordDateChange = useCallback((value: string) => {
     setRecordDate(value);
-    setDateRecordStatus(hasRecordDateFormat(value) ? 'checking' : 'idle');
-    if (hasRecordDateFormat(value)) {
+    setDateRecordStatus(parseRecordDate(value) !== null ? 'checking' : 'idle');
+    if (parseRecordDate(value) !== null) {
       setDateCheckRequest((request) => request + 1);
     }
   }, []);

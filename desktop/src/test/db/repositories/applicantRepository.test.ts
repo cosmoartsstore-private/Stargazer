@@ -19,12 +19,13 @@ const mockState = vi.hoisted(() => ({
   sessionDb: null as FakeDb | null,
   sharedDb: null as FakeDb | null,
   applicantRows: [
-    { id: 1, x_id: '@sample_user', name: 'Sample User', vrc_url: null, is_guaranteed: 1 },
+    { id: 1, x_id: '@sample_user', name: 'Sample User', vrc_url: null, preference_mode: 'flat', is_guaranteed: 1 },
   ] as Array<{
     id: number;
     x_id: string;
     name: string | null;
     vrc_url: string | null;
+    preference_mode: 'ranked' | 'flat';
     is_guaranteed: number;
   }>,
   castPrefs: [
@@ -37,7 +38,6 @@ const mockState = vi.hoisted(() => ({
     cast_id: number | null;
   }>,
   extras: [
-    { applicant_id: 1, field_key: '__preference_mode', field_value: 'flat' },
     { applicant_id: 1, field_key: '備考', field_value: 'メモ' },
   ] as Array<{
     applicant_id: number;
@@ -104,14 +104,13 @@ beforeEach(() => {
   mockState.sessionDb = createDb();
   mockState.sharedDb = createSharedDb();
   mockState.applicantRows = [
-    { id: 1, x_id: '@sample_user', name: 'Sample User', vrc_url: null, is_guaranteed: 1 },
+    { id: 1, x_id: '@sample_user', name: 'Sample User', vrc_url: null, preference_mode: 'flat', is_guaranteed: 1 },
   ];
   mockState.castPrefs = [
     { applicant_id: 1, preference_order: 0, cast_name: 'Cast A at import', cast_id: 1 },
     { applicant_id: 1, preference_order: 2, cast_name: 'Cast C', cast_id: 999 },
   ];
   mockState.extras = [
-    { applicant_id: 1, field_key: '__preference_mode', field_value: 'flat' },
     { applicant_id: 1, field_key: '備考', field_value: 'メモ' },
   ];
   invokeMock.mockReset();
@@ -137,7 +136,7 @@ describe('loadApplicants', () => {
   });
 
   it('順位あり希望は空欄の順位を詰めずに復元する', async () => {
-    mockState.extras[0].field_value = 'ranked';
+    mockState.applicantRows[0].preference_mode = 'ranked';
 
     const users = await loadApplicants();
 
@@ -172,6 +171,7 @@ describe('loadApplicants', () => {
       x_id: 'second_user',
       name: null,
       vrc_url: 'https://vrchat.com/home/user/usr_second',
+      preference_mode: 'ranked',
       is_guaranteed: 0,
     });
     mockState.castPrefs.push({
@@ -181,7 +181,6 @@ describe('loadApplicants', () => {
       cast_id: 3,
     });
     mockState.extras.push(
-      { applicant_id: 2, field_key: '__preference_mode', field_value: 'ranked' },
       { applicant_id: 2, field_key: '連絡事項', field_value: null },
     );
 
@@ -258,7 +257,7 @@ describe('persistApplicants', () => {
           vrc_url: null,
           casts: [],
           cast_ids: [],
-          preference_mode: 'ranked',
+          preference_mode: undefined,
           is_guaranteed: false,
           raw_extra: [{ key: '備考', value: '' }],
         },

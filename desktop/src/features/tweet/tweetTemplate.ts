@@ -15,12 +15,12 @@ export function resolveTweetTemplate(saved: string | null): string {
 /** 投稿テンプレートのプレースホルダーを現在のイベント情報で置換する。 */
 export function buildTweetPreview(template: string, casts: string[], eventName: string): string {
   const attendingCasts = casts.filter(Boolean);
-  return template
-    .replace(
-      /{casts}/g,
-      attendingCasts.length > 0
-        ? attendingCasts.join('\n')
-        : getMsg('tweetTemplate.castsNotRegistered'),
-    )
-    .replace(/{event_name}/g, eventName || getMsg('tweetTemplate.defaultEventName'));
+  const castText = attendingCasts.length > 0
+    ? attendingCasts.join('\n')
+    : getMsg('tweetTemplate.castsNotRegistered');
+  const eventText = eventName || getMsg('tweetTemplate.defaultEventName');
+  return template.replace(
+    /{casts}|{event_name}/g,
+    (placeholder) => (placeholder === '{casts}' ? castText : eventText),
+  );
 }

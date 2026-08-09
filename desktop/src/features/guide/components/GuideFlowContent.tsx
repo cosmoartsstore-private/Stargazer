@@ -5,10 +5,11 @@ import { GuideFaqSection } from './GuideFaqSection';
 import { GuideTsvSection } from './GuideTsvSection';
 import { GuideWorkflowDetails } from './GuideWorkflowDetails';
 import { GuideWorkflowOverview } from './GuideWorkflowOverview';
+import styles from '../GuidePage.module.css';
 
 /** 初回取込から結果出力までの全体フローを表示する。 */
 export const GuideFlowContent: React.FC = () => (
-  <div style={{ animation: 'fade-in 0.2s ease' }}>
+  <div className={styles.guideFlowContent}>
     <GuideWorkflowOverview />
     <GuideWorkflowDetails />
     <GuideFaqSection />

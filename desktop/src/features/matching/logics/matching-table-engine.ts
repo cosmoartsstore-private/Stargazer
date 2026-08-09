@@ -1,7 +1,7 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import { shuffleArray } from '@/common/arrayUtils';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
-import { isUserNGForCast } from './ng-judgment';
+import { getNGReasonForCast, isUserNGForCast } from './ng-judgment';
 import {
   assignWithHungarian,
   buildRotation,
@@ -11,7 +11,8 @@ import {
 
 interface TableBasedMatchingInput {
   winners: UserBean[];
-  baseSlots: CastBean[];
+  physicalSlots: CastBean[];
+  rotationCastPool: CastBean[];
   totalTables: number;
   rotationCount: number;
 }
@@ -46,27 +47,33 @@ function buildSlotMatches(
 ): MatchedCast[] {
   return rotation.map((round, roundIndex) => {
     const cast = round[slotIndex];
+    const score = winner ? getPreferenceScore(winner, cast) : 0;
+    const isNGWarning = winner ? isUserNGForCast(winner, cast) : false;
     return {
       cast,
       rank: winner ? getPreferenceRank(winner, cast) : 0,
       rotationIndex: roundIndex,
+      score,
+      isNGWarning,
+      ngReason: isNGWarning ? getNGReasonForCast(cast.name) : null,
     };
   });
 }
 
 /** M001/M002 共通の、1テーブル1応募者型マッチング結果を構築する。 */
 function runTableBasedMatching(input: TableBasedMatchingInput): MatchingResult {
-  const { winners, baseSlots, totalTables, rotationCount } = input;
+  const { winners, physicalSlots, rotationCastPool, totalTables, rotationCount } = input;
   const userMap = new Map<string, MatchedCast[]>();
 
-  if (winners.length === 0 || baseSlots.length === 0) {
+  if (winners.length === 0 || physicalSlots.length === 0 || rotationCastPool.length === 0) {
     return { userMap };
   }
 
-  const rotation = buildRotation(baseSlots, rotationCount);
+  // 空きキャストも巡回へ含め、物理テーブルに対応するslotだけを割り当て対象にする。
+  const rotation = buildRotation(rotationCastPool, rotationCount);
   const { assignment, hasInfeasible } = assignWithHungarian(
     winners.length,
-    baseSlots,
+    physicalSlots,
     (winnerIndex, _, slotIndex) =>
       scoreTableSlot(
         winners[winnerIndex],
@@ -80,7 +87,7 @@ function runTableBasedMatching(input: TableBasedMatchingInput): MatchingResult {
   }
 
   const tableSlots: TableSlot[] = [];
-  for (let slotIndex = 0; slotIndex < baseSlots.length; slotIndex += 1) {
+  for (let slotIndex = 0; slotIndex < physicalSlots.length; slotIndex += 1) {
     const winnerIndex = assignment.indexOf(slotIndex);
     const winner = winnerIndex >= 0 ? winners[winnerIndex] : null;
     const matches = buildSlotMatches(winner, rotation, slotIndex);
@@ -123,13 +130,14 @@ export function runSingleCastMatching(
   }
 
   const orderedCasts = randomizeCasts ? shuffleArray(activeCasts) : activeCasts;
-  const baseSlots = orderedCasts.slice(
+  const physicalSlots = orderedCasts.slice(
     0,
     Math.max(winners.length, Math.min(totalTables, activeCasts.length)),
   );
   return runTableBasedMatching({
     winners,
-    baseSlots,
+    physicalSlots,
+    rotationCastPool: orderedCasts,
     totalTables,
     rotationCount,
   });

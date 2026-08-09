@@ -10,6 +10,7 @@ function user(overrides: Partial<UserBean> = {}): UserBean {
     name: 'Alice',
     x_id: '@alice',
     casts: ['Cast A'],
+    cast_ids: [1],
     raw_extra: [],
     ...overrides,
   };
@@ -44,11 +45,12 @@ describe('EMPTY_APPLICANT_ROW_DATA', () => {
 describe('buildApplicantListViewModel', () => {
   it('自動候補と固定登録を集約し、全行の表示情報と列構造を一度に構築する', () => {
     const alice = user();
-    const bob = user({ name: 'Bob', x_id: '@bob', casts: [], preference_mode: 'ranked' });
+    const bob = user({ name: 'Bob', x_id: '@bob', casts: [], cast_ids: [], preference_mode: 'ranked' });
     const carol = user({
       name: 'Carol',
       x_id: '@carol',
       casts: ['Cast A', 'Cast B', 'Cast C'],
+      cast_ids: [1, 2, null],
       preference_mode: 'flat',
     });
     const cautionUsers: CautionUser[] = [{ username: 'Bob', accountId: '@bob' }];
@@ -92,6 +94,7 @@ describe('buildApplicantListViewModel', () => {
       name: 'Regular',
       x_id: '@regular',
       casts: ['A', 'B', 'C', 'D'],
+      cast_ids: [null, null, null, null],
       preference_mode: 'flat',
     });
 
@@ -111,8 +114,8 @@ describe('buildApplicantListViewModel', () => {
   });
 
   it('希望キャストに不備がある応募者だけを絞り込む', () => {
-    const available = user({ casts: ['Cast A'] });
-    const unresolved = user({ name: 'Bob', x_id: 'bob', casts: ['Unknown'] });
+    const available = user({ casts: ['Cast A'], cast_ids: [1] });
+    const unresolved = user({ name: 'Bob', x_id: 'bob', casts: ['Unknown'], cast_ids: [null] });
 
     const viewModel = buildApplicantListViewModel(
       [available, unresolved],

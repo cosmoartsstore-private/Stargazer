@@ -23,8 +23,6 @@ tauri-dev.log
 
 # Claude Code
 .claude/*
-!.claude/audits/
-!.claude/audits/**
 !.claude/design-references/
 !.claude/design-references/**
 .agents/

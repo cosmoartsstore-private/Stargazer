@@ -41,6 +41,20 @@ const SESSION_CONTEXT = {
   generation: 1,
 };
 
+const VALID_WORKFLOW_ROW = {
+  matching_type_code: 'M002',
+  lottery_count: 5,
+  rotation_count: 2,
+  total_tables: 5,
+  users_per_table: 1,
+  casts_per_rotation: 1,
+  reserve_same_day_slots: 0,
+  same_day_slot_count: 0,
+  same_day_slot_unit: 'table',
+  condition_revision: 3,
+  is_lottery_result_current: 0,
+};
+
 beforeEach(async () => {
   await flushSessionWorkflowWrites(SESSION_CONTEXT);
   mockState.rows = [];
@@ -48,12 +62,10 @@ beforeEach(async () => {
 });
 
 describe('getSessionWorkflowSnapshot の保存値正規化', () => {
-  it('DB行がない場合は既定条件を未確定結果として返す', async () => {
-    await expect(getSessionWorkflowSnapshot()).resolves.toEqual({
-      state: DEFAULT_SESSION_WORKFLOW_STATE,
-      isLotteryResultCurrent: false,
-      conditionRevision: 0,
-    });
+  it('現行schemaに必須のDB行がない場合は明示的に拒否する', async () => {
+    await expect(getSessionWorkflowSnapshot()).rejects.toThrow(
+      'セッション条件が保存されていません。',
+    );
   });
 
   it('M003を含む有効な条件と抽選結果の鮮度を復元する', async () => {
@@ -64,8 +76,9 @@ describe('getSessionWorkflowSnapshot の保存値正規化', () => {
       total_tables: 8,
       users_per_table: 2,
       casts_per_rotation: 2,
-      allow_m003_empty_seats: 1,
-      m003_same_day_slot_count: 4,
+      reserve_same_day_slots: 1,
+      same_day_slot_count: 4,
+      same_day_slot_unit: 'person',
       condition_revision: 7,
       is_lottery_result_current: 1,
     }];
@@ -78,15 +91,16 @@ describe('getSessionWorkflowSnapshot の保存値正規化', () => {
         totalTables: 8,
         usersPerTable: 2,
         castsPerRotation: 2,
-        allowM003EmptySeats: true,
-        m003SameDaySlotCount: 4,
+        reserveSameDaySlots: true,
+        sameDaySlotCount: 4,
+        sameDaySlotUnit: 'person',
       },
       isLotteryResultCurrent: true,
       conditionRevision: 7,
     });
   });
 
-  it('不正な保存値は項目ごとの既定値へ戻す', async () => {
+  it('不正な保存値を既定値へ読み替えず明示的に拒否する', async () => {
     mockState.rows = [{
       matching_type_code: 'M999',
       lottery_count: 0,
@@ -94,34 +108,35 @@ describe('getSessionWorkflowSnapshot の保存値正規化', () => {
       total_tables: 0,
       users_per_table: 0,
       casts_per_rotation: 0,
-      allow_m003_empty_seats: 2,
-      m003_same_day_slot_count: -1,
+      reserve_same_day_slots: 2,
+      same_day_slot_count: -1,
+      same_day_slot_unit: 'invalid',
       condition_revision: -1,
       is_lottery_result_current: 0,
     }];
 
-    const snapshot = await getSessionWorkflowSnapshot();
+    await expect(getSessionWorkflowSnapshot()).rejects.toThrow(
+      'セッション条件「当日枠の確保」が不正です。',
+    );
+  });
 
-    expect(snapshot.state).toEqual(DEFAULT_SESSION_WORKFLOW_STATE);
-    expect(snapshot.isLotteryResultCurrent).toBe(false);
-    expect(snapshot.conditionRevision).toBe(0);
+  it.each([
+    ['matching_type_code', 'M999', 'セッション条件「マッチング方式」が不正です。'],
+    ['lottery_count', 0, 'セッション条件「抽選人数」が不正です。'],
+    ['same_day_slot_count', -1, 'セッション条件「当日枠」が不正です。'],
+    ['same_day_slot_unit', 'invalid', 'セッション条件「当日枠の計数単位」が不正です。'],
+    ['condition_revision', -1, 'セッション条件「条件revision」が不正です。'],
+    ['is_lottery_result_current', 2, '抽選結果の状態が不正です。'],
+  ])('%s の不正値を明示的に拒否する', async (field, value, message) => {
+    mockState.rows = [{ ...VALID_WORKFLOW_ROW, [field]: value }];
+
+    await expect(getSessionWorkflowSnapshot()).rejects.toThrow(message);
   });
 });
 
 describe('session workflow repository', () => {
   it('現在セッションDBから条件を読み込む', async () => {
-    mockState.rows = [{
-      matching_type_code: 'M002',
-      lottery_count: 5,
-      rotation_count: 2,
-      total_tables: 5,
-      users_per_table: 1,
-      casts_per_rotation: 1,
-      allow_m003_empty_seats: 0,
-      m003_same_day_slot_count: 0,
-      condition_revision: 3,
-      is_lottery_result_current: 0,
-    }];
+    mockState.rows = [VALID_WORKFLOW_ROW];
 
     await expect(getSessionWorkflowSnapshot()).resolves.toMatchObject({
       state: { matchingTypeCode: 'M002', lotteryCount: 5 },
@@ -138,8 +153,9 @@ describe('session workflow repository', () => {
       totalTables: 15,
       usersPerTable: 1,
       castsPerRotation: 1,
-      allowM003EmptySeats: false,
-      m003SameDaySlotCount: 0,
+      reserveSameDaySlots: false,
+      sameDaySlotCount: 0,
+      sameDaySlotUnit: 'table',
     });
 
     expect(mockState.invoke).toHaveBeenCalledWith(
@@ -154,8 +170,9 @@ describe('session workflow repository', () => {
           total_tables: 15,
           users_per_table: 1,
           casts_per_rotation: 1,
-          allow_m003_empty_seats: false,
-          m003_same_day_slot_count: 0,
+          reserve_same_day_slots: false,
+          same_day_slot_count: 0,
+          same_day_slot_unit: 'table',
         },
       },
     );

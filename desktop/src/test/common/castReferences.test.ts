@@ -38,11 +38,11 @@ describe('castReferences', () => {
     )).toBe(-1);
   });
 
-  it('cast_ids がない旧データでは名前を希望キーとして使う', () => {
-    expect(getCastPreferenceIndex(user(), currentCasts[0])).toBe(0);
+  it('cast_ids がないデータを名前だけで希望へ結び付けない', () => {
+    expect(getCastPreferenceIndex(user(), currentCasts[0])).toBe(-1);
   });
 
-  it('cast_ids がない旧データでは別名を希望キーとして使わない', () => {
+  it('cast_ids がないデータでは別名を希望キーとして使わない', () => {
     expect(getCastPreferenceIndex(
       user({ casts: ['別名キャスト'] }),
       currentCasts[0],
@@ -57,15 +57,15 @@ describe('castReferences', () => {
     expect(resolved.cast_ids).toEqual([10, null, null, null]);
   });
 
-  it('別名を安定IDへ解決する', () => {
+  it('検索用の別名を安定IDへ解決しない', () => {
     const [resolved] = attachCastIdsToUsers([
       user({ casts: ['別名キャスト', '第二希望'] }),
     ], currentCasts);
 
-    expect(resolved.cast_ids).toEqual([10, 20]);
+    expect(resolved.cast_ids).toEqual([null, 20]);
   });
 
-  it('正式名と別名の衝突や、別名同士の衝突はどのキャストにも自動解決しない', () => {
+  it('正式名だけを解決し、別名との衝突は希望判定へ持ち込まない', () => {
     const casts: CastBean[] = [
       { id: 10, name: 'Cast A', aliases: ['共通名', 'Cast B'], is_present: true },
       { id: 20, name: 'Cast B', aliases: ['共通名'], is_present: true },
@@ -74,7 +74,7 @@ describe('castReferences', () => {
       user({ casts: ['共通名', 'Cast B', 'Cast A'] }),
     ], casts);
 
-    expect(resolved.cast_ids).toEqual([null, null, 10]);
+    expect(resolved.cast_ids).toEqual([null, 20, 10]);
   });
 
   it('名称が使われている正式名・別名と所有キャストを返す', () => {
@@ -89,7 +89,7 @@ describe('castReferences', () => {
     ]);
   });
 
-  it('null参照・削除済みID・旧データの名前不一致を応募者情報つきで返す', () => {
+  it('null参照・削除済みID・ID未設定の名前不一致を応募者情報つきで返す', () => {
     const users = [
       user({ cast_ids: [null, 999] }),
       user({
@@ -130,11 +130,10 @@ describe('castReferences', () => {
   it('順位の空欄と、現在キャストへ解決できる参照は問題にしない', () => {
     expect(findUnavailableCastReferences([
       user({ casts: ['同名キャスト', '', '第二希望'], cast_ids: [10, null, 20] }),
-      user(),
     ], currentCasts)).toEqual([]);
   });
 
-  it('cast_ids がない旧データでは別名を未解決として返す', () => {
+  it('cast_ids がないデータでは別名を未解決として返す', () => {
     expect(findUnavailableCastReferences([
       user({ casts: ['別名キャスト'] }),
     ], currentCasts)).toEqual([
@@ -158,7 +157,6 @@ describe('castReferences', () => {
     const renamed = renameCastInPreferences(
       users,
       { id: 10, name: '改名後', is_present: true },
-      '同名キャスト',
       '改名後',
     );
 
@@ -167,17 +165,16 @@ describe('castReferences', () => {
     expect(users[0]?.casts).toEqual(['過去の表示名', '第二希望']);
   });
 
-  it('cast_ids がない旧データは変更前の正式名と一致する希望だけを更新する', () => {
-    const legacyUser = user({ casts: ['同名キャスト', '同名キャスト ', '第二希望'] });
+  it('cast_ids がないデータは表示名が一致しても改名対象にしない', () => {
+    const userWithoutIds = user({ casts: ['同名キャスト', '同名キャスト ', '第二希望'] });
 
     const [renamed] = renameCastInPreferences(
-      [legacyUser],
+      [userWithoutIds],
       { id: 10, name: '改名後', is_present: true },
-      '同名キャスト',
       '改名後',
     );
 
-    expect(renamed?.casts).toEqual(['改名後', '同名キャスト ', '第二希望']);
-    expect(legacyUser.casts).toEqual(['同名キャスト', '同名キャスト ', '第二希望']);
+    expect(renamed).toBe(userWithoutIds);
+    expect(userWithoutIds.casts).toEqual(['同名キャスト', '同名キャスト ', '第二希望']);
   });
 });

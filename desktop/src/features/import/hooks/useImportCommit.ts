@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { attachCastIdsToUsers } from '@/common/castReferences';
 import type { UserBean } from '@/common/types/entities';
 import { DEFAULT_SESSION_WORKFLOW_STATE } from '@/common/types/sessionWorkflow';
@@ -33,6 +33,7 @@ export interface ImportCommitState {
   isMutationLoading: boolean;
   pendingImport: PendingImport | null;
   importUsers: (users: UserBean[], nextPage?: PageType) => void;
+  importNewUsers: (users: UserBean[], nextPage?: PageType) => void;
   confirmImportOverwrite: () => void;
   cancelImportOverwrite: () => void;
 }
@@ -51,28 +52,43 @@ export function useImportCommit({
     setCurrentWinners,
     hydrateSessionWorkflow,
     ensureWritableSession,
-    isSavedLotterySessionReadOnly,
+    startNewImportSession,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
     resetMatching,
     beginSessionUiMutation,
     isCurrentSessionUiMutation,
   } = useAppContext();
   const [isMutationLoading, setIsMutationLoading] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const importRunningRef = useRef(false);
 
   // 保存後も同じ接続・UI操作・書込み世代である場合だけ、再読込結果を画面へ反映する。
   const applyImport = async (
     users: UserBean[],
-    nextPage: PageType = 'dataManagement',
+    nextPage: PageType = 'import',
+    createNewSession = false,
   ) => {
-    setIsMutationLoading(true);
-    let failureMessage = getMsg('AppContainer.importFailed');
+    // React stateの反映前に連続実行されても、取込処理は一つだけ開始する。
+    if (importRunningRef.current) return;
+    importRunningRef.current = true;
+    let failureMessage: string | undefined;
     try {
+      setIsMutationLoading(true);
+      failureMessage = getMsg('AppContainer.importFailed');
       const identityIssues = findXIdIdentityIssues(users.map((user, index) => ({
         rowNumber: index + 1,
         xId: user.x_id,
       })));
-      const destinationPage = identityIssues.length > 0 ? 'dataManagement' : nextPage;
+      const destinationPage = identityIssues.length > 0 ? 'import' : nextPage;
       const usersWithCastIds = attachCastIdsToUsers(users, casts);
+      if (createNewSession) {
+        await startNewImportSession(usersWithCastIds);
+        setCurrentWinners([]);
+        resetMatching();
+        setActivePage(destinationPage);
+        return;
+      }
       await ensureWritableSession();
       const context = getRequiredSessionContext();
       if (isSessionRecoveryActive(context)) {
@@ -133,18 +149,27 @@ export function useImportCommit({
       resetMatching();
       setActivePage(destinationPage);
     } catch {
-      onAlert(failureMessage);
+      onAlert(failureMessage ?? getMsg('AppContainer.importFailed'));
     } finally {
+      importRunningRef.current = false;
       setIsMutationLoading(false);
     }
   };
 
   const importUsers = (users: UserBean[], nextPage?: PageType) => {
-    if (!isSavedLotterySessionReadOnly && (applicants.length > 0 || currentWinners.length > 0)) {
+    if (isLotteryInputReadOnly || hasSavedSessionResult) {
+      onAlert(getMsg('AppContainer.sessionReadOnly'));
+      return;
+    }
+    if (applicants.length > 0 || currentWinners.length > 0) {
       setPendingImport({ users, nextPage });
       return;
     }
     void applyImport(users, nextPage);
+  };
+
+  const importNewUsers = (users: UserBean[], nextPage?: PageType) => {
+    void applyImport(users, nextPage ?? 'import', true);
   };
 
   const confirmImportOverwrite = () => {
@@ -160,6 +185,7 @@ export function useImportCommit({
     isMutationLoading,
     pendingImport,
     importUsers,
+    importNewUsers,
     confirmImportOverwrite,
     cancelImportOverwrite,
   };

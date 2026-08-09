@@ -136,6 +136,6 @@
 }
 
 .tweet-copy-button-copied {
-  border-color: var(--accent-success);
-  background: var(--accent-success);
+  border-color: var(--semantic-active-green);
+  background: var(--semantic-active-green);
 }

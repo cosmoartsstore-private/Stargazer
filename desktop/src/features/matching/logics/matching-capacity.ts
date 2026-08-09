@@ -1,45 +1,63 @@
+import type { SameDaySlotUnit } from '@/common/types/sessionWorkflow';
+
 interface M003CapacityInput {
   totalTables: number;
   usersPerTable: number;
   totalWinners: number;
   activeCastCount: number;
   castsPerRotation: number;
-  includedSameDaySlotCount: number;
+  reservedSameDaySlotCount: number;
+  sameDaySlotUnit: SameDaySlotUnit;
 }
 
-/** M003 の席数、必要テーブル数、完全なキャスト組が対応できる収容人数を算出する。 */
+/** M003 の物理席から当日枠を確保し、抽選対象者へ使える接客枠を算出する。 */
 export function selectM003Capacity({
   totalTables,
   usersPerTable,
   totalWinners,
   activeCastCount,
   castsPerRotation,
-  includedSameDaySlotCount,
+  reservedSameDaySlotCount,
+  sameDaySlotUnit,
 }: M003CapacityInput) {
   const completeCastUnitCount = Math.floor(activeCastCount / castsPerRotation);
-  const baseSeatCount = totalTables * usersPerTable;
-  const totalSeatCount = baseSeatCount + includedSameDaySlotCount;
-  const effectiveTableCount = Math.ceil(totalSeatCount / usersPerTable);
-  const executionTableCount = Math.max(1, effectiveTableCount);
-  const userTableCount = Math.ceil(totalWinners / usersPerTable);
-  const hasEmptySeats = totalWinners % usersPerTable !== 0;
-  const hasEmptyTables = effectiveTableCount > userTableCount;
+  const physicalSeatCount = totalTables * usersPerTable;
+  const reservedTableCount = sameDaySlotUnit === 'table' ? reservedSameDaySlotCount : 0;
+  const reservedSeatCount = sameDaySlotUnit === 'table'
+    ? reservedSameDaySlotCount * usersPerTable
+    : reservedSameDaySlotCount;
+  const lotterySeatCount = Math.max(0, physicalSeatCount - reservedSeatCount);
+  const executionTableCount = Math.max(1, totalTables);
+  const winnerTableCount = Math.ceil(totalWinners / usersPerTable);
+  const requiredTableCount = sameDaySlotUnit === 'table'
+    ? winnerTableCount + reservedTableCount
+    : Math.ceil((totalWinners + reservedSeatCount) / usersPerTable);
+  const unreservedEmptySeatCount = Math.max(0, lotterySeatCount - totalWinners);
+  const hasUnreservedEmptySeats = unreservedEmptySeatCount > 0;
+  const hasUnreservedEmptyTables = totalTables > requiredTableCount;
   const hasIncompleteCastUnit = activeCastCount % castsPerRotation !== 0;
 
-  // 端数キャストはグループを構成できないため、接客枠は完全なキャスト組数だけで計算する。
-  const expectedTableCount = Math.min(completeCastUnitCount, effectiveTableCount);
-  const expectedCapacity = expectedTableCount * usersPerTable;
+  // 端数キャストはグループを構成できない。当日枠も稼働テーブル内で先に確保する。
+  const staffedTableCount = Math.min(completeCastUnitCount, totalTables);
+  const staffedSeatCount = sameDaySlotUnit === 'table'
+    ? Math.max(0, staffedTableCount - reservedTableCount) * usersPerTable
+    : Math.max(0, staffedTableCount * usersPerTable - reservedSeatCount);
+  const expectedCapacity = Math.min(staffedSeatCount, lotterySeatCount);
 
   return {
-    baseSeatCount,
-    totalSeatCount,
-    effectiveTableCount,
+    completeCastUnitCount,
+    physicalSeatCount,
+    reservedSeatCount,
+    lotterySeatCount,
+    reservedTableCount,
     executionTableCount,
-    userTableCount,
-    hasEmptySeats,
-    hasEmptyTables,
+    winnerTableCount,
+    requiredTableCount,
+    unreservedEmptySeatCount,
+    hasUnreservedEmptySeats,
+    hasUnreservedEmptyTables,
     hasIncompleteCastUnit,
-    expectedTableCount,
+    staffedTableCount,
     expectedCapacity,
   };
 }

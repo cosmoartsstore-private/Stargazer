@@ -13,10 +13,11 @@
   --attendance-grid: #2e3542;
   --attendance-text: var(--text-heading);
   --attendance-muted: var(--text-muted);
-  --attendance-accent: #22c55e;
-  --attendance-accent-soft: #173824;
-  --attendance-accent-border: #22c55e;
-  --attendance-present: #15803d;
+  /* 出席状態色はテーマカスタマイズから分離し、共通の有効状態色で固定する。 */
+  --attendance-accent: var(--semantic-active-green);
+  --attendance-accent-text: var(--semantic-active-green);
+  --attendance-accent-border: var(--semantic-active-green);
+  --attendance-present: var(--semantic-active-green);
   --attendance-present-contrast: #ffffff;
   --attendance-empty-bg: var(--surface-panel);
   --attendance-absent-icon: #8b94a3;
@@ -125,7 +126,7 @@
 }
 
 .setup-count-present {
-  color: var(--attendance-accent);
+  color: var(--attendance-accent-text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -180,16 +181,39 @@
 .setup-bulk-present {
   background: var(--attendance-present);
   color: var(--attendance-present-contrast);
+  font-weight: 800;
 }
 
 .setup-bulk-absent {
-  background: var(--surface-hover);
-  color: var(--text-muted);
+  border: 1px solid var(--attendance-border-strong);
+  background: var(--attendance-surface-raised);
+  color: var(--attendance-text);
 }
 
-.setup-bulk-present:hover,
+.setup-bulk-present:hover {
+  filter: brightness(0.94);
+}
+
+button.attendance-record-button {
+  border: 1px solid var(--semantic-active-green);
+  background-color: var(--semantic-active-green);
+  color: var(--attendance-present-contrast);
+  font-weight: 800;
+}
+
+button.attendance-record-button:hover:not(:disabled) {
+  background-color: var(--semantic-active-green);
+  filter: brightness(0.94);
+}
+
+button.attendance-record-button:focus-visible {
+  outline: 2px solid var(--semantic-active-green);
+  outline-offset: 2px;
+}
+
 .setup-bulk-absent:hover {
-  opacity: 0.8;
+  border-color: var(--accent-primary);
+  background: var(--attendance-empty-bg);
 }
 
 /* 記録ボタンエリア */
@@ -248,6 +272,7 @@
 .setup-col-badge-present {
   background: var(--attendance-present);
   color: var(--attendance-present-contrast);
+  font-weight: 800;
 }
 
 .setup-col-badge-absent {
@@ -324,6 +349,7 @@
   background: var(--attendance-present);
   color: var(--attendance-present-contrast);
   border-color: var(--attendance-present);
+  font-weight: 800;
 }
 
 .setup-chip-wait {
@@ -384,7 +410,7 @@
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  background: var(--attendance-surface);
+  background: transparent;
   border: 1px solid var(--attendance-border);
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -414,19 +440,29 @@
   align-items: center;
   min-height: 28px;
   padding: 3px 10px;
-  background: var(--attendance-accent-soft);
-  border: 1px solid var(--attendance-accent-border);
+  background: var(--attendance-present);
+  border: 1px solid var(--attendance-present);
   border-radius: 999px;
-  color: var(--attendance-accent);
+  color: var(--attendance-present-contrast);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
-.attendance-matrix-wrap {
+.attendance-matrix-frame {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  align-items: start;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.attendance-matrix-wrap {
+  min-width: 0;
   overflow: auto;
-  background: var(--attendance-surface);
+  background: transparent;
   border: none;
   border-radius: 0;
   isolation: isolate;
@@ -437,13 +473,27 @@
   min-width: 0;
   border-collapse: separate;
   border-spacing: 0;
-  background: var(--attendance-sticky-bg);
+  background: transparent;
   font-size: 13px;
   table-layout: fixed;
 }
 
+.attendance-matrix-summary {
+  position: relative;
+  z-index: 2;
+  width: 256px;
+  min-width: 256px;
+  box-shadow: 1px 0 0 var(--attendance-grid);
+}
+
+.attendance-matrix-dates {
+  width: max-content;
+}
+
 .attendance-matrix th,
 .attendance-matrix td {
+  box-sizing: border-box;
+  height: 47px;
   border-bottom: 1px solid var(--attendance-grid);
   padding: 11px 16px;
   white-space: nowrap;
@@ -455,11 +505,9 @@
 }
 
 .attendance-matrix thead th {
-  position: sticky;
-  top: 0;
-  z-index: 7;
-  background: var(--attendance-surface-deep);
-  background-clip: border-box;
+  position: static;
+  height: 46px;
+  background: transparent;
   color: var(--attendance-muted);
   font-size: 11px;
   font-weight: 700;
@@ -470,21 +518,12 @@
 
 .attendance-matrix-cast-head,
 .attendance-matrix-cast-name {
-  position: sticky;
-  left: 0;
   width: 168px;
   min-width: 168px;
   max-width: 168px;
-  z-index: 6;
-  background: var(--attendance-sticky-bg);
-  background-clip: border-box;
+  border-right: 1px solid var(--attendance-grid);
+  background: transparent;
   text-align: left;
-  box-shadow: 1px 0 0 var(--attendance-grid);
-}
-
-.attendance-matrix-cast-head {
-  z-index: 9;
-  background: var(--attendance-sticky-head-bg);
 }
 
 .attendance-matrix-cast-name {
@@ -496,21 +535,11 @@
 
 .attendance-matrix-count-head,
 .attendance-matrix-count-cell {
-  position: sticky;
-  left: 168px;
   width: 88px;
   min-width: 88px;
   max-width: 88px;
-  z-index: 5;
-  background: var(--attendance-sticky-bg);
-  background-clip: border-box;
+  background: transparent;
   text-align: center;
-  box-shadow: 1px 0 0 var(--attendance-grid);
-}
-
-.attendance-matrix-count-head {
-  z-index: 8;
-  background: var(--attendance-sticky-head-bg);
 }
 
 .attendance-matrix th.attendance-matrix-count-head {
@@ -557,7 +586,7 @@
 }
 
 .attendance-matrix-count-button-active .attendance-matrix-count-period {
-  color: var(--attendance-accent);
+  color: var(--attendance-accent-text);
 }
 
 .attendance-matrix-date-head {
@@ -572,19 +601,19 @@
   max-width: 104px;
   text-align: center;
   color: var(--attendance-muted);
-  background: var(--attendance-sticky-bg);
+  background: transparent;
 }
 
 .attendance-present-mark,
 .attendance-absent-mark {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
 }
 
 .attendance-present-mark {
-  color: var(--attendance-accent);
+  color: var(--attendance-accent-text);
 }
 
 .attendance-present-mark svg,
@@ -670,8 +699,13 @@
   margin-top: 22px;
 }
 
-.attendance-period-show-all {
+.attendance-period-reset {
   margin-right: auto;
+}
+
+.attendance-period-field:last-child .record-date-calendar-panel {
+  right: 0;
+  left: auto;
 }
 
 /* ── モーダル共通 ── */
@@ -872,7 +906,7 @@
 }
 
 .record-date-calendar-weekdays,
-.record-date-calendar-grid {
+.record-date-calendar-week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
@@ -889,7 +923,16 @@
   text-align: center;
 }
 
+.record-date-calendar-week + .record-date-calendar-week {
+  margin-top: 4px;
+}
+
+.record-date-calendar-cell {
+  min-width: 0;
+}
+
 .record-date-calendar-day {
+  width: 100%;
   aspect-ratio: 1;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -902,9 +945,14 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.record-date-calendar-day:hover {
+.record-date-calendar-day:hover:not(:disabled) {
   border-color: var(--accent-primary);
   background: var(--surface-hover);
+}
+
+.record-date-calendar-day:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
 }
 
 .record-date-calendar-day-muted {
@@ -918,6 +966,11 @@
   color: #fff;
 }
 
+.record-date-calendar-day-disabled {
+  cursor: not-allowed;
+  opacity: 0.28;
+}
+
 .save-count-row {
   display: flex;
   align-items: baseline;
@@ -927,7 +980,7 @@
 .save-count-num {
   font-size: 48px;
   font-weight: 800;
-  color: var(--attendance-accent);
+  color: var(--attendance-accent-text);
   line-height: 1;
 }
 
@@ -995,11 +1048,11 @@
   min-width: 0;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-warning, #faa61a);
+  color: var(--status-warning-text);
   padding: 4px 10px;
-  background: rgba(250, 166, 26, 0.1);
+  background: var(--status-warning-bg);
   border-radius: 4px;
-  border: 1px solid rgba(250, 166, 26, 0.25);
+  border: 1px solid var(--status-warning-border);
   line-height: 1.5;
 }
 
@@ -1016,10 +1069,11 @@
   --attendance-grid: #bfdbfe;
   --attendance-text: #102b49;
   --attendance-muted: #47708f;
-  --attendance-accent: #07af4a;
-  --attendance-accent-soft: #eaf8ef;
-  --attendance-accent-border: #78d49b;
-  --attendance-present: #15803d;
+  /* ライトテーマでも共通の有効状態色と白文字で表示する。 */
+  --attendance-accent: var(--semantic-active-green);
+  --attendance-accent-text: var(--semantic-active-green);
+  --attendance-accent-border: var(--semantic-active-green);
+  --attendance-present: var(--semantic-active-green);
   --attendance-present-contrast: #ffffff;
   --attendance-empty-bg: #f8fbff;
   --attendance-absent-icon: #858b95;
@@ -1030,13 +1084,13 @@
   border-color: #bfdbfe;
   border-style: dashed;
   color: #47708f;
-  opacity: 0.62;
+  opacity: 1;
   box-shadow: none;
 }
 
 :global([data-theme="skyblue"]) .setup-chip-wait:hover {
   border-color: #93c5fd;
-  opacity: 0.72;
+  opacity: 1;
 }
 
 :global([data-theme="skyblue"]) .setup-chip-wait-selected {
@@ -1049,7 +1103,7 @@
 
 :global([data-theme="skyblue"]) .setup-chip-wait-selected:hover {
   border-color: #93c5fd;
-  opacity: 0.92;
+  opacity: 1;
 }
 
 :global([data-theme="skyblue"]) .setup-chip-wait::after {
@@ -1058,7 +1112,7 @@
 
 :global([data-theme="skyblue"]) .setup-chip-wait-selected::after {
   color: #47708f;
-  opacity: 0.82;
+  opacity: 1;
 }
 
 :global([data-theme="skyblue"]) .save-modal-panel {
@@ -1086,10 +1140,10 @@
   --attendance-grid: #2e3542;
   --attendance-text: var(--text-heading);
   --attendance-muted: var(--text-muted);
-  --attendance-accent: #22c55e;
-  --attendance-accent-soft: #173824;
-  --attendance-accent-border: #22c55e;
-  --attendance-present: #15803d;
+  --attendance-accent: var(--semantic-active-green);
+  --attendance-accent-text: var(--semantic-active-green);
+  --attendance-accent-border: var(--semantic-active-green);
+  --attendance-present: var(--semantic-active-green);
   --attendance-present-contrast: #ffffff;
   --attendance-empty-bg: var(--surface-panel);
   --attendance-absent-icon: #8b94a3;

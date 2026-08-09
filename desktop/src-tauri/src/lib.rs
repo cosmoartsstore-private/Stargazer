@@ -1,20 +1,24 @@
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
+use tauri::Manager;
 
 const SHARED_DIR: &str = "shared";
 const CACHE_DIR: &str = "Cache";
 const WEBVIEW_DATA_DIR: &str = "EBWebView";
-const PREFERENCE_MODE_EXTRA_KEY: &str = "__preference_mode";
+const IN_PROGRESS_SESSION_MARKER: &str = ".stargazer-in-progress";
 const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_STAGING_DIRECTORY_ATTEMPTS: usize = 64;
 // SQL schemaのCHECK制約と同じ方式だけをcommand境界で受け付ける。
 const SUPPORTED_MATCHING_TYPE_CODES: [&str; 4] = ["M000", "M001", "M002", "M003"];
 static STAGING_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static WORK_SESSION_LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
+static STARTUP_SESSION_CLEANUP_ERROR: OnceLock<Option<String>> = OnceLock::new();
 
 fn resolve_app_root() -> PathBuf {
     if let Some(install_dir) = get_install_location() {
@@ -109,6 +113,10 @@ CREATE TABLE cast_attendance (
   recorded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
+CREATE TABLE attendance_record_dates (
+  recorded_at TEXT PRIMARY KEY
+);
+
 CREATE TABLE cast_aliases (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   cast_id INTEGER NOT NULL REFERENCES casts(id) ON DELETE CASCADE,
@@ -123,6 +131,40 @@ CREATE TABLE settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE saved_results (
+  id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_session_token     TEXT NOT NULL UNIQUE,
+  result_type              TEXT NOT NULL CHECK (result_type IN ('lottery', 'matching')),
+  label                    TEXT NOT NULL,
+  matching_type_code       TEXT NOT NULL
+                             CHECK (matching_type_code IN ('M000', 'M001', 'M002', 'M003')),
+  lottery_count            INTEGER,
+  guaranteed_count         INTEGER,
+  winner_count             INTEGER NOT NULL CHECK (winner_count >= 1),
+  snapshot_json            TEXT NOT NULL,
+  created_at               TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  CHECK (
+    (
+      result_type = 'lottery'
+      AND lottery_count IS NOT NULL
+      AND lottery_count >= 1
+      AND guaranteed_count IS NOT NULL
+      AND guaranteed_count >= 0
+      AND winner_count = lottery_count + guaranteed_count
+    )
+    OR
+    (
+      result_type = 'matching'
+      AND matching_type_code IN ('M001', 'M002', 'M003')
+      AND lottery_count IS NULL
+      AND guaranteed_count IS NULL
+    )
+  )
+);
+
+CREATE INDEX idx_saved_results_type_created_at
+  ON saved_results(result_type, created_at DESC, id DESC);
 "#;
 
 const SHARED_REQUIRED_TABLES: &[&str] = &[
@@ -132,8 +174,10 @@ const SHARED_REQUIRED_TABLES: &[&str] = &[
     "cast_ng_entries",
     "caution_users",
     "cast_attendance",
+    "attendance_record_dates",
     "cast_aliases",
     "settings",
+    "saved_results",
 ];
 
 const SHARED_SCHEMA_QUERIES: &[&str] = &[
@@ -143,22 +187,22 @@ const SHARED_SCHEMA_QUERIES: &[&str] = &[
     "SELECT id, cast_id, username, userid, notes FROM cast_ng_entries LIMIT 0",
     "SELECT id, username, account_id, notes, ng_cast_count, registered_at FROM caution_users LIMIT 0",
     "SELECT id, cast_id, recorded_at FROM cast_attendance LIMIT 0",
+    "SELECT recorded_at FROM attendance_record_dates LIMIT 0",
     "SELECT id, cast_id, alias FROM cast_aliases LIMIT 0",
     "SELECT key, value FROM settings LIMIT 0",
+    "SELECT id, source_session_token, result_type, label, matching_type_code, lottery_count, guaranteed_count, winner_count, snapshot_json, created_at FROM saved_results LIMIT 0",
 ];
 
 // === 取込セッション DB ======================================================
 // 応募者データの区切りとして、希望キャスト、追加列、抽選条件、抽選結果を同じDBに保持する。
-// lottery_results は現在の抽選結果、lottery_saved_runs は利用者が名前を付けた抽選結果である。
-//
-// 最終マッチング結果は DB に保存せず、現在のアプリプロセスだけで保持する。
-// 現行名簿にないキャスト参照は判定漏れの可能性を警告するが、操作は制限しない。再起動後の復元も行わない。
+// 明示保存した業務結果はイベント共有DBへ移し、このDBは応募管理へ戻るとき、または終了時に破棄する。
 const SESSION_SCHEMA: &str = r#"
 CREATE TABLE applicants (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   x_id          TEXT NOT NULL,
   name          TEXT,
   vrc_url       TEXT,
+  preference_mode TEXT NOT NULL CHECK (preference_mode IN ('ranked', 'flat')),
   is_guaranteed INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
@@ -185,28 +229,6 @@ CREATE TABLE lottery_results (
   drawn_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
-CREATE TABLE lottery_saved_runs (
-  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-  label              TEXT NOT NULL,
-  matching_type_code TEXT NOT NULL,
-  lottery_count      INTEGER NOT NULL,
-  guaranteed_count   INTEGER NOT NULL,
-  winner_count       INTEGER NOT NULL,
-  created_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-);
-
-CREATE TABLE lottery_saved_run_results (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  run_id        INTEGER NOT NULL REFERENCES lottery_saved_runs(id) ON DELETE CASCADE,
-  applicant_id  INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
-  is_guaranteed INTEGER NOT NULL DEFAULT 0,
-  result_order  INTEGER NOT NULL,
-  UNIQUE(run_id, applicant_id)
-);
-
-CREATE INDEX idx_lottery_saved_run_results_run_id
-  ON lottery_saved_run_results(run_id, result_order);
-
 CREATE INDEX idx_applicant_casts_cast_id
   ON applicant_casts(cast_id);
 
@@ -215,6 +237,9 @@ CREATE INDEX idx_applicants_x_id
 
 CREATE TABLE session_workflow_state (
   id                          INTEGER PRIMARY KEY CHECK (id = 1),
+  session_token               TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+  is_lottery_read_only        INTEGER NOT NULL DEFAULT 0
+                                CHECK (is_lottery_read_only IN (0, 1)),
   matching_type_code          TEXT NOT NULL DEFAULT 'M001'
                                 CHECK (matching_type_code IN ('M000', 'M001', 'M002', 'M003')),
   lottery_count               INTEGER NOT NULL DEFAULT 1 CHECK (lottery_count >= 1),
@@ -222,8 +247,10 @@ CREATE TABLE session_workflow_state (
   total_tables                INTEGER NOT NULL DEFAULT 15 CHECK (total_tables >= 1),
   users_per_table             INTEGER NOT NULL DEFAULT 1 CHECK (users_per_table >= 1),
   casts_per_rotation          INTEGER NOT NULL DEFAULT 1 CHECK (casts_per_rotation >= 1),
-  allow_m003_empty_seats      INTEGER NOT NULL DEFAULT 0 CHECK (allow_m003_empty_seats IN (0, 1)),
-  m003_same_day_slot_count    INTEGER NOT NULL DEFAULT 0 CHECK (m003_same_day_slot_count >= 0),
+  reserve_same_day_slots      INTEGER NOT NULL DEFAULT 0 CHECK (reserve_same_day_slots IN (0, 1)),
+  same_day_slot_count         INTEGER NOT NULL DEFAULT 0 CHECK (same_day_slot_count >= 0),
+  same_day_slot_unit          TEXT NOT NULL DEFAULT 'table'
+                                CHECK (same_day_slot_unit IN ('person', 'table')),
   condition_revision          INTEGER NOT NULL DEFAULT 0,
   lottery_result_revision     INTEGER
 );
@@ -236,51 +263,52 @@ const SESSION_REQUIRED_TABLES: &[&str] = &[
     "applicant_casts",
     "applicant_extra",
     "lottery_results",
-    "lottery_saved_runs",
-    "lottery_saved_run_results",
     "session_workflow_state",
 ];
 
 const SESSION_SCHEMA_QUERIES: &[&str] = &[
-    "SELECT id, x_id, name, vrc_url, is_guaranteed, created_at FROM applicants LIMIT 0",
+    "SELECT id, x_id, name, vrc_url, preference_mode, is_guaranteed, created_at FROM applicants LIMIT 0",
     "SELECT id, applicant_id, preference_order, cast_name, cast_id FROM applicant_casts LIMIT 0",
     "SELECT id, applicant_id, field_key, field_value FROM applicant_extra LIMIT 0",
     "SELECT id, applicant_id, is_guaranteed, drawn_at FROM lottery_results LIMIT 0",
-    "SELECT id, label, matching_type_code, lottery_count, guaranteed_count, winner_count, created_at FROM lottery_saved_runs LIMIT 0",
-    "SELECT id, run_id, applicant_id, is_guaranteed, result_order FROM lottery_saved_run_results LIMIT 0",
-    "SELECT id, matching_type_code, lottery_count, rotation_count, total_tables, users_per_table, casts_per_rotation, allow_m003_empty_seats, m003_same_day_slot_count, condition_revision, lottery_result_revision FROM session_workflow_state LIMIT 0",
+    "SELECT id, session_token, is_lottery_read_only, matching_type_code, lottery_count, rotation_count, total_tables, users_per_table, casts_per_rotation, reserve_same_day_slots, same_day_slot_count, same_day_slot_unit, condition_revision, lottery_result_revision FROM session_workflow_state LIMIT 0",
 ];
 
-/** イベント名をパス構成要素として安全に扱える形式へ制限する。 */
+fn is_windows_reserved_event_name(name: &str) -> bool {
+    let normalized = name.to_ascii_uppercase();
+    matches!(normalized.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || normalized
+            .strip_prefix("COM")
+            .or_else(|| normalized.strip_prefix("LPT"))
+            .is_some_and(|number| {
+                matches!(number, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            })
+}
+
+/** Frontendと同じ規則で、イベント名をWindowsのパス構成要素として制限する。 */
 fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("イベント名が空です".to_string());
     }
-    if name.len() > 64 {
+    if !name
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err(
+            "イベント名には半角英数字・ハイフン・アンダースコアだけを使用できます".to_string(),
+        );
+    }
+    if name.chars().count() > 64 {
         return Err("イベント名は64文字以下にしてください".to_string());
     }
-    if name.trim() != name {
-        return Err("イベント名の先頭・末尾に空白は使えません".to_string());
-    }
-    if name.contains('.') {
-        return Err("イベント名にドットは使えません".to_string());
-    }
-    if name.contains('/') || name.contains('\\') {
-        return Err("イベント名にパス区切り文字は使えません".to_string());
-    }
-    for ch in name.chars() {
-        let ok = ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == ' ';
-        if !ok {
-            return Err(format!(
-                "イベント名に使用できない文字が含まれています: '{ch}'"
-            ));
-        }
+    if is_windows_reserved_event_name(name) {
+        return Err("この名前はWindowsでフォルダー名として使用できません".to_string());
     }
     Ok(())
 }
 
 fn is_event_directory_name(name: &str) -> bool {
-    !name.starts_with('.') && validate_event_name(name).is_ok()
+    validate_event_name(name).is_ok()
 }
 
 // timestampはパスの一部になるため、std::fsへ渡す前に14桁ASCII数字だけへ制限する。
@@ -388,11 +416,27 @@ fn session_db_path(event_name: &str, timestamp: &str) -> PathBuf {
         .join("stargazer.db")
 }
 
+#[cfg(target_os = "windows")]
+fn sqlite_open_path(db_path: &Path) -> PathBuf {
+    // SQLiteのWindows VFSへ260文字超の絶対パスを渡せるよう、既存の親だけを拡張長表記へ変換する。
+    db_path
+        .parent()
+        .and_then(|parent| std::fs::canonicalize(parent).ok())
+        .and_then(|parent| db_path.file_name().map(|file_name| parent.join(file_name)))
+        .unwrap_or_else(|| db_path.to_path_buf())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sqlite_open_path(db_path: &Path) -> PathBuf {
+    db_path.to_path_buf()
+}
+
 fn open_connection(
     db_path: &Path,
     flags: rusqlite::OpenFlags,
 ) -> Result<rusqlite::Connection, String> {
-    let conn = rusqlite::Connection::open_with_flags(db_path, flags)
+    let sqlite_path = sqlite_open_path(db_path);
+    let conn = rusqlite::Connection::open_with_flags(&sqlite_path, flags)
         .map_err(|e| format!("DBを開けませんでした: {e}"))?;
     conn.busy_timeout(SQLITE_BUSY_TIMEOUT)
         .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
@@ -541,6 +585,27 @@ fn open_existing_schema_connection(
     Ok(conn)
 }
 
+fn open_existing_schema_read_only_connection(
+    db_path: &Path,
+    database_name: &str,
+    required_tables: &[&str],
+    schema_queries: &[&str],
+) -> Result<rusqlite::Connection, String> {
+    if !db_path.is_file() {
+        return Err(format!("DBが存在しません: {}", db_path.display()));
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        db_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| format!("DBを読み取り専用で開けませんでした: {e}"))?;
+    conn.busy_timeout(SQLITE_BUSY_TIMEOUT)
+        .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
+    validate_current_schema(&conn, database_name, required_tables, schema_queries)
+        .map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
+    Ok(conn)
+}
+
 fn create_event_shared_db(event_name: &str) -> Result<(), String> {
     let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
     create_initialized_directory_atomically(
@@ -566,18 +631,31 @@ fn open_event_shared_db(event_name: &str) -> Result<(PathBuf, rusqlite::Connecti
     Ok((db_path, conn))
 }
 
-fn create_session_db(event_name: &str, timestamp: &str) -> Result<(), String> {
-    let relative_db_path = Path::new("db").join("stargazer.db");
-    create_initialized_directory_atomically(
-        &session_dir(event_name, timestamp),
-        &relative_db_path,
-        SESSION_SCHEMA,
-        "取込セッション",
-        SESSION_REQUIRED_TABLES,
-        SESSION_SCHEMA_QUERIES,
-        |_| Ok(()),
+fn open_event_shared_read_only_db(
+    event_name: &str,
+) -> Result<(PathBuf, rusqlite::Connection), String> {
+    let db_path = event_shared_db_path(event_name);
+    let conn = open_existing_schema_read_only_connection(
+        &db_path,
+        "イベント共有",
+        SHARED_REQUIRED_TABLES,
+        SHARED_SCHEMA_QUERIES,
+    )?;
+    Ok((db_path, conn))
+}
+
+fn write_session_in_progress_marker(conn: &rusqlite::Connection) -> Result<(), String> {
+    let staging_dir = conn
+        .path()
+        .and_then(|db_path| Path::new(db_path).parent())
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "操作中セッションの一時保存先が不正です".to_string())?;
+    std::fs::write(
+        staging_dir.join(IN_PROGRESS_SESSION_MARKER),
+        b"Stargazer import session in progress\n",
     )
-    .map(|_| ())
+    .map_err(|e| format!("操作中セッションの状態を保存できませんでした: {e}"))
 }
 
 fn open_session_db(
@@ -594,6 +672,63 @@ fn open_session_db(
     Ok((db_path, conn))
 }
 
+fn open_session_read_only_db(
+    event_name: &str,
+    timestamp: &str,
+) -> Result<(PathBuf, rusqlite::Connection), String> {
+    let db_path = session_db_path(event_name, timestamp);
+    let conn = open_existing_schema_read_only_connection(
+        &db_path,
+        "取込セッション",
+        SESSION_REQUIRED_TABLES,
+        SESSION_SCHEMA_QUERIES,
+    )?;
+    Ok((db_path, conn))
+}
+
+fn session_in_progress_marker_path(event_name: &str, timestamp: &str) -> PathBuf {
+    session_dir(event_name, timestamp).join(IN_PROGRESS_SESSION_MARKER)
+}
+
+fn read_session_token(conn: &rusqlite::Connection) -> rusqlite::Result<String> {
+    conn.query_row(
+        "SELECT session_token FROM session_workflow_state WHERE id = 1",
+        [],
+        |row| row.get(0),
+    )
+}
+
+fn session_has_saved_result(
+    shared_conn: &rusqlite::Connection,
+    session_token: &str,
+) -> rusqlite::Result<bool> {
+    shared_conn
+        .query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM saved_results WHERE source_session_token = ?1
+             )",
+            [session_token],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|exists| exists == 1)
+}
+
+/** 一つの作業セッションから保存できる業務結果を、抽選またはマッチングの一件に制限する。 */
+fn reject_session_with_saved_result(
+    event_name: &str,
+    session_conn: &rusqlite::Connection,
+) -> Result<(), String> {
+    let session_token = read_session_token(session_conn)
+        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+    let (_, shared_conn) = open_event_shared_db(event_name)?;
+    if session_has_saved_result(&shared_conn, &session_token)
+        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
+    {
+        return Err("この作業セッションでは既に結果を保存しています".to_string());
+    }
+    Ok(())
+}
+
 fn path_to_sqlite_uri(path: &Path) -> String {
     format!("sqlite:{}", path.to_string_lossy().replace('\\', "/"))
 }
@@ -603,20 +738,22 @@ fn now_local_timestamp() -> String {
     Local::now().format("%Y%m%d%H%M%S").to_string()
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct RawExtraInput {
     key: String,
     value: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct ApplicantInput {
     name: Option<String>,
     x_id: String,
     vrc_url: Option<String>,
     casts: Vec<String>,
     cast_ids: Vec<Option<i64>>,
-    preference_mode: Option<String>,
+    preference_mode: String,
     is_guaranteed: bool,
     raw_extra: Vec<RawExtraInput>,
 }
@@ -626,7 +763,8 @@ struct ApplicantCastPreferencesInput {
     cast_ids: Vec<Option<i64>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct SessionWorkflowStateInput {
     matching_type_code: String,
     lottery_count: i64,
@@ -634,8 +772,9 @@ struct SessionWorkflowStateInput {
     total_tables: i64,
     users_per_table: i64,
     casts_per_rotation: i64,
-    allow_m003_empty_seats: bool,
-    m003_same_day_slot_count: i64,
+    reserve_same_day_slots: bool,
+    same_day_slot_count: i64,
+    same_day_slot_unit: String,
 }
 
 #[derive(Deserialize)]
@@ -652,7 +791,6 @@ struct CastInput {
     is_present: bool,
     contact_urls: Vec<String>,
     ng_entries: Vec<NgUserInput>,
-    #[serde(default)]
     aliases: Vec<String>,
     group_name: Option<String>,
     photo_data_url: Option<String>,
@@ -677,9 +815,7 @@ struct CastPatchInput {
     contact_urls: Vec<String>,
     update_ng_entries: bool,
     ng_entries: Vec<NgUserInput>,
-    #[serde(default)]
     update_aliases: bool,
-    #[serde(default)]
     aliases: Vec<String>,
 }
 
@@ -692,31 +828,145 @@ struct EventMetaPatchInput {
     photo_data_url: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize)]
+struct EventMetaOutput {
+    notes: Option<String>,
+    photo_data_url: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct LotteryResultInput {
     x_id: String,
     is_guaranteed: bool,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RestoredLotteryRunState {
-    matching_type_code: String,
-    lottery_count: i64,
+/** 保存済み抽選だけで新しい作業セッションを再構築できる固定スナップショット。 */
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SavedLotterySnapshot {
+    applicants: Vec<ApplicantInput>,
+    workflow: SessionWorkflowStateInput,
+    winners: Vec<LotteryResultInput>,
 }
 
-/** イベント内の保存済み抽選結果を、所有セッションと組み合わせて参照する見出し。 */
+/** イベント共有DBに保存した抽選結果の見出し。 */
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EventSavedLotteryRunSummary {
-    session_timestamp: String,
-    run_id: i64,
+struct EventSavedLotteryResultSummary {
+    saved_result_id: i64,
     label: String,
     matching_type_code: String,
     lottery_count: i64,
     guaranteed_count: i64,
     winner_count: i64,
     created_at: String,
+}
+
+/** イベント共有DBに保存したマッチング結果の見出し。 */
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EventSavedMatchingResultSummary {
+    saved_result_id: i64,
+    label: String,
+    matching_type_code: String,
+    winner_count: i64,
+    created_at: String,
+}
+
+/** 履歴詳細で表示する固定スナップショット。 */
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EventSavedMatchingResultDetail {
+    saved_result_id: i64,
+    label: String,
+    matching_type_code: String,
+    winner_count: i64,
+    created_at: String,
+    snapshot: serde_json::Value,
+}
+
+#[derive(Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotUserInput {
+    name: String,
+    x_id: String,
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotNgEntryInput {
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    username: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    account_id: Option<String>,
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotCastInput {
+    id: i64,
+    name: String,
+    is_present: bool,
+    ng_entries: Vec<MatchingSnapshotNgEntryInput>,
+}
+
+fn deserialize_required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
+#[derive(Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotAssignmentInput {
+    cast_id: i64,
+    rank: i64,
+    rotation_index: i64,
+    score: f64,
+    is_ng_warning: bool,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    ng_reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotApplicantInput {
+    user: MatchingSnapshotUserInput,
+    matches: Vec<MatchingSnapshotAssignmentInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotTableSlotInput {
+    table_index: i64,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    user: Option<MatchingSnapshotUserInput>,
+    matches: Vec<MatchingSnapshotAssignmentInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingSnapshotScoreSummaryInput {
+    total_score: f64,
+    average_score: f64,
+    first_choice_count: i64,
+    second_choice_count: i64,
+    third_choice_count: i64,
+    flat_preference_count: i64,
+    unpreferred_count: i64,
+    ng_warning_count: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MatchingResultSnapshotInput {
+    casts: Vec<MatchingSnapshotCastInput>,
+    applicants: Vec<MatchingSnapshotApplicantInput>,
+    table_slots: Vec<MatchingSnapshotTableSlotInput>,
+    score_summary: MatchingSnapshotScoreSummaryInput,
 }
 
 /** SQLite エラーに、呼び出し元の操作名を付けたユーザー向けメッセージを作る。 */
@@ -794,9 +1044,12 @@ fn validate_session_workflow_state(state: &SessionWorkflowStateInput) -> Result<
         || state.total_tables < 1
         || state.users_per_table < 1
         || state.casts_per_rotation < 1
-        || state.m003_same_day_slot_count < 0
+        || state.same_day_slot_count < 0
     {
         return Err("抽選・マッチング条件の数値が範囲外です".to_string());
+    }
+    if !matches!(state.same_day_slot_unit.as_str(), "person" | "table") {
+        return Err("当日枠の計数単位が不正です".to_string());
     }
     Ok(())
 }
@@ -811,8 +1064,9 @@ fn persist_session_workflow_state_in_connection(
     conn: &mut rusqlite::Connection,
     state: &SessionWorkflowStateInput,
 ) -> rusqlite::Result<()> {
-    reject_saved_lottery_session_write(conn)?;
-    conn.execute(
+    let tx = conn.transaction()?;
+    validate_session_workflow_write_access(&tx, state)?;
+    tx.execute(
         "UPDATE session_workflow_state
          SET condition_revision = condition_revision + CASE
                WHEN matching_type_code <> ?1
@@ -821,8 +1075,9 @@ fn persist_session_workflow_state_in_connection(
                  OR total_tables <> ?4
                  OR users_per_table <> ?5
                  OR casts_per_rotation <> ?6
-                 OR allow_m003_empty_seats <> ?7
-                 OR m003_same_day_slot_count <> ?8
+                 OR reserve_same_day_slots <> ?7
+                 OR same_day_slot_count <> ?8
+                 OR same_day_slot_unit <> ?9
                THEN 1 ELSE 0 END,
              matching_type_code = ?1,
              lottery_count = ?2,
@@ -830,8 +1085,9 @@ fn persist_session_workflow_state_in_connection(
              total_tables = ?4,
              users_per_table = ?5,
              casts_per_rotation = ?6,
-             allow_m003_empty_seats = ?7,
-             m003_same_day_slot_count = ?8
+             reserve_same_day_slots = ?7,
+             same_day_slot_count = ?8,
+             same_day_slot_unit = ?9
          WHERE id = 1",
         rusqlite::params![
             &state.matching_type_code,
@@ -840,11 +1096,12 @@ fn persist_session_workflow_state_in_connection(
             state.total_tables,
             state.users_per_table,
             state.casts_per_rotation,
-            if state.allow_m003_empty_seats { 1 } else { 0 },
-            state.m003_same_day_slot_count,
+            if state.reserve_same_day_slots { 1 } else { 0 },
+            state.same_day_slot_count,
+            &state.same_day_slot_unit,
         ],
     )?;
-    Ok(())
+    tx.commit()
 }
 
 /** @usernameまたはusernameを検証し、内部保存用のusername部分を返す。 */
@@ -927,21 +1184,9 @@ fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
                 user.x_id
             )));
         }
-        if let Some(mode) = user.preference_mode.as_deref() {
-            if !matches!(mode, "flat" | "ranked") {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "応募者 '{}' の希望方式が不正です",
-                    user.x_id
-                )));
-            }
-        }
-        if user
-            .raw_extra
-            .iter()
-            .any(|extra| extra.key == PREFERENCE_MODE_EXTRA_KEY)
-        {
+        if !matches!(user.preference_mode.as_str(), "flat" | "ranked") {
             return Err(rusqlite::Error::InvalidParameterName(format!(
-                "応募者 '{}' の追加項目に予約キーが含まれています",
+                "応募者 '{}' の希望方式が不正です",
                 user.x_id
             )));
         }
@@ -949,16 +1194,37 @@ fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/** 保存済み抽選の所有セッションを、抽選前データまで含む履歴として固定する。 */
-fn reject_saved_lottery_session_write(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-    let has_saved_run = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM lottery_saved_runs LIMIT 1)",
+/** 保存済み抽選から復元したセッションでは、応募者と抽選条件を変更させない。 */
+fn reject_lottery_input_session_write(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    let is_read_only = conn.query_row(
+        "SELECT is_lottery_read_only FROM session_workflow_state WHERE id = 1",
         [],
-        |row| row.get::<_, bool>(0),
+        |row| row.get::<_, i64>(0),
     )?;
-    if has_saved_run {
+    if is_read_only == 1 {
         return Err(rusqlite::Error::InvalidParameterName(
-            "保存済みの抽選結果がある取込データは変更できません".to_string(),
+            "保存済み抽選から復元した応募データと抽選条件は変更できません".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/** 復元済み抽選の方式と人数を固定し、後続マッチング専用の条件だけを変更可能にする。 */
+fn validate_session_workflow_write_access(
+    conn: &rusqlite::Connection,
+    state: &SessionWorkflowStateInput,
+) -> rusqlite::Result<()> {
+    let (is_read_only, matching_type_code, lottery_count): (i64, String, i64) = conn.query_row(
+        "SELECT is_lottery_read_only, matching_type_code, lottery_count
+         FROM session_workflow_state WHERE id = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    if is_read_only == 1
+        && (matching_type_code != state.matching_type_code || lottery_count != state.lottery_count)
+    {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "保存済み抽選の方式と抽選人数は変更できません".to_string(),
         ));
     }
     Ok(())
@@ -998,8 +1264,8 @@ fn persist_applicants_in_connection(
 ) -> rusqlite::Result<()> {
     // 入力全体を先に検証し、不正なpayloadで既存データの置換を開始しない。
     validate_applicant_inputs(users)?;
-    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
+    reject_lottery_input_session_write(&tx)?;
     tx.execute("DELETE FROM applicants", [])?;
     // WHY: 応募者集合の全置換も抽選条件の変更である。revisionを進めないと、
     // 置換前に開始した抽選が同じxIDを含む新集合へ遅れて保存され、現行結果として復活する。
@@ -1013,12 +1279,13 @@ fn persist_applicants_in_connection(
     for user in users {
         let stored_x_id = canonicalize_x_id_for_storage(&user.x_id);
         tx.execute(
-            "INSERT INTO applicants (x_id, name, vrc_url, is_guaranteed)
-             VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO applicants (x_id, name, vrc_url, preference_mode, is_guaranteed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![
                 &stored_x_id,
                 user.name.as_deref(),
                 user.vrc_url.as_deref(),
+                &user.preference_mode,
                 if user.is_guaranteed { 1 } else { 0 }
             ],
         )?;
@@ -1036,15 +1303,6 @@ fn persist_applicants_in_connection(
                 rusqlite::params![applicant_id, index as i64, cast_name, cast_id],
             )?;
         }
-        tx.execute(
-            "INSERT INTO applicant_extra (applicant_id, field_key, field_value)
-             VALUES (?1, ?2, ?3)",
-            rusqlite::params![
-                applicant_id,
-                PREFERENCE_MODE_EXTRA_KEY,
-                user.preference_mode.as_deref().unwrap_or("ranked")
-            ],
-        )?;
         for extra in &user.raw_extra {
             tx.execute(
                 "INSERT INTO applicant_extra (applicant_id, field_key, field_value)
@@ -1062,8 +1320,8 @@ fn update_applicant_cast_preferences_in_connection(
     applicant_id: i64,
     preferences: &[Option<(i64, String)>],
 ) -> rusqlite::Result<()> {
-    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
+    reject_lottery_input_session_write(&tx)?;
     tx.query_row(
         "SELECT 1 FROM applicants WHERE id = ?1",
         [applicant_id],
@@ -1092,8 +1350,8 @@ fn delete_applicant_in_connection(
     conn: &mut rusqlite::Connection,
     applicant_id: i64,
 ) -> rusqlite::Result<()> {
-    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
+    reject_lottery_input_session_write(&tx)?;
     tx.query_row(
         "SELECT 1 FROM applicants WHERE id = ?1",
         [applicant_id],
@@ -1172,8 +1430,8 @@ fn replace_applicant_guarantees_in_connection(
     conn: &mut rusqlite::Connection,
     guaranteed_x_ids: &[String],
 ) -> rusqlite::Result<()> {
-    reject_saved_lottery_session_write(conn)?;
     let tx = conn.transaction()?;
+    reject_lottery_input_session_write(&tx)?;
     // 重複X IDを含むセッションでは対象行を一意に決められないため、抽選条件を更新しない。
     validate_stored_applicant_x_ids(&tx)?;
     apply_applicant_guarantee_diff(&tx, guaranteed_x_ids)?;
@@ -1292,12 +1550,54 @@ fn delete_cast_in_connection(
     Ok(())
 }
 
+fn is_valid_calendar_date(value: &str) -> bool {
+    if value.len() != 10 || value.as_bytes()[4] != b'-' || value.as_bytes()[7] != b'-' {
+        return false;
+    }
+    let Ok(year) = value[0..4].parse::<u32>() else {
+        return false;
+    };
+    let Ok(month) = value[5..7].parse::<u32>() else {
+        return false;
+    };
+    let Ok(day) = value[8..10].parse::<u32>() else {
+        return false;
+    };
+    if year == 0 || !(1..=12).contains(&month) {
+        return false;
+    }
+    let leap_year = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days_in_month = match month {
+        2 if leap_year => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    (1..=days_in_month).contains(&day)
+}
+
 /** 指定日のキャスト出席記録を、既存行削除と新規挿入を含めて単一 transaction で保存する。 */
 fn record_cast_attendance_in_connection(
     conn: &mut rusqlite::Connection,
     present_cast_ids: &[i64],
     recorded_at: &str,
 ) -> rusqlite::Result<()> {
+    if !is_valid_calendar_date(recorded_at) {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "出席記録日は実在する YYYY-MM-DD 形式の日付で指定してください".to_string(),
+        ));
+    }
+    if present_cast_ids
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>()
+        .len()
+        != present_cast_ids.len()
+    {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "出席者一覧に同じキャストが重複しています".to_string(),
+        ));
+    }
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare("SELECT 1 FROM casts WHERE id = ?1")?;
@@ -1305,6 +1605,12 @@ fn record_cast_attendance_in_connection(
             stmt.query_row([cast_id], |row| row.get::<_, i64>(0))?;
         }
     }
+    tx.execute(
+        "INSERT INTO attendance_record_dates (recorded_at)
+         VALUES (?1)
+         ON CONFLICT(recorded_at) DO NOTHING",
+        [recorded_at],
+    )?;
     tx.execute(
         "DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?1)",
         [recorded_at],
@@ -1336,6 +1642,142 @@ fn validate_expected_condition_revision(
 
 fn validate_lottery_result_inputs(rows: &[LotteryResultInput]) -> rusqlite::Result<()> {
     validate_unique_x_ids(rows.iter().map(|row| row.x_id.as_str()), "抽選結果")
+}
+
+struct ValidatedLotteryResultCounts {
+    lottery_count: i64,
+    guaranteed_count: i64,
+    winner_count: i64,
+}
+
+/** 現在の応募者区分と抽選人数を正として、現行抽選結果の件数と保証区分を検証する。 */
+fn validate_lottery_result_rows_against_workflow(
+    conn: &rusqlite::Connection,
+    rows: &[LotteryResultInput],
+) -> rusqlite::Result<ValidatedLotteryResultCounts> {
+    validate_lottery_result_inputs(rows)?;
+    validate_stored_applicant_x_ids(conn)?;
+
+    let lottery_count: i64 = conn.query_row(
+        "SELECT lottery_count FROM session_workflow_state WHERE id = 1",
+        [],
+        |row| row.get(0),
+    )?;
+    let (candidate_count, guaranteed_count, invalid_guarantee_count): (i64, i64, i64) = conn
+        .query_row(
+            "SELECT COALESCE(SUM(CASE WHEN is_guaranteed = 0 THEN 1 ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN is_guaranteed = 1 THEN 1 ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN is_guaranteed NOT IN (0, 1) THEN 1 ELSE 0 END), 0)
+             FROM applicants",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+    if lottery_count < 1 {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "抽選条件の抽選人数が不正です".to_string(),
+        ));
+    }
+    if invalid_guarantee_count != 0 {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "応募者の確定当選区分が不正です".to_string(),
+        ));
+    }
+    if lottery_count > candidate_count {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "抽選人数（{lottery_count}名）が抽選候補数（{candidate_count}名）を超えています"
+        )));
+    }
+
+    let mut drawn_result_count = 0_i64;
+    let mut guaranteed_result_count = 0_i64;
+    {
+        let mut stmt = conn.prepare(
+            "SELECT is_guaranteed FROM applicants
+             WHERE LOWER(LTRIM(TRIM(x_id), '@')) = LOWER(?1)",
+        )?;
+        for row in rows {
+            let Some(username) = parse_x_username(&row.x_id) else {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "当選者 '{}' のX IDは形式が不正です",
+                    row.x_id
+                )));
+            };
+            let applicant_is_guaranteed = stmt
+                .query_row([username], |result| result.get::<_, i64>(0))
+                .optional()?
+                .ok_or_else(|| {
+                    rusqlite::Error::InvalidParameterName(format!(
+                        "当選者 '{}' は現在の取込セッションに存在しません",
+                        row.x_id
+                    ))
+                })?
+                == 1;
+            if applicant_is_guaranteed != row.is_guaranteed {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "当選者 '{}' の確定当選区分が応募者データと一致しません",
+                    row.x_id
+                )));
+            }
+            if row.is_guaranteed {
+                guaranteed_result_count += 1;
+            } else {
+                drawn_result_count += 1;
+            }
+        }
+    }
+
+    if drawn_result_count != lottery_count {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "抽選結果の抽選当選者数（{drawn_result_count}名）が設定された抽選人数（{lottery_count}名）と一致しません"
+        )));
+    }
+    if guaranteed_result_count != guaranteed_count {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "抽選結果の確定当選者数（{guaranteed_result_count}名）が応募者データの確定当選者数（{guaranteed_count}名）と一致しません"
+        )));
+    }
+
+    let winner_count = i64::try_from(rows.len()).map_err(|_| {
+        rusqlite::Error::InvalidParameterName(
+            "抽選結果の件数が保存可能な範囲を超えています".to_string(),
+        )
+    })?;
+    Ok(ValidatedLotteryResultCounts {
+        lottery_count,
+        guaranteed_count,
+        winner_count,
+    })
+}
+
+fn read_current_lottery_result_rows(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<Vec<LotteryResultInput>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.x_id, r.is_guaranteed
+         FROM lottery_results r
+         LEFT JOIN applicants a ON a.id = r.applicant_id
+         ORDER BY r.id",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            let x_id = row.get::<_, Option<String>>(0)?.ok_or_else(|| {
+                rusqlite::Error::InvalidParameterName(
+                    "抽選結果が存在しない応募者を参照しています".to_string(),
+                )
+            })?;
+            let is_guaranteed = row.get::<_, i64>(1)?;
+            if !matches!(is_guaranteed, 0 | 1) {
+                return Err(rusqlite::Error::InvalidParameterName(
+                    "抽選結果の確定当選区分が不正です".to_string(),
+                ));
+            }
+            Ok(LotteryResultInput {
+                x_id,
+                is_guaranteed: is_guaranteed == 1,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 fn validate_stored_applicant_x_ids(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
@@ -1391,10 +1833,11 @@ fn replace_lottery_results_in_connection(
     rows: &[LotteryResultInput],
     expected_condition_revision: i64,
 ) -> rusqlite::Result<()> {
-    reject_saved_lottery_session_write(conn)?;
     validate_lottery_result_inputs(rows)?;
     let tx = conn.transaction()?;
+    reject_lottery_input_session_write(&tx)?;
     validate_expected_condition_revision(&tx, expected_condition_revision)?;
+    validate_lottery_result_rows_against_workflow(&tx, rows)?;
     replace_lottery_rows_in_transaction(&tx, rows)?;
     tx.commit()
 }
@@ -1424,189 +1867,775 @@ fn replace_lottery_state_in_connection(
     tx.commit()
 }
 
-struct ValidatedSavedLotteryRun {
-    matching_type_code: String,
-    lottery_count: i64,
-    rows: Vec<LotteryResultInput>,
-}
-
-/** 一覧表示と復元で同じ条件を使い、開けない保存結果を選択肢へ出さない。 */
-fn read_validated_saved_lottery_run(
+fn read_session_applicant_snapshot(
     conn: &rusqlite::Connection,
-    run_id: i64,
-) -> rusqlite::Result<ValidatedSavedLotteryRun> {
-    validate_stored_applicant_x_ids(conn)?;
-    let (matching_type_code, stored_lottery_count, guaranteed_count, winner_count): (
-        String,
-        i64,
-        i64,
-        i64,
-    ) = conn.query_row(
-        "SELECT matching_type_code, lottery_count, guaranteed_count, winner_count
-         FROM lottery_saved_runs
-         WHERE id = ?1",
-        [run_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-    )?;
-    if !SUPPORTED_MATCHING_TYPE_CODES.contains(&matching_type_code.as_str()) {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存済み抽選の方式が現在のアプリに対応していません".to_string(),
-        ));
-    }
-
-    let rows = {
+) -> rusqlite::Result<Vec<ApplicantInput>> {
+    let applicants = {
         let mut stmt = conn.prepare(
-            "SELECT a.x_id, r.is_guaranteed
-             FROM lottery_saved_run_results r
-             INNER JOIN applicants a ON a.id = r.applicant_id
-             WHERE r.run_id = ?1
-             ORDER BY r.result_order, r.id",
+            "SELECT id, name, x_id, vrc_url, preference_mode, is_guaranteed
+             FROM applicants ORDER BY id",
         )?;
         let values = stmt
-            .query_map([run_id], |row| {
-                let x_id = row.get::<_, String>(0)?;
-                Ok(LotteryResultInput {
-                    x_id: canonicalize_x_id_for_storage(&x_id),
-                    is_guaranteed: row.get::<_, i64>(1)? == 1,
-                })
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         values
     };
-    validate_lottery_result_inputs(&rows)?;
-    let restored_guaranteed_count = rows.iter().filter(|row| row.is_guaranteed).count() as i64;
-    let restored_lottery_count = rows.len() as i64 - restored_guaranteed_count;
-    if rows.len() as i64 != winner_count
-        || restored_guaranteed_count != guaranteed_count
-        || restored_lottery_count != stored_lottery_count
+
+    let mut result = Vec::with_capacity(applicants.len());
+    for (applicant_id, name, x_id, vrc_url, preference_mode, is_guaranteed) in applicants {
+        if !matches!(is_guaranteed, 0 | 1) {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "応募者の確定当選区分が不正です".to_string(),
+            ));
+        }
+        let preferences = {
+            let mut stmt = conn.prepare(
+                "SELECT preference_order, cast_name, cast_id
+                 FROM applicant_casts
+                 WHERE applicant_id = ?1
+                 ORDER BY preference_order, id",
+            )?;
+            let values = stmt
+                .query_map([applicant_id], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            values
+        };
+        let preference_length = preferences
+            .iter()
+            .map(|(order, _, _)| usize::try_from(*order).unwrap_or(usize::MAX))
+            .max()
+            .map_or(0, |order| order.saturating_add(1));
+        if preference_length == usize::MAX {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "希望キャストの順序が不正です".to_string(),
+            ));
+        }
+        let mut casts = vec![String::new(); preference_length];
+        let mut cast_ids = vec![None; preference_length];
+        for (order, cast_name, cast_id) in preferences {
+            let index = usize::try_from(order).map_err(|_| {
+                rusqlite::Error::InvalidParameterName("希望キャストの順序が不正です".to_string())
+            })?;
+            if casts[index].is_empty() {
+                casts[index] = cast_name;
+                cast_ids[index] = cast_id;
+            } else {
+                return Err(rusqlite::Error::InvalidParameterName(
+                    "希望キャストの順序が重複しています".to_string(),
+                ));
+            }
+        }
+        if preference_mode == "flat" {
+            let active_indexes = casts
+                .iter()
+                .enumerate()
+                .filter_map(|(index, name)| (!name.is_empty()).then_some(index))
+                .collect::<Vec<_>>();
+            casts = active_indexes
+                .iter()
+                .map(|index| casts[*index].clone())
+                .collect();
+            cast_ids = active_indexes
+                .iter()
+                .map(|index| cast_ids[*index])
+                .collect();
+        }
+        let raw_extra = {
+            let mut stmt = conn.prepare(
+                "SELECT field_key, field_value
+                 FROM applicant_extra WHERE applicant_id = ?1 ORDER BY id",
+            )?;
+            let values = stmt
+                .query_map([applicant_id], |row| {
+                    Ok(RawExtraInput {
+                        key: row.get(0)?,
+                        value: row.get(1)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            values
+        };
+        result.push(ApplicantInput {
+            name,
+            x_id,
+            vrc_url,
+            casts,
+            cast_ids,
+            preference_mode,
+            is_guaranteed: is_guaranteed == 1,
+            raw_extra,
+        });
+    }
+    Ok(result)
+}
+
+fn read_session_workflow_input(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<SessionWorkflowStateInput> {
+    conn.query_row(
+        "SELECT matching_type_code, lottery_count, rotation_count, total_tables,
+                users_per_table, casts_per_rotation, reserve_same_day_slots,
+                same_day_slot_count, same_day_slot_unit
+         FROM session_workflow_state WHERE id = 1",
+        [],
+        |row| {
+            Ok(SessionWorkflowStateInput {
+                matching_type_code: row.get(0)?,
+                lottery_count: row.get(1)?,
+                rotation_count: row.get(2)?,
+                total_tables: row.get(3)?,
+                users_per_table: row.get(4)?,
+                casts_per_rotation: row.get(5)?,
+                reserve_same_day_slots: row.get::<_, i64>(6)? == 1,
+                same_day_slot_count: row.get(7)?,
+                same_day_slot_unit: row.get(8)?,
+            })
+        },
+    )
+}
+
+fn validate_saved_lottery_snapshot(
+    snapshot: &SavedLotterySnapshot,
+    matching_type_code: &str,
+    lottery_count: i64,
+    guaranteed_count: i64,
+    winner_count: i64,
+) -> Result<(), String> {
+    validate_applicant_inputs(&snapshot.applicants)
+        .map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
+    validate_unique_x_ids(
+        snapshot
+            .applicants
+            .iter()
+            .map(|applicant| applicant.x_id.as_str()),
+        "保存済み抽選の応募者一覧",
+    )
+    .map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
+    validate_session_workflow_state(&snapshot.workflow)?;
+    validate_lottery_result_inputs(&snapshot.winners)
+        .map_err(|e| sqlite_error("保存済み抽選の当選者データが不正です", e))?;
+
+    if snapshot.workflow.matching_type_code != matching_type_code
+        || snapshot.workflow.lottery_count != lottery_count
     {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存済み抽選の見出しと当選者データが一致しません".to_string(),
-        ));
+        return Err("保存済み抽選の見出しと条件が一致しません".to_string());
     }
-
-    Ok(ValidatedSavedLotteryRun {
-        matching_type_code,
-        lottery_count: stored_lottery_count.max(1),
-        rows,
-    })
-}
-
-/**
- * 保存済み抽選の当選者と保存時の方式・抽選人数を、一つの状態として復元する。
- *
- * WHY: 条件と当選者を別々に保存すると、途中失敗時に条件だけが変わる。保存行の検証、
- * 条件revision、確定当選者、現行抽選結果を同じtransactionで確定する。
- */
-fn restore_lottery_run_in_connection(
-    conn: &mut rusqlite::Connection,
-    run_id: i64,
-    expected_condition_revision: i64,
-) -> rusqlite::Result<RestoredLotteryRunState> {
-    let tx = conn.transaction()?;
-    validate_expected_condition_revision(&tx, expected_condition_revision)?;
-    let saved_run = read_validated_saved_lottery_run(&tx, run_id)?;
-    let ValidatedSavedLotteryRun {
-        matching_type_code,
-        lottery_count,
-        rows,
-    } = saved_run;
-
-    tx.execute(
-        "UPDATE session_workflow_state
-         SET condition_revision = condition_revision + CASE
-               WHEN matching_type_code <> ?1 OR lottery_count <> ?2
-               THEN 1 ELSE 0 END,
-             matching_type_code = ?1,
-             lottery_count = ?2
-         WHERE id = 1",
-        rusqlite::params![&matching_type_code, lottery_count],
-    )?;
-
-    let guaranteed_x_ids = rows
+    let applicants_by_x_id = snapshot
+        .applicants
         .iter()
-        .filter(|row| row.is_guaranteed)
-        .map(|row| row.x_id.clone())
-        .collect::<Vec<_>>();
-    apply_applicant_guarantee_diff(&tx, &guaranteed_x_ids)?;
-    replace_lottery_rows_in_transaction(&tx, &rows)?;
-    tx.commit()?;
-
-    Ok(RestoredLotteryRunState {
-        matching_type_code,
-        lottery_count,
-    })
+        .map(|applicant| {
+            (
+                parse_x_username(&applicant.x_id)
+                    .unwrap_or(applicant.x_id.as_str())
+                    .to_ascii_lowercase(),
+                applicant.is_guaranteed,
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut restored_guaranteed_count = 0_i64;
+    let mut restored_lottery_count = 0_i64;
+    for winner in &snapshot.winners {
+        let normalized_x_id = parse_x_username(&winner.x_id)
+            .ok_or_else(|| "保存済み抽選の当選者X IDが不正です".to_string())?
+            .to_ascii_lowercase();
+        let applicant_is_guaranteed = applicants_by_x_id
+            .get(&normalized_x_id)
+            .ok_or_else(|| "保存済み抽選の当選者が応募者一覧に存在しません".to_string())?;
+        if *applicant_is_guaranteed != winner.is_guaranteed {
+            return Err("保存済み抽選の確定当選区分が応募者データと一致しません".to_string());
+        }
+        if winner.is_guaranteed {
+            restored_guaranteed_count += 1;
+        } else {
+            restored_lottery_count += 1;
+        }
+    }
+    let applicant_guaranteed_count = snapshot
+        .applicants
+        .iter()
+        .filter(|applicant| applicant.is_guaranteed)
+        .count() as i64;
+    if restored_lottery_count != lottery_count
+        || restored_guaranteed_count != guaranteed_count
+        || applicant_guaranteed_count != guaranteed_count
+        || snapshot.winners.len() as i64 != winner_count
+    {
+        return Err("保存済み抽選の見出しと当選者データが一致しません".to_string());
+    }
+    Ok(())
 }
 
-/**
- * 抽選結果スナップショットを、見出し行と当選者行を単一 transaction で保存する。
- *
- * WHY: 方式・人数・当選者を同じDBの現行結果から導出し、画面との二重管理や
- * 条件変更と保存の競合による不整合を防ぐ。
- */
-fn save_lottery_run_in_connection(
-    conn: &mut rusqlite::Connection,
+fn read_validated_saved_lottery_result(
+    conn: &rusqlite::Connection,
+    saved_result_id: i64,
+) -> Result<(SavedLotterySnapshot, EventSavedLotteryResultSummary), String> {
+    if saved_result_id <= 0 {
+        return Err("保存済み抽選結果を特定できません".to_string());
+    }
+    let row = conn
+        .query_row(
+            "SELECT label, matching_type_code, lottery_count, guaranteed_count,
+                    winner_count, snapshot_json, created_at
+             FROM saved_results
+             WHERE id = ?1 AND result_type = 'lottery'",
+            [saved_result_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?
+        .ok_or_else(|| "保存済み抽選結果が見つかりません".to_string())?;
+    let snapshot = serde_json::from_str::<SavedLotterySnapshot>(&row.5)
+        .map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
+    validate_saved_lottery_snapshot(&snapshot, &row.1, row.2, row.3, row.4)
+        .map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
+    Ok((
+        snapshot,
+        EventSavedLotteryResultSummary {
+            saved_result_id,
+            label: row.0,
+            matching_type_code: row.1,
+            lottery_count: row.2,
+            guaranteed_count: row.3,
+            winner_count: row.4,
+            created_at: row.6,
+        },
+    ))
+}
+
+/** 現在の抽選状態を、作業セッションから独立した一件の結果としてイベント共有DBへ保存する。 */
+fn save_lottery_result_in_connections(
+    session_conn: &mut rusqlite::Connection,
+    shared_conn: &mut rusqlite::Connection,
     label: &str,
-) -> rusqlite::Result<i64> {
-    if label.trim().is_empty() {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存名を空にはできません".to_string(),
+) -> Result<i64, String> {
+    let trimmed_label = label.trim();
+    if trimmed_label.is_empty() || trimmed_label.chars().count() > 200 {
+        return Err("抽選結果の保存名が不正です".to_string());
+    }
+    reject_lottery_input_session_write(session_conn)
+        .map_err(|e| sqlite_error("抽選結果を保存できませんでした", e))?;
+    let session_token = read_session_token(session_conn)
+        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+    if session_has_saved_result(shared_conn, &session_token)
+        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
+    {
+        return Err("この作業セッションでは既に結果を保存しています".to_string());
+    }
+
+    let session_tx = session_conn
+        .transaction()
+        .map_err(|e| sqlite_error("抽選結果の保存準備を開始できませんでした", e))?;
+    let (condition_revision, result_revision): (i64, Option<i64>) = session_tx
+        .query_row(
+            "SELECT condition_revision, lottery_result_revision
+             FROM session_workflow_state WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| sqlite_error("抽選条件を確認できませんでした", e))?;
+    if result_revision != Some(condition_revision) {
+        return Err("現在の条件で確定した抽選結果がないため保存できません".to_string());
+    }
+    let winners = read_current_lottery_result_rows(&session_tx)
+        .map_err(|e| sqlite_error("抽選結果を読み込めませんでした", e))?;
+    if winners.is_empty() {
+        return Err("保存できる抽選結果がありません".to_string());
+    }
+    let counts = validate_lottery_result_rows_against_workflow(&session_tx, &winners)
+        .map_err(|e| sqlite_error("抽選結果を確認できませんでした", e))?;
+    let snapshot = SavedLotterySnapshot {
+        applicants: read_session_applicant_snapshot(&session_tx)
+            .map_err(|e| sqlite_error("応募データを保存形式へ変換できませんでした", e))?,
+        workflow: read_session_workflow_input(&session_tx)
+            .map_err(|e| sqlite_error("抽選条件を保存形式へ変換できませんでした", e))?,
+        winners,
+    };
+    validate_saved_lottery_snapshot(
+        &snapshot,
+        &snapshot.workflow.matching_type_code,
+        counts.lottery_count,
+        counts.guaranteed_count,
+        counts.winner_count,
+    )?;
+    let snapshot_json = serde_json::to_string(&snapshot)
+        .map_err(|e| format!("抽選結果を保存形式へ変換できませんでした: {e}"))?;
+    session_tx
+        .commit()
+        .map_err(|e| sqlite_error("抽選結果の保存準備を確定できませんでした", e))?;
+
+    let shared_tx = shared_conn
+        .transaction()
+        .map_err(|e| sqlite_error("抽選結果の保存を開始できませんでした", e))?;
+    shared_tx
+        .execute(
+            "INSERT INTO saved_results
+               (source_session_token, result_type, label, matching_type_code,
+                lottery_count, guaranteed_count, winner_count, snapshot_json)
+             VALUES (?1, 'lottery', ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                session_token,
+                trimmed_label,
+                &snapshot.workflow.matching_type_code,
+                counts.lottery_count,
+                counts.guaranteed_count,
+                counts.winner_count,
+                snapshot_json,
+            ],
+        )
+        .map_err(|e| sqlite_error("抽選結果を保存できませんでした", e))?;
+    let saved_result_id = shared_tx.last_insert_rowid();
+    shared_tx
+        .commit()
+        .map_err(|e| sqlite_error("抽選結果の保存を確定できませんでした", e))?;
+    Ok(saved_result_id)
+}
+
+fn invalid_matching_snapshot(reason: &str) -> String {
+    format!("マッチング結果の保存データが不正です: {reason}")
+}
+
+fn validate_matching_snapshot_assignment(
+    assignment: &MatchingSnapshotAssignmentInput,
+    casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>,
+) -> Result<(), String> {
+    let cast = casts_by_id
+        .get(&assignment.cast_id)
+        .ok_or_else(|| invalid_matching_snapshot("存在しないキャストを参照しています"))?;
+    if !cast.is_present {
+        return Err(invalid_matching_snapshot(
+            "欠席扱いのキャストを割り当てています",
         ));
     }
-    let tx = conn.transaction()?;
-    validate_stored_applicant_x_ids(&tx)?;
-    let (matching_type_code, condition_revision, result_revision): (String, i64, Option<i64>) = tx
+    if !(0..=3).contains(&assignment.rank) {
+        return Err(invalid_matching_snapshot("希望順位が不正です"));
+    }
+    if assignment.rotation_index < 0 {
+        return Err(invalid_matching_snapshot("ローテーション番号が不正です"));
+    }
+    if !assignment.score.is_finite() || assignment.score < 0.0 {
+        return Err(invalid_matching_snapshot("評価点が不正です"));
+    }
+    if assignment.is_ng_warning
+        && !matches!(assignment.ng_reason.as_deref(), Some(reason) if !reason.trim().is_empty())
+    {
+        return Err(invalid_matching_snapshot("NG判定の理由がありません"));
+    }
+    Ok(())
+}
+
+/** 割り当ての基本形式と、M003で要求するラウンド間のキャスト非重複を確認する。 */
+fn validate_matching_snapshot_assignments(
+    assignments: &[MatchingSnapshotAssignmentInput],
+    casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>,
+    require_unique_casts: bool,
+) -> Result<(), String> {
+    let mut assigned_cast_ids = HashSet::new();
+    for assignment in assignments {
+        validate_matching_snapshot_assignment(assignment, casts_by_id)?;
+        if require_unique_casts && !assigned_cast_ids.insert(assignment.cast_id) {
+            return Err(invalid_matching_snapshot(
+                "同じキャストが複数のラウンドへ割り当てられています",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn matching_score_is_close(left: f64, right: f64) -> bool {
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= scale * 1e-9
+}
+
+/** NG判定と同じ規則で、割り当てを禁止するX IDだけを順序非依存の集合へ正規化する。 */
+fn matching_ng_account_ids(entries: &[MatchingSnapshotNgEntryInput]) -> Vec<String> {
+    let mut account_ids = entries
+        .iter()
+        .filter_map(|entry| entry.account_id.as_deref())
+        .filter_map(parse_x_username)
+        .map(str::to_ascii_lowercase)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    account_ids.sort();
+    account_ids
+}
+
+/** 保存時点の表示名・出席状態と、割り当てへ影響するNG条件だけを比較する。 */
+fn matching_snapshot_cast_is_current(
+    snapshot: &MatchingSnapshotCastInput,
+    current: &MatchingSnapshotCastInput,
+) -> bool {
+    snapshot.id == current.id
+        && snapshot.name == current.name
+        && snapshot.is_present == current.is_present
+        && matching_ng_account_ids(&snapshot.ng_entries)
+            == matching_ng_account_ids(&current.ng_entries)
+}
+
+/** JSONの形だけでなく、応募者・割当・集計値が一つの結果として整合することを確認する。 */
+fn validate_matching_snapshot_structure(
+    snapshot: &serde_json::Value,
+    matching_type_code: &str,
+    winner_count: i64,
+) -> Result<MatchingResultSnapshotInput, String> {
+    if matching_type_code == "M000" || !SUPPORTED_MATCHING_TYPE_CODES.contains(&matching_type_code)
+    {
+        return Err("保存できないマッチング方式です".to_string());
+    }
+    let expected_winner_count = usize::try_from(winner_count)
+        .ok()
+        .filter(|count| *count > 0)
+        .ok_or_else(|| "保存できるマッチング結果がありません".to_string())?;
+    let parsed = serde_json::from_value::<MatchingResultSnapshotInput>(snapshot.clone())
+        .map_err(|_| invalid_matching_snapshot("形式が現在のアプリに対応していません"))?;
+    if parsed.applicants.len() != expected_winner_count {
+        return Err(invalid_matching_snapshot(
+            "当選者数と応募者データの件数が一致しません",
+        ));
+    }
+    if parsed.casts.is_empty() || parsed.table_slots.is_empty() {
+        return Err(invalid_matching_snapshot(
+            "キャストまたはテーブルのデータがありません",
+        ));
+    }
+
+    let mut casts_by_id = HashMap::new();
+    for cast in &parsed.casts {
+        if cast.id <= 0 || cast.name.trim().is_empty() {
+            return Err(invalid_matching_snapshot("キャスト情報が不正です"));
+        }
+        if cast.ng_entries.iter().any(|entry| {
+            entry
+                .account_id
+                .as_deref()
+                .is_some_and(|account_id| parse_x_username(account_id).is_none())
+        }) {
+            return Err(invalid_matching_snapshot("キャストNGのX IDが不正です"));
+        }
+        if casts_by_id.insert(cast.id, cast).is_some() {
+            return Err(invalid_matching_snapshot("キャストIDが重複しています"));
+        }
+    }
+
+    let mut applicants_by_x_id = HashMap::new();
+    let require_unique_casts = matching_type_code == "M003";
+    let mut total_score = 0.0_f64;
+    let mut match_count = 0_i64;
+    let mut first_choice_count = 0_i64;
+    let mut second_choice_count = 0_i64;
+    let mut third_choice_count = 0_i64;
+    let mut flat_preference_count = 0_i64;
+    let mut unpreferred_count = 0_i64;
+    let mut ng_warning_count = 0_i64;
+    for applicant in &parsed.applicants {
+        let normalized_x_id = parse_x_username(&applicant.user.x_id)
+            .ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?
+            .to_ascii_lowercase();
+        if applicant.matches.is_empty() {
+            return Err(invalid_matching_snapshot(
+                "割り当てがない応募者が含まれています",
+            ));
+        }
+        if applicants_by_x_id
+            .insert(normalized_x_id, applicant)
+            .is_some()
+        {
+            return Err(invalid_matching_snapshot("応募者のX IDが重複しています"));
+        }
+        validate_matching_snapshot_assignments(
+            &applicant.matches,
+            &casts_by_id,
+            require_unique_casts,
+        )?;
+        for assignment in &applicant.matches {
+            let score = assignment.score;
+            total_score += score;
+            match_count += 1;
+            match assignment.rank {
+                1 => first_choice_count += 1,
+                2 => second_choice_count += 1,
+                3 => third_choice_count += 1,
+                _ if score > 0.0 => flat_preference_count += 1,
+                _ => unpreferred_count += 1,
+            }
+            if assignment.is_ng_warning {
+                ng_warning_count += 1;
+            }
+        }
+    }
+
+    let mut table_user_x_ids = HashSet::new();
+    for table_slot in &parsed.table_slots {
+        if table_slot.table_index <= 0 {
+            return Err(invalid_matching_snapshot("テーブル番号が不正です"));
+        }
+        validate_matching_snapshot_assignments(
+            &table_slot.matches,
+            &casts_by_id,
+            require_unique_casts,
+        )?;
+        let Some(table_user) = &table_slot.user else {
+            continue;
+        };
+        let normalized_x_id = parse_x_username(&table_user.x_id)
+            .ok_or_else(|| invalid_matching_snapshot("テーブルの応募者X IDが不正です"))?
+            .to_ascii_lowercase();
+        let applicant = applicants_by_x_id
+            .get(&normalized_x_id)
+            .ok_or_else(|| invalid_matching_snapshot("テーブルに当選者以外が含まれています"))?;
+        if &applicant.user != table_user || applicant.matches != table_slot.matches {
+            return Err(invalid_matching_snapshot(
+                "応募者とテーブルの割り当てが一致しません",
+            ));
+        }
+        if !table_user_x_ids.insert(normalized_x_id) {
+            return Err(invalid_matching_snapshot(
+                "同じ応募者が複数のテーブルに割り当てられています",
+            ));
+        }
+    }
+    if table_user_x_ids.len() != applicants_by_x_id.len() {
+        return Err(invalid_matching_snapshot(
+            "テーブルに割り当てられていない応募者がいます",
+        ));
+    }
+
+    let summary = &parsed.score_summary;
+    let counts = [
+        summary.first_choice_count,
+        summary.second_choice_count,
+        summary.third_choice_count,
+        summary.flat_preference_count,
+        summary.unpreferred_count,
+        summary.ng_warning_count,
+    ];
+    let average_score = total_score / match_count as f64;
+    if !summary.total_score.is_finite()
+        || !summary.average_score.is_finite()
+        || counts.iter().any(|count| *count < 0)
+        || !matching_score_is_close(summary.total_score, total_score)
+        || !matching_score_is_close(summary.average_score, average_score)
+        || summary.first_choice_count != first_choice_count
+        || summary.second_choice_count != second_choice_count
+        || summary.third_choice_count != third_choice_count
+        || summary.flat_preference_count != flat_preference_count
+        || summary.unpreferred_count != unpreferred_count
+        || summary.ng_warning_count != ng_warning_count
+    {
+        return Err(invalid_matching_snapshot(
+            "割り当てと評価集計が一致しません",
+        ));
+    }
+
+    Ok(parsed)
+}
+
+/** 保存時点の当選者を正として、別の応募者のマッチング結果が混入していないことを確認する。 */
+fn validate_matching_snapshot_against_current_lottery(
+    conn: &rusqlite::Connection,
+    snapshot: &MatchingResultSnapshotInput,
+) -> Result<(), String> {
+    validate_stored_applicant_x_ids(conn)
+        .map_err(|e| sqlite_error("応募データを確認できませんでした", e))?;
+    let current_rows = read_current_lottery_result_rows(conn)
+        .map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
+    if current_rows.len() != snapshot.applicants.len() {
+        return Err(invalid_matching_snapshot("現在の当選者数と一致しません"));
+    }
+    for (current, saved) in current_rows.iter().zip(&snapshot.applicants) {
+        let current_x_id = parse_x_username(&current.x_id)
+            .ok_or_else(|| invalid_matching_snapshot("現在の当選者X IDが不正です"))?;
+        let saved_x_id = parse_x_username(&saved.user.x_id)
+            .ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?;
+        if !current_x_id.eq_ignore_ascii_case(saved_x_id) {
+            return Err(invalid_matching_snapshot(
+                "現在の当選者と応募者データが一致しません",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/** 保存直前のキャスト名簿・出席・NG条件が、結果を計算した時点から変わっていないことを確認する。 */
+fn validate_matching_snapshot_against_current_casts(
+    conn: &rusqlite::Connection,
+    snapshot: &MatchingResultSnapshotInput,
+) -> Result<(), String> {
+    let mut ng_entries_by_cast = HashMap::<i64, Vec<MatchingSnapshotNgEntryInput>>::new();
+    {
+        let mut stmt = conn
+            .prepare(
+                "SELECT cast_id, username, userid
+                 FROM cast_ng_entries ORDER BY cast_id, id",
+            )
+            .map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    MatchingSnapshotNgEntryInput {
+                        username: row.get(1)?,
+                        account_id: row.get(2)?,
+                    },
+                ))
+            })
+            .map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
+        for row in rows {
+            let (cast_id, entry) =
+                row.map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
+            ng_entries_by_cast.entry(cast_id).or_default().push(entry);
+        }
+    }
+
+    let current_casts = {
+        let mut stmt = conn
+            .prepare("SELECT id, name, is_attend FROM casts WHERE is_attend = 1 ORDER BY id")
+            .map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?;
+        let values = stmt
+            .query_map([], |row| {
+                let id = row.get::<_, i64>(0)?;
+                Ok(MatchingSnapshotCastInput {
+                    id,
+                    name: row.get(1)?,
+                    is_present: row.get::<_, i64>(2)? == 1,
+                    ng_entries: ng_entries_by_cast.remove(&id).unwrap_or_default(),
+                })
+            })
+            .map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?;
+        values
+    };
+
+    if current_casts.len() != snapshot.casts.len()
+        || snapshot
+            .casts
+            .iter()
+            .zip(&current_casts)
+            .any(|(saved, current)| !matching_snapshot_cast_is_current(saved, current))
+    {
+        return Err(
+            "マッチング実行後にキャスト名簿・出席・NG条件が変更されたため保存できません"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn read_validated_matching_snapshot(
+    matching_type_code: &str,
+    winner_count: i64,
+    snapshot_json: &str,
+) -> Result<serde_json::Value, String> {
+    let snapshot = serde_json::from_str::<serde_json::Value>(snapshot_json)
+        .map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
+    let parsed = validate_matching_snapshot_structure(&snapshot, matching_type_code, winner_count)
+        .map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
+    drop(parsed);
+    Ok(snapshot)
+}
+
+/** 現在の抽選結果と一致するマッチング表示を、イベント共有DBへ固定結果として保存する。 */
+fn save_matching_result_in_connections(
+    session_conn: &mut rusqlite::Connection,
+    shared_conn: &mut rusqlite::Connection,
+    label: &str,
+    matching_type_code: &str,
+    winner_count: i64,
+    snapshot: &serde_json::Value,
+) -> Result<i64, String> {
+    let trimmed_label = label.trim();
+    if trimmed_label.is_empty() || trimmed_label.chars().count() > 200 {
+        return Err("マッチング結果の保存名が不正です".to_string());
+    }
+    let parsed_snapshot =
+        validate_matching_snapshot_structure(snapshot, matching_type_code, winner_count)?;
+    let snapshot_json = serde_json::to_string(snapshot)
+        .map_err(|e| format!("マッチング結果を保存形式へ変換できませんでした: {e}"))?;
+    let session_token = read_session_token(session_conn)
+        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+    if session_has_saved_result(shared_conn, &session_token)
+        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
+    {
+        return Err("この作業セッションでは既に結果を保存しています".to_string());
+    }
+
+    let session_tx = session_conn
+        .transaction()
+        .map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
+    let (stored_type, condition_revision, result_revision): (String, i64, Option<i64>) = session_tx
         .query_row(
             "SELECT matching_type_code, condition_revision, lottery_result_revision
-         FROM session_workflow_state WHERE id = 1",
+             FROM session_workflow_state WHERE id = 1",
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
-    if result_revision != Some(condition_revision) {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "現在の条件で確定した抽選結果がないため保存できません".to_string(),
-        ));
+        )
+        .map_err(|e| sqlite_error("抽選条件を確認できませんでした", e))?;
+    if stored_type != matching_type_code || result_revision != Some(condition_revision) {
+        return Err("現在の抽選結果と一致しないため、マッチング結果を保存できません".to_string());
     }
-    let (winner_count, guaranteed_count): (i64, i64) = tx.query_row(
-        "SELECT COUNT(*),
-                COALESCE(SUM(CASE WHEN is_guaranteed = 1 THEN 1 ELSE 0 END), 0)
-         FROM lottery_results",
-        [],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    if winner_count == 0 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存できる抽選結果がありません".to_string(),
-        ));
+    let current_rows = read_current_lottery_result_rows(&session_tx)
+        .map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
+    let validated_counts =
+        validate_lottery_result_rows_against_workflow(&session_tx, &current_rows)
+            .map_err(|e| sqlite_error("現在の抽選結果を確認できませんでした", e))?;
+    if validated_counts.winner_count != winner_count {
+        return Err("現在の当選者と一致しないため、マッチング結果を保存できません".to_string());
     }
-    let lottery_count = winner_count - guaranteed_count;
-    tx.execute(
-        "INSERT INTO lottery_saved_runs
-           (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![
-            label,
-            matching_type_code,
-            lottery_count,
-            guaranteed_count,
-            winner_count
-        ],
-    )?;
-    let run_id = tx.last_insert_rowid();
-    let copied = tx.execute(
-        "INSERT INTO lottery_saved_run_results
-           (run_id, applicant_id, is_guaranteed, result_order)
-         SELECT ?1, applicant_id,
-                CASE WHEN is_guaranteed = 1 THEN 1 ELSE 0 END,
-                id
-         FROM lottery_results",
-        [run_id],
-    )?;
-    if copied as i64 != winner_count {
-        return Err(rusqlite::Error::ExecuteReturnedResults);
-    }
-    tx.commit()?;
-    Ok(run_id)
+    validate_matching_snapshot_against_current_lottery(&session_tx, &parsed_snapshot)?;
+    session_tx
+        .commit()
+        .map_err(|e| sqlite_error("マッチング結果の保存準備を確定できませんでした", e))?;
+
+    let shared_tx = shared_conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
+    validate_matching_snapshot_against_current_casts(&shared_tx, &parsed_snapshot)?;
+    shared_tx
+        .execute(
+            "INSERT INTO saved_results
+           (source_session_token, result_type, label, matching_type_code,
+            lottery_count, guaranteed_count, winner_count, snapshot_json)
+         VALUES (?1, 'matching', ?2, ?3, NULL, NULL, ?4, ?5)",
+            rusqlite::params![
+                session_token,
+                trimmed_label,
+                matching_type_code,
+                winner_count,
+                snapshot_json
+            ],
+        )
+        .map_err(|e| sqlite_error("マッチング結果を保存できませんでした", e))?;
+    let saved_result_id = shared_tx.last_insert_rowid();
+    shared_tx
+        .commit()
+        .map_err(|e| sqlite_error("マッチング結果の保存を確定できませんでした", e))?;
+    Ok(saved_result_id)
 }
 
 #[tauri::command]
@@ -1646,6 +2675,21 @@ fn list_event_names_at(root: &Path) -> std::io::Result<Vec<String>> {
     Ok(names)
 }
 
+fn ensure_event_name_is_unique_ignoring_ascii_case(
+    root: &Path,
+    event_name: &str,
+) -> Result<(), String> {
+    let event_names = list_event_names_at(root)
+        .map_err(|e| format!("イベント名の重複を確認できませんでした: {e}"))?;
+    if event_names
+        .iter()
+        .any(|existing_name| existing_name.eq_ignore_ascii_case(event_name))
+    {
+        return Err(format!("イベント '{event_name}' は既に存在します"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 fn list_events_at(root: &Path) -> Vec<String> {
     list_event_names_at(root).unwrap_or_default()
@@ -1658,90 +2702,121 @@ fn get_event_shared_db_uri(event_name: String) -> Result<String, String> {
     Ok(path_to_sqlite_uri(&db_path))
 }
 
+/** イベント共有DBから、内部整合を確認できた保存済み抽選結果を取得する。 */
 #[tauri::command]
-fn list_sessions(event_name: String) -> Result<Vec<String>, String> {
+fn list_event_saved_lottery_results(
+    event_name: String,
+) -> Result<Vec<EventSavedLotteryResultSummary>, String> {
     validate_event_name(&event_name)?;
-    list_session_names_at(&event_dir(&event_name))
-        .map_err(|e| format!("応募データ一覧を読み込めませんでした: {e}"))
+    let (_, conn) = open_event_shared_db(&event_name)?;
+    let result_ids = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id FROM saved_results
+                 WHERE result_type = 'lottery'
+                 ORDER BY created_at DESC, id DESC",
+            )
+            .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?;
+        let values = stmt
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?;
+        values
+    };
+    result_ids
+        .into_iter()
+        .map(|saved_result_id| {
+            read_validated_saved_lottery_result(&conn, saved_result_id).map(|(_, summary)| summary)
+        })
+        .collect()
 }
 
-/**
- * イベント配下の各セッションを読み取り専用で確認し、明示保存された抽選結果だけを返す。
- * 読めないセッションは、他の保存済み抽選結果の表示を妨げない。
- */
+/** イベント共有DBから、内部整合を確認できた保存済みマッチング結果を取得する。 */
 #[tauri::command]
-fn list_event_saved_lottery_runs(
+fn list_event_saved_matching_results(
     event_name: String,
-) -> Result<Vec<EventSavedLotteryRunSummary>, String> {
+) -> Result<Vec<EventSavedMatchingResultSummary>, String> {
     validate_event_name(&event_name)?;
-    let session_timestamps = list_session_names_at(&event_dir(&event_name))
-        .map_err(|e| format!("保存済み抽選結果を読み込めませんでした: {e}"))?;
-    let mut summaries = Vec::new();
-
-    for session_timestamp in session_timestamps {
-        let db_path = session_db_path(&event_name, &session_timestamp);
-        if !db_path.is_file() {
-            continue;
-        }
-        let Ok(conn) = rusqlite::Connection::open_with_flags(
-            &db_path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        ) else {
-            continue;
-        };
-        if conn.busy_timeout(SQLITE_BUSY_TIMEOUT).is_err() {
-            continue;
-        }
-        if validate_current_schema(
-            &conn,
-            "取込セッション",
-            SESSION_REQUIRED_TABLES,
-            SESSION_SCHEMA_QUERIES,
-        )
-        .is_err()
-        {
-            continue;
-        }
-
-        let Ok(mut stmt) = conn.prepare(
-            "SELECT id, label, matching_type_code, lottery_count,
-                    guaranteed_count, winner_count, created_at
-             FROM lottery_saved_runs
-             ORDER BY id DESC",
-        ) else {
-            continue;
-        };
-        let Ok(rows) = stmt.query_map([], |row| {
-            Ok(EventSavedLotteryRunSummary {
-                session_timestamp: session_timestamp.clone(),
-                run_id: row.get(0)?,
-                label: row.get(1)?,
-                matching_type_code: row.get(2)?,
-                lottery_count: row.get(3)?,
-                guaranteed_count: row.get(4)?,
-                winner_count: row.get(5)?,
-                created_at: row.get(6)?,
+    let (_, conn) = open_event_shared_db(&event_name)?;
+    let rows = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, label, matching_type_code, winner_count, created_at, snapshot_json
+                 FROM saved_results
+                 WHERE result_type = 'matching'
+                 ORDER BY created_at DESC, id DESC",
+            )
+            .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?;
+        let values = stmt
+            .query_map([], |row| {
+                Ok((
+                    EventSavedMatchingResultSummary {
+                        saved_result_id: row.get(0)?,
+                        label: row.get(1)?,
+                        matching_type_code: row.get(2)?,
+                        winner_count: row.get(3)?,
+                        created_at: row.get(4)?,
+                    },
+                    row.get::<_, String>(5)?,
+                ))
             })
-        }) else {
-            continue;
-        };
-        let Ok(session_summaries) = rows.collect::<rusqlite::Result<Vec<_>>>() else {
-            continue;
-        };
-        summaries.extend(
-            session_summaries
-                .into_iter()
-                .filter(|summary| read_validated_saved_lottery_run(&conn, summary.run_id).is_ok()),
-        );
-    }
+            .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?;
+        values
+    };
+    rows.into_iter()
+        .map(|(summary, snapshot_json)| {
+            read_validated_matching_snapshot(
+                &summary.matching_type_code,
+                summary.winner_count,
+                &snapshot_json,
+            )
+            .map(|_| summary)
+        })
+        .collect()
+}
 
-    summaries.sort_by(|a, b| {
-        b.created_at
-            .cmp(&a.created_at)
-            .then_with(|| b.session_timestamp.cmp(&a.session_timestamp))
-            .then_with(|| b.run_id.cmp(&a.run_id))
-    });
-    Ok(summaries)
+/** 保存済みマッチング結果1件を、現在の作業セッションから独立して取得する。 */
+#[tauri::command]
+fn get_event_saved_matching_result(
+    event_name: String,
+    saved_result_id: i64,
+) -> Result<EventSavedMatchingResultDetail, String> {
+    validate_event_name(&event_name)?;
+    if saved_result_id <= 0 {
+        return Err("保存済みマッチング結果を特定できません".to_string());
+    }
+    let (_, conn) = open_event_shared_db(&event_name)?;
+    let row = conn
+        .query_row(
+            "SELECT label, matching_type_code, winner_count, snapshot_json, created_at
+             FROM saved_results
+             WHERE id = ?1 AND result_type = 'matching'",
+            [saved_result_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?
+        .ok_or_else(|| "保存済みマッチング結果が見つかりません".to_string())?;
+    let snapshot = read_validated_matching_snapshot(&row.1, row.2, &row.3)?;
+    Ok(EventSavedMatchingResultDetail {
+        saved_result_id,
+        label: row.0,
+        matching_type_code: row.1,
+        winner_count: row.2,
+        created_at: row.4,
+        snapshot,
+    })
 }
 
 fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
@@ -1766,7 +2841,7 @@ fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
         }
     }
 
-    // 最新の取込を既定対象にできるよう、新しいセッションから返す。
+    // 単一セッション不変条件の検査結果を決定的にするため、新しい名前から返す。
     sessions.sort_by(|a, b| b.cmp(a));
     Ok(sessions)
 }
@@ -1776,18 +2851,288 @@ fn list_sessions_at(dir: &Path) -> Vec<String> {
     list_session_names_at(dir).unwrap_or_default()
 }
 
-#[tauri::command]
-fn create_session(event_name: String) -> Result<String, String> {
-    validate_event_name(&event_name)?;
-    if !event_dir(&event_name).exists() {
-        return Err(format!("イベント '{event_name}' が存在しません"));
+fn list_in_progress_session_directories_at(dir: &Path) -> std::io::Result<Vec<(String, PathBuf)>> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    let mut sessions = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let Ok(timestamp) = entry.file_name().into_string() else {
+            continue;
+        };
+        if validate_timestamp(&timestamp).is_ok()
+            && entry.path().join(IN_PROGRESS_SESSION_MARKER).is_file()
+        {
+            sessions.push((timestamp, entry.path()));
+        }
     }
+    sessions.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(sessions)
+}
 
-    let timestamp = now_local_timestamp();
-    // 生成書式を将来変更してもパス検証を迂回しないよう、公開APIと同じ検証を通す。
+fn quarantined_session_timestamp(directory_name: &str) -> Option<&str> {
+    let remainder = directory_name.strip_prefix('.')?;
+    let (timestamp, suffix) = remainder.split_once(".discarding-")?;
+    if suffix.is_empty() || validate_timestamp(timestamp).is_err() {
+        return None;
+    }
+    Some(timestamp)
+}
+
+fn list_quarantined_session_directories_at(dir: &Path) -> std::io::Result<Vec<(String, PathBuf)>> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    let mut sessions = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let Ok(directory_name) = entry.file_name().into_string() else {
+            continue;
+        };
+        let Some(timestamp) = quarantined_session_timestamp(&directory_name) else {
+            continue;
+        };
+        sessions.push((timestamp.to_string(), entry.path()));
+    }
+    sessions.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(sessions)
+}
+
+fn quarantine_in_progress_session(directory: &Path, timestamp: &str) -> Result<PathBuf, String> {
+    let parent = directory
+        .parent()
+        .ok_or_else(|| "操作中セッションの保存先が不正です".to_string())?;
+    for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
+        let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let quarantine_dir = parent.join(format!(
+            ".{timestamp}.discarding-{}-{sequence}",
+            std::process::id()
+        ));
+        match std::fs::rename(directory, &quarantine_dir) {
+            Ok(()) => return Ok(quarantine_dir),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "操作中セッションを破棄対象へ移動できませんでした: {error}"
+                ));
+            }
+        }
+    }
+    Err("重複しない破棄用ディレクトリ名を確保できませんでした".to_string())
+}
+
+fn remove_quarantined_session_directory(directory: &Path) -> Result<(), String> {
+    match std::fs::remove_dir_all(directory) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "破棄対象へ移動済みですが、物理削除を完了できませんでした: {error}"
+        )),
+    }
+}
+
+fn discard_session_directory(directory: &Path, timestamp: &str) -> Result<(), String> {
+    if !directory
+        .try_exists()
+        .map_err(|e| format!("作業セッションの保存先を確認できませんでした: {e}"))?
+    {
+        return Ok(());
+    }
+    let quarantine_dir = quarantine_in_progress_session(directory, timestamp)?;
+    remove_quarantined_session_directory(&quarantine_dir)
+}
+
+/** 作業セッションの作成・破棄・イベント移動を同時実行させない。 */
+fn lock_work_session_lifecycle() -> Result<MutexGuard<'static, ()>, String> {
+    WORK_SESSION_LIFECYCLE_LOCK
+        .lock()
+        .map_err(|_| "作業セッションの排他状態を取得できませんでした".to_string())
+}
+
+/** 指定したDataルートで、強制終了により残った作業セッションだけを破棄する。 */
+fn cleanup_in_progress_sessions_at(root: &Path) -> Result<(), String> {
+    let event_names = list_event_names_at(root)
+        .map_err(|e| format!("操作中セッションのイベント一覧を確認できませんでした: {e}"))?;
+    let mut failures = Vec::new();
+    for event_name in event_names {
+        let event_path = root.join(&event_name);
+        match list_quarantined_session_directories_at(&event_path) {
+            Ok(directories) => {
+                for (_, directory) in directories {
+                    if let Err(error) = remove_quarantined_session_directory(&directory) {
+                        failures.push(format!("{event_name}: {error}"));
+                    }
+                }
+            }
+            Err(error) => failures.push(format!(
+                "{event_name}: 破棄未完了セッションを確認できませんでした: {error}"
+            )),
+        }
+        match list_in_progress_session_directories_at(&event_path) {
+            Ok(directories) => {
+                for (timestamp, directory) in directories {
+                    if let Err(error) = discard_session_directory(&directory, &timestamp) {
+                        failures.push(format!("{event_name} / {timestamp}: {error}"));
+                    }
+                }
+            }
+            Err(error) => failures.push(format!(
+                "{event_name}: 操作中セッションを確認できませんでした: {error}"
+            )),
+        }
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("\n"))
+    }
+}
+
+/** 強制終了で残った作業セッションは、保存済み抽選・マッチング結果と無関係に破棄する。 */
+fn cleanup_in_progress_sessions() -> Result<(), String> {
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    cleanup_in_progress_sessions_at(&resolve_data_root())
+}
+
+/** 起動時に前回の作業セッションを完全削除できなかった場合だけ、再起動案内と原因を返す。 */
+#[tauri::command]
+fn get_startup_session_cleanup_error() -> Option<String> {
+    STARTUP_SESSION_CLEANUP_ERROR
+        .get()
+        .and_then(|error| error.as_ref())
+        .map(|error| {
+            format!(
+                "前回終了時の作業セッションを完全に削除できませんでした。新しい作業を開始できない場合は、アプリを終了してから再度起動してください。\n{error}"
+            )
+        })
+}
+
+/** 接続を閉じた現在の作業セッションだけを、イベント共有結果へ影響させず破棄する。 */
+#[tauri::command]
+fn discard_session(event_name: String, timestamp: String) -> Result<(), String> {
+    validate_event_name(&event_name)?;
     validate_timestamp(&timestamp)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    let directory = session_dir(&event_name, &timestamp);
+    if !directory.exists() {
+        return Ok(());
+    }
+    if !session_in_progress_marker_path(&event_name, &timestamp).is_file() {
+        return Err("破棄対象が現在の作業セッションではありません".to_string());
+    }
+    let (_, conn) = open_session_read_only_db(&event_name, &timestamp)?;
+    drop(conn);
+    discard_session_directory(&directory, &timestamp)
+}
 
-    create_session_db(&event_name, &timestamp)?;
+/** 応募データ保存まで成功したセッションだけを、操作中の新規取込として公開する。 */
+fn ensure_no_work_session() -> Result<(), String> {
+    let root = resolve_data_root();
+    let event_names = list_event_names_at(&root)
+        .map_err(|e| format!("作業セッションのイベント一覧を確認できませんでした: {e}"))?;
+    for event_name in event_names {
+        let sessions = list_session_names_at(&event_dir(&event_name)).map_err(|e| {
+            format!("イベント '{event_name}' の作業セッションを確認できませんでした: {e}")
+        })?;
+        if !sessions.is_empty() {
+            return Err(format!(
+                "イベント '{event_name}' に別の作業セッションが残っています。先に現在の作業を終了してください"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/** 応募データ保存まで成功した一件だけを、現在の作業セッションとして公開する。 */
+#[tauri::command]
+fn create_import_session_atomic(
+    event_name: String,
+    users: Vec<ApplicantInput>,
+) -> Result<String, String> {
+    validate_event_name(&event_name)?;
+    if users.is_empty() {
+        return Err("取り込む応募データがありません".to_string());
+    }
+    let (_, shared_conn) = open_event_shared_db(&event_name)?;
+    drop(shared_conn);
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    ensure_no_work_session()?;
+    let timestamp = now_local_timestamp();
+    validate_timestamp(&timestamp)?;
+    let final_dir = session_dir(&event_name, &timestamp);
+    let relative_db_path = Path::new("db").join("stargazer.db");
+    create_initialized_directory_atomically(
+        &final_dir,
+        &relative_db_path,
+        SESSION_SCHEMA,
+        "取込セッション",
+        SESSION_REQUIRED_TABLES,
+        SESSION_SCHEMA_QUERIES,
+        |conn| {
+            persist_applicants_in_connection(conn, &users)
+                .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))?;
+            write_session_in_progress_marker(conn)
+        },
+    )?;
+    Ok(timestamp)
+}
+
+/** 保存済み抽選の自己完結スナップショットから、後続マッチング用セッションを作成する。 */
+#[tauri::command]
+fn create_session_from_saved_lottery_atomic(
+    event_name: String,
+    saved_result_id: i64,
+) -> Result<String, String> {
+    validate_event_name(&event_name)?;
+    let (_, shared_conn) = open_event_shared_db(&event_name)?;
+    let (snapshot, _) = read_validated_saved_lottery_result(&shared_conn, saved_result_id)?;
+    drop(shared_conn);
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    ensure_no_work_session()?;
+    let timestamp = now_local_timestamp();
+    validate_timestamp(&timestamp)?;
+    let final_dir = session_dir(&event_name, &timestamp);
+    let relative_db_path = Path::new("db").join("stargazer.db");
+    create_initialized_directory_atomically(
+        &final_dir,
+        &relative_db_path,
+        SESSION_SCHEMA,
+        "取込セッション",
+        SESSION_REQUIRED_TABLES,
+        SESSION_SCHEMA_QUERIES,
+        |conn| {
+            persist_applicants_in_connection(conn, &snapshot.applicants)
+                .map_err(|e| sqlite_error("保存済み抽選の応募データを復元できませんでした", e))?;
+            persist_session_workflow_state_in_connection(conn, &snapshot.workflow)
+                .map_err(|e| sqlite_error("保存済み抽選の条件を復元できませんでした", e))?;
+            let condition_revision = conn
+                .query_row(
+                    "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| sqlite_error("復元した抽選条件を確認できませんでした", e))?;
+            replace_lottery_results_in_connection(conn, &snapshot.winners, condition_revision)
+                .map_err(|e| sqlite_error("保存済み抽選の当選者を復元できませんでした", e))?;
+            conn.execute(
+                "UPDATE session_workflow_state SET is_lottery_read_only = 1 WHERE id = 1",
+                [],
+            )
+            .map_err(|e| sqlite_error("復元した抽選状態を固定できませんでした", e))?;
+            write_session_in_progress_marker(conn)
+        },
+    )?;
     Ok(timestamp)
 }
 
@@ -1807,6 +3152,7 @@ fn persist_applicants_atomic(
     users: Vec<ApplicantInput>,
 ) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &conn)?;
     persist_applicants_in_connection(&mut conn, &users)
         .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))
 }
@@ -1825,6 +3171,7 @@ fn update_applicant_cast_preferences_atomic(
     drop(shared_conn);
 
     let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &session_conn)?;
     update_applicant_cast_preferences_in_connection(
         &mut session_conn,
         applicant_id,
@@ -1841,6 +3188,7 @@ fn delete_applicant_atomic(
     applicant_id: i64,
 ) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &conn)?;
     delete_applicant_in_connection(&mut conn, applicant_id)
         .map_err(|e| sqlite_error("応募者の削除に失敗しました", e))
 }
@@ -1854,6 +3202,7 @@ fn persist_session_workflow_state_atomic(
 ) -> Result<(), String> {
     validate_session_workflow_state(&state)?;
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &conn)?;
     persist_session_workflow_state_in_connection(&mut conn, &state)
         .map_err(|e| sqlite_error("抽選・マッチング条件の保存に失敗しました", e))
 }
@@ -1866,6 +3215,7 @@ fn replace_applicant_guarantees_atomic(
     guaranteed_x_ids: Vec<String>,
 ) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &conn)?;
     replace_applicant_guarantees_in_connection(&mut conn, &guaranteed_x_ids)
         .map_err(|e| sqlite_error("確定当選者の保存に失敗しました", e))
 }
@@ -1930,6 +3280,30 @@ fn record_cast_attendance_atomic(
         .map_err(|e| sqlite_error("キャスト出席記録の保存に失敗しました", e))
 }
 
+fn read_event_meta_value(
+    conn: &rusqlite::Connection,
+    key: &str,
+) -> rusqlite::Result<Option<String>> {
+    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
+        row.get::<_, Option<String>>(0)
+    })
+    .optional()
+    .map(Option::flatten)
+}
+
+/** 選択イベントの写真と説明メモを、使用中のDB接続とは分離して読み取る。 */
+#[tauri::command]
+fn get_event_meta_read_only(event_name: String) -> Result<EventMetaOutput, String> {
+    validate_event_name(&event_name)?;
+    let (_, conn) = open_event_shared_read_only_db(&event_name)?;
+    Ok(EventMetaOutput {
+        notes: read_event_meta_value(&conn, "notes")
+            .map_err(|e| sqlite_error("イベント説明メモを読み込めませんでした", e))?,
+        photo_data_url: read_event_meta_value(&conn, "photo_data_url")
+            .map_err(|e| sqlite_error("イベント写真を読み込めませんでした", e))?,
+    })
+}
+
 /** イベント写真と説明メモの指定項目を単一transactionで保存する。 */
 #[tauri::command]
 fn set_event_meta_atomic(event_name: String, patch: EventMetaPatchInput) -> Result<(), String> {
@@ -1966,58 +3340,49 @@ fn replace_lottery_results_atomic(
     expected_condition_revision: i64,
 ) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
+    reject_session_with_saved_result(&event_name, &conn)?;
     replace_lottery_results_in_connection(&mut conn, &rows, expected_condition_revision)
         .map_err(|e| sqlite_error("抽選結果の保存に失敗しました", e))
 }
 
-/** 保存済み抽選結果を Rust 側の単一 SQLite transaction で保存し、作成 ID を返す。 */
+/** 現在の抽選結果をイベント共有DBへ保存し、保存結果IDを返す。 */
 #[tauri::command]
-fn save_lottery_run_atomic(
+fn save_lottery_result_atomic(
     event_name: String,
     timestamp: String,
     label: String,
 ) -> Result<i64, String> {
-    let mut conn = open_session_write_connection(&event_name, &timestamp)?;
-    save_lottery_run_in_connection(&mut conn, &label)
-        .map_err(|e| sqlite_error("保存済み抽選結果の保存に失敗しました", e))
+    let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
+    let mut shared_conn = open_shared_write_connection(&event_name)?;
+    save_lottery_result_in_connections(&mut session_conn, &mut shared_conn, &label)
 }
 
-/** 保存済み抽選の条件と当選者を単一 SQLite transaction で復元する。 */
+/** 現在表示しているマッチング結果をイベント共有DBへ固定結果として保存する。 */
 #[tauri::command]
-fn restore_lottery_run_atomic(
+fn save_matching_result_atomic(
     event_name: String,
     timestamp: String,
-    run_id: i64,
-    expected_condition_revision: i64,
-) -> Result<RestoredLotteryRunState, String> {
-    let mut conn = open_session_write_connection(&event_name, &timestamp)?;
-    restore_lottery_run_in_connection(&mut conn, run_id, expected_condition_revision)
-        .map_err(|e| sqlite_error("保存済み抽選結果の復元に失敗しました", e))
-}
-
-/** ライフサイクル切替用に、対象セッションの現行revisionをtransaction内の復元へ渡す。 */
-#[tauri::command]
-fn activate_saved_lottery_run_atomic(
-    event_name: String,
-    session_timestamp: String,
-    run_id: i64,
-) -> Result<(), String> {
-    let mut conn = open_session_write_connection(&event_name, &session_timestamp)?;
-    let condition_revision = conn
-        .query_row(
-            "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|e| sqlite_error("抽選条件の確認に失敗しました", e))?;
-    restore_lottery_run_in_connection(&mut conn, run_id, condition_revision)
-        .map(|_| ())
-        .map_err(|e| sqlite_error("保存済み抽選結果の復元に失敗しました", e))
+    label: String,
+    matching_type_code: String,
+    winner_count: i64,
+    snapshot: serde_json::Value,
+) -> Result<i64, String> {
+    let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
+    let mut shared_conn = open_shared_write_connection(&event_name)?;
+    save_matching_result_in_connections(
+        &mut session_conn,
+        &mut shared_conn,
+        &label,
+        &matching_type_code,
+        winner_count,
+        &snapshot,
+    )
 }
 
 #[tauri::command]
 fn create_event(event_name: String) -> Result<(), String> {
     validate_event_name(&event_name)?;
+    ensure_event_name_is_unique_ignoring_ascii_case(&resolve_data_root(), &event_name)?;
     // イベント作成時は共有DBだけを作る。取込セッションはCSV取込時に明示的に作成する。
     create_event_shared_db(&event_name)
 }
@@ -2025,6 +3390,7 @@ fn create_event(event_name: String) -> Result<(), String> {
 #[tauri::command]
 fn delete_event(event_name: String) -> Result<(), String> {
     validate_event_name(&event_name)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
     let dir = event_dir(&event_name);
     if !dir.exists() {
         return Ok(());
@@ -2039,11 +3405,13 @@ fn rename_event(old_name: String, new_name: String) -> Result<(), String> {
         return Ok(());
     }
     validate_event_name(&new_name)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
     let old_dir = event_dir(&old_name);
     let new_dir = event_dir(&new_name);
     if !old_dir.exists() {
         return Err(format!("イベント '{old_name}' が存在しません"));
     }
+    ensure_event_name_is_unique_ignoring_ascii_case(&resolve_data_root(), &new_name)?;
     if new_dir.exists() {
         return Err(format!("イベント '{new_name}' は既に存在します"));
     }
@@ -2065,7 +3433,6 @@ fn check_stellarecord_available() -> bool {
 
 #[tauri::command]
 fn register_to_stellarecord(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
     let db_path = get_stellarecord_db_path()
         .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
@@ -2102,8 +3469,8 @@ fn register_to_stellarecord(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     let trimmed = url.trim();
-    if !trimmed.starts_with("https://") {
-        return Err("https:// のURLのみ開けます".to_string());
+    if trimmed.is_empty() {
+        return Err("開くURLが指定されていません".to_string());
     }
     open_url_with_system(trimmed)
 }
@@ -2146,16 +3513,38 @@ pub fn run() {
         webview_data_dir.to_string_lossy().to_string(),
     );
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        // 二重起動したプロセスが、先に起動している側の操作中セッションを破棄しないようにする。
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .setup(|_| {
+            // 主プロセスの確定後にだけ、前回の強制終了で残った未保存セッションを回収する。
+            let _ = STARTUP_SESSION_CLEANUP_ERROR.set(cleanup_in_progress_sessions().err());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             register_to_stellarecord,
             check_stellarecord_available,
             list_events,
+            get_startup_session_cleanup_error,
             get_event_shared_db_uri,
-            list_sessions,
-            list_event_saved_lottery_runs,
-            create_session,
+            list_event_saved_lottery_results,
+            list_event_saved_matching_results,
+            get_event_saved_matching_result,
+            create_import_session_atomic,
+            create_session_from_saved_lottery_atomic,
+            discard_session,
             get_session_db_uri,
             persist_applicants_atomic,
             update_applicant_cast_preferences_atomic,
@@ -2168,11 +3557,11 @@ pub fn run() {
             rename_cast_atomic,
             delete_cast_atomic,
             record_cast_attendance_atomic,
+            get_event_meta_read_only,
             set_event_meta_atomic,
             replace_lottery_results_atomic,
-            save_lottery_run_atomic,
-            restore_lottery_run_atomic,
-            activate_saved_lottery_run_atomic,
+            save_lottery_result_atomic,
+            save_matching_result_atomic,
             create_event,
             delete_event,
             rename_event,
@@ -2261,7 +3650,7 @@ mod tests {
             vrc_url: None,
             casts: vec![],
             cast_ids: vec![],
-            preference_mode: Some("ranked".to_string()),
+            preference_mode: "ranked".to_string(),
             is_guaranteed: false,
             raw_extra: vec![],
         }
@@ -2307,11 +3696,87 @@ mod tests {
 
     #[test]
     fn event_directory_filter_accepts_visible_event_names_only() {
-        assert!(is_event_directory_name("Manual Test Event"));
         assert!(is_event_directory_name("Event_2026-06"));
+        assert!(!is_event_directory_name("Manual Test Event"));
         assert!(!is_event_directory_name(".system"));
         assert!(!is_event_directory_name("Event.Name"));
         assert!(!is_event_directory_name(" Event"));
+    }
+
+    #[test]
+    fn event_name_validation_matches_frontend_path_rules() {
+        assert!(validate_event_name(&"A".repeat(64)).is_ok());
+        assert!(validate_event_name(&"A".repeat(65)).is_err());
+        for name in ["CON", "prn", "Aux", "NUL", "COM1", "com9", "LPT1", "lpt9"] {
+            assert!(
+                validate_event_name(name).is_err(),
+                "{name} should be rejected"
+            );
+        }
+        for name in ["CONCERT", "COM0", "COM10", "LPT0", "LPT10"] {
+            assert!(
+                validate_event_name(name).is_ok(),
+                "{name} should be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn max_length_event_database_can_be_created_beyond_legacy_windows_path_limit() {
+        let dir = TestDir::new("long-event-path");
+        let long_root = dir.0.join("a".repeat(120)).join("b".repeat(40));
+        let event_name = "E".repeat(64);
+        let final_dir = long_root.join(&event_name);
+        let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
+        let expected_db_path = final_dir.join(&relative_db_path);
+
+        assert!(validate_event_name(&event_name).is_ok());
+        assert!(expected_db_path.to_string_lossy().encode_utf16().count() > 260);
+
+        let db_path = create_initialized_directory_atomically(
+            &final_dir,
+            &relative_db_path,
+            SHARED_SCHEMA,
+            "イベント共有",
+            SHARED_REQUIRED_TABLES,
+            SHARED_SCHEMA_QUERIES,
+            |_| Ok(()),
+        )
+        .expect("長いパスでもイベントDBを作成できる必要があります");
+
+        assert_eq!(db_path, expected_db_path);
+        assert!(db_path.is_file());
+        assert_eq!(list_events_at(&long_root), vec![event_name]);
+    }
+
+    #[test]
+    fn startup_cleanup_discards_only_in_progress_and_quarantined_sessions() {
+        let dir = TestDir::new("startup-session-cleanup");
+        let event_dir = dir.0.join("Event_2026");
+        let shared_db = event_dir.join(SHARED_DIR).join("db").join("stargazer.db");
+        std::fs::create_dir_all(shared_db.parent().expect("shared DB parent"))
+            .expect("shared DB directory");
+        std::fs::write(&shared_db, b"").expect("shared DB marker");
+
+        let in_progress = event_dir.join("20260808120000");
+        std::fs::create_dir_all(&in_progress).expect("in-progress session");
+        std::fs::write(
+            in_progress.join(IN_PROGRESS_SESSION_MARKER),
+            b"in progress\n",
+        )
+        .expect("in-progress marker");
+
+        let quarantined = event_dir.join(".20260808130000.discarding-test");
+        std::fs::create_dir_all(&quarantined).expect("quarantined session");
+        let unrelated = event_dir.join("20260808140000");
+        std::fs::create_dir_all(&unrelated).expect("unmarked session");
+
+        cleanup_in_progress_sessions_at(&dir.0).expect("startup cleanup");
+
+        assert!(!in_progress.exists());
+        assert!(!quarantined.exists());
+        assert!(unrelated.exists());
+        assert!(shared_db.exists());
     }
 
     #[test]
@@ -2461,7 +3926,7 @@ mod tests {
     #[test]
     fn atomic_event_creation_publishes_only_completed_database() {
         let dir = TestDir::new("atomic-create-success");
-        let final_dir = dir.0.join("Completed Event");
+        let final_dir = dir.0.join("Completed_Event");
         let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
 
         let db_path = create_initialized_directory_atomically(
@@ -2476,7 +3941,7 @@ mod tests {
         .expect("イベントDBを作成できる必要があります");
 
         assert_eq!(db_path, final_dir.join(relative_db_path));
-        assert_eq!(list_events_at(&dir.0), vec!["Completed Event".to_string()]);
+        assert_eq!(list_events_at(&dir.0), vec!["Completed_Event".to_string()]);
     }
 
     #[test]
@@ -2520,8 +3985,7 @@ mod tests {
             SHARED_REQUIRED_TABLES,
             SHARED_SCHEMA_QUERIES,
         )
-        .err()
-        .expect("必須テーブルがない共有DBを開いてはいけません");
+        .expect_err("必須テーブルがない共有DBを開いてはいけません");
         assert!(error.contains("settings"));
         Ok(())
     }
@@ -2543,8 +4007,7 @@ mod tests {
             SESSION_REQUIRED_TABLES,
             SESSION_SCHEMA_QUERIES,
         )
-        .err()
-        .expect("必須カラムがないセッションDBを開いてはいけません");
+        .expect_err("必須カラムがないセッションDBを開いてはいけません");
         assert!(error.contains("現行schema"));
         Ok(())
     }
@@ -2622,7 +4085,7 @@ mod tests {
                 "Cast C".to_string(),
             ],
             cast_ids: vec![Some(900), None, None],
-            preference_mode: Some("ranked".to_string()),
+            preference_mode: "ranked".to_string(),
             is_guaranteed: false,
             raw_extra: vec![],
         }];
@@ -2663,7 +4126,10 @@ mod tests {
     fn invalid_applicant_payload_is_rejected_before_replacement() -> rusqlite::Result<()> {
         let dir = TestDir::new("invalid-applicant-payload");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@existing')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@existing', 'ranked')",
+            [],
+        )?;
         let mut invalid = applicant_input("@new");
         invalid.casts = vec!["Cast A".to_string()];
 
@@ -2679,24 +4145,24 @@ mod tests {
     fn applicant_can_be_deleted_by_id_while_other_invalid_x_ids_remain() -> rusqlite::Result<()> {
         let dir = TestDir::new("delete-invalid-applicant");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@Duplicate')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@Duplicate', 'ranked')",
+            [],
+        )?;
         let duplicate_id = conn.last_insert_rowid();
-        conn.execute("INSERT INTO applicants (x_id) VALUES (' @duplicate ')", [])?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES (' @duplicate ', 'ranked')",
+            [],
+        )?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('', 'ranked')",
+            [],
+        )?;
         let empty_id = conn.last_insert_rowid();
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 0)",
             [duplicate_id],
         )?;
-        conn.execute(
-            "INSERT INTO lottery_saved_runs
-               (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-             VALUES ('旧抽選', 'M001', 1, 0, 1)",
-            [],
-        )?;
-
-        assert!(delete_applicant_in_connection(&mut conn, duplicate_id).is_err());
-        conn.execute("DELETE FROM lottery_saved_runs", [])?;
         delete_applicant_in_connection(&mut conn, duplicate_id)?;
         assert!(validate_stored_applicant_x_ids(&conn).is_err());
         delete_applicant_in_connection(&mut conn, empty_id)?;
@@ -2706,10 +4172,6 @@ mod tests {
             conn.query_row("SELECT x_id FROM applicants", [], |row| row.get(0))?;
         let lottery_result_count: i64 =
             conn.query_row("SELECT COUNT(*) FROM lottery_results", [], |row| row.get(0))?;
-        let saved_run_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
-                row.get(0)
-            })?;
         let (condition_revision, result_revision): (i64, Option<i64>) = conn.query_row(
             "SELECT condition_revision, lottery_result_revision
              FROM session_workflow_state
@@ -2720,7 +4182,6 @@ mod tests {
 
         assert_eq!(remaining_x_id, " @duplicate ");
         assert_eq!(lottery_result_count, 0);
-        assert_eq!(saved_run_count, 0);
         assert_eq!(condition_revision, 2);
         assert_eq!(result_revision, None);
         Ok(())
@@ -2730,9 +4191,15 @@ mod tests {
     fn lottery_result_cannot_be_replaced_while_stored_x_ids_are_invalid() -> rusqlite::Result<()> {
         let dir = TestDir::new("invalid-stored-x-id-lottery");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@Duplicate')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@Duplicate', 'ranked')",
+            [],
+        )?;
         let applicant_id = conn.last_insert_rowid();
-        conn.execute("INSERT INTO applicants (x_id) VALUES (' @duplicate ')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES (' @duplicate ', 'ranked')",
+            [],
+        )?;
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 0)",
             [applicant_id],
@@ -2753,15 +4220,8 @@ mod tests {
 
     #[test]
     fn applicant_validation_rejects_inconsistent_preference_payloads() {
-        let mut reserved_extra = applicant_input("@reserved");
-        reserved_extra.raw_extra.push(RawExtraInput {
-            key: PREFERENCE_MODE_EXTRA_KEY.to_string(),
-            value: Some("flat".to_string()),
-        });
-        assert!(validate_applicant_inputs(&[reserved_extra]).is_err());
-
         let mut invalid_mode = applicant_input("@invalid-mode");
-        invalid_mode.preference_mode = Some("unknown".to_string());
+        invalid_mode.preference_mode = "unknown".to_string();
         assert!(validate_applicant_inputs(&[invalid_mode]).is_err());
 
         let mut invalid_empty_cast = applicant_input("@invalid-empty-cast");
@@ -2776,7 +4236,10 @@ mod tests {
         let mut shared = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let cast_id = insert_cast_in_connection(&mut shared, &cast_input("旧キャスト"))?;
         let session = open_initialized_session_db(&dir.db_path("session.db"))?;
-        session.execute("INSERT INTO applicants (x_id) VALUES ('@applicant')", [])?;
+        session.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@applicant', 'ranked')",
+            [],
+        )?;
         session.execute(
             "INSERT INTO applicant_casts
                (applicant_id, preference_order, cast_name, cast_id)
@@ -2806,7 +4269,10 @@ mod tests {
         let mut shared = open_initialized_shared_db(&dir.db_path("shared.db"))?;
         let original_id = insert_cast_in_connection(&mut shared, &cast_input("Cast A"))?;
         let session = open_initialized_session_db(&dir.db_path("session.db"))?;
-        session.execute("INSERT INTO applicants (x_id) VALUES ('@applicant')", [])?;
+        session.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@applicant', 'ranked')",
+            [],
+        )?;
         session.execute(
             "INSERT INTO applicant_casts
                (applicant_id, preference_order, cast_name, cast_id)
@@ -2825,26 +4291,25 @@ mod tests {
     }
 
     #[test]
-    fn persist_applicants_failure_keeps_existing_rows_and_saved_runs() -> rusqlite::Result<()> {
+    fn persist_applicants_failure_keeps_existing_rows_and_lottery_result() -> rusqlite::Result<()> {
         let dir = TestDir::new("persist-applicants-rollback");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
         conn.execute(
-            "INSERT INTO applicants (x_id, name) VALUES (?1, ?2)",
+            "INSERT INTO applicants (x_id, name, preference_mode) VALUES (?1, ?2, 'ranked')",
             rusqlite::params!["@old_user", "Old User"],
         )?;
         let old_applicant_id = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO lottery_saved_runs
-               (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-             VALUES ('旧抽選', 'M002', 1, 0, 1)",
-            [],
+            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 0)",
+            [old_applicant_id],
         )?;
-        let run_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO lottery_saved_run_results
-               (run_id, applicant_id, is_guaranteed, result_order)
-             VALUES (?1, ?2, 0, 0)",
-            rusqlite::params![run_id, old_applicant_id],
+        conn.execute_batch(
+            "CREATE TRIGGER reject_new_applicant
+             BEFORE INSERT ON applicants
+             WHEN NEW.x_id = 'duplicate'
+             BEGIN
+               SELECT RAISE(ABORT, 'テスト用の応募者保存失敗');
+             END;",
         )?;
 
         let users = vec![
@@ -2854,7 +4319,7 @@ mod tests {
                 vrc_url: None,
                 casts: vec!["Cast A".to_string()],
                 cast_ids: vec![None],
-                preference_mode: Some("ranked".to_string()),
+                preference_mode: "ranked".to_string(),
                 is_guaranteed: false,
                 raw_extra: vec![],
             },
@@ -2864,7 +4329,7 @@ mod tests {
                 vrc_url: None,
                 casts: vec![],
                 cast_ids: vec![],
-                preference_mode: Some("flat".to_string()),
+                preference_mode: "flat".to_string(),
                 is_guaranteed: true,
                 raw_extra: vec![],
             },
@@ -2873,19 +4338,11 @@ mod tests {
         assert!(persist_applicants_in_connection(&mut conn, &users).is_err());
         let applicant_count: i64 =
             conn.query_row("SELECT COUNT(*) FROM applicants", [], |row| row.get(0))?;
-        let saved_run_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
-                row.get(0)
-            })?;
-        let saved_result_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM lottery_saved_run_results",
-            [],
-            |row| row.get(0),
-        )?;
+        let lottery_result_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM lottery_results", [], |row| row.get(0))?;
 
         assert_eq!(applicant_count, 1);
-        assert_eq!(saved_run_count, 1);
-        assert_eq!(saved_result_count, 1);
+        assert_eq!(lottery_result_count, 1);
         Ok(())
     }
 
@@ -2937,7 +4394,10 @@ mod tests {
     fn replace_lottery_results_failure_keeps_existing_rows() -> rusqlite::Result<()> {
         let dir = TestDir::new("replace-lottery-rollback");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@old_user')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@old_user', 'ranked')",
+            [],
+        )?;
         let applicant_id = conn.last_insert_rowid();
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 1)",
@@ -2962,9 +4422,15 @@ mod tests {
     fn lottery_state_replace_is_atomic_and_rejects_changed_revision() -> rusqlite::Result<()> {
         let dir = TestDir::new("replace-lottery-state");
         let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@first')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@first', 'ranked')",
+            [],
+        )?;
         let first_id = conn.last_insert_rowid();
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@second')", [])?;
+        conn.execute(
+            "INSERT INTO applicants (x_id, preference_mode) VALUES ('@second', 'ranked')",
+            [],
+        )?;
         let second_id = conn.last_insert_rowid();
         conn.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 0)",
@@ -3004,260 +4470,280 @@ mod tests {
         Ok(())
     }
 
+    fn prepare_current_lottery_result(conn: &mut Connection) -> rusqlite::Result<()> {
+        let mut guaranteed = applicant_input("@guaranteed");
+        guaranteed.is_guaranteed = true;
+        persist_applicants_in_connection(conn, &[guaranteed, applicant_input("@lottery")])?;
+        let condition_revision = conn.query_row(
+            "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )?;
+        replace_lottery_results_in_connection(
+            conn,
+            &[
+                LotteryResultInput {
+                    x_id: "@guaranteed".to_string(),
+                    is_guaranteed: true,
+                },
+                LotteryResultInput {
+                    x_id: "@lottery".to_string(),
+                    is_guaranteed: false,
+                },
+            ],
+            condition_revision,
+        )
+    }
+
+    fn matching_result_snapshot(cast_id: i64, cast_name: &str) -> serde_json::Value {
+        let assignment = serde_json::json!({
+            "castId": cast_id,
+            "rank": 1,
+            "rotationIndex": 0,
+            "score": 100.0,
+            "isNgWarning": false,
+            "ngReason": null,
+        });
+        let guaranteed_user = serde_json::json!({
+            "name": "確定当選者",
+            "xId": "guaranteed",
+        });
+        let lottery_user = serde_json::json!({
+            "name": "抽選当選者",
+            "xId": "lottery",
+        });
+        serde_json::json!({
+            "casts": [{
+                "id": cast_id,
+                "name": cast_name,
+                "isPresent": true,
+                "ngEntries": [],
+            }],
+            "applicants": [
+                { "user": guaranteed_user.clone(), "matches": [assignment.clone()] },
+                { "user": lottery_user.clone(), "matches": [assignment.clone()] },
+            ],
+            "tableSlots": [
+                {
+                    "tableIndex": 1,
+                    "user": guaranteed_user,
+                    "matches": [assignment.clone()],
+                },
+                {
+                    "tableIndex": 2,
+                    "user": lottery_user,
+                    "matches": [assignment],
+                },
+            ],
+            "scoreSummary": {
+                "totalScore": 200.0,
+                "averageScore": 100.0,
+                "firstChoiceCount": 2,
+                "secondChoiceCount": 0,
+                "thirdChoiceCount": 0,
+                "flatPreferenceCount": 0,
+                "unpreferredCount": 0,
+                "ngWarningCount": 0,
+            },
+        })
+    }
+
     #[test]
-    fn saved_lottery_restore_updates_conditions_guarantees_and_results() -> rusqlite::Result<()> {
-        let dir = TestDir::new("restore-saved-lottery");
-        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute(
-            "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@first', 0)",
-            [],
-        )?;
-        let first_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@second', 1)",
-            [],
-        )?;
-        let second_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 1)",
-            [second_id],
-        )?;
-        conn.execute(
-            "INSERT INTO lottery_saved_runs
-               (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-             VALUES ('保存済み', 'M003', 1, 1, 2)",
-            [],
-        )?;
-        let run_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO lottery_saved_run_results
-               (run_id, applicant_id, is_guaranteed, result_order)
-             VALUES (?1, ?2, 1, 0)",
-            rusqlite::params![run_id, first_id],
-        )?;
-        conn.execute(
-            "INSERT INTO lottery_saved_run_results
-               (run_id, applicant_id, is_guaranteed, result_order)
-             VALUES (?1, ?2, 0, 1)",
-            rusqlite::params![run_id, second_id],
-        )?;
+    fn lottery_result_is_saved_as_a_validated_shared_snapshot() {
+        let dir = TestDir::new("save-lottery-result");
+        let mut session =
+            open_initialized_session_db(&dir.db_path("session.db")).expect("session DB");
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        prepare_current_lottery_result(&mut session).expect("current lottery result");
 
-        let restored = restore_lottery_run_in_connection(&mut conn, run_id, 0)?;
-        let workflow: (String, i64, i64, Option<i64>) = conn.query_row(
-            "SELECT matching_type_code, lottery_count, condition_revision,
-                    lottery_result_revision
-             FROM session_workflow_state WHERE id = 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )?;
-        let guarantees = {
-            let mut stmt =
-                conn.prepare("SELECT x_id, is_guaranteed FROM applicants ORDER BY id")?;
-            let values = stmt
-                .query_map([], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            values
-        };
-        let results = {
-            let mut stmt = conn.prepare(
-                "SELECT a.x_id, lr.is_guaranteed
-                 FROM lottery_results lr
-                 INNER JOIN applicants a ON a.id = lr.applicant_id
-                 ORDER BY lr.id",
-            )?;
-            let values = stmt
-                .query_map([], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            values
-        };
+        let saved_result_id =
+            save_lottery_result_in_connections(&mut session, &mut shared, "  保存結果  ")
+                .expect("save result");
+        let (snapshot, summary) = read_validated_saved_lottery_result(&shared, saved_result_id)
+            .expect("read saved result");
 
-        assert_eq!(restored.matching_type_code, "M003");
-        assert_eq!(restored.lottery_count, 1);
-        assert_eq!(workflow, ("M003".to_string(), 1, 2, Some(2)));
-        assert_eq!(
-            guarantees,
-            vec![("@first".to_string(), 1), ("@second".to_string(), 0)]
+        assert_eq!(summary.label, "保存結果");
+        assert_eq!(summary.matching_type_code, "M001");
+        assert_eq!(summary.lottery_count, 1);
+        assert_eq!(summary.guaranteed_count, 1);
+        assert_eq!(summary.winner_count, 2);
+        assert_eq!(snapshot.applicants.len(), 2);
+        assert_eq!(snapshot.winners.len(), 2);
+        assert!(
+            save_lottery_result_in_connections(&mut session, &mut shared, "二重保存",).is_err()
         );
-        assert_eq!(
-            results,
-            vec![("@first".to_string(), 1), ("@second".to_string(), 0)]
-        );
-        assert!(restore_lottery_run_in_connection(&mut conn, run_id, 0).is_err());
-        Ok(())
     }
 
     #[test]
-    fn saved_lottery_restore_failure_rolls_back_all_state() -> rusqlite::Result<()> {
-        let dir = TestDir::new("restore-saved-lottery-rollback");
-        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute(
-            "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@current', 1)",
-            [],
-        )?;
-        let current_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO applicants (x_id, is_guaranteed) VALUES ('@saved', 0)",
-            [],
-        )?;
-        let saved_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 1)",
-            [current_id],
-        )?;
-        conn.execute(
-            "INSERT INTO lottery_saved_runs
-               (label, matching_type_code, lottery_count, guaranteed_count, winner_count)
-             VALUES ('保存済み', 'M002', 1, 1, 2)",
-            [],
-        )?;
-        let run_id = conn.last_insert_rowid();
-        for (order, applicant_id, is_guaranteed) in [(0, saved_id, 1), (1, current_id, 0)] {
-            conn.execute(
-                "INSERT INTO lottery_saved_run_results
-                   (run_id, applicant_id, is_guaranteed, result_order)
-                 VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![run_id, applicant_id, is_guaranteed, order],
-            )?;
-        }
-        conn.execute_batch(&format!(
-            "CREATE TRIGGER reject_restored_result
-             BEFORE INSERT ON lottery_results
-             WHEN NEW.applicant_id = {current_id}
-             BEGIN
-               SELECT RAISE(ABORT, 'テスト用の復元失敗');
-             END;"
-        ))?;
+    fn stale_lottery_result_cannot_be_saved_to_shared_database() {
+        let dir = TestDir::new("save-stale-lottery-result");
+        let mut session =
+            open_initialized_session_db(&dir.db_path("session.db")).expect("session DB");
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        persist_applicants_in_connection(&mut session, &[applicant_input("@winner")])
+            .expect("applicant");
+        session
+            .execute(
+                "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
+                [],
+            )
+            .expect("stale lottery row");
 
-        assert!(restore_lottery_run_in_connection(&mut conn, run_id, 0).is_err());
-        let workflow: (String, i64, i64, Option<i64>) = conn.query_row(
-            "SELECT matching_type_code, lottery_count, condition_revision,
-                    lottery_result_revision
-             FROM session_workflow_state WHERE id = 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )?;
-        let current_is_guaranteed: i64 = conn.query_row(
-            "SELECT is_guaranteed FROM applicants WHERE id = ?1",
-            [current_id],
-            |row| row.get(0),
-        )?;
-        let result_applicant_id: i64 =
-            conn.query_row("SELECT applicant_id FROM lottery_results", [], |row| {
-                row.get(0)
-            })?;
-
-        assert_eq!(workflow, ("M001".to_string(), 1, 0, None));
-        assert_eq!(current_is_guaranteed, 1);
-        assert_eq!(result_applicant_id, current_id);
-        Ok(())
+        assert!(save_lottery_result_in_connections(&mut session, &mut shared, "保存",).is_err());
+        let saved_count = shared
+            .query_row("SELECT COUNT(*) FROM saved_results", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .expect("saved result count");
+        assert_eq!(saved_count, 0);
     }
 
     #[test]
-    fn save_lottery_run_failure_rolls_back_heading_row() -> rusqlite::Result<()> {
-        let dir = TestDir::new("save-lottery-run-rollback");
-        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@winner')", [])?;
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
-            [],
-        )?;
-        conn.execute(
-            "UPDATE session_workflow_state
-             SET lottery_result_revision = condition_revision
-             WHERE id = 1",
-            [],
-        )?;
-        conn.execute_batch(
-            "CREATE TRIGGER reject_saved_lottery_result
-             BEFORE INSERT ON lottery_saved_run_results
-             BEGIN
-               SELECT RAISE(ABORT, 'テスト用の保存失敗');
-             END;",
-        )?;
+    fn shared_snapshot_insert_failure_leaves_no_heading_row() {
+        let dir = TestDir::new("save-lottery-result-rollback");
+        let mut session =
+            open_initialized_session_db(&dir.db_path("session.db")).expect("session DB");
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        prepare_current_lottery_result(&mut session).expect("current lottery result");
+        shared
+            .execute_batch(
+                "CREATE TRIGGER reject_saved_result
+                 BEFORE INSERT ON saved_results
+                 BEGIN
+                   SELECT RAISE(ABORT, 'テスト用の保存失敗');
+                 END;",
+            )
+            .expect("failure trigger");
 
-        assert!(save_lottery_run_in_connection(&mut conn, "保存").is_err());
-        let run_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
-                row.get(0)
-            })?;
-        let result_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM lottery_saved_run_results",
-            [],
-            |row| row.get(0),
-        )?;
-
-        assert_eq!(run_count, 0);
-        assert_eq!(result_count, 0);
-        Ok(())
+        assert!(save_lottery_result_in_connections(&mut session, &mut shared, "保存",).is_err());
+        let saved_count = shared
+            .query_row("SELECT COUNT(*) FROM saved_results", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .expect("saved result count");
+        assert_eq!(saved_count, 0);
     }
 
     #[test]
-    fn stale_lottery_result_cannot_be_saved_as_history() -> rusqlite::Result<()> {
-        let dir = TestDir::new("save-stale-lottery-run");
-        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@winner')", [])?;
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (1, 0)",
-            [],
-        )?;
+    fn corrupt_saved_lottery_snapshot_is_rejected() {
+        let dir = TestDir::new("corrupt-saved-lottery-result");
+        let shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        shared
+            .execute(
+                "INSERT INTO saved_results
+                   (source_session_token, result_type, label, matching_type_code,
+                    lottery_count, guaranteed_count, winner_count, snapshot_json)
+                 VALUES ('source', 'lottery', '破損', 'M001', 1, 0, 1, '{}')",
+                [],
+            )
+            .expect("corrupt snapshot fixture");
+        let saved_result_id = shared.last_insert_rowid();
 
-        assert!(save_lottery_run_in_connection(&mut conn, "保存").is_err());
-        let run_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM lottery_saved_runs", [], |row| {
-                row.get(0)
-            })?;
-        assert_eq!(run_count, 0);
-        Ok(())
+        assert!(read_validated_saved_lottery_result(&shared, saved_result_id).is_err());
     }
 
     #[test]
-    fn saved_lottery_metadata_is_derived_from_database_state_and_rows() -> rusqlite::Result<()> {
-        let dir = TestDir::new("save-lottery-run-metadata");
-        let mut conn = open_initialized_session_db(&dir.db_path("session.db"))?;
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@guaranteed')", [])?;
-        let guaranteed_id = conn.last_insert_rowid();
-        conn.execute("INSERT INTO applicants (x_id) VALUES ('@lottery')", [])?;
-        let lottery_id = conn.last_insert_rowid();
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 1)",
-            [guaranteed_id],
-        )?;
-        conn.execute(
-            "INSERT INTO lottery_results (applicant_id, is_guaranteed) VALUES (?1, 0)",
-            [lottery_id],
-        )?;
-        conn.execute(
-            "UPDATE session_workflow_state
-             SET matching_type_code = 'M003',
-                 lottery_result_revision = condition_revision
-             WHERE id = 1",
-            [],
-        )?;
+    fn matching_result_is_saved_as_a_validated_shared_snapshot() {
+        let dir = TestDir::new("save-matching-result");
+        let mut session =
+            open_initialized_session_db(&dir.db_path("session.db")).expect("session DB");
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        prepare_current_lottery_result(&mut session).expect("current lottery result");
+        let cast_id =
+            insert_cast_in_connection(&mut shared, &cast_input("Cast A")).expect("present cast");
+        let snapshot = matching_result_snapshot(cast_id, "Cast A");
 
-        save_lottery_run_in_connection(&mut conn, "保存")?;
-        let metadata: (String, i64, i64, i64) = conn.query_row(
-            "SELECT matching_type_code, lottery_count, guaranteed_count, winner_count
-             FROM lottery_saved_runs",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )?;
+        let saved_result_id = save_matching_result_in_connections(
+            &mut session,
+            &mut shared,
+            "  保存結果  ",
+            "M001",
+            2,
+            &snapshot,
+        )
+        .expect("save matching result");
+        let row: (
+            String,
+            String,
+            String,
+            Option<i64>,
+            Option<i64>,
+            i64,
+            String,
+        ) = shared
+            .query_row(
+                "SELECT result_type, label, matching_type_code, lottery_count,
+                        guaranteed_count, winner_count, snapshot_json
+                 FROM saved_results WHERE id = ?1",
+                [saved_result_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                    ))
+                },
+            )
+            .expect("saved matching row");
 
-        assert_eq!(metadata, ("M003".to_string(), 1, 1, 2));
-        let copied_ids = {
-            let mut stmt = conn.prepare(
-                "SELECT applicant_id FROM lottery_saved_run_results ORDER BY result_order",
-            )?;
-            let rows = stmt
-                .query_map([], |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<i64>>>()?;
-            rows
-        };
-        assert_eq!(copied_ids, vec![guaranteed_id, lottery_id]);
-        Ok(())
+        assert_eq!(row.0, "matching");
+        assert_eq!(row.1, "保存結果");
+        assert_eq!(row.2, "M001");
+        assert_eq!(row.3, None);
+        assert_eq!(row.4, None);
+        assert_eq!(row.5, 2);
+        let restored = read_validated_matching_snapshot(&row.2, row.5, &row.6)
+            .expect("read saved matching snapshot");
+        assert_eq!(restored, snapshot);
+        assert!(save_matching_result_in_connections(
+            &mut session,
+            &mut shared,
+            "二重保存",
+            "M001",
+            2,
+            &snapshot,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn changed_cast_conditions_prevent_matching_result_save() {
+        let dir = TestDir::new("save-stale-matching-result");
+        let mut session =
+            open_initialized_session_db(&dir.db_path("session.db")).expect("session DB");
+        let mut shared = open_initialized_shared_db(&dir.db_path("shared.db")).expect("shared DB");
+        prepare_current_lottery_result(&mut session).expect("current lottery result");
+        let cast_id =
+            insert_cast_in_connection(&mut shared, &cast_input("Cast A")).expect("present cast");
+        let snapshot = matching_result_snapshot(cast_id, "Cast A");
+        shared
+            .execute("UPDATE casts SET name = 'Cast B' WHERE id = ?1", [cast_id])
+            .expect("change cast name");
+
+        assert!(save_matching_result_in_connections(
+            &mut session,
+            &mut shared,
+            "保存",
+            "M001",
+            2,
+            &snapshot,
+        )
+        .is_err());
+        let saved_count = shared
+            .query_row("SELECT COUNT(*) FROM saved_results", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .expect("saved result count");
+        assert_eq!(saved_count, 0);
+    }
+
+    #[test]
+    fn corrupt_saved_matching_snapshot_is_rejected() {
+        assert!(read_validated_matching_snapshot("M001", 1, "{}").is_err());
     }
 
     #[test]

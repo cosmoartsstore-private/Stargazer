@@ -562,12 +562,12 @@
 }
 
 .import-validation-ok {
-  color: var(--accent-success);
+  color: var(--text-success);
   font-weight: 600;
 }
 
 .import-validation-warn {
-  color: var(--accent-warning, #faa61a);
+  color: var(--text-warning);
   font-weight: 500;
 }
 

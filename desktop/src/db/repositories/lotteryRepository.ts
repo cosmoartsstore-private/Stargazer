@@ -1,4 +1,4 @@
-// 現行の抽選結果は取込セッション内で全置換し、明示保存後はセッション全体を履歴として固定する。
+// 現行の抽選結果は取込セッション内で扱い、明示保存した結果はイベント共有DBへ固定する。
 import { invoke } from '@tauri-apps/api/core';
 import { getSessionDb } from '../database';
 import type { MatchingTypeCode } from '@/common/types/sessionWorkflow';
@@ -13,39 +13,18 @@ export interface LotteryResultRow {
   x_id: string;
 }
 
-export interface SavedLotteryRunRow {
-  id: number;
-  label: string;
-  matching_type_code: MatchingTypeCode;
-  lottery_count: number;
-  guaranteed_count: number;
-  winner_count: number;
-  created_at: string;
+/** イベント共有DBに保存された抽選結果を一意に参照する。 */
+export interface SavedLotteryResultTarget {
+  savedResultId: number;
 }
 
-/** イベント内の保存済み抽選結果を、所有セッションまで含めて一意に参照する。 */
-export interface SavedLotteryRunTarget {
-  sessionTimestamp: string;
-  runId: number;
-}
-
-export interface EventSavedLotteryRunSummary extends SavedLotteryRunTarget {
+export interface EventSavedLotteryResultSummary extends SavedLotteryResultTarget {
   label: string;
   matchingTypeCode: MatchingTypeCode;
   lotteryCount: number;
   guaranteedCount: number;
   winnerCount: number;
   createdAt: string;
-}
-
-export interface SavedLotteryResultRow {
-  is_guaranteed: number;
-  x_id: string;
-}
-
-export interface RestoredLotteryRunState {
-  matchingTypeCode: MatchingTypeCode;
-  lotteryCount: number;
 }
 
 /** 現在セッションの抽選結果を保存順で取得する。 */
@@ -77,82 +56,30 @@ export async function replaceLotteryResults(
   }));
 }
 
-/** 保存済みrunの条件・確定当選者・現行抽選結果を、一つのtransactionで復元する。 */
-export async function restoreSavedLotteryRun(
-  runId: number,
-  expectedConditionRevision: number,
-  context: SessionCommandContext,
-): Promise<RestoredLotteryRunState> {
-  return enqueueSessionWrite(context, () => invoke<RestoredLotteryRunState>('restore_lottery_run_atomic', {
-    eventName: context.eventName,
-    timestamp: context.timestamp,
-    runId,
-    expectedConditionRevision,
-  }));
-}
-
-/** 保存済み抽選結果の見出し一覧を新しい順に取得する。 */
-export async function listSavedLotteryRuns(): Promise<SavedLotteryRunRow[]> {
-  const db = getSessionDb();
-  return db.select<SavedLotteryRunRow[]>(
-    `SELECT id, label, matching_type_code, lottery_count,
-            guaranteed_count, winner_count, created_at
-     FROM lottery_saved_runs
-     ORDER BY id DESC`,
-  );
-}
-
-/** 現在セッションに、上流データを固定する保存済み抽選結果があるか確認する。 */
-export async function hasSavedLotteryRuns(): Promise<boolean> {
-  const db = getSessionDb();
-  const rows = await db.select<Array<{ count: number }>>(
-    'SELECT COUNT(*) AS count FROM lottery_saved_runs',
-  );
-  return (rows[0]?.count ?? 0) > 0;
-}
-
-/** 現在のイベントに属する全セッションから、明示保存された抽選結果の見出しを取得する。 */
-export async function listEventSavedLotteryRuns(
+/** 現在のイベントに明示保存された抽選結果の見出しを取得する。 */
+export async function listEventSavedLotteryResults(
   eventName: string,
-): Promise<EventSavedLotteryRunSummary[]> {
-  return invoke<EventSavedLotteryRunSummary[]>('list_event_saved_lottery_runs', { eventName });
+): Promise<EventSavedLotteryResultSummary[]> {
+  return invoke<EventSavedLotteryResultSummary[]>('list_event_saved_lottery_results', { eventName });
 }
 
-/** イベントライフサイクルの排他処理内で、対象セッションの保存済み結果を現行状態へ復元する。 */
-export async function activateSavedLotteryRunForLifecycle(
+/** 保存済み抽選結果から読取専用セッションを作成し、そのtimestampを返す。 */
+export async function createSessionFromSavedLotteryForLifecycle(
   eventName: string,
-  target: SavedLotteryRunTarget,
-): Promise<void> {
-  await invoke('activate_saved_lottery_run_atomic', {
+  target: SavedLotteryResultTarget,
+): Promise<string> {
+  return invoke<string>('create_session_from_saved_lottery_atomic', {
     eventName,
-    sessionTimestamp: target.sessionTimestamp,
-    runId: target.runId,
+    savedResultId: target.savedResultId,
   });
 }
 
-/** 保存済み抽選結果1件の当選者行を保存順で取得する。 */
-export async function getSavedLotteryResults(runId: number): Promise<SavedLotteryResultRow[]> {
-  const db = getSessionDb();
-  const rows = await db.select<SavedLotteryResultRow[]>(
-    `SELECT lrr.is_guaranteed, a.x_id
-     FROM lottery_saved_run_results lrr
-     INNER JOIN applicants a ON a.id = lrr.applicant_id
-     WHERE lrr.run_id = ?
-     ORDER BY lrr.result_order`,
-    [runId],
-  );
-  return rows.map((row) => ({
-    ...row,
-    x_id: parseXUsername(row.x_id) ?? row.x_id.trim(),
-  }));
-}
-
-/** DB上の現行抽選結果を、見出し行と当選者行を含むスナップショットとして保存する。 */
-export async function saveLotteryRun(
+/** DB上の現行抽選結果を、イベント共有DBへ自己完結したスナップショットとして保存する。 */
+export async function saveLotteryResult(
   label: string,
   context: SessionCommandContext,
 ): Promise<number> {
-  return enqueueSessionWrite(context, () => invoke<number>('save_lottery_run_atomic', {
+  return enqueueSessionWrite(context, () => invoke<number>('save_lottery_result_atomic', {
     eventName: context.eventName,
     timestamp: context.timestamp,
     label,

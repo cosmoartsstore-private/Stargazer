@@ -16,19 +16,22 @@ export function mapRowToUserBeanWithMapping(
   let preferenceMode: UserBean['preference_mode'] = 'ranked';
   const useSplitComma = mapping.castInputType === 'multiple' && mapping.cast1 >= 0;
 
-  /** 順位なしのカンマ区切り希望として取り込む最大希望数。 */
-  const MAX_CAST_COMMA = 20;
   if (useSplitComma) {
     preferenceMode = 'flat';
     const cast1Val = getCell(row, mapping.cast1);
     if (!cast1Val) {
       casts = [];
     } else {
+      // 順位なし希望には件数上限を設けず、同じ名称の重複だけを先頭の1件へまとめる。
+      const seenCastNames = new Set<string>();
       casts = cast1Val
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, MAX_CAST_COMMA);
+        .filter((castName) => {
+          if (!castName || seenCastNames.has(castName)) return false;
+          seenCastNames.add(castName);
+          return true;
+        });
     }
   } else {
     const c1 = mapping.cast1 >= 0 ? getCell(row, mapping.cast1) : '';
@@ -44,6 +47,7 @@ export function mapRowToUserBeanWithMapping(
   // 有効なX IDは内部表現のusernameへ統一し、形式不正値は利用者が確認できるよう残す。
   const normalizedXId = rawXId ? (parseXUsername(rawXId) ?? rawXId) : '';
 
+  // VRChat URLは利用者が内容を判断する参照値として保持し、形式検証や補正は行わない。
   const vrcUrl = mapping.vrc_url >= 0 ? getCell(row, mapping.vrc_url) : '';
 
   const rawExtra: { key: string; value: string }[] = [];

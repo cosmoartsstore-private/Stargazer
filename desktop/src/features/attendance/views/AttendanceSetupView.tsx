@@ -47,7 +47,7 @@ export function AttendanceSetupView({
             <button type="button" className={styles.setupBulkAbsent} onClick={handleSetAllAbsent}>{getMsg('AttendanceSetupView.allAbsent')}</button>
           </div>
           <div className={styles.setupRecordWrap}>
-            <button type="button" className={shared.btnPrimary} disabled={saving || casts.length === 0} onClick={onOpenSaveModal}>{getMsg('AttendanceSetupView.recordAttendance')}</button>
+            <button type="button" className={`${shared.btnPrimary} ${styles.attendanceRecordButton}`} disabled={saving || casts.length === 0} onClick={onOpenSaveModal}>{getMsg('AttendanceSetupView.recordAttendance')}</button>
           </div>
         </div>
       </div>

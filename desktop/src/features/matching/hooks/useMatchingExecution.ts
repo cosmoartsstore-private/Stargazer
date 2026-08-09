@@ -22,15 +22,26 @@ import {
   isSameWorkflowState,
 } from '@/features/matching/logics/matching-input-integrity';
 import { selectM003Capacity } from '@/features/matching/logics/matching-capacity';
-import type { MatchingScoreSummary } from '@/features/matching/logics/matching-io';
 import { formatFailureMessage } from '@/features/matching/presenters/matching-result-view';
 import { useAppContext } from '@/stores/AppContext';
 import { getMsg } from '@/messages/getMsg';
 import type { MatchingWorkerMessage } from '../matching.worker';
 
-// Worker探索の上限時間と、制約緩和へ切り替える経過時間。
-const MATCHING_SEARCH_TIME_LIMIT_MS = 30_000;
-const MATCHING_RELAXED_AFTER_MS = 10_000;
+// Workerが応答しない場合に画面操作を復帰させる上限時間。
+export const MATCHING_WORKER_TIME_LIMIT_MS = 30_000;
+
+/** 現在有効なWorkerだけを30秒後に停止し、時間切れとして通知する。 */
+export function scheduleMatchingWorkerDeadline(
+  isCurrentRequest: () => boolean,
+  terminateWorker: () => void,
+  reportTimeLimit: () => void,
+): ReturnType<typeof setTimeout> {
+  return setTimeout(() => {
+    if (!isCurrentRequest()) return;
+    terminateWorker();
+    reportTimeLimit();
+  }, MATCHING_WORKER_TIME_LIMIT_MS);
+}
 
 /** DBスナップショットの確認からWorkerの終了処理まで、1回のマッチング実行を管理する。 */
 export function useMatchingExecution() {
@@ -40,7 +51,8 @@ export function useMatchingExecution() {
     updateMatchingResult,
     isLotteryResultCurrent,
     sessionWorkflow,
-    matchingSettings,
+    matchingResultState: { scoreSummary, isLocked: isMatchingLocked },
+    hasSavedSessionResult,
     getSessionUiMutationGeneration,
     isCurrentSessionUiMutation,
   } = useAppContext();
@@ -50,24 +62,25 @@ export function useMatchingExecution() {
     totalTables,
     usersPerTable,
     castsPerRotation,
-    allowM003EmptySeats,
-    m003SameDaySlotCount,
+    reserveSameDaySlots,
+    sameDaySlotCount,
+    sameDaySlotUnit,
   } = sessionWorkflow;
 
   // 実行中の表示状態と、現在有効なWorker要求をまとめて管理する。
   const [isComputing, setIsComputing] = useState(false);
-  const [scoreSummary, setScoreSummary] = useState<MatchingScoreSummary | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const workerDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestGenerationRef = useRef(0);
+  const isRunningRef = useRef(false);
 
   // 入力指紋は非同期処理の各境界で最新値と照合する。
   const inputFingerprint = useMemo(() => getMatchingInputFingerprint({
     winners,
     casts,
     workflow: sessionWorkflow,
-    searchMode: matchingSettings.searchMode,
     isLotteryResultCurrent,
-  }), [casts, isLotteryResultCurrent, matchingSettings.searchMode, sessionWorkflow, winners]);
+  }), [casts, isLotteryResultCurrent, sessionWorkflow, winners]);
   const inputFingerprintRef = useRef(inputFingerprint);
   inputFingerprintRef.current = inputFingerprint;
 
@@ -78,25 +91,44 @@ export function useMatchingExecution() {
         totalWinners: winners.length,
         activeCastCount: casts.filter((cast) => cast.is_present).length,
         castsPerRotation,
-        includedSameDaySlotCount: allowM003EmptySeats ? m003SameDaySlotCount : 0,
+        reservedSameDaySlotCount: reserveSameDaySlots ? sameDaySlotCount : 0,
+        sameDaySlotUnit,
       })
     : null;
-  const effectiveTableCount = m003Capacity?.executionTableCount ?? totalTables;
+  const executionTableCount = m003Capacity?.executionTableCount ?? totalTables;
+  const m003LotterySeatCount = m003Capacity?.lotterySeatCount ?? null;
 
   const stopWorker = useCallback(() => {
+    if (workerDeadlineRef.current !== null) {
+      clearTimeout(workerDeadlineRef.current);
+      workerDeadlineRef.current = null;
+    }
     workerRef.current?.terminate();
     workerRef.current = null;
   }, []);
 
+  const clearMatchingResult = useCallback((error: string | null) => {
+    updateMatchingResult({
+      result: null,
+      tableSlots: undefined,
+      error,
+      isLocked: false,
+      scoreSummary: null,
+      isSaved: false,
+    });
+  }, [updateMatchingResult]);
+
   const cancelMatching = useCallback(() => {
     requestGenerationRef.current += 1;
     stopWorker();
+    isRunningRef.current = false;
     setIsComputing(false);
-    updateMatchingResult({ error: getMsg('MatchingPage.cancelled'), isLocked: false });
-  }, [stopWorker, updateMatchingResult]);
+    clearMatchingResult(getMsg('MatchingPage.cancelled'));
+  }, [clearMatchingResult, stopWorker]);
 
   useEffect(() => () => {
     requestGenerationRef.current += 1;
+    isRunningRef.current = false;
     stopWorker();
   }, [stopWorker]);
 
@@ -104,18 +136,37 @@ export function useMatchingExecution() {
     if (isLotteryResultCurrent) return;
     requestGenerationRef.current += 1;
     stopWorker();
+    isRunningRef.current = false;
     setIsComputing(false);
-  }, [isLotteryResultCurrent, stopWorker]);
+    clearMatchingResult(null);
+  }, [clearMatchingResult, isLotteryResultCurrent, stopWorker]);
 
   const runMatching = useCallback(async () => {
+    if (hasSavedSessionResult) {
+      updateMatchingResult({ error: getMsg('MatchingPage.savedMatchingReadOnly') });
+      return;
+    }
+    if (isMatchingLocked || isRunningRef.current) return;
     if (!isLotteryResultCurrent) {
-      updateMatchingResult({ error: getMsg('MatchingPage.staleLotteryResult') });
+      clearMatchingResult(getMsg('MatchingPage.staleLotteryResult'));
+      return;
+    }
+    if (
+      matchingTypeCode === 'M003'
+      && m003LotterySeatCount !== null
+      && winners.length > m003LotterySeatCount
+    ) {
+      clearMatchingResult(getMsg('lotteryValidation.insufficientGroupSeats', {
+        lotterySeatCount: m003LotterySeatCount,
+        totalWinners: winners.length,
+      }));
       return;
     }
 
     stopWorker();
+    isRunningRef.current = true;
     setIsComputing(true);
-    updateMatchingResult({ error: null });
+    clearMatchingResult(null);
     const requestGeneration = requestGenerationRef.current + 1;
     requestGenerationRef.current = requestGeneration;
     const sessionUiMutationGeneration = getSessionUiMutationGeneration();
@@ -124,13 +175,22 @@ export function useMatchingExecution() {
     let eventContext: ReturnType<typeof getRequiredEventContext>;
     let writeActivity: SessionWriteActivity | null = null;
 
-    const showRecoveryMessage = () => {
+    const stopCurrentRequest = () => {
+      if (requestGenerationRef.current !== requestGeneration) return;
+      isRunningRef.current = false;
       setIsComputing(false);
-      updateMatchingResult({ error: getMsg('MatchingPage.recoveryInProgress'), isLocked: false });
+    };
+    const failCurrentRequest = (message: string) => {
+      if (requestGenerationRef.current !== requestGeneration) return;
+      stopCurrentRequest();
+      clearMatchingResult(message);
+    };
+
+    const showRecoveryMessage = () => {
+      failCurrentRequest(getMsg('MatchingPage.recoveryInProgress'));
     };
     const showChangedInputMessage = (message: string) => {
-      setIsComputing(false);
-      updateMatchingResult({ error: message, isLocked: false });
+      failCurrentRequest(message);
     };
 
     try {
@@ -156,12 +216,13 @@ export function useMatchingExecution() {
           waitForSessionWritesToSettle(sessionContext),
         ]);
         if (
-          !isCurrentEventContext(eventContext)
+          requestGenerationRef.current !== requestGeneration
+          || !isCurrentEventContext(eventContext)
           || eventContext.eventName !== sessionContext.eventName
           || !isCurrentSessionContext(sessionContext)
           || !isCurrentSessionUiMutation(sessionUiMutationGeneration)
         ) {
-          setIsComputing(false);
+          stopCurrentRequest();
           return;
         }
         if (isEventRecoveryActive(eventContext) || isSessionRecoveryActive(sessionContext)) {
@@ -181,12 +242,13 @@ export function useMatchingExecution() {
           getAllCasts(),
         ]);
         if (
-          !isCurrentEventContext(eventContext)
+          requestGenerationRef.current !== requestGeneration
+          || !isCurrentEventContext(eventContext)
           || eventContext.eventName !== sessionContext.eventName
           || !isCurrentSessionContext(sessionContext)
           || !isCurrentSessionUiMutation(sessionUiMutationGeneration)
         ) {
-          setIsComputing(false);
+          stopCurrentRequest();
           return;
         }
         if (isEventRecoveryActive(eventContext) || isSessionRecoveryActive(sessionContext)) {
@@ -211,15 +273,22 @@ export function useMatchingExecution() {
         break;
       }
     } catch {
-      if (requestGenerationRef.current !== requestGeneration) return;
-      setIsComputing(false);
-      updateMatchingResult({ error: getMsg('MatchingPage.preflightFailed'), isLocked: false });
+      failCurrentRequest(getMsg('MatchingPage.preflightFailed'));
       return;
     }
-    if (writeActivity === null) return;
+    if (
+      writeActivity === null
+      || requestGenerationRef.current !== requestGeneration
+    ) return;
     const matchingWriteActivity = writeActivity;
 
-    const worker = new Worker(new URL('../matching.worker.ts', import.meta.url), { type: 'module' });
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL('../matching.worker.ts', import.meta.url), { type: 'module' });
+    } catch {
+      failCurrentRequest(getMsg('MatchingPage.unexpectedMatchingError'));
+      return;
+    }
     workerRef.current = worker;
 
     const hasExecutionContextChanged = () => (
@@ -241,31 +310,30 @@ export function useMatchingExecution() {
       }
       const message = event.data;
       stopWorker();
+      isRunningRef.current = false;
       setIsComputing(false);
 
       if (message.type === 'error') {
-        updateMatchingResult({
-          result: null,
-          tableSlots: undefined,
-          error: getMsg('MatchingPage.unexpectedMatchingError'),
-          isLocked: false,
-        });
-        setScoreSummary(null);
+        clearMatchingResult(getMsg('MatchingPage.unexpectedMatchingError'));
         return;
       }
       const result = message.result;
       if (result.ngConflict) {
-        updateMatchingResult({
-          result: null,
-          tableSlots: undefined,
-          error: formatFailureMessage(result.failureReason),
-          isLocked: false,
-        });
-        setScoreSummary(null);
+        clearMatchingResult(formatFailureMessage(result.failureReason));
         return;
       }
-      updateMatchingResult({ result: result.userMap, tableSlots: result.tableSlots, error: null, isLocked: true });
-      setScoreSummary(result.scoreSummary ?? null);
+      if (!result.tableSlots || !result.scoreSummary) {
+        clearMatchingResult(getMsg('MatchingPage.unexpectedMatchingError'));
+        return;
+      }
+      updateMatchingResult({
+        result: result.userMap,
+        tableSlots: result.tableSlots,
+        error: null,
+        isLocked: true,
+        scoreSummary: result.scoreSummary,
+        isSaved: false,
+      });
     };
 
     worker.onerror = () => {
@@ -276,40 +344,46 @@ export function useMatchingExecution() {
         return;
       }
       stopWorker();
-      setIsComputing(false);
-      updateMatchingResult({
-        result: null,
-        tableSlots: undefined,
-        error: getMsg('MatchingPage.unexpectedMatchingError'),
-        isLocked: false,
-      });
-      setScoreSummary(null);
+      failCurrentRequest(getMsg('MatchingPage.unexpectedMatchingError'));
     };
 
-    worker.postMessage({
-      winners,
-      casts,
-      matchingTypeCode,
-      options: {
-        rotationCount,
-        totalTables: matchingTypeCode === 'M003' ? effectiveTableCount : totalTables,
-        usersPerTable: matchingTypeCode === 'M003' ? usersPerTable : undefined,
-        castsPerRotation: matchingTypeCode === 'M003' ? castsPerRotation : undefined,
-        searchTimeLimitMs: MATCHING_SEARCH_TIME_LIMIT_MS,
-        relaxedAfterMs: MATCHING_RELAXED_AFTER_MS,
-        searchMode: matchingSettings.searchMode,
-      },
-    });
+    // Workerが応答しない場合にも操作を復帰できるよう、画面側で実行時間を制限する。
+    workerDeadlineRef.current = scheduleMatchingWorkerDeadline(
+      () => workerRef.current === worker && requestGenerationRef.current === requestGeneration,
+      stopWorker,
+      () => failCurrentRequest(formatFailureMessage('time-limit')),
+    );
+
+    try {
+      worker.postMessage({
+        winners,
+        casts,
+        matchingTypeCode,
+        options: {
+          rotationCount,
+          totalTables: matchingTypeCode === 'M003' ? executionTableCount : totalTables,
+          usersPerTable: matchingTypeCode === 'M003' ? usersPerTable : undefined,
+          castsPerRotation: matchingTypeCode === 'M003' ? castsPerRotation : undefined,
+        },
+      });
+    } catch {
+      if (workerRef.current !== worker || requestGenerationRef.current !== requestGeneration) return;
+      stopWorker();
+      failCurrentRequest(getMsg('MatchingPage.unexpectedMatchingError'));
+    }
   }, [
     casts,
     castsPerRotation,
-    effectiveTableCount,
+    clearMatchingResult,
+    executionTableCount,
     getSessionUiMutationGeneration,
+    hasSavedSessionResult,
     inputFingerprint,
     isCurrentSessionUiMutation,
+    isMatchingLocked,
     isLotteryResultCurrent,
-    matchingSettings.searchMode,
     matchingTypeCode,
+    m003LotterySeatCount,
     rotationCount,
     sessionWorkflow,
     stopWorker,

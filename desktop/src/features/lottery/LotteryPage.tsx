@@ -1,8 +1,7 @@
 // 抽選条件の編集と当選結果の抽選・保存・復元を行う画面を提供します。
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionWorkflowState } from '@/common/types/sessionWorkflow';
-import type { AppSelectOption } from '@/components/AppSelect';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getCautionNGCastNames } from '@/features/matching/logics/caution-user';
 import { GuaranteedWinnerDialog } from './components/GuaranteedWinnerDialog';
@@ -17,10 +16,8 @@ import {
 import { useAppContext } from '@/stores/AppContext';
 import {
   getLotteryResults,
-  listSavedLotteryRuns,
   replaceLotteryResults,
-  saveLotteryRun,
-  type SavedLotteryRunRow,
+  saveLotteryResult,
 } from '@/db/repositories/lotteryRepository';
 import {
   loadApplicants,
@@ -43,10 +40,13 @@ import {
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 
-export const LotteryPage: React.FC = () => {
+interface LotteryPageProps {
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   // セッション共有の応募者・条件・結果と、永続化世代の制御APIを取得する。
   const {
-    setActivePage,
     applicants,
     setApplicants,
     casts,
@@ -59,16 +59,14 @@ export const LotteryPage: React.FC = () => {
     updateSessionWorkflow,
     hydrateSessionWorkflow,
     currentSessionTimestamp,
-    focusedSavedLotteryRunTarget,
-    clearFocusedSavedLotteryRunTarget,
-    isSavedLotterySessionReadOnly,
-    activateSavedLotteryRun,
-    markCurrentSessionReadOnlyAfterLotterySave,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
+    markCurrentSessionResultSaved,
     beginSessionUiMutation,
     getSessionUiMutationGeneration,
     isCurrentSessionUiMutation,
   } = useAppContext();
-  const isSavedLotteryReadOnly = isSavedLotterySessionReadOnly;
+  const isLotteryReadOnly = isLotteryInputReadOnly || hasSavedSessionResult;
   const {
     matchingTypeCode,
     lotteryCount,
@@ -76,120 +74,59 @@ export const LotteryPage: React.FC = () => {
     totalTables,
     usersPerTable,
     castsPerRotation,
-    allowM003EmptySeats,
-    m003SameDaySlotCount,
+    reserveSameDaySlots,
+    sameDaySlotCount,
+    sameDaySlotUnit,
   } = sessionWorkflow;
 
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
 
-  // 確定当選者選択、上書き確認、保存済み結果、通知の画面状態を保持する。
+  // 確定当選者選択、上書き確認、明示保存、通知の画面状態を保持する。
   const [showGuaranteedSelect, setShowGuaranteedSelect] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
-  const [savedRuns, setSavedRuns] = useState<SavedLotteryRunRow[]>([]);
-  const [selectedSavedRunId, setSelectedSavedRunId] = useState('');
-  const [savingLotteryRun, setSavingLotteryRun] = useState(false);
+  const [savingLotteryResult, setSavingLotteryResult] = useState(false);
+  const savingLotteryResultRef = useRef(false);
+  const currentWinnersRef = useRef(currentWinners);
+  currentWinnersRef.current = currentWinners;
   const [lotteryMessage, setLotteryMessage] = useState<string | null>(null);
-  const savedRunsLoadGenerationRef = useRef(0);
-  const appliedFocusedSavedRunRef = useRef('');
   const guaranteedWinners = useMemo(
     () => applicants.filter((applicant) => applicant.is_guaranteed),
     [applicants],
   );
 
-  // 保存済み結果はセッション書込が静止した時点だけ採用し、古い読込結果を破棄する。
-  const refreshSavedRuns = useCallback(async () => {
-    const generation = savedRunsLoadGenerationRef.current + 1;
-    savedRunsLoadGenerationRef.current = generation;
-    if (!currentSessionTimestamp) {
-      setSavedRuns([]);
-      setSelectedSavedRunId('');
-      return;
-    }
-    const context = getRequiredSessionContext();
-    try {
-      while (
-        savedRunsLoadGenerationRef.current === generation
-        && isCurrentSessionContext(context)
-      ) {
-        await Promise.all([
-          waitForEventWritesToSettle(context),
-          waitForSessionWritesToSettle(context),
-        ]);
-        if (
-          savedRunsLoadGenerationRef.current !== generation
-          || !isCurrentSessionContext(context)
-        ) return;
-        const writeActivity = captureSessionWriteActivity(context);
-        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
-        const runs = await listSavedLotteryRuns();
-        if (
-          savedRunsLoadGenerationRef.current !== generation
-          || !isCurrentSessionContext(context)
-        ) return;
-        if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
-        setSavedRuns(runs);
-        setSelectedSavedRunId((current) => {
-          if (!current) return '';
-          return runs.some((run) => String(run.id) === current) ? current : '';
-        });
-        return;
-      }
-    } catch {
-      // 初期読込に失敗した場合は、保存済み結果一覧を空のまま保持する。
-    }
+  useEffect(() => {
+    savingLotteryResultRef.current = false;
+    setSavingLotteryResult(false);
+    setShowGuaranteedSelect(false);
+    setConfirmReplace(false);
   }, [currentSessionTimestamp]);
 
   useEffect(() => {
-    setSavingLotteryRun(false);
-    setShowGuaranteedSelect(false);
-    setConfirmReplace(false);
-    void refreshSavedRuns();
-    return () => {
-      savedRunsLoadGenerationRef.current += 1;
-    };
-  }, [refreshSavedRuns]);
+    onBusyChange?.(savingLotteryResult);
+  }, [onBusyChange, savingLotteryResult]);
 
-  // 応募データ画面から開いた結果は、所有セッションの一覧読込後に一度だけ選択表示へ合わせる。
-  useEffect(() => {
-    if (
-      focusedSavedLotteryRunTarget === null
-      || focusedSavedLotteryRunTarget.sessionTimestamp !== currentSessionTimestamp
-    ) return;
-    const focusedKey = `${focusedSavedLotteryRunTarget.sessionTimestamp}:${focusedSavedLotteryRunTarget.runId}`;
-    if (appliedFocusedSavedRunRef.current === focusedKey) return;
-    if (!savedRuns.some((run) => run.id === focusedSavedLotteryRunTarget.runId)) return;
-    appliedFocusedSavedRunRef.current = focusedKey;
-    setSelectedSavedRunId(String(focusedSavedLotteryRunTarget.runId));
-    clearFocusedSavedLotteryRunTarget();
-  }, [clearFocusedSavedLotteryRunTarget, currentSessionTimestamp, focusedSavedLotteryRunTarget, savedRuns]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
-  // 抽選人数、保存済み選択肢、条件検証を現在のworkflowから導出する。
+  // 抽選人数と条件検証を現在のworkflowから導出する。
   const guaranteedCount = guaranteedWinners.length;
+  const availableLotteryCandidateCount = Math.max(0, applicants.length - guaranteedCount);
   const totalWinners = lotteryCount + guaranteedCount;
-  const savedRunOptions: AppSelectOption[] = useMemo(
-    () => savedRuns.map((run) => ({
-      value: String(run.id),
-      label: getMsg('LotteryPage.savedRunOption', {
-        label: run.label,
-        winnerCount: run.winner_count,
-        createdAt: run.created_at,
-      }),
-    })),
-    [savedRuns],
-  );
   const validation = validateLotteryConditions({
     matchingTypeCode,
     totalWinners,
     lotteryCount,
     guaranteedCount,
+    availableLotteryCandidateCount,
+    rotationCount,
     totalTables,
     activeCastCount,
     castsPerRotation,
     usersPerTable,
-    allowM003EmptySeats,
-    sameDaySlotCount: m003SameDaySlotCount,
+    reserveSameDaySlots,
+    sameDaySlotCount,
+    sameDaySlotUnit,
   });
-  const isLotteryOnlyMode = matchingTypeCode === 'M000';
+  const isLotteryExecutionReadOnly = isLotteryReadOnly;
 
   // 条件または確定当選者の変更時は、現在の抽選結果と後続マッチングを無効化する。
   const invalidateInMemoryResult = () => {
@@ -235,8 +172,9 @@ export const LotteryPage: React.FC = () => {
 
   // workflowは画面へ即時反映し、保存失敗時だけ永続状態へ戻す。
   const commitWorkflowUpdate = (patch: Partial<SessionWorkflowState>) => {
-    if (isSavedLotteryReadOnly) {
-      setLotteryMessage(getMsg('LotteryPage.savedLotteryReadOnly'));
+    if (savingLotteryResultRef.current) return;
+    if (isLotteryReadOnly) {
+      setLotteryMessage(getMsg('LotteryPage.savedResultReadOnly'));
       return;
     }
     const context = getRequiredSessionContext();
@@ -265,13 +203,12 @@ export const LotteryPage: React.FC = () => {
     });
   };
 
-  // M003の当日枠を有効化する際は、最低1枠を同時に設定する。
-  const handleAllowM003EmptySeatsToggle = () => {
-    const next = !allowM003EmptySeats;
+  // 当日枠を有効化する際は、最低1枠を同時に設定する。
+  const handleReserveSameDaySlotsToggle = () => {
+    const next = !reserveSameDaySlots;
     commitWorkflowUpdate({
-      allowM003EmptySeats: next,
-      m003SameDaySlotCount:
-        next && m003SameDaySlotCount < 1 ? 1 : m003SameDaySlotCount,
+      reserveSameDaySlots: next,
+      sameDaySlotCount: next && sameDaySlotCount < 1 ? 1 : sameDaySlotCount,
     });
   };
 
@@ -282,13 +219,23 @@ export const LotteryPage: React.FC = () => {
   );
   // 抽選の純粋処理結果を先行表示し、対応する条件revisionと一緒に永続化する。
   const runLottery = async () => {
-    if (!currentSessionTimestamp || isSavedLotteryReadOnly) return;
+    // warningは運営判断のため表示だけ行い、errorがない限り抽選を許可する。
+    if (
+      !currentSessionTimestamp
+      || isLotteryExecutionReadOnly
+      || savingLotteryResultRef.current
+      || validation.errors.length > 0
+    ) return;
     const context = getRequiredSessionContext();
     if (isSessionRecoveryActive(context)) {
       setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
       return;
     }
     const nextWinners = drawLotteryWinners(applicants, guaranteedWinners, lotteryCount);
+    if (nextWinners.length !== totalWinners) {
+      setLotteryMessage(getMsg('LotteryPage.insufficientCandidates'));
+      return;
+    }
     const generation = beginSessionUiMutation();
     setCurrentWinners(nextWinners);
     // 新しい当選者を先に表示しても、DBへの全置換が終わるまでは保存・マッチング対象にしない。
@@ -353,67 +300,63 @@ export const LotteryPage: React.FC = () => {
   );
   const ngWinnerCount = resultRows.filter((row) => row.ngCastNames.length > 0).length;
   const hasStaleLotteryResult = currentWinners.length > 0 && !isLotteryResultCurrent;
-  const canProceedToMatching = !isLotteryOnlyMode && resultRows.length > 0 && isLotteryResultCurrent && validation.errors.length === 0;
 
-  // 現行抽選結果を履歴として保存し、選択肢を再取得する。
-  const handleSaveLotteryRun = async () => {
-    if (isSavedLotteryReadOnly || currentWinners.length === 0 || savingLotteryRun || !isLotteryResultCurrent) return;
+  // 現行抽選結果を、作業セッションから独立したイベント共有結果として保存する。
+  const handleSaveLotteryResult = async () => {
+    if (
+      isLotteryExecutionReadOnly
+      || currentWinners.length === 0
+      || savingLotteryResultRef.current
+      || !isLotteryResultCurrent
+    ) return;
     const context = getRequiredSessionContext();
     if (isSessionRecoveryActive(context)) {
       setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
       return;
     }
-    setSavingLotteryRun(true);
+    const saveGeneration = getSessionUiMutationGeneration();
+    const winnersBeingSaved = currentWinners;
+    savingLotteryResultRef.current = true;
+    setSavingLotteryResult(true);
+    setShowGuaranteedSelect(false);
+    setConfirmReplace(false);
     try {
       await flushSessionWorkflowWrites(context);
+      await waitForSessionWritesToSettle(context);
       if (!isCurrentSessionContext(context)) return;
-      const runId = await saveLotteryRun(formatSavedLotteryLabel(currentWinners.length), context);
+      if (
+        !isCurrentSessionUiMutation(saveGeneration)
+        || currentWinnersRef.current !== winnersBeingSaved
+      ) {
+        setLotteryMessage(getMsg('LotteryPage.changedBeforeSave'));
+        return;
+      }
+      await saveLotteryResult(formatSavedLotteryLabel(winnersBeingSaved.length), context);
       if (!isCurrentSessionContext(context)) return;
-      markCurrentSessionReadOnlyAfterLotterySave();
-      setSelectedSavedRunId(String(runId));
-      await refreshSavedRuns();
-      if (!isCurrentSessionContext(context)) return;
-      setLotteryMessage(getMsg('LotteryPage.savedSuccessfully'));
+      markCurrentSessionResultSaved();
+      if (
+        isCurrentSessionUiMutation(saveGeneration)
+        && currentWinnersRef.current === winnersBeingSaved
+      ) {
+        setLotteryMessage(getMsg('LotteryPage.savedSuccessfully'));
+      } else {
+        setLotteryMessage(getMsg('LotteryPage.savedAfterViewChanged'));
+      }
     } catch {
       if (isCurrentSessionContext(context)) {
         setLotteryMessage(getMsg('LotteryPage.saveFailed'));
       }
     } finally {
+      savingLotteryResultRef.current = false;
       if (isCurrentSessionContext(context)) {
-        setSavingLotteryRun(false);
-      }
-    }
-  };
-
-  // 保存済み結果の復元と画面再読込を、ライフサイクル切替の単一処理へ委ねる。
-  const handleLoadSavedLotteryRun = async () => {
-    const runId = Number(selectedSavedRunId);
-    if (!Number.isFinite(runId) || runId <= 0) return;
-    const selected = savedRuns.find((run) => run.id === runId);
-    if (!selected) return;
-    const context = getRequiredSessionContext();
-    if (isSessionRecoveryActive(context)) {
-      setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
-      return;
-    }
-    try {
-      await flushSessionWorkflowWrites(context);
-      if (!isCurrentSessionContext(context)) return;
-      await activateSavedLotteryRun({
-        sessionTimestamp: context.timestamp,
-        runId,
-      });
-      setLotteryMessage(getMsg('LotteryPage.savedRunOpened', { label: selected.label }));
-    } catch {
-      if (isCurrentSessionContext(context)) {
-        setLotteryMessage(getMsg('LotteryPage.openSavedRunFailedRestored'));
+        setSavingLotteryResult(false);
       }
     }
   };
 
   // 確定当選者を先行反映し、保存失敗時はセッション全体を復元する。
   const handleGuaranteedToggle = async (xId: string) => {
-    if (isSavedLotteryReadOnly) return;
+    if (isLotteryReadOnly || savingLotteryResultRef.current) return;
     const context = getRequiredSessionContext();
     if (isSessionRecoveryActive(context)) {
       setLotteryMessage(getMsg('LotteryPage.recoveryInProgress'));
@@ -458,11 +401,15 @@ export const LotteryPage: React.FC = () => {
   const handleTotalTablesChange = (value: number) => commitWorkflowUpdate({ totalTables: value });
   const handleUsersPerTableChange = (value: number) => commitWorkflowUpdate({ usersPerTable: value });
   const handleCastsPerRotationChange = (value: number) => commitWorkflowUpdate({ castsPerRotation: value });
-  const handleSameDaySlotCountChange = (value: number) => commitWorkflowUpdate({ m003SameDaySlotCount: value });
+  const handleSameDaySlotCountChange = (value: number) => commitWorkflowUpdate({ sameDaySlotCount: value });
+  const handleSameDaySlotUnitChange = (value: SessionWorkflowState['sameDaySlotUnit']) => {
+    commitWorkflowUpdate({ sameDaySlotUnit: value });
+  };
   const handleMatchingTypeChange = (code: SessionWorkflowState['matchingTypeCode']) => {
     commitWorkflowUpdate({ matchingTypeCode: code });
   };
   const handleOpenGuaranteedSelect = () => {
+    if (savingLotteryResultRef.current) return;
     setShowGuaranteedSelect(true);
   };
 
@@ -471,7 +418,7 @@ export const LotteryPage: React.FC = () => {
   };
 
   const handleRunLotteryClick = () => {
-    if (isSavedLotteryReadOnly) return;
+    if (isLotteryExecutionReadOnly || savingLotteryResultRef.current) return;
     if (currentWinners.length > 0) {
       setConfirmReplace(true);
       return;
@@ -479,16 +426,8 @@ export const LotteryPage: React.FC = () => {
     void runLottery();
   };
 
-  const handleLoadSavedLotteryRunClick = () => {
-    void handleLoadSavedLotteryRun();
-  };
-
-  const handleSaveLotteryRunClick = () => {
-    void handleSaveLotteryRun();
-  };
-
-  const handleNavigateToMatching = () => {
-    setActivePage('matching');
+  const handleSaveLotteryResultClick = () => {
+    void handleSaveLotteryResult();
   };
 
   const handleConfirmReplace = () => {
@@ -519,10 +458,12 @@ export const LotteryPage: React.FC = () => {
         totalTables={totalTables}
         usersPerTable={usersPerTable}
         castsPerRotation={castsPerRotation}
-        allowM003EmptySeats={allowM003EmptySeats}
-        m003SameDaySlotCount={m003SameDaySlotCount}
+        reserveSameDaySlots={reserveSameDaySlots}
+        sameDaySlotCount={sameDaySlotCount}
+        sameDaySlotUnit={sameDaySlotUnit}
         validation={validation}
-        readOnly={isSavedLotteryReadOnly}
+        readOnly={isLotteryReadOnly || savingLotteryResult}
+        runDisabled={isLotteryExecutionReadOnly || savingLotteryResult}
         onLotteryCountChange={handleLotteryCountChange}
         onOpenGuaranteedSelect={handleOpenGuaranteedSelect}
         onMatchingTypeChange={handleMatchingTypeChange}
@@ -530,26 +471,19 @@ export const LotteryPage: React.FC = () => {
         onTotalTablesChange={handleTotalTablesChange}
         onUsersPerTableChange={handleUsersPerTableChange}
         onCastsPerRotationChange={handleCastsPerRotationChange}
-        onAllowM003EmptySeatsToggle={handleAllowM003EmptySeatsToggle}
+        onReserveSameDaySlotsToggle={handleReserveSameDaySlotsToggle}
         onSameDaySlotCountChange={handleSameDaySlotCountChange}
+        onSameDaySlotUnitChange={handleSameDaySlotUnitChange}
         onRunLottery={handleRunLotteryClick}
       />
 
       <LotteryResultPanel
         resultRows={resultRows}
         ngWinnerCount={ngWinnerCount}
-        selectedSavedRunId={selectedSavedRunId}
-        onSelectedSavedRunIdChange={setSelectedSavedRunId}
-        savedRunOptions={savedRunOptions}
-        hasSavedRuns={savedRuns.length > 0}
-        savingLotteryRun={savingLotteryRun}
+        savingLotteryResult={savingLotteryResult}
         hasStaleLotteryResult={hasStaleLotteryResult}
-        readOnly={isSavedLotteryReadOnly}
-        isLotteryOnlyMode={isLotteryOnlyMode}
-        canProceedToMatching={canProceedToMatching}
-        onLoadSavedLotteryRun={handleLoadSavedLotteryRunClick}
-        onSaveLotteryRun={handleSaveLotteryRunClick}
-        onNavigateToMatching={handleNavigateToMatching}
+        readOnly={isLotteryExecutionReadOnly}
+        onSaveLotteryResult={handleSaveLotteryResultClick}
       />
 
       {showGuaranteedSelect && (

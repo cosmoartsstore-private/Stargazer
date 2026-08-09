@@ -56,7 +56,7 @@ describe('mapRowToUserBeanWithMapping', () => {
     expect(user.casts).toEqual(['Cast A, Cast B, Cast A, ,Cast C', '', '']);
   });
 
-  it('複数指定形式では単一列を最大20件の順不同希望に変換する', () => {
+  it('複数指定形式では単一列の順不同希望をすべて変換する', () => {
     const castNames = Array.from({ length: 25 }, (_, index) => `Cast ${index + 1}`).join(',');
     const user = mapRowToUserBeanWithMapping(
       ['Alice', '@alice', castNames],
@@ -72,8 +72,35 @@ describe('mapRowToUserBeanWithMapping', () => {
     );
 
     expect(user.preference_mode).toBe('flat');
-    expect(user.casts).toHaveLength(20);
-    expect(user.casts[19]).toBe('Cast 20');
+    expect(user.casts).toHaveLength(25);
+    expect(user.casts[24]).toBe('Cast 25');
+  });
+
+  it('順位なし希望は件数を制限せず、同じ名称の重複だけを先頭の1件へまとめる', () => {
+    const castNames = [
+      'Cast A',
+      'Cast B',
+      'Cast A',
+      ...Array.from({ length: 23 }, (_, index) => `Cast ${index + 1}`),
+      'Cast B',
+    ].join(',');
+    const user = mapRowToUserBeanWithMapping(
+      ['Alice', '@alice', castNames],
+      {
+        name: 0,
+        x_id: 1,
+        vrc_url: -1,
+        cast1: 2,
+        cast2: -1,
+        cast3: -1,
+        castInputType: 'multiple',
+      },
+    );
+
+    expect(user.casts).toHaveLength(25);
+    expect(user.casts.slice(0, 3)).toEqual(['Cast A', 'Cast B', 'Cast 1']);
+    expect(user.casts.filter((name) => name === 'Cast A')).toHaveLength(1);
+    expect(user.casts.filter((name) => name === 'Cast B')).toHaveLength(1);
   });
 });
 

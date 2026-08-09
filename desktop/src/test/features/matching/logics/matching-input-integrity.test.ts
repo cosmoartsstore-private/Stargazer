@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CastBean, UserBean } from '@/common/types/entities';
 import type { SessionWorkflowState } from '@/common/types/sessionWorkflow';
 import {
+  getMatchingCastConstraintFingerprint,
   getMatchingCastFingerprint,
   getMatchingInputFingerprint,
   isSameLotteryResult,
@@ -16,8 +17,9 @@ const workflow: SessionWorkflowState = {
   totalTables: 2,
   usersPerTable: 2,
   castsPerRotation: 2,
-  allowM003EmptySeats: true,
-  m003SameDaySlotCount: 1,
+  reserveSameDaySlots: true,
+  sameDaySlotCount: 1,
+  sameDaySlotUnit: 'table',
 };
 
 function winner(overrides: Partial<UserBean> = {}): UserBean {
@@ -49,7 +51,6 @@ function snapshot(overrides: Partial<MatchingInputSnapshot> = {}): MatchingInput
     winners: [winner()],
     casts: [cast()],
     workflow,
-    searchMode: 'quality',
     isLotteryResultCurrent: true,
     ...overrides,
   };
@@ -74,13 +75,12 @@ describe('getMatchingCastFingerprint', () => {
     ['安定ID', [cast({ id: 11 })]],
     ['名前', [cast({ name: 'キャストB' })]],
     ['出勤状態', [cast({ is_present: false })]],
-    ['NGユーザー名', [cast({ ng_entries: [{ username: '応募者B', accountId: '@applicant_a' }] })]],
     ['NGアカウントID', [cast({ ng_entries: [{ username: '応募者A', accountId: '@applicant_b' }] })]],
   ])('%sが異なるキャスト一覧を別の指紋にする', (_label, changedCasts) => {
     expect(getMatchingCastFingerprint(changedCasts)).not.toBe(getMatchingCastFingerprint([cast()]));
   });
 
-  it('キャストとNG項目の並び順を実行条件として区別する', () => {
+  it('キャスト順を区別し、NG項目は正規化した集合として扱う', () => {
     const castA = cast({
       ng_entries: [
         { username: '応募者A', accountId: '@applicant_a' },
@@ -92,9 +92,13 @@ describe('getMatchingCastFingerprint', () => {
     expect(getMatchingCastFingerprint([castA, castB])).not.toBe(
       getMatchingCastFingerprint([castB, castA]),
     );
-    expect(getMatchingCastFingerprint([castA])).not.toBe(getMatchingCastFingerprint([{
+    expect(getMatchingCastFingerprint([castA])).toBe(getMatchingCastFingerprint([{
       ...castA,
-      ng_entries: [...(castA.ng_entries ?? [])].reverse(),
+      ng_entries: [
+        { username: '表示名変更', accountId: ' APPLICANT_B ' },
+        { username: '応募者A', accountId: 'applicant_a' },
+        { username: '重複', accountId: '@applicant_a' },
+      ],
     }]));
   });
 
@@ -103,6 +107,36 @@ describe('getMatchingCastFingerprint', () => {
     expect(getMatchingCastFingerprint([cast({ ng_entries: undefined })])).toBe(
       getMatchingCastFingerprint([cast({ ng_entries: [] })]),
     );
+  });
+});
+
+describe('getMatchingCastConstraintFingerprint', () => {
+  it('キャスト順と表示名を無視し、出席IDとNG条件だけを比較する', () => {
+    const castA = cast({ id: 10, name: '変更前' });
+    const castB = cast({
+      id: 20,
+      name: 'キャストB',
+      ng_entries: [{ accountId: '@applicant_b' }],
+    });
+
+    expect(getMatchingCastConstraintFingerprint([castA, castB])).toBe(
+      getMatchingCastConstraintFingerprint([
+        { ...castB, name: '表示名変更' },
+        { ...castA, name: '改名後' },
+      ]),
+    );
+  });
+
+  it('欠席キャストを除外し、出席IDまたはNG条件の変更を検出する', () => {
+    const baseline = getMatchingCastConstraintFingerprint([cast()]);
+
+    expect(getMatchingCastConstraintFingerprint([
+      cast(), cast({ id: 20, is_present: false }),
+    ])).toBe(baseline);
+    expect(getMatchingCastConstraintFingerprint([cast({ id: 11 })])).not.toBe(baseline);
+    expect(getMatchingCastConstraintFingerprint([
+      cast({ ng_entries: [{ accountId: '@different' }] }),
+    ])).not.toBe(baseline);
   });
 });
 
@@ -133,12 +167,11 @@ describe('getMatchingInputFingerprint', () => {
     );
   });
 
-  it('キャスト、ワークフロー、探索モード、抽選結果の有効状態を入力へ含める', () => {
+  it('キャスト、ワークフロー、抽選結果の有効状態を入力へ含める', () => {
     const baseline = getMatchingInputFingerprint(snapshot());
     const changedSnapshots = [
       snapshot({ casts: [cast({ is_present: false })] }),
       snapshot({ workflow: { ...workflow, rotationCount: workflow.rotationCount + 1 } }),
-      snapshot({ searchMode: 'efficiency' }),
       snapshot({ isLotteryResultCurrent: false }),
     ];
 
@@ -189,8 +222,9 @@ describe('isSameWorkflowState', () => {
     ['totalTables', 3],
     ['usersPerTable', 3],
     ['castsPerRotation', 3],
-    ['allowM003EmptySeats', false],
-    ['m003SameDaySlotCount', 2],
+    ['reserveSameDaySlots', false],
+    ['sameDaySlotCount', 2],
+    ['sameDaySlotUnit', 'person'],
   ] as const)('%sの不一致を検出する', (key, changedValue) => {
     const actual = { ...workflow, [key]: changedValue } as SessionWorkflowState;
 
@@ -202,8 +236,9 @@ describe('isSameWorkflowState', () => {
       ...workflow,
       lotteryCount: 0,
       totalTables: 0,
-      allowM003EmptySeats: false,
-      m003SameDaySlotCount: 0,
+      reserveSameDaySlots: false,
+      sameDaySlotCount: 0,
+      sameDaySlotUnit: 'person',
     };
 
     expect(isSameWorkflowState({ ...zeroState }, zeroState)).toBe(true);

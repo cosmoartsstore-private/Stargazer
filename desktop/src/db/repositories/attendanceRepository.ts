@@ -12,7 +12,11 @@ interface CastAttendanceRow {
   attendance_count: number;
 }
 
-/** 現在イベントの日付・キャスト別出席履歴を、新しい日付順で返す。 */
+interface AttendanceRecordDateRow {
+  recorded_at: string;
+}
+
+/** 履歴の表示名は記録時名称を複製せず、現在のキャスト名へ追随させる。 */
 export async function getCastAttendanceHistory(): Promise<CastAttendanceRecord[]> {
   const db = getSharedDb();
   const rows = await db.select<CastAttendanceRow[]>(
@@ -31,6 +35,17 @@ export async function getCastAttendanceHistory(): Promise<CastAttendanceRecord[]
   }));
 }
 
+/** 出席者が0人の日を含む、保存済みの記録日を新しい順で返す。 */
+export async function getCastAttendanceRecordDates(): Promise<string[]> {
+  const db = getSharedDb();
+  const rows = await db.select<AttendanceRecordDateRow[]>(
+    `SELECT recorded_at
+     FROM attendance_record_dates
+     ORDER BY recorded_at DESC`,
+  );
+  return rows.map((row) => row.recorded_at);
+}
+
 /** 出席記録を保存。同日付の既存レコードのみ削除して再挿入。recordedAt は "YYYY-MM-DD" 形式 */
 export async function recordCastAttendance(
   presentCastIds: number[],
@@ -44,11 +59,13 @@ export async function recordCastAttendance(
   }));
 }
 
-/** 指定日付のキャスト出席記録が存在するか */
+/** 指定日付の出席記録が存在するか。出席者0人の記録も対象にする。 */
 export async function hasCastAttendanceForDate(date: string): Promise<boolean> {
   const db = getSharedDb();
   const rows = await db.select<[{ n: number }]>(
-    `SELECT COUNT(*) AS n FROM cast_attendance WHERE DATE(recorded_at) = DATE(?)`,
+    `SELECT EXISTS(
+       SELECT 1 FROM attendance_record_dates WHERE recorded_at = ?
+     ) AS n`,
     [date],
   );
   return (rows[0]?.n ?? 0) > 0;

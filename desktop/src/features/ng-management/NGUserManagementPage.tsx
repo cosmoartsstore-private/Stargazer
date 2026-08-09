@@ -1,6 +1,13 @@
 // キャスト別NGと要注意人物の二つの管理ワークフローを切り替えるページ。
 
-import { useState, type FC, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useState,
+  type FC,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
+import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
 import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getMsg } from '@/messages/getMsg';
@@ -11,6 +18,7 @@ import { CautionUserPanel } from './components/CautionUserPanel';
 import { useCastNgManagement } from './hooks/useCastNgManagement';
 import { useCautionUserManagement } from './hooks/useCautionUserManagement';
 import { useProfileLinkConfirmation } from './hooks/useProfileLinkConfirmation';
+import { useUnsavedNotesGuard } from './hooks/useUnsavedNotesGuard';
 import styles from './NGUserManagementPage.module.css';
 
 export {
@@ -22,6 +30,7 @@ export type NgManagementTab = 'cast-ng' | 'caution';
 
 interface NGUserManagementPageProps {
   initialTab?: NgManagementTab;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** 選択中のタブだけへ強調classを加える。 */
@@ -32,9 +41,13 @@ function getNgSubTabClassName(isActive: boolean): string {
   ].filter(Boolean).join(' ');
 }
 
-export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab = 'cast-ng' }) => {
+export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({
+  initialTab = 'cast-ng',
+  onBusyChange,
+}) => {
   // ページ全体で共有するタブ選択と、操作結果を通知するalert。
   const [ngTab, setNgTab] = useState<NgManagementTab>(initialTab);
+  const [pendingFocusTab, setPendingFocusTab] = useState<NgManagementTab | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // 両ワークフローが参照するイベント共有データとContext更新契約。
@@ -61,17 +74,47 @@ export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab
     showAlert: setAlertMessage,
   });
   const profileLink = useProfileLinkConfirmation({ showAlert: setAlertMessage });
+  const unsavedNotes = useUnsavedNotesGuard();
+  const isBusy = castNg.state.isSaving
+    || cautionUsers.state.isSaving
+    || cautionUsers.state.isSavingThreshold;
+
+  useEffect(() => {
+    onBusyChange?.(isBusy);
+  }, [isBusy, onBusyChange]);
+
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+
+  useEffect(() => {
+    if (pendingFocusTab === null || isBusy || ngTab !== pendingFocusTab) return;
+    document.getElementById(`ng-management-tab-${pendingFocusTab}`)?.focus();
+    setPendingFocusTab(null);
+  }, [isBusy, ngTab, pendingFocusTab]);
 
   // JSXから呼ぶページ単位のタブ・ダイアログ操作。
+  async function selectNgTab(nextTab: NgManagementTab): Promise<boolean> {
+    if (nextTab === ngTab) return true;
+    if (isBusy || !await flushPendingPageCommits()) return false;
+    setNgTab(nextTab);
+    setPendingFocusTab(nextTab);
+    return true;
+  }
+
+  // 閾値入力のblurでタブが先に無効化され、続くclickが失われることを防ぐ。
+  function handleTabMouseDown(event: MouseEvent<HTMLButtonElement>): void {
+    if (!isBusy) event.preventDefault();
+  }
+
   function handleCastNgTabClick(): void {
-    setNgTab('cast-ng');
+    void selectNgTab('cast-ng');
   }
 
   function handleCautionTabClick(): void {
-    setNgTab('caution');
+    void selectNgTab('caution');
   }
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, tab: NgManagementTab): void {
+    if (isBusy) return;
     const currentIndex = tab === 'cast-ng' ? 0 : 1;
     let nextIndex = currentIndex;
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') nextIndex = currentIndex === 0 ? 1 : 0;
@@ -81,8 +124,7 @@ export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab
 
     event.preventDefault();
     const nextTab: NgManagementTab = nextIndex === 0 ? 'cast-ng' : 'caution';
-    setNgTab(nextTab);
-    document.getElementById(`ng-management-tab-${nextTab}`)?.focus();
+    void selectNgTab(nextTab);
   }
 
   const handleCastNgTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => handleTabKeyDown(event, 'cast-ng');
@@ -132,14 +174,26 @@ export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner} ${styles.ngPage}`}>
       <div className={styles.ngSubTabs} role="tablist" aria-label={getMsg('NGUserManagementPage.tabListLabel')}>
-        <button id="ng-management-tab-cast-ng" type="button" role="tab" aria-controls="ng-management-tabpanel" aria-selected={ngTab === 'cast-ng'} tabIndex={ngTab === 'cast-ng' ? 0 : -1} className={getNgSubTabClassName(ngTab === 'cast-ng')} onClick={handleCastNgTabClick} onKeyDown={handleCastNgTabKeyDown}>{getMsg('NGUserManagementPage.castNgTab')}</button>
-        <button id="ng-management-tab-caution" type="button" role="tab" aria-controls="ng-management-tabpanel" aria-selected={ngTab === 'caution'} tabIndex={ngTab === 'caution' ? 0 : -1} className={getNgSubTabClassName(ngTab === 'caution')} onClick={handleCautionTabClick} onKeyDown={handleCautionTabKeyDown}>{getMsg('NGUserManagementPage.cautionTab')}</button>
+        <button id="ng-management-tab-cast-ng" type="button" role="tab" aria-controls="ng-management-tabpanel" aria-selected={ngTab === 'cast-ng'} tabIndex={ngTab === 'cast-ng' ? 0 : -1} className={getNgSubTabClassName(ngTab === 'cast-ng')} disabled={isBusy} onMouseDown={handleTabMouseDown} onClick={handleCastNgTabClick} onKeyDown={handleCastNgTabKeyDown}>{getMsg('NGUserManagementPage.castNgTab')}</button>
+        <button id="ng-management-tab-caution" type="button" role="tab" aria-controls="ng-management-tabpanel" aria-selected={ngTab === 'caution'} tabIndex={ngTab === 'caution' ? 0 : -1} className={getNgSubTabClassName(ngTab === 'caution')} disabled={isBusy} onMouseDown={handleTabMouseDown} onClick={handleCautionTabClick} onKeyDown={handleCautionTabKeyDown}>{getMsg('NGUserManagementPage.cautionTab')}</button>
       </div>
 
       <div id="ng-management-tabpanel" className={shared.pageTabContent} role="tabpanel" aria-labelledby={`ng-management-tab-${ngTab}`} tabIndex={0}>
-        {ngTab === 'cast-ng' && <CastNgPanel controller={castNg} onRequestProfileLink={profileLink.request} />}
-        {ngTab === 'caution' && <CautionUserPanel controller={cautionUsers} onRequestProfileLink={profileLink.request} />}
+        {ngTab === 'cast-ng' && <CastNgPanel controller={castNg} notesDiscardGeneration={unsavedNotes.discardGeneration} onEntryNotesDirtyChange={unsavedNotes.handleDirtyChange} onRequestProfileLink={profileLink.request} />}
+        {ngTab === 'caution' && <CautionUserPanel controller={cautionUsers} notesDiscardGeneration={unsavedNotes.discardGeneration} onEntryNotesDirtyChange={unsavedNotes.handleDirtyChange} onRequestProfileLink={profileLink.request} />}
       </div>
+
+      {unsavedNotes.dialogOpen && (
+        <ConfirmDialog
+          title={getMsg('NGUserManagementPage.unsavedNotesTitle')}
+          message={getMsg('NGUserManagementPage.unsavedNotesMessage')}
+          confirmLabel={getMsg('NGUserManagementPage.discardUnsavedNotes')}
+          cancelLabel={getMsg('common.cancel')}
+          intent="danger"
+          onConfirm={unsavedNotes.discard}
+          onCancel={unsavedNotes.keepEditing}
+        />
+      )}
 
       {alertMessage && (
         <NoticeDialog

@@ -5,6 +5,7 @@ import type { MatchingSettingsState } from '@/features/matching/stores/matching-
 import type { AppContextType } from '@/stores/AppContext';
 import type { PageType } from '@/layout/appNavigation';
 import { getMsg } from '@/messages/getMsg';
+import { attachCastIdsToUsers } from '@/common/castReferences';
 
 export type FeatureId =
   | 'applicant-data'
@@ -67,16 +68,16 @@ const GUIDE_SAMPLE_CASTS: CastBean[] = [
   },
 ];
 
-const GUIDE_SAMPLE_USERS: UserBean[] = [
-  { name: getMsg('GuidePage.sample.applicant001'), x_id: getMsg('GuidePage.sample.xId001'), casts: [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC')], is_guaranteed: true, raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant002'), x_id: getMsg('GuidePage.sample.xId002'), casts: [getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castE')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant003'), x_id: getMsg('GuidePage.sample.xId003'), casts: [getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant004'), x_id: getMsg('GuidePage.sample.xId004'), casts: [getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castA')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant005'), x_id: getMsg('GuidePage.sample.xId005'), casts: [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castE')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant006'), x_id: getMsg('GuidePage.sample.xId006'), casts: [getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castC')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant007'), x_id: getMsg('GuidePage.sample.xId007'), casts: [getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castA')], raw_extra: [] },
-  { name: getMsg('GuidePage.sample.applicant008'), x_id: getMsg('GuidePage.sample.xId008'), casts: [getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB')], raw_extra: [] },
-];
+const GUIDE_SAMPLE_USERS: UserBean[] = attachCastIdsToUsers([
+  { name: getMsg('GuidePage.sample.applicant001'), x_id: getMsg('GuidePage.sample.xId001'), casts: [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC')], preference_mode: 'ranked', is_guaranteed: true, raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant002'), x_id: getMsg('GuidePage.sample.xId002'), casts: [getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castE')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant003'), x_id: getMsg('GuidePage.sample.xId003'), casts: [getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant004'), x_id: getMsg('GuidePage.sample.xId004'), casts: [getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castA')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant005'), x_id: getMsg('GuidePage.sample.xId005'), casts: [getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castE')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant006'), x_id: getMsg('GuidePage.sample.xId006'), casts: [getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castC')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant007'), x_id: getMsg('GuidePage.sample.xId007'), casts: [getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castA')], preference_mode: 'ranked', raw_extra: [] },
+  { name: getMsg('GuidePage.sample.applicant008'), x_id: getMsg('GuidePage.sample.xId008'), casts: [getMsg('GuidePage.sample.castE'), getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB')], preference_mode: 'ranked', raw_extra: [] },
+], GUIDE_SAMPLE_CASTS);
 
 const GUIDE_SAMPLE_WINNERS: UserBean[] = GUIDE_SAMPLE_USERS.slice(0, 5).map((user, index) => ({
   ...user,
@@ -85,11 +86,11 @@ const GUIDE_SAMPLE_WINNERS: UserBean[] = GUIDE_SAMPLE_USERS.slice(0, 5).map((use
 
 // マッチング画面のプレビューだけが利用する確定済み結果。
 const GUIDE_SAMPLE_MATCHING_RESULT: Map<string, MatchedCast[]> = new Map([
-  [getMsg('GuidePage.sample.xId001'), [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 0, score: 100 }]],
-  [getMsg('GuidePage.sample.xId002'), [{ cast: GUIDE_SAMPLE_CASTS[1], rank: 1, rotationIndex: 0, score: 100 }]],
-  [getMsg('GuidePage.sample.xId003'), [{ cast: GUIDE_SAMPLE_CASTS[2], rank: 1, rotationIndex: 0, score: 100 }]],
-  [getMsg('GuidePage.sample.xId004'), [{ cast: GUIDE_SAMPLE_CASTS[4], rank: 1, rotationIndex: 0, score: 100 }]],
-  [getMsg('GuidePage.sample.xId005'), [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 1, score: 100 }]],
+  [getMsg('GuidePage.sample.xId001'), [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 0, score: 100, isNGWarning: false, ngReason: null }]],
+  [getMsg('GuidePage.sample.xId002'), [{ cast: GUIDE_SAMPLE_CASTS[1], rank: 1, rotationIndex: 0, score: 100, isNGWarning: false, ngReason: null }]],
+  [getMsg('GuidePage.sample.xId003'), [{ cast: GUIDE_SAMPLE_CASTS[2], rank: 1, rotationIndex: 0, score: 100, isNGWarning: false, ngReason: null }]],
+  [getMsg('GuidePage.sample.xId004'), [{ cast: GUIDE_SAMPLE_CASTS[4], rank: 1, rotationIndex: 0, score: 100, isNGWarning: false, ngReason: null }]],
+  [getMsg('GuidePage.sample.xId005'), [{ cast: GUIDE_SAMPLE_CASTS[0], rank: 1, rotationIndex: 1, score: 100, isNGWarning: false, ngReason: null }]],
 ]);
 const GUIDE_SAMPLE_TABLE_SLOTS: TableSlot[] = GUIDE_SAMPLE_WINNERS.map((user, index) => ({
   user,
@@ -98,7 +99,6 @@ const GUIDE_SAMPLE_TABLE_SLOTS: TableSlot[] = GUIDE_SAMPLE_WINNERS.map((user, in
 }));
 
 const GUIDE_SAMPLE_MATCHING_SETTINGS: MatchingSettingsState = {
-  searchMode: 'efficiency',
   caution: {
     candidateThreshold: 2,
     cautionUsers: [{
@@ -157,8 +157,9 @@ export function createGuideSampleContext(feature: FeatureId): AppContextType {
       totalTables: 5,
       usersPerTable: 1,
       castsPerRotation: 1,
-      allowM003EmptySeats: false,
-      m003SameDaySlotCount: 0,
+      reserveSameDaySlots: false,
+      sameDaySlotCount: 0,
+      sameDaySlotUnit: 'table',
     },
     updateSessionWorkflow: noopAsync,
     hydrateSessionWorkflow: noopGuideSampleAction,
@@ -169,7 +170,19 @@ export function createGuideSampleContext(feature: FeatureId): AppContextType {
       tableSlots: isMatchingPreview ? GUIDE_SAMPLE_TABLE_SLOTS : undefined,
       error: null,
       isLocked: isMatchingPreview,
+      scoreSummary: isMatchingPreview ? {
+        totalScore: 500,
+        averageScore: 100,
+        firstChoiceCount: 5,
+        secondChoiceCount: 0,
+        thirdChoiceCount: 0,
+        flatPreferenceCount: 0,
+        unpreferredCount: 0,
+        ngWarningCount: 0,
+      } : null,
+      isSaved: isMatchingPreview,
     },
+    matchingResultCasts: isMatchingPreview ? casts : null,
     updateMatchingResult: noopGuideSampleAction,
     updateMatchingCastName: noopGuideSampleAction,
     resetMatching: noopGuideSampleAction,
@@ -177,18 +190,22 @@ export function createGuideSampleContext(feature: FeatureId): AppContextType {
     getSessionUiMutationGeneration: () => 0,
     isCurrentSessionUiMutation: () => true,
     isDbReady: true,
+    initializationError: null,
     currentEventName: getMsg('GuidePage.sample.eventName'),
     currentSessionTimestamp: '20260720130000',
     sessionReloadGeneration: 0,
-    focusedSavedLotteryRunTarget: null,
-    clearFocusedSavedLotteryRunTarget: noopGuideSampleAction,
-    isSavedLotterySessionReadOnly: false,
+    isLotteryInputReadOnly: false,
+    hasSavedSessionResult: false,
     ensureWritableSession: noopAsync,
+    startNewImportSession: noopAsync,
+    discardCurrentSession: noopAsync,
+    closeCurrentEventForExit: noopAsync,
+    discardInProgressWorkAndClose: noopAsync,
     events: [getMsg('GuidePage.sample.eventName')],
     setEvents: noopSetState,
     switchEvent: noopAsync,
-    activateSavedLotteryRun: noopAsync,
-    markCurrentSessionReadOnlyAfterLotterySave: noopGuideSampleAction,
+    activateSavedLotteryResult: noopAsync,
+    markCurrentSessionResultSaved: noopGuideSampleAction,
     deleteManagedEvent: noopAsync,
     renameManagedEvent: noopAsync,
   };

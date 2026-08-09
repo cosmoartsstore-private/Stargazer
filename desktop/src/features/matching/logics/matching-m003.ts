@@ -1,7 +1,6 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
-import { shuffleArray } from '@/common/arrayUtils';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
-import { isUserNGForCast } from './ng-judgment';
+import { getNGReasonForCast, isUserNGForCast } from './ng-judgment';
 import {
   assignWithHungarian,
   buildRotation,
@@ -14,53 +13,44 @@ interface MultipleMatchingParams {
   castsPerRotation: number;
   rotationCount: number;
   totalTables?: number;
-  searchTimeLimitMs?: number;
-  relaxedAfterMs?: number;
-  searchMode?: 'efficiency' | 'quality';
 }
 
-/**
- * ランダム探索には収束保証がないため30秒で打ち切る。効率優先では最初の10秒だけ
- * 平均50点以上を求め、その後は実行可能解を優先して画面の待機時間を制限する。
- * これらはアルゴリズムから導出される値ではなく、応答時間を決める運用既定値である。
- */
-const DEFAULT_SEARCH_TIME_LIMIT_MS = 30_000;
-const DEFAULT_RELAXED_AFTER_MS = 10_000;
-const STRICT_MIN_AVERAGE_SCORE = 50;
-
-/** 出勤キャストを1ローテーションあたりの人数単位に分割する。 */
+/** 出席キャストを登録順のまま、各テーブルを1ラウンド担当する人数単位に分割する。 */
 function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): CastBean[][] {
   if (activeCasts.length % castsPerRotation !== 0) {
     return [];
   }
 
-  const shuffled = shuffleArray(activeCasts);
   return Array.from({ length: activeCasts.length / castsPerRotation }, (_, index) =>
-    shuffled.slice(index * castsPerRotation, (index + 1) * castsPerRotation),
+    activeCasts.slice(index * castsPerRotation, (index + 1) * castsPerRotation),
   );
 }
 
-/** 応募者を1テーブルあたりの人数に分け、探索単位のゲストグループを作る。 */
+/** 当選順を維持して応募者を1テーブルあたりの人数に分ける。 */
 function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[][] {
   if (usersPerTable <= 1) {
-    return shuffleArray(winners).map((winner) => [winner]);
+    return winners.map((winner) => [winner]);
   }
 
-  const shuffled = shuffleArray(winners);
-  return Array.from({ length: Math.ceil(shuffled.length / usersPerTable) }, (_, index) =>
-    shuffled.slice(index * usersPerTable, (index + 1) * usersPerTable),
+  return Array.from({ length: Math.ceil(winners.length / usersPerTable) }, (_, index) =>
+    winners.slice(index * usersPerTable, (index + 1) * usersPerTable),
   );
 }
 
-/** ランダム化したキャスト単位とゲストグループで、M003 の1回分の割り当てを試行する。 */
-function runSingleAttempt(
+/** 登録順で作ったキャスト組を各テーブルへ巡回させ、M003の割り当てを構築する。 */
+function runGroupRotation(
   winners: UserBean[],
   activeCasts: CastBean[],
   params: Required<Pick<MultipleMatchingParams, 'usersPerTable' | 'castsPerRotation' | 'rotationCount'>> & Pick<MultipleMatchingParams, 'totalTables'>,
 ): MatchingResult {
   const userMap = new Map<string, MatchedCast[]>();
   const allCastUnits = buildCastUnits(activeCasts, params.castsPerRotation);
-  if (allCastUnits.length === 0) {
+  const activeCastIds = new Set(activeCasts.map((cast) => cast.id));
+  if (
+    allCastUnits.length === 0
+    || activeCastIds.size !== activeCasts.length
+    || params.rotationCount > allCastUnits.length
+  ) {
     return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
 
@@ -68,17 +58,18 @@ function runSingleAttempt(
   if (params.totalTables !== undefined && params.totalTables < guestGroups.length) {
     return { userMap, ngConflict: true, failureReason: 'invalid-settings' };
   }
-  const castUnits = params.totalTables !== undefined
+  const physicalCastUnits = params.totalTables !== undefined
     ? allCastUnits.slice(0, params.totalTables)
     : allCastUnits;
-  if (castUnits.length < guestGroups.length) {
+  if (physicalCastUnits.length < guestGroups.length) {
     return { userMap, ngConflict: true, failureReason: 'insufficient-capacity' };
   }
 
-  const rotation = buildRotation(castUnits, params.rotationCount);
+  // 物理テーブル数で巡回プールを切り詰めない。待機中のキャスト組も後続ラウンドへ入る。
+  const rotation = buildRotation(allCastUnits, params.rotationCount);
   const { assignment, hasInfeasible } = assignWithHungarian(
     guestGroups.length,
-    castUnits,
+    physicalCastUnits,
     (groupIndex, _, slotIndex) => {
       const group = guestGroups[groupIndex];
       let totalScore = 0;
@@ -104,6 +95,7 @@ function runSingleAttempt(
   }
 
   const tableSlots: TableSlot[] = [];
+  const assignedSlotIndexes = new Set(assignment);
   guestGroups.forEach((group, groupIndex) => {
     const slotIndex = assignment[groupIndex];
     const tableIndex = slotIndex + 1;
@@ -114,12 +106,17 @@ function runSingleAttempt(
 
     group.forEach((winner) => {
       const matches = roundCastGroups.flatMap(({ roundIndex, casts }) =>
-        casts.map((cast) => ({
-          cast,
-          rank: getPreferenceRank(winner, cast),
-          rotationIndex: roundIndex,
-          score: getPreferenceScore(winner, cast),
-        })),
+        casts.map((cast) => {
+          const isNGWarning = isUserNGForCast(winner, cast);
+          return {
+            cast,
+            rank: getPreferenceRank(winner, cast),
+            rotationIndex: roundIndex,
+            score: getPreferenceScore(winner, cast),
+            isNGWarning,
+            ngReason: isNGWarning ? getNGReasonForCast(cast.name) : null,
+          };
+        }),
       );
       userMap.set(winner.x_id, matches);
       tableSlots.push({
@@ -133,32 +130,49 @@ function runSingleAttempt(
       tableSlots.push({
         user: null,
         matches: roundCastGroups.flatMap(({ roundIndex, casts }) =>
-          casts.map((cast) => ({ cast, rank: 0, rotationIndex: roundIndex })),
+          casts.map((cast) => ({
+            cast,
+            rank: 0,
+            rotationIndex: roundIndex,
+            score: 0,
+            isNGWarning: false,
+            ngReason: null,
+          })),
         ),
         tableIndex,
       });
     }
   });
 
+  // 当日枠として確保した物理テーブルも、担当キャストを含む空きテーブルとして結果へ残す。
+  for (let slotIndex = 0; slotIndex < physicalCastUnits.length; slotIndex += 1) {
+    if (assignedSlotIndexes.has(slotIndex)) continue;
+
+    const tableIndex = slotIndex + 1;
+    for (let seatIndex = 0; seatIndex < params.usersPerTable; seatIndex += 1) {
+      tableSlots.push({
+        user: null,
+        matches: rotation.flatMap((round, roundIndex) =>
+          round[slotIndex].map((cast) => ({
+            cast,
+            rank: 0,
+            rotationIndex: roundIndex,
+            score: 0,
+            isNGWarning: false,
+            ngReason: null,
+          })),
+        ),
+        tableIndex,
+      });
+    }
+  }
+
+  tableSlots.sort((left, right) => left.tableIndex - right.tableIndex);
+
   return { userMap, tableSlots };
 }
 
-/** 試行結果の全マッチ点数から、探索中の候補比較に使う平均点を算出する。 */
-function calculateAverageScore(result: MatchingResult): number {
-  let totalScore = 0;
-  let matchCount = 0;
-
-  result.userMap.forEach((matches) => {
-    matches.forEach((match) => {
-      totalScore += match.score ?? 0;
-      matchCount += 1;
-    });
-  });
-
-  return matchCount > 0 ? totalScore / matchCount : 0;
-}
-
-/** M003 のグループ制マッチングを、時間制限内で複数試行して最良候補を返す。 */
+/** M003のグループ制マッチングを、重複のない決定的なローテーションで実行する。 */
 export function runMultipleMatching(
   winners: UserBean[],
   allCasts: CastBean[],
@@ -176,47 +190,5 @@ export function runMultipleMatching(
     rotationCount: Math.max(1, params.rotationCount),
     totalTables: params.totalTables,
   };
-  const timeLimitMs = Math.max(1, params.searchTimeLimitMs ?? DEFAULT_SEARCH_TIME_LIMIT_MS);
-  const relaxedAfterMs = Math.max(0, Math.min(params.relaxedAfterMs ?? DEFAULT_RELAXED_AFTER_MS, timeLimitMs));
-  const searchMode = params.searchMode ?? 'efficiency';
-  const startedAt = Date.now();
-  let lastFailure: MatchingResult = { userMap, ngConflict: true, failureReason: 'time-limit' };
-  let bestResult: MatchingResult | null = null;
-  let bestAverageScore = Number.NEGATIVE_INFINITY;
-
-  do {
-    const elapsedMs = Date.now() - startedAt;
-    const result = runSingleAttempt(
-      winners,
-      activeCasts,
-      normalizedParams,
-    );
-
-    if (!result.ngConflict) {
-      const scoredResult = result;
-      const averageScore = calculateAverageScore(scoredResult);
-      if (averageScore > bestAverageScore) {
-        bestResult = scoredResult;
-        bestAverageScore = averageScore;
-      }
-
-      if (searchMode === 'efficiency') {
-        const isRelaxed = elapsedMs >= relaxedAfterMs;
-        if (isRelaxed || averageScore >= STRICT_MIN_AVERAGE_SCORE) {
-          return scoredResult;
-        }
-      }
-    } else {
-      lastFailure = result;
-      if (result.failureReason === 'invalid-settings' || result.failureReason === 'insufficient-capacity') {
-        return result;
-      }
-    }
-  } while (Date.now() - startedAt < timeLimitMs);
-
-  if (bestResult) {
-    return bestResult;
-  }
-
-  return { userMap, ngConflict: true, failureReason: lastFailure.failureReason === 'ng-conflict' ? 'time-limit' : lastFailure.failureReason };
+  return runGroupRotation(winners, activeCasts, normalizedParams);
 }

@@ -21,6 +21,8 @@ type ThemeSelectorProps = {
   setThemeId: (id: ThemeId) => void;
   customization: ThemeCustomizationState;
   setCustomization: (customization: ThemeCustomizationState | ((prev: ThemeCustomizationState) => ThemeCustomizationState)) => void;
+  dialogOpen?: boolean;
+  onDialogOpenChange?: (open: boolean) => void;
 };
 
 interface ThemeModeButtonProps {
@@ -59,8 +61,10 @@ function ThemeColorRow({
   onRemove,
 }: ThemeColorRowProps) {
   const colorNumber = index + 1;
+  const hexDescriptionId = useId();
+  const isDraftColorValid = isHexColor(draftColor);
   const hexInputClassName = `${styles.themeHexInput}${
-    isHexColor(draftColor) ? '' : ` ${styles.themeHexInputInvalid}`
+    isDraftColorValid ? '' : ` ${styles.themeHexInputInvalid}`
   }`;
   const handleColorChange = (event: ChangeEvent<HTMLInputElement>) => {
     onColorChange(index, event.currentTarget.value);
@@ -74,15 +78,28 @@ function ThemeColorRow({
   return (
     <div className={styles.themeColorRow}>
       <input type="color" value={color} aria-label={getMsg('ThemeSelector.colorLabel', { index: colorNumber })} onChange={handleColorChange} />
-      <input type="text" value={draftColor} aria-label={getMsg('ThemeSelector.colorHexLabel', { index: colorNumber })} className={hexInputClassName} onChange={handleDraftColorChange} onBlur={handleDraftColorBlur} />
+      <div className={styles.themeHexField}>
+        <input type="text" value={draftColor} aria-label={getMsg('ThemeSelector.colorHexLabel', { index: colorNumber })} aria-invalid={!isDraftColorValid} aria-describedby={isDraftColorValid ? undefined : hexDescriptionId} className={hexInputClassName} onChange={handleDraftColorChange} onBlur={handleDraftColorBlur} />
+        {!isDraftColorValid && <p id={hexDescriptionId} className={styles.themeHexError}>{getMsg('ThemeSelector.invalidHexColor')}</p>}
+      </div>
       <button type="button" className={styles.themeIconButton} onClick={handleRemove} disabled={!canRemove} aria-label={getMsg('ThemeSelector.removeColor', { index: colorNumber })}><Trash2 size={14} /></button>
     </div>
   );
 }
 
-export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ themeId, setThemeId, customization, setCustomization }) => {
-  // ダイアログ表示と、16進数入力中の未確定値を保持する。
-  const [open, setOpen] = useState(false);
+export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
+  themeId,
+  setThemeId,
+  customization,
+  setCustomization,
+  dialogOpen,
+  onDialogOpenChange,
+}) => {
+  // 親から指定されない場所でも単独利用できるよう、表示状態だけは内部状態へフォールバックする。
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = dialogOpen ?? internalOpen;
+  const setOpen = onDialogOpenChange ?? setInternalOpen;
+  // 16進数入力中の未確定値は、他のダイアログが先に表示されても保持する。
   const [draftColors, setDraftColors] = useState<string[]>(customization.dark.colors);
   const customColorsHeadingId = useId();
   const directionInputId = useId();

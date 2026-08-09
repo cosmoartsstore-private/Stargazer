@@ -19,10 +19,14 @@ function createUser(
   };
 }
 
+function createCastId(name: string): number {
+  return Array.from(name).reduce((hash, character) => hash * 31 + character.charCodeAt(0), 17);
+}
+
 function createCast(
   name: string,
   ngAccountId?: string,
-  id = Array.from(name).reduce((hash, character) => hash * 31 + character.charCodeAt(0), 17),
+  id = createCastId(name),
 ): CastBean {
   return {
     id,
@@ -36,8 +40,8 @@ describe('runMatching', () => {
   it('M002 は希望点が最大になるように応募者を出勤キャストへ割り当てる', () => {
     const result = runMatching(
       [
-        createUser('Alice', '@alice', ['Cast B']),
-        createUser('Bob', '@bob', ['Cast A']),
+        createUser('Alice', '@alice', ['Cast B'], 'ranked', [createCastId('Cast B')]),
+        createUser('Bob', '@bob', ['Cast A'], 'ranked', [createCastId('Cast A')]),
       ],
       [createCast('Cast A'), createCast('Cast B')],
       'M002',
@@ -78,7 +82,13 @@ describe('runMatching', () => {
 
   it('順不同希望は50点として集計し、希望外には含めない', () => {
     const result = runMatching(
-      [createUser('Alice', '@alice', ['Cast A', 'Cast B', 'Cast C', 'Cast D'], 'flat')],
+      [createUser(
+        'Alice',
+        '@alice',
+        ['Cast A', 'Cast B', 'Cast C', 'Cast D'],
+        'flat',
+        ['Cast A', 'Cast B', 'Cast C', 'Cast D'].map(createCastId),
+      )],
       [createCast('Cast D')],
       'M002',
       { rotationCount: 1, totalTables: 1 },
@@ -138,7 +148,6 @@ describe('runMatching', () => {
         castsPerRotation: 2,
         rotationCount: 1,
         totalTables: 1,
-        searchTimeLimitMs: 1,
       },
     );
 
@@ -158,13 +167,12 @@ describe('runMatching', () => {
         castsPerRotation: 1,
         rotationCount: 1,
         totalTables: 1,
-        searchTimeLimitMs: 1,
       },
     );
 
     expect(result).toMatchObject({
       ngConflict: true,
-      failureReason: 'time-limit',
+      failureReason: 'ng-conflict',
     });
     expect(result.userMap.get('@alice')).toBeUndefined();
     expect(result.scoreSummary).toBeUndefined();

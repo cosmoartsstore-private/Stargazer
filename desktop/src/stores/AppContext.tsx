@@ -2,8 +2,10 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -16,13 +18,14 @@ import type {
   SessionWorkflowState,
 } from '@/common/types/sessionWorkflow';
 import type { MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
-import type { SavedLotteryRunTarget } from '@/db/repositories/lotteryRepository';
+import type { SavedLotteryResultTarget } from '@/db/repositories/lotteryRepository';
 import {
   useMatchingContextState,
   type MatchingResultState,
 } from './hooks/useMatchingContextState';
 import { useSessionWorkflowState } from './hooks/useSessionWorkflowState';
 import { useEventLifecycleState } from './hooks/useEventLifecycleState';
+import { getMatchingCastConstraintFingerprint } from '@/features/matching/logics/matching-input-integrity';
 
 export type { PageType } from '@/layout/appNavigation';
 
@@ -45,28 +48,34 @@ export interface AppContextType {
   matchingSettings: MatchingSettingsState;
   setMatchingSettings: (state: MatchingSettingsState | ((prev: MatchingSettingsState) => MatchingSettingsState)) => void;
   matchingResultState: MatchingResultState;
-  updateMatchingResult: (patch: Partial<MatchingResultState>) => void;
+  matchingResultCasts: CastBean[] | null;
+  updateMatchingResult: (patch: Partial<MatchingResultState>, castSnapshot?: CastBean[]) => void;
   updateMatchingCastName: (castId: number, name: string) => void;
   resetMatching: () => void;
   beginSessionUiMutation: () => number;
   getSessionUiMutationGeneration: () => number;
   isCurrentSessionUiMutation: (generation: number) => boolean;
   isDbReady: boolean;
+  initializationError: string | null;
   // ──────────────────────────────────────────────────────────────────────────
   // currentEventName はイベント共有DB、currentSessionTimestamp は現在の応募者取込DBを指す。
   currentEventName: string | null;
   currentSessionTimestamp: string | null;
   sessionReloadGeneration: number;
-  focusedSavedLotteryRunTarget: SavedLotteryRunTarget | null;
-  clearFocusedSavedLotteryRunTarget: () => void;
-  /** 保存済み抽選を持つセッションを読み取り専用で表示している状態。 */
-  isSavedLotterySessionReadOnly: boolean;
+  /** 保存済み抽選から復元した応募者・抽選入力を読み取り専用で表示している状態。 */
+  isLotteryInputReadOnly: boolean;
+  /** 現在の作業セッションから抽選またはマッチング結果を既に保存した状態。 */
+  hasSavedSessionResult: boolean;
   ensureWritableSession: () => Promise<void>;
+  startNewImportSession: (users: UserBean[]) => Promise<void>;
+  discardCurrentSession: () => Promise<void>;
+  closeCurrentEventForExit: () => Promise<void>;
+  discardInProgressWorkAndClose: () => Promise<void>;
   events: string[];
   setEvents: React.Dispatch<React.SetStateAction<string[]>>;
   switchEvent: (name: string) => Promise<void>;
-  activateSavedLotteryRun: (target: SavedLotteryRunTarget) => Promise<void>;
-  markCurrentSessionReadOnlyAfterLotterySave: () => void;
+  activateSavedLotteryResult: (target: SavedLotteryResultTarget) => Promise<void>;
+  markCurrentSessionResultSaved: () => void;
   deleteManagedEvent: (name: string) => Promise<void>;
   renameManagedEvent: (oldName: string, newName: string) => Promise<void>;
 }
@@ -94,10 +103,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     matchingSettings,
     setMatchingSettings,
     matchingResultState,
-    updateMatchingResult,
-    updateMatchingCastName,
-    resetMatching,
+    updateMatchingResult: updateMatchingResultState,
+    updateMatchingCastName: updateMatchingCastNameState,
+    resetMatching: resetMatchingState,
   } = useMatchingContextState();
+  const [matchingResultCasts, setMatchingResultCasts] = useState<CastBean[] | null>(null);
+  const updateMatchingResult = useCallback((
+    patch: Partial<MatchingResultState>,
+    castSnapshot?: CastBean[],
+  ) => {
+    if ('result' in patch) {
+      setMatchingResultCasts(patch.result === null ? null : (castSnapshot ?? casts));
+    }
+    updateMatchingResultState(patch);
+  }, [casts, updateMatchingResultState]);
+  const resetMatching = useCallback(() => {
+    setMatchingResultCasts(null);
+    resetMatchingState();
+  }, [resetMatchingState]);
+  const matchingCastConstraintFingerprint = getMatchingCastConstraintFingerprint(casts);
+  const previousMatchingCastConstraintRef = useRef<string | null>(null);
 
   const {
     sessionWorkflow,
@@ -119,18 +144,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const {
     isDbReady,
+    initializationError,
     currentEventName,
     currentSessionTimestamp,
     sessionReloadGeneration,
-    focusedSavedLotteryRunTarget,
-    clearFocusedSavedLotteryRunTarget,
-    isSavedLotterySessionReadOnly,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
     ensureWritableSession,
+    startNewImportSession,
+    discardCurrentSession,
+    closeCurrentEventForExit,
+    discardInProgressWorkAndClose,
     events,
     setEvents,
     switchEvent,
-    activateSavedLotteryRun,
-    markCurrentSessionReadOnlyAfterLotterySave,
+    activateSavedLotteryResult,
+    markCurrentSessionResultSaved: markCurrentSessionResultSavedState,
     deleteManagedEvent,
     renameManagedEvent,
   } = useEventLifecycleState({
@@ -138,7 +167,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setApplicants,
     beginSessionUiMutation,
     clearSessionWorkflowState,
+    resetMatching,
   });
+  const savedResultReadOnlyRef = useRef(false);
+  savedResultReadOnlyRef.current = hasSavedSessionResult || matchingResultState.isSaved;
+
+  useEffect(() => {
+    const previous = previousMatchingCastConstraintRef.current;
+    previousMatchingCastConstraintRef.current = matchingCastConstraintFingerprint;
+    if (
+      !savedResultReadOnlyRef.current
+      && previous !== null
+      && previous !== matchingCastConstraintFingerprint
+      && matchingResultState.result !== null
+    ) {
+      resetMatching();
+    }
+  }, [
+    hasSavedSessionResult,
+    matchingCastConstraintFingerprint,
+    matchingResultState.isSaved,
+    matchingResultState.result,
+    resetMatching,
+  ]);
+
+  const updateMatchingCastName = useCallback((castId: number, name: string) => {
+    if (savedResultReadOnlyRef.current) return;
+    setMatchingResultCasts((current) => current?.map((cast) => (
+      cast.id === castId ? { ...cast, name } : cast
+    )) ?? null);
+    updateMatchingCastNameState(castId, name);
+  }, [updateMatchingCastNameState]);
+
+  const markCurrentSessionResultSaved = useCallback(() => {
+    savedResultReadOnlyRef.current = true;
+    markCurrentSessionResultSavedState();
+  }, [markCurrentSessionResultSavedState]);
 
   // 画面へ公開するアプリ全体の状態契約。
   const contextValue: AppContextType = {
@@ -158,6 +222,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     matchingSettings,
     setMatchingSettings,
     matchingResultState,
+    matchingResultCasts,
     updateMatchingResult,
     updateMatchingCastName,
     resetMatching,
@@ -165,18 +230,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     getSessionUiMutationGeneration,
     isCurrentSessionUiMutation,
     isDbReady,
+    initializationError,
     currentEventName,
     currentSessionTimestamp,
     sessionReloadGeneration,
-    focusedSavedLotteryRunTarget,
-    clearFocusedSavedLotteryRunTarget,
-    isSavedLotterySessionReadOnly,
+    isLotteryInputReadOnly,
+    hasSavedSessionResult,
     ensureWritableSession,
+    startNewImportSession,
+    discardCurrentSession,
+    closeCurrentEventForExit,
+    discardInProgressWorkAndClose,
     events,
     setEvents,
     switchEvent,
-    activateSavedLotteryRun,
-    markCurrentSessionReadOnlyAfterLotterySave,
+    activateSavedLotteryResult,
+    markCurrentSessionResultSaved,
     deleteManagedEvent,
     renameManagedEvent,
   };

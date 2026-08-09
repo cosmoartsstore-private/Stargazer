@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
+import {
+  buildXProfileUrl,
+  formatXAccountIdForDisplay,
+} from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { openExternalUrl } from '@/tauri';
-import { buildXProfileUrl } from '../ngUserManagementModel';
 
 export interface PendingProfileLink {
   label: string;

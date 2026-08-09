@@ -1,6 +1,15 @@
-import { useId, useRef, type ChangeEvent, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Camera, ExternalLink, Pencil, Plus, Trash2, User } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
+import { Camera, ExternalLink, Pencil, Plus, User } from 'lucide-react';
 import type { CastBean } from '@/common/types/entities';
+import { registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../CastManagementPage.module.css';
@@ -22,16 +31,39 @@ interface AliasRowProps {
 }
 
 const AliasRow = ({ castName, alias, aliasIndex, disabled, onUpdate, onDelete }: AliasRowProps) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const commitPromiseRef = useRef<Promise<boolean> | null>(null);
+  const commitValue = useCallback((): Promise<boolean> => {
+    if (commitPromiseRef.current) return commitPromiseRef.current;
+    const input = inputRef.current;
+    if (!input || input.value === alias) return Promise.resolve(true);
+
+    const commitPromise = onUpdate(aliasIndex, input.value)
+      .then((result) => {
+        if (result === 'stale') return false;
+        input.value = result === 'saved' ? input.value.trim() : alias;
+        return result === 'saved';
+      })
+      .catch(() => {
+        input.value = alias;
+        return false;
+      })
+      .finally(() => {
+        commitPromiseRef.current = null;
+      });
+    commitPromiseRef.current = commitPromise;
+    return commitPromise;
+  }, [alias, aliasIndex, onUpdate]);
+
+  useEffect(
+    () => registerPendingPageCommit(commitValue),
+    [commitValue],
+  );
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') event.currentTarget.blur();
   };
-  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    void onUpdate(aliasIndex, input.value).then((result) => {
-      if (result === 'stale') return;
-      input.value = result === 'saved' ? input.value.trim() : alias;
-    });
-  };
+  const handleBlur = () => { void commitValue(); };
   // 削除ボタン押下時は入力欄のblur保存を先行させず、削除操作だけを実行する。
   const handleDeleteMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -44,8 +76,8 @@ const AliasRow = ({ castName, alias, aliasIndex, disabled, onUpdate, onDelete }:
 
   return (
     <div className={styles.castAliasItem}>
-      <input type="text" className={styles.castAliasInput} defaultValue={alias} disabled={disabled} aria-label={inputAriaLabel} onKeyDown={handleKeyDown} onBlur={handleBlur} />
-      <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={getMsg('CastManagementPage.deleteAliasAriaLabel', { alias })} disabled={disabled} onMouseDown={handleDeleteMouseDown} onClick={handleDeleteClick}><Trash2 size={13} /></button>
+      <input ref={inputRef} type="text" className={styles.castAliasInput} defaultValue={alias} disabled={disabled} aria-label={inputAriaLabel} onKeyDown={handleKeyDown} onBlur={handleBlur} />
+      <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={getMsg('CastManagementPage.deleteAliasAriaLabel', { alias })} disabled={disabled} onMouseDown={handleDeleteMouseDown} onClick={handleDeleteClick}>×</button>
     </div>
   );
 };
@@ -136,7 +168,7 @@ const ContactRow = ({ url, index, onChange, onOpen, onDelete }: ContactRowProps)
         <input type="text" className={styles.castContactInput} placeholder={getMsg('CastManagementPage.contactUrlPlaceholder')} aria-label={contactAriaLabel} value={url} onChange={handleChange} />
       </div>
       <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnOpen}`} disabled={!canOpen} aria-label={openLinkAriaLabel} onClick={handleOpen}><ExternalLink size={13} /></button>
-      <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={deleteAriaLabel} onClick={handleDelete}><Trash2 size={13} /></button>
+      <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={deleteAriaLabel} onClick={handleDelete}>×</button>
     </div>
   );
 };
@@ -179,7 +211,7 @@ export interface CastDetailPanelProps {
   onUpdateAlias: (aliasIndex: number, nextAlias: string) => Promise<EventMutationResult>;
   onDeleteAlias: (aliasIndex: number) => void;
   onMemoEditingChange: (editing: boolean) => void;
-  onMemoChange: (memo: string | undefined) => void;
+  onMemoChange: (memo: string | undefined) => Promise<EventMutationResult>;
   onContactChange: (index: number, value: string) => void;
   onAddContact: () => void;
   onOpenContact: (url: string) => void;
@@ -207,7 +239,101 @@ export const CastDetailPanel = ({
   onDeleteContact,
 }: CastDetailPanelProps) => {
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const groupNameInputRef = useRef<HTMLInputElement>(null);
+  const memoInputRef = useRef<HTMLTextAreaElement>(null);
+  const nameCommitPromiseRef = useRef<Promise<boolean> | null>(null);
+  const groupCommitPromiseRef = useRef<Promise<boolean> | null>(null);
+  const memoCommitPromiseRef = useRef<Promise<boolean> | null>(null);
+  const groupNameInputId = useId();
   const profileLabelId = useId();
+
+  const commitName = useCallback((): Promise<boolean> => {
+    if (nameCommitPromiseRef.current) return nameCommitPromiseRef.current;
+    const input = nameInputRef.current;
+    if (!cast || !input) return Promise.resolve(true);
+    if (input.value.trim() === cast.name) {
+      input.value = cast.name;
+      return Promise.resolve(true);
+    }
+
+    const commitPromise = onRenameCast(input.value)
+      .then((result) => {
+        if (result === 'stale') return false;
+        input.value = result === 'saved' ? input.value.trim() : cast.name;
+        return result === 'saved';
+      })
+      .catch(() => {
+        input.value = cast.name;
+        return false;
+      })
+      .finally(() => {
+        nameCommitPromiseRef.current = null;
+      });
+    nameCommitPromiseRef.current = commitPromise;
+    return commitPromise;
+  }, [cast, onRenameCast]);
+
+  const commitGroupName = useCallback((): Promise<boolean> => {
+    if (groupCommitPromiseRef.current) return groupCommitPromiseRef.current;
+    const input = groupNameInputRef.current;
+    if (!cast || !input) return Promise.resolve(true);
+    const groupName = input.value.trim() || undefined;
+    if (groupName === cast.group_name) {
+      input.value = cast.group_name ?? '';
+      return Promise.resolve(true);
+    }
+
+    const commitPromise = onGroupNameChange(groupName)
+      .then((result) => {
+        if (result === 'stale') return false;
+        input.value = result === 'saved' ? (groupName ?? '') : (cast.group_name ?? '');
+        return result === 'saved';
+      })
+      .catch(() => {
+        input.value = cast.group_name ?? '';
+        return false;
+      })
+      .finally(() => {
+        groupCommitPromiseRef.current = null;
+      });
+    groupCommitPromiseRef.current = commitPromise;
+    return commitPromise;
+  }, [cast, onGroupNameChange]);
+
+  const commitMemo = useCallback((): Promise<boolean> => {
+    if (memoCommitPromiseRef.current) return memoCommitPromiseRef.current;
+    const input = memoInputRef.current;
+    if (!cast || !input) return Promise.resolve(true);
+    const memo = input.value.trim() || undefined;
+    if (memo === cast.memo) {
+      onMemoEditingChange(false);
+      return Promise.resolve(true);
+    }
+
+    const commitPromise = onMemoChange(memo)
+      .then((result) => {
+        if (result === 'saved') onMemoEditingChange(false);
+        return result === 'saved';
+      })
+      .catch(() => false)
+      .finally(() => {
+        memoCommitPromiseRef.current = null;
+      });
+    memoCommitPromiseRef.current = commitPromise;
+    return commitPromise;
+  }, [cast, onMemoChange, onMemoEditingChange]);
+
+  const commitPendingFields = useCallback(async (): Promise<boolean> => {
+    if (!await commitName()) return false;
+    if (!await commitGroupName()) return false;
+    return commitMemo();
+  }, [commitGroupName, commitMemo, commitName]);
+
+  useEffect(
+    () => registerPendingPageCommit(commitPendingFields),
+    [commitPendingFields],
+  );
 
   if (!cast) {
     return (
@@ -219,26 +345,10 @@ export const CastDetailPanel = ({
   }
 
   const handlePhotoFrameClick = () => photoInputRef.current?.click();
-  const handleCastNameBlur = (event: FocusEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    void onRenameCast(input.value).then((result) => {
-      if (result === 'stale') return;
-      input.value = result === 'saved' ? input.value.trim() : cast.name;
-    });
-  };
-  const handleGroupNameBlur = (event: FocusEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const groupName = input.value.trim() || undefined;
-    void onGroupNameChange(groupName).then((result) => {
-      if (result === 'stale') return;
-      input.value = result === 'saved' ? (groupName ?? '') : (cast.group_name ?? '');
-    });
-  };
+  const handleCastNameBlur = () => { void commitName(); };
+  const handleGroupNameBlur = () => { void commitGroupName(); };
   const handleMemoEditClick = () => onMemoEditingChange(true);
-  const handleMemoBlur = (event: FocusEvent<HTMLTextAreaElement>) => {
-    onMemoChange(event.currentTarget.value.trim() || undefined);
-    onMemoEditingChange(false);
-  };
+  const handleMemoBlur = () => { void commitMemo(); };
   const memoTextClassName = `${styles.castCharMemo__text}${
     cast.memo ? '' : ` ${styles.castCharMemo__textEmpty}`
   }`;
@@ -261,8 +371,11 @@ export const CastDetailPanel = ({
         </div>
 
         <div className={styles.castCharInfoCol}>
-          <input type="text" className={styles.castCharNameInput} defaultValue={cast.name} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} onBlur={handleCastNameBlur} />
-          <input type="text" className={styles.castCharGroupBadge} defaultValue={cast.group_name ?? ''} placeholder={getMsg('CastManagementPage.groupPlaceholder')} aria-label={getMsg('CastManagementPage.groupPlaceholder')} onBlur={handleGroupNameBlur} />
+          <input ref={nameInputRef} type="text" className={styles.castCharNameInput} defaultValue={cast.name} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} onBlur={handleCastNameBlur} />
+          <div className={styles.castGroupSection}>
+            <label htmlFor={groupNameInputId} className={shared.managementDetailLabel}>{getMsg('CastManagementPage.groupLabel')}</label>
+            <input ref={groupNameInputRef} id={groupNameInputId} type="text" className={styles.castGroupInput} defaultValue={cast.group_name ?? ''} placeholder={getMsg('CastManagementPage.groupPlaceholder')} onBlur={handleGroupNameBlur} />
+          </div>
 
           <div className={styles.castCharMemoSection}>
             <div className={styles.castCharMemoHeader}>
@@ -272,7 +385,7 @@ export const CastDetailPanel = ({
               )}
             </div>
             {memoEditing ? (
-              <textarea autoFocus className={`${styles.castCharMemo__textarea} ${shared.customScrollbar}`} defaultValue={cast.memo ?? ''} placeholder={getMsg('CastManagementPage.profilePlaceholder')} aria-labelledby={profileLabelId} rows={5} onBlur={handleMemoBlur} />
+              <textarea ref={memoInputRef} autoFocus className={`${styles.castCharMemo__textarea} ${shared.customScrollbar}`} defaultValue={cast.memo ?? ''} placeholder={getMsg('CastManagementPage.profilePlaceholder')} aria-labelledby={profileLabelId} rows={5} onBlur={handleMemoBlur} />
             ) : (
               <button type="button" className={memoTextClassName} onClick={handleMemoEditClick}>{cast.memo ?? getMsg('CastManagementPage.profilePrompt')}</button>
             )}

@@ -1,11 +1,13 @@
 // 出席履歴の回数と日付列へ適用する集計期間を入力するダイアログ。
 
-import { useId, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { AppDialog } from '@/components/AppDialog';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../AttendancePage.module.css';
+import { parseRecordDate } from '../models/recordDate';
 import type { AttendancePeriod } from '../models/types';
+import { AttendanceDateField } from './AttendanceDateField';
 
 interface AttendancePeriodDialogProps {
   period: AttendancePeriod;
@@ -15,36 +17,51 @@ interface AttendancePeriodDialogProps {
 
 export function AttendancePeriodDialog({ period, onApply, onClose }: AttendancePeriodDialogProps) {
   const [draftPeriod, setDraftPeriod] = useState<AttendancePeriod>(period);
+  const [openCalendar, setOpenCalendar] = useState<'start' | 'end' | null>(null);
   const startDateInputId = useId();
   const endDateInputId = useId();
-  const rangeErrorId = useId();
+  const validationErrorId = useId();
+  const hasInvalidStartDate = Boolean(draftPeriod.startDate && !parseRecordDate(draftPeriod.startDate));
+  const hasInvalidEndDate = Boolean(draftPeriod.endDate && !parseRecordDate(draftPeriod.endDate));
   const hasInvalidRange = Boolean(
-    draftPeriod.startDate
+    !hasInvalidStartDate
+    && !hasInvalidEndDate
+    && draftPeriod.startDate
     && draftPeriod.endDate
     && draftPeriod.startDate > draftPeriod.endDate,
   );
-  const rangeErrorDescription = hasInvalidRange ? rangeErrorId : undefined;
+  const hasValidationError = hasInvalidStartDate || hasInvalidEndDate || hasInvalidRange;
+  const validationErrorDescription = hasValidationError ? validationErrorId : undefined;
+  const validationMessage = hasInvalidStartDate || hasInvalidEndDate
+    ? getMsg('AttendancePeriodDialog.invalidDate')
+    : getMsg('AttendancePeriodDialog.invalidRange');
+  const validStartDate = hasInvalidStartDate ? undefined : draftPeriod.startDate || undefined;
+  const validEndDate = hasInvalidEndDate ? undefined : draftPeriod.endDate || undefined;
 
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
 
-  const handleStartDateChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setDraftPeriod((current) => ({ ...current, startDate: event.target.value }));
+  const handleStartDateChange = (value: string) => {
+    setDraftPeriod((current) => ({ ...current, startDate: value }));
   };
 
-  const handleEndDateChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setDraftPeriod((current) => ({ ...current, endDate: event.target.value }));
+  const handleEndDateChange = (value: string) => {
+    setDraftPeriod((current) => ({ ...current, endDate: value }));
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!hasInvalidRange) onApply(draftPeriod);
+    if (!hasValidationError) onApply(draftPeriod);
   };
 
-  const handleShowAll = () => {
-    onApply({ startDate: '', endDate: '' });
+  const handleReset = () => {
+    setDraftPeriod({ startDate: '', endDate: '' });
+    setOpenCalendar(null);
   };
+
+  const handleStartCalendarOpenChange = (open: boolean) => setOpenCalendar(open ? 'start' : null);
+  const handleEndCalendarOpenChange = (open: boolean) => setOpenCalendar(open ? 'end' : null);
 
   return (
     <AppDialog
@@ -60,20 +77,20 @@ export function AttendancePeriodDialog({ period, onApply, onClose }: AttendanceP
         <div className={styles.attendancePeriodFields}>
           <div className={styles.attendancePeriodField}>
             <label htmlFor={startDateInputId}>{getMsg('AttendancePeriodDialog.startDate')}</label>
-            <input id={startDateInputId} type="date" autoFocus max={draftPeriod.endDate || undefined} value={draftPeriod.startDate} aria-invalid={hasInvalidRange || undefined} aria-describedby={rangeErrorDescription} onChange={handleStartDateChange} />
+            <AttendanceDateField id={startDateInputId} value={draftPeriod.startDate} onValueChange={handleStartDateChange} autoFocus max={validEndDate} ariaInvalid={hasInvalidStartDate || hasInvalidRange} ariaDescribedBy={validationErrorDescription} calendarOpen={openCalendar === 'start'} onCalendarOpenChange={handleStartCalendarOpenChange} />
           </div>
           <div className={styles.attendancePeriodField}>
             <label htmlFor={endDateInputId}>{getMsg('AttendancePeriodDialog.endDate')}</label>
-            <input id={endDateInputId} type="date" min={draftPeriod.startDate || undefined} value={draftPeriod.endDate} aria-invalid={hasInvalidRange || undefined} aria-describedby={rangeErrorDescription} onChange={handleEndDateChange} />
+            <AttendanceDateField id={endDateInputId} value={draftPeriod.endDate} onValueChange={handleEndDateChange} min={validStartDate} ariaInvalid={hasInvalidEndDate || hasInvalidRange} ariaDescribedBy={validationErrorDescription} calendarOpen={openCalendar === 'end'} onCalendarOpenChange={handleEndCalendarOpenChange} />
           </div>
         </div>
 
-        {hasInvalidRange && <p id={rangeErrorId} className={styles.attendancePeriodError} role="alert">{getMsg('AttendancePeriodDialog.invalidRange')}</p>}
+        {hasValidationError && <p id={validationErrorId} className={styles.attendancePeriodError} role="alert">{validationMessage}</p>}
 
         <div className={styles.attendancePeriodActions}>
-          <button type="button" className={`${shared.btnSecondary} ${styles.attendancePeriodShowAll}`} onClick={handleShowAll}>{getMsg('AttendancePeriodDialog.showAll')}</button>
+          <button type="button" className={`${shared.btnSecondary} ${styles.attendancePeriodReset}`} onClick={handleReset}>{getMsg('AttendancePeriodDialog.reset')}</button>
           <button type="button" className={shared.btnSecondary} onClick={onClose}>{getMsg('common.cancel')}</button>
-          <button type="submit" className={shared.btnPrimary} disabled={hasInvalidRange}>{getMsg('AttendancePeriodDialog.apply')}</button>
+          <button type="submit" className={shared.btnPrimary} disabled={hasValidationError}>{getMsg('AttendancePeriodDialog.apply')}</button>
         </div>
       </form>
     </AppDialog>

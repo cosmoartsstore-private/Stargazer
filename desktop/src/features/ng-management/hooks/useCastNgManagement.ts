@@ -1,19 +1,20 @@
 import {
   useEffect,
-  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { CastBean } from '@/common/types/entities';
+import type { CastBean, NGUserEntry } from '@/common/types/entities';
 import { updateCastFields } from '@/db';
 import {
   getOpenEventContext,
   isCurrentEventContext,
+  type EventCommandContext,
 } from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
 import {
   EMPTY_CAST_NG_FORM,
+  clearSubmittedNgFormValues,
   createCastNgEntry,
   filterCastsByName,
   isDuplicateCastNgEntry,
@@ -21,15 +22,24 @@ import {
   resolveSelectedCastId,
   updateCastNgEntryNotes,
   type CastNgFormValues,
-  type NGUserEntry,
   type PendingCastNgDeletion,
 } from '../ngUserManagementModel';
+import { useExclusiveMutation } from './useExclusiveMutation';
 
 interface UseCastNgManagementParams {
   casts: CastBean[];
   setCasts: Dispatch<SetStateAction<CastBean[]>>;
   currentEventName: string | null;
   showAlert: (message: string) => void;
+}
+
+interface PersistCastNgEntriesOptions {
+  context: EventCommandContext;
+  castId: number;
+  entries: NGUserEntry[] | undefined;
+  failureMessage: string;
+  afterSave?: () => void;
+  afterSettled?: () => void;
 }
 
 /** キャスト別NGの表示状態と、イベント共有DBへの保存操作を調停する。 */
@@ -46,10 +56,11 @@ export function useCastNgManagement({
 
   // 削除確認の対象と、保存中表示に使う非同期操作の状態。
   const [pendingDelete, setPendingDelete] = useState<PendingCastNgDeletion | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Reactの再描画前に同じ保存を再実行されないよう、同期的な入口も閉じる。
-  const mutationInFlightRef = useRef(false);
+  const {
+    isActive: isSaving,
+    run: runMutation,
+    getIsActive: isMutationInFlight,
+  } = useExclusiveMutation();
 
   // 現在の名簿と検索語から、パネルが直接描画できる値を導出する。
   const filteredCasts = filterCastsByName(casts, search);
@@ -64,17 +75,30 @@ export function useCastNgManagement({
     setForm((current) => ({ ...current, ...patch }));
   }
 
-  /** 保存開始を同期的に確保し、同じ描画フレーム内の二重送信も防ぐ。 */
-  function beginMutation(): boolean {
-    if (mutationInFlightRef.current) return false;
-    mutationInFlightRef.current = true;
-    setIsSaving(true);
-    return true;
-  }
-
-  function endMutation(): void {
-    mutationInFlightRef.current = false;
-    setIsSaving(false);
+  async function persistCastNgEntries(
+    {
+      context,
+      castId,
+      entries,
+      failureMessage,
+      afterSave,
+      afterSettled,
+    }: PersistCastNgEntriesOptions,
+  ): Promise<void> {
+    await runMutation(async () => {
+      try {
+        await updateCastFields(castId, { ng_entries: entries });
+        if (!isCurrentEventContext(context)) return;
+        setCasts((current) => current.map((cast) => (
+          cast.id === castId ? { ...cast, ng_entries: entries } : cast
+        )));
+        afterSave?.();
+      } catch {
+        if (isCurrentEventContext(context)) showAlert(failureMessage);
+      } finally {
+        afterSettled?.();
+      }
+    });
   }
 
   /** 入力を検証してNG登録を保存し、同じイベントを表示中の場合だけ画面へ反映する。 */
@@ -97,29 +121,18 @@ export function useCastNgManagement({
       showAlert(getMsg('NGUserManagementPage.duplicateNg'));
       return;
     }
-    if (!beginMutation()) return;
-
     const submittedForm = form;
     const nextEntries = [...(selectedCast.ng_entries ?? []), nextEntry];
-    try {
-      await updateCastFields(selectedCast.id, { ng_entries: nextEntries });
-      if (!isCurrentEventContext(context)) return;
-      setCasts((current) => current.map((cast) => (
-        cast.id === selectedCast.id ? { ...cast, ng_entries: nextEntries } : cast
-      )));
-      // 保存中に利用者が書き換えた項目は消さず、送信時の値だけを空に戻す。
-      setForm((current) => ({
-        username: current.username === submittedForm.username ? '' : current.username,
-        accountId: current.accountId === submittedForm.accountId ? '' : current.accountId,
-        notes: current.notes === submittedForm.notes ? '' : current.notes,
-      }));
-    } catch {
-      if (isCurrentEventContext(context)) {
-        showAlert(getMsg('NGUserManagementPage.addNgFailed'));
-      }
-    } finally {
-      endMutation();
-    }
+    await persistCastNgEntries({
+      context,
+      castId: selectedCast.id,
+      entries: nextEntries,
+      failureMessage: getMsg('NGUserManagementPage.addNgFailed'),
+      afterSave: () => {
+        // 保存中に利用者が書き換えた項目は消さず、送信時の値だけを空に戻す。
+        setForm((current) => clearSubmittedNgFormValues(current, submittedForm));
+      },
+    });
   }
 
   /** 一覧行が既に保持する型付き登録を、そのまま削除確認へ渡す。 */
@@ -129,7 +142,7 @@ export function useCastNgManagement({
 
   /** 確認済みのNG登録を保存値の完全一致で除き、既存の削除規則を維持する。 */
   async function confirmDelete(): Promise<void> {
-    if (!pendingDelete || mutationInFlightRef.current) return;
+    if (!pendingDelete || isMutationInFlight()) return;
     const deleteTarget = pendingDelete;
     const context = getOpenEventContext(currentEventName);
     if (context === null) {
@@ -143,28 +156,21 @@ export function useCastNgManagement({
       showAlert(getMsg('NGUserManagementPage.deleteCastMissing'));
       return;
     }
-    if (!beginMutation()) return;
-
     const nextEntries = removeCastNgEntry(targetCast.ng_entries ?? [], deleteTarget.entry);
     const persistedEntries = nextEntries.length > 0 ? nextEntries : undefined;
-    try {
-      await updateCastFields(deleteTarget.castId, { ng_entries: persistedEntries });
-      if (!isCurrentEventContext(context)) return;
-      setCasts((current) => current.map((cast) => (
-        cast.id === deleteTarget.castId ? { ...cast, ng_entries: persistedEntries } : cast
-      )));
-    } catch {
-      if (isCurrentEventContext(context)) {
-        showAlert(getMsg('NGUserManagementPage.deleteNgRegistrationFailed'));
-      }
-    } finally {
-      if (isCurrentEventContext(context)) setPendingDelete(null);
-      endMutation();
-    }
+    await persistCastNgEntries({
+      context,
+      castId: deleteTarget.castId,
+      entries: persistedEntries,
+      failureMessage: getMsg('NGUserManagementPage.deleteNgRegistrationFailed'),
+      afterSettled: () => {
+        if (isCurrentEventContext(context)) setPendingDelete(null);
+      },
+    });
   }
 
   function cancelDelete(): void {
-    if (!mutationInFlightRef.current) setPendingDelete(null);
+    if (!isMutationInFlight()) setPendingDelete(null);
   }
 
   /** NG登録のメモだけを置き換え、同じイベントを表示中の場合だけ一覧を更新する。 */
@@ -173,7 +179,7 @@ export function useCastNgManagement({
     entryIndex: number,
     notes: string,
   ): Promise<void> {
-    if (mutationInFlightRef.current) return;
+    if (isMutationInFlight()) return;
     const context = getOpenEventContext(currentEventName);
     if (context === null) {
       showAlert(getMsg('NGUserManagementPage.saveDetailsNeedsEvent'));
@@ -185,22 +191,13 @@ export function useCastNgManagement({
       showAlert(getMsg('NGUserManagementPage.ngRegistrationMissing'));
       return;
     }
-    if (!beginMutation()) return;
-
     const nextEntries = updateCastNgEntryNotes(targetCast.ng_entries ?? [], entryIndex, notes);
-    try {
-      await updateCastFields(castId, { ng_entries: nextEntries });
-      if (!isCurrentEventContext(context)) return;
-      setCasts((current) => current.map((cast) => (
-        cast.id === castId ? { ...cast, ng_entries: nextEntries } : cast
-      )));
-    } catch {
-      if (isCurrentEventContext(context)) {
-        showAlert(getMsg('NGUserManagementPage.detailsSaveFailed'));
-      }
-    } finally {
-      endMutation();
-    }
+    await persistCastNgEntries({
+      context,
+      castId,
+      entries: nextEntries,
+      failureMessage: getMsg('NGUserManagementPage.detailsSaveFailed'),
+    });
   }
 
   return {
