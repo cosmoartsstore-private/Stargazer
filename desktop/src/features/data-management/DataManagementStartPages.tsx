@@ -158,14 +158,17 @@ export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
         ) : (
           <ul className={styles.historyList}>
             {results.map((result) => {
+              const labelId = `saved-lottery-${result.savedResultId}-label`;
+              const metaId = `saved-lottery-${result.savedResultId}-meta`;
+              const actionId = `saved-lottery-${result.savedResultId}-action`;
               return (
                 <li key={result.savedResultId} className={styles.historyItem}>
                   <div className={styles.historyItemText}>
-                    <strong>{result.label}</strong>
-                    <span>{getMsg('DataManagementStart.savedLotteryMeta', { count: result.winnerCount, date: result.createdAt })}</span>
+                    <strong id={labelId}>{result.label}</strong>
+                    <span id={metaId}>{getMsg('DataManagementStart.savedLotteryMeta', { count: result.winnerCount, date: result.createdAt })}</span>
                   </div>
-                  <button type="button" className={shared.btnPrimary} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
-                    {getMsg(openingSavedResultId === result.savedResultId ? 'common.loading' : 'DataManagementStart.startMatching')}
+                  <button type="button" className={shared.btnPrimary} aria-labelledby={`${labelId} ${metaId} ${actionId}`} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
+                    <span id={actionId}>{getMsg(openingSavedResultId === result.savedResultId ? 'common.loading' : 'DataManagementStart.startMatching')}</span>
                   </button>
                 </li>
               );
@@ -302,26 +305,32 @@ export const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ onBack
           <p className={styles.historyStatus}>{getMsg('MatchingHistory.empty')}</p>
         ) : (
           <ul className={styles.historyList}>
-            {results.map((result) => (
-              <li key={result.savedResultId} className={styles.historyItem}>
-                <div className={styles.historyItemText}>
-                  <strong>{result.label}</strong>
-                  <span>{getMsg('MatchingHistory.listMeta', { count: result.winnerCount, date: result.createdAt })}</span>
-                </div>
-                <button
-                  ref={(button) => {
-                    if (button) resultButtonRefs.current.set(result.savedResultId, button);
-                    else resultButtonRefs.current.delete(result.savedResultId);
-                  }}
-                  type="button"
-                  className={shared.btnSecondary}
-                  disabled={openingResultId !== null}
-                  onClick={() => { void handleOpen(result); }}
-                >
-                  <ListChecks size={16} aria-hidden="true" />{getMsg(openingResultId === result.savedResultId ? 'common.loading' : 'MatchingHistory.open')}
-                </button>
-              </li>
-            ))}
+            {results.map((result) => {
+              const labelId = `saved-matching-${result.savedResultId}-label`;
+              const metaId = `saved-matching-${result.savedResultId}-meta`;
+              const actionId = `saved-matching-${result.savedResultId}-action`;
+              return (
+                <li key={result.savedResultId} className={styles.historyItem}>
+                  <div className={styles.historyItemText}>
+                    <strong id={labelId}>{result.label}</strong>
+                    <span id={metaId}>{getMsg('MatchingHistory.listMeta', { count: result.winnerCount, date: result.createdAt })}</span>
+                  </div>
+                  <button
+                    ref={(button) => {
+                      if (button) resultButtonRefs.current.set(result.savedResultId, button);
+                      else resultButtonRefs.current.delete(result.savedResultId);
+                    }}
+                    type="button"
+                    className={shared.btnSecondary}
+                    aria-labelledby={`${labelId} ${metaId} ${actionId}`}
+                    disabled={openingResultId !== null}
+                    onClick={() => { void handleOpen(result); }}
+                  >
+                    <ListChecks size={16} aria-hidden="true" /><span id={actionId}>{getMsg(openingResultId === result.savedResultId ? 'common.loading' : 'MatchingHistory.open')}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
