@@ -270,10 +270,11 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
           <SavedLotteryStartPage
             onOpened={() => navigate('lottery')}
             onOpeningChange={setIsOpeningSavedLottery}
+            onBackToStart={() => navigate('dataManagement')}
           />
         );
       case 'matchingHistory':
-        return <MatchingHistoryPage />;
+        return <MatchingHistoryPage onBackToStart={() => navigate('dataManagement')} />;
       case 'import':
         return (
           <ApplicantDataPage

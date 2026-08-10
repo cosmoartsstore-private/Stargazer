@@ -9,6 +9,9 @@ import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { toPng } from 'html-to-image';
 
+// 高DPI変換時の端数丸めで最終行・右端が欠けないよう、出力境界に余白を加える。
+const PNG_EDGE_SAFETY_PX = 4;
+
 function parsePixelValue(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -23,12 +26,14 @@ export async function exportElementAsPng(node: HTMLElement | null, filename: str
   const width = Math.ceil(
     Math.max(node.clientWidth, node.scrollWidth)
       + parsePixelValue(computedStyle.borderLeftWidth)
-      + parsePixelValue(computedStyle.borderRightWidth),
+      + parsePixelValue(computedStyle.borderRightWidth)
+      + PNG_EDGE_SAFETY_PX,
   );
   const height = Math.ceil(
     Math.max(node.clientHeight, node.scrollHeight)
       + parsePixelValue(computedStyle.borderTopWidth)
-      + parsePixelValue(computedStyle.borderBottomWidth),
+      + parsePixelValue(computedStyle.borderBottomWidth)
+      + PNG_EDGE_SAFETY_PX,
   );
   const dataUrl = await toPng(node, {
     cacheBust: true,

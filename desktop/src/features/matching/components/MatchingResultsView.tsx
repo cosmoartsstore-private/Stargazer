@@ -75,17 +75,13 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
   );
   const groupedTables = useMemo(() => groupTableSlots(tableSlots), [tableSlots]);
   const castResultTableMinWidth = Math.max(760, 220 + castResultColumnKeys.length * 260);
-  const scoreSummaryText = scoreSummary
-    ? getMsg('MatchingPage.scoreSummary', {
-        totalScore: scoreSummary.totalScore,
-        averageScore: scoreSummary.averageScore.toFixed(1),
-        firstChoiceCount: scoreSummary.firstChoiceCount,
-        secondChoiceCount: scoreSummary.secondChoiceCount,
-        thirdChoiceCount: scoreSummary.thirdChoiceCount,
-        flatPreferenceCount: scoreSummary.flatPreferenceCount,
-        unpreferredCount: scoreSummary.unpreferredCount,
-      })
-    : '';
+  const totalAssignmentCount = scoreSummary
+    ? scoreSummary.firstChoiceCount
+      + scoreSummary.secondChoiceCount
+      + scoreSummary.thirdChoiceCount
+      + scoreSummary.flatPreferenceCount
+      + scoreSummary.unpreferredCount
+    : 0;
 
   const exportPng = async (
     target: PngExportTarget,
@@ -141,10 +137,36 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
   return (
     <>
       {scoreSummary && (
-        <section className={shared.sectionBlock} style={{ marginTop: 16 }}>
+        <section className={`${shared.sectionBlock} ${styles.scoreSummarySection}`}>
           <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleSm}`}>{getMsg('MatchingPage.scoreSummaryHeading')}</h2>
-          <p className={shared.pageHeaderSubtitle}>{scoreSummaryText}</p>
-          {scoreSummary.ngWarningCount > 0 && <div className={styles.scoreWarning}>{getMsg('MatchingPage.ngWarning')}</div>}
+          <p className={`${shared.pageHeaderSubtitle} ${styles.scoreSummaryDescription}`}>{getMsg('MatchingPage.scoreSummaryDescription')}</p>
+          <dl className={styles.scoreSummaryList}>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummaryTotalAssignments')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: totalAssignmentCount })}</dd>
+            </div>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummaryFirstChoice')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: scoreSummary.firstChoiceCount })}</dd>
+            </div>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummarySecondChoice')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: scoreSummary.secondChoiceCount })}</dd>
+            </div>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummaryThirdChoice')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: scoreSummary.thirdChoiceCount })}</dd>
+            </div>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummaryFlatPreference')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: scoreSummary.flatPreferenceCount })}</dd>
+            </div>
+            <div className={styles.scoreSummaryItem}>
+              <dt className={styles.scoreSummaryTerm}>{getMsg('MatchingPage.scoreSummaryUnpreferred')}</dt>
+              <dd className={styles.scoreSummaryCount}>{getMsg('MatchingPage.scoreSummaryCount', { count: scoreSummary.unpreferredCount })}</dd>
+            </div>
+          </dl>
+          {scoreSummary.ngWarningCount > 0 && <p className={styles.scoreWarning} role="alert">{getMsg('MatchingPage.ngWarning', { count: scoreSummary.ngWarningCount })}</p>}
         </section>
       )}
 

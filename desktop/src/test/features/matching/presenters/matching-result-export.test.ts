@@ -72,8 +72,8 @@ describe('exportElementAsPng', () => {
     expect(imageMocks.toPng).toHaveBeenCalledWith(node, {
       cacheBust: true,
       pixelRatio: 2,
-      width: 643,
-      height: 487,
+      width: 647,
+      height: 491,
       style: {
         boxSizing: 'border-box',
         overflow: 'hidden',

@@ -255,6 +255,11 @@
   font-size: 12px;
 }
 
+.history-item > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .history-detail-heading {
   display: flex;
   align-items: flex-start;

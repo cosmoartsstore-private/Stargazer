@@ -21,8 +21,8 @@
 - **Cast Management** — キャスト情報の登録（別名義・写真・プロフィール・連絡先付き）
 - **Data Import** — TSV からの応募者データ取り込み（空・形式不正・重複 X ID の警告と手動削除、キャスト希望対応）
 - **Lottery** — バリデーション付き抽選システム（キャストを使わない単純抽選 M000 対応）
-- **Matching** — 複数戦略の最適マッチング (M001 / M002 / M003)、キャスト別 TSV、キャスト別・テーブル別 PNG 出力
-- **Attendance** — イベントごとの出席履歴、期間指定による出席回数の確認
+- **Matching** — 複数戦略の最適マッチング (M001 / M002 / M003)、希望順位別の割り当て内訳とNG警告、キャスト別 TSV、キャスト別・テーブル別 PNG 出力
+- **Attendance** — イベントごとの出席履歴、期間指定による出席回数、固定見出し付き一覧の縦横スクロール
 - **NG Management** — 理由メモ付きのキャスト別NG・要注意ユーザー管理
 - **Post Template** — 投稿文テンプレート作成・コピー
 - **Theme Customization** — デフォルトテーマのカスタムカラー調整、チェックテーマの色相調整
@@ -57,6 +57,8 @@ sample-data/                # 手動確認用サンプルデータ
 
 開始画面からは、イベント内へ明示保存した抽選結果を開いてマッチングを開始したり、保存済みマッチング結果を読み取り専用で確認したりできます。
 
+保存結果の閲覧画面でサイドバーの **応募管理** を選ぶと開始画面へ戻ります。新規取込、応募データ、抽選、マッチングの作業中画面では、同じ操作で現在の工程を維持します。
+
 ギフト抽選などで M000 を使う場合は、出席キャストを設定せずに抽選まで実行でき、マッチング工程はありません。
 
 ## Getting Started
@@ -73,13 +75,14 @@ sample-data/                # 手動確認用サンプルデータ
 ### Setup
 
 ```bash
-# 依存インストール (ルートと desktop の両方)
-npm install
-cd desktop && npm install && cd ..
+# Frontend と Tauri CLI の依存関係をlockfileどおりに導入
+npm ci --ignore-scripts --prefix desktop
 
 # 開発起動
 npm run dev
 ```
+
+JavaScript依存関係の正は `desktop/package.json` と `desktop/package-lock.json` です。ルートの `package.json` はコマンド転送だけを担当し、ルート直下の `node_modules` と `package-lock.json` は使用しません。
 
 ### Build
 
@@ -92,17 +95,25 @@ npm run build
 ### Test
 
 ```bash
-# Frontend の業務ロジック・repository テスト
-npm test
+# lockfileと依存関係の整合性、既知の脆弱性
+npm ci --ignore-scripts --prefix desktop
+npm audit --audit-level=low --prefix desktop
 
-# Backend の schema・transaction テスト
-cargo test --manifest-path desktop/src-tauri/Cargo.toml
-
-# カバレッジ付きで実行
+# Frontend の業務ロジック・repository テストとカバレッジ
 npm run test:coverage
+
+# Frontend 本番ビルド
+npm run build --prefix desktop
+
+# Backend の形式、lint、schema・transaction テスト
+cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
 ```
 
 Frontend テストは製品ツリーを鏡写しにした `desktop/src/test/` 配下へ配置し、取込パース、抽選、マッチング、出欠集計、repository の永続化境界を検証します。Rust テストは `desktop/src-tauri/src/lib.rs` の現行 schema 初期化、transaction、保存済み結果の固定スナップショットを検証します。カバレッジレポートは `desktop/src/coverage/` に生成され、Git の管理対象には含めません。
+
+2026-08-11時点の検証結果は、Frontend 55ファイル・450件、Rust 40件が成功し、Frontend coverageは Statements 96.16%、Branches 89.38%、Functions 100%、Lines 97.06%です。GitHub Actionsも上記と同じ依存監査、Frontend検証、Rust検証をWindows上で実行します。
 
 ## Database
 

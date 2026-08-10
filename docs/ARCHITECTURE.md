@@ -64,6 +64,8 @@ schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義です。
 
 最後に開いたイベントは単一JSONとして localStorage へ保存します。テーマとテーマ調整も端末設定として localStorage に置きます。作業セッション、抽選条件、当選者などの業務データは保存しません。
 
+応募管理の画面は、他の管理領域を表示している間も作業中の取込、応募データ、抽選、マッチングの状態を保持します。サイドバーの親項目を再選択した場合、これらの作業中画面は現在の工程を再表示し、保存済み抽選・マッチング結果の閲覧画面からは応募管理の開始画面へ戻ります。保存済みマッチングの詳細から一覧へ戻ると、開いた項目の位置とフォーカスを復元します。
+
 Context の公開契約を変更するときは、`desktop/src/features/guide/guideSampleContext.ts` の `createGuideSampleContext` も更新します。ヘルプ画面は実画面コンポーネントを固定サイズのサンプルContext内で描画するためです。
 
 ## Matching
@@ -119,13 +121,18 @@ PNGとTSVは画面上の結果から都度生成し、アプリ内キャッシ�
 
 ## Verification
 
-Frontend の純粋ロジックと repository は Vitest、Backend の schema 初期化と transaction は Rust test で確認します。
+Frontend の純粋ロジックと repository は Vitest、Backend の schema 初期化と transaction は Rust test で確認します。JavaScript依存関係は `desktop/package-lock.json` を正とし、ルートへ依存関係やlockfileを生成しません。
 
 ```bash
-npm test
+npm ci --ignore-scripts --prefix desktop
+npm audit --audit-level=low --prefix desktop
 npm run test:coverage
 npm run build --prefix desktop
-cargo test --manifest-path desktop/src-tauri/Cargo.toml
+cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
 ```
 
 `npm run build --prefix desktop` は TypeScript と Vite の生成までを確認します。ルートの `npm run build` は Tauri の配布物生成を含むため、リリース前に実行します。
+
+2026-08-11時点では、Frontend 55ファイル・450件、Rust 40件が成功し、Frontend coverageは Statements 96.16%、Branches 89.38%、Functions 100%、Lines 97.06%です。
