@@ -35,6 +35,7 @@ export const RawColumnsDialog: React.FC<RawColumnsDialogProps> = ({
       title={getMsg('ImportPage.rawColumnsDialogTitle')}
       showClose
       className={styles.importRawModal}
+      headerClassName={styles.importRawModalHeader}
     >
       <div className={styles.importRawModalMeta}>
         <span>{getMsg('ImportPage.columnCount', { count: columnIndexes.length })}</span>

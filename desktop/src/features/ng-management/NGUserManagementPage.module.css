@@ -51,7 +51,7 @@
   width: fit-content;
   max-width: 100%;
   padding: 4px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
   background: var(--surface-panel);
   border: 1px solid var(--border-default);
   border-radius: 8px;

@@ -3036,7 +3036,7 @@ fn discard_session(event_name: String, timestamp: String) -> Result<(), String> 
     discard_session_directory(&directory, &timestamp)
 }
 
-/** 応募データ保存まで成功したセッションだけを、操作中の新規取込として公開する。 */
+/** 全イベントを確認し、同時に扱う作業セッションが一件も残っていないことを保証する。 */
 fn ensure_no_work_session() -> Result<(), String> {
     let root = resolve_data_root();
     let event_names = list_event_names_at(&root)
@@ -3383,7 +3383,7 @@ fn save_matching_result_atomic(
 fn create_event(event_name: String) -> Result<(), String> {
     validate_event_name(&event_name)?;
     ensure_event_name_is_unique_ignoring_ascii_case(&resolve_data_root(), &event_name)?;
-    // イベント作成時は共有DBだけを作る。取込セッションはCSV取込時に明示的に作成する。
+    // イベント作成時は共有DBだけを作る。取込セッションはTSV取込時に明示的に作成する。
     create_event_shared_db(&event_name)
 }
 

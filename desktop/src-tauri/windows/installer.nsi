@@ -690,7 +690,7 @@ Section Install
     !insertmacro NSIS_HOOK_POSTINSTALL
   !endif
 
-  ; 追加: 共通命名規則に基づくレジストリ位置への書き込み
+  ; 実行時にDataの基準位置を解決するため、インストール先を記録する。
   WriteRegStr HKCU "Software\CosmoArtsStore\Stargazer" "InstallLocation" "$INSTDIR"
 
   ; Auto close this page for passive mode
@@ -740,8 +740,7 @@ Section Uninstall
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
-  ; Delete the app directory and its content from disk
-  ; Copy main executable
+  ; 実行ファイルと同梱resourceだけを削除し、Dataは通常アンインストール後も保持する。
   Delete "$INSTDIR\${MAINBINARYNAME}.exe"
 
   ; Delete resources

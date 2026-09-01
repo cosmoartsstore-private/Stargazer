@@ -38,6 +38,7 @@ function MessageDialog({ title, message, onOpenChange, actions }: MessageDialogP
       onOpenChange={onOpenChange}
       title={title}
       description={message}
+      className={styles.messageDialog}
       descriptionClassName={styles.modalMessage}
     >
       <footer className={styles.modalButtons}>{actions}</footer>

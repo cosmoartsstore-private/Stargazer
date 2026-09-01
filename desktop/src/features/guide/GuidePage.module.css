@@ -42,8 +42,8 @@
 
 :global([data-theme="skyblue"]) .guide-page {
   --surface-panel: #ffffff;
-  --surface-page: #f8fcff;
-  --surface-panel-muted: #f4faff;
+  --surface-page: #ffffff;
+  --surface-panel-muted: #ffffff;
   --surface-panel-elevated: #ffffff;
   --surface-hover: #e8f4fb;
   --surface-selected: #dceef8;
@@ -167,6 +167,62 @@
   color: var(--text-default);
   font-size: 13px;
   line-height: 1.8;
+}
+
+.guide-action-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  background: var(--surface-panel);
+}
+
+.guide-content-section-body > .guide-action-table-wrap:only-child {
+  margin: -14px -16px;
+}
+
+.guide-content-section-body > :not(.guide-action-table-wrap) + .guide-action-table-wrap {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-divider);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.guide-action-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-default);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.guide-action-table th,
+.guide-action-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-divider);
+  vertical-align: top;
+  text-align: left;
+}
+
+.guide-action-table thead th {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.guide-action-table tbody th {
+  width: 190px;
+  min-width: 150px;
+  background: var(--surface-panel-muted);
+  color: var(--text-heading);
+  font-weight: 700;
+}
+
+.guide-action-table tbody td {
+  background: var(--surface-panel);
+}
+
+.guide-action-table tbody tr:last-child > * {
+  border-bottom: 0;
 }
 
 .guideTsvSection {
@@ -763,28 +819,13 @@
   pointer-events: none;
 }
 
-.guideScaledViewport {
-  position: relative;
+.guidePreviewImage {
+  display: block;
   width: 100%;
-  overflow: hidden;
-}
-
-.guideScaledCanvas {
-  width: 1920px;
-  height: 1080px;
-  transform-origin: top left;
-}
-
-.guideActualAppShell {
-  width: 1920px !important;
-  height: 1080px !important;
-  min-height: 0 !important;
-  pointer-events: none;
-  overflow: hidden !important;
-}
-
-.guideActualMainScroll {
-  padding: 20px !important;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  user-select: none;
 }
 
 .featureGuideLegend {
@@ -835,6 +876,11 @@
 }
 
 @media (max-width: 768px) {
+
+  .guide-action-table tbody th {
+    width: 130px;
+    min-width: 110px;
+  }
 
   .guide-section-grid,
   .guideTsvStepLayout,

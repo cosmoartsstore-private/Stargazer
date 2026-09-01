@@ -1,6 +1,6 @@
 // アプリ全体のサイドバー、テーマ、データ読込状態、各機能画面の切替を構成する。
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Menu, X, Users, Settings, CalendarDays, HelpCircle } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { DataManagementPage } from '@/features/data-management/DataManagementPage';
@@ -24,6 +24,7 @@ import {
 import { useImportCommit } from '@/features/import/hooks/useImportCommit';
 import {
   APPLICATION_PAGES,
+  getDataManagementSidebarTarget,
   getVisiblePage,
   isPageActive,
   isSidebarPageDisabled,
@@ -135,6 +136,7 @@ export const AppContainer: React.FC = () => {
   const closeCurrentEventForExitRef = useRef(closeCurrentEventForExit);
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const mainContentScrollRef = useRef<HTMLDivElement>(null);
   const wasMobileMenuOpenRef = useRef(false);
   // テーマは実際にbodyへ適用するAppContainerが所有する。
   const [themeId, setThemeId] = useState(getInitialThemeId);
@@ -368,7 +370,13 @@ export const AppContainer: React.FC = () => {
   const handleSidebarPageSelect = (page: PageType) => {
     void (async () => {
       if (!await flushPendingPageCommits()) return;
-      setActivePage(page === 'dataManagement' ? dataManagementPage : page);
+      if (page === 'dataManagement') {
+        const targetPage = getDataManagementSidebarTarget(dataManagementPage);
+        setDataManagementPage(targetPage);
+        setActivePage(targetPage);
+      } else {
+        setActivePage(page);
+      }
       handleCloseMenu();
     })();
   };
@@ -467,6 +475,12 @@ export const AppContainer: React.FC = () => {
     { text: getMsg('AppContainer.guide'), page: 'guide', icon: <HelpCircle size={18} /> },
   ];
   const visiblePage = getVisiblePage(activePage, currentEventName);
+  useLayoutEffect(() => {
+    const scrollContainer = mainContentScrollRef.current;
+    if (scrollContainer === null) return;
+    scrollContainer.scrollTop = 0;
+    scrollContainer.scrollLeft = 0;
+  }, [visiblePage]);
   const isDataManagementVisible = APPLICATION_PAGES.includes(visiblePage);
   const renderNonDataManagementPage = () => {
     switch (visiblePage) {
@@ -591,7 +605,7 @@ export const AppContainer: React.FC = () => {
         )}
         <main className={styles.mainContent} inert={isMobileSidebar && isMenuOpen ? true : undefined}>
           {isDataLoading && <LoadingOverlay message={getMsg('AppContainer.dataLoading')} />}
-          <div className={styles.mainContentScroll} inert={isDataBlocked ? true : undefined}>
+          <div ref={mainContentScrollRef} className={styles.mainContentScroll} inert={isDataBlocked ? true : undefined}>
             {currentEventName !== null && (
               <div hidden={!isDataManagementVisible}>
                 <DataManagementPage

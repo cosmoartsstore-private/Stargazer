@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { BarChart3, CheckCircle, Database, FileText, Settings, Users } from 'lucide-react';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../GuidePage.module.css';

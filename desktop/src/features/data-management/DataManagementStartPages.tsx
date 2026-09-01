@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Archive, FileInput, History, ListChecks } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Archive, ArrowRight, FileInput, History, ListChecks } from 'lucide-react';
 import { NoticeDialog } from '@/components/ConfirmModal';
 import { MatchingResultsView } from '@/features/matching/components/MatchingResultsView';
 import {
@@ -68,6 +68,7 @@ export const DataManagementLanding: React.FC<DataManagementLandingProps> = ({
             <Icon size={24} aria-hidden="true" />
             <span className={styles.startCardTitle}>{getMsg(titleKey)}</span>
             <span className={styles.startCardDescription}>{getMsg(descriptionKey)}</span>
+            <ArrowRight className={styles.startCardArrow} size={20} aria-hidden="true" />
           </button>
         ))}
       </div>
@@ -78,11 +79,13 @@ export const DataManagementLanding: React.FC<DataManagementLandingProps> = ({
 interface SavedLotteryStartPageProps {
   onOpened: () => void;
   onOpeningChange?: (opening: boolean) => void;
+  onBackToStart: () => void;
 }
 
 export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
   onOpened,
   onOpeningChange,
+  onBackToStart,
 }) => {
   const { currentEventName, activateSavedLotteryResult } = useAppContext();
   const [results, setResults] = useState<EventSavedLotteryResultSummary[]>([]);
@@ -140,8 +143,13 @@ export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
   return (
     <div>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('DataManagementStart.savedLotteryPageTitle')}</h1>
-        <p className={shared.pageHeaderSubtitle}>{getMsg('DataManagementStart.savedLotteryPageDescription')}</p>
+        <div className={styles.historyDetailHeading}>
+          <div>
+            <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('DataManagementStart.savedLotteryPageTitle')}</h1>
+            <p className={shared.pageHeaderSubtitle}>{getMsg('DataManagementStart.savedLotteryPageDescription')}</p>
+          </div>
+          <button type="button" className={shared.btnSecondary} disabled={openingSavedResultId !== null} onClick={onBackToStart}>{getMsg('DataManagementStart.backToStart')}</button>
+        </div>
       </header>
       <section className={shared.sectionBlock}>
         {loading ? (
@@ -151,14 +159,17 @@ export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
         ) : (
           <ul className={styles.historyList}>
             {results.map((result) => {
+              const labelId = `saved-lottery-${result.savedResultId}-label`;
+              const metaId = `saved-lottery-${result.savedResultId}-meta`;
+              const actionId = `saved-lottery-${result.savedResultId}-action`;
               return (
                 <li key={result.savedResultId} className={styles.historyItem}>
                   <div className={styles.historyItemText}>
-                    <strong>{result.label}</strong>
-                    <span>{getMsg('DataManagementStart.savedLotteryMeta', { count: result.winnerCount, date: result.createdAt })}</span>
+                    <strong id={labelId}>{result.label}</strong>
+                    <span id={metaId}>{getMsg('DataManagementStart.savedLotteryMeta', { count: result.winnerCount, date: result.createdAt })}</span>
                   </div>
-                  <button type="button" className={shared.btnPrimary} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
-                    {getMsg(openingSavedResultId === result.savedResultId ? 'common.loading' : 'DataManagementStart.startMatching')}
+                  <button type="button" className={shared.btnPrimary} aria-labelledby={`${labelId} ${metaId} ${actionId}`} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
+                    <span id={actionId}>{getMsg(openingSavedResultId === result.savedResultId ? 'common.loading' : 'DataManagementStart.startMatching')}</span>
                   </button>
                 </li>
               );
@@ -171,13 +182,22 @@ export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
   );
 };
 
-export const MatchingHistoryPage: React.FC = () => {
+interface MatchingHistoryPageProps {
+  onBackToStart: () => void;
+}
+
+export const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ onBackToStart }) => {
   const { currentEventName } = useAppContext();
   const [results, setResults] = useState<EventSavedMatchingResultSummary[]>([]);
   const [detail, setDetail] = useState<EventSavedMatchingResultDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openingResultId, setOpeningResultId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const detailRequestIdRef = useRef(0);
+  const detailTopRef = useRef<HTMLDivElement>(null);
+  const lastOpenedResultIdRef = useRef<number | null>(null);
+  const restoreListPositionRef = useRef(false);
+  const resultButtonRefs = useRef(new Map<number, HTMLButtonElement>());
 
   useEffect(() => {
     let current = true;
@@ -197,12 +217,31 @@ export const MatchingHistoryPage: React.FC = () => {
     return () => { current = false; };
   }, [currentEventName]);
 
+  useEffect(() => {
+    if (detail !== null || !restoreListPositionRef.current) return;
+    const resultId = lastOpenedResultIdRef.current;
+    restoreListPositionRef.current = false;
+    if (resultId === null) return;
+    const animationFrame = requestAnimationFrame(() => {
+      const button = resultButtonRefs.current.get(resultId);
+      button?.focus();
+      button?.scrollIntoView({ block: 'center' });
+    });
+    return () => cancelAnimationFrame(animationFrame);
+  }, [detail, results]);
+
+  useLayoutEffect(() => {
+    if (detail === null) return;
+    detailTopRef.current?.scrollIntoView({ block: 'start' });
+  }, [detail]);
+
   const handleOpen = async (result: EventSavedMatchingResultSummary) => {
     if (!currentEventName) return;
     const requestId = ++detailRequestIdRef.current;
     const eventName = currentEventName;
+    lastOpenedResultIdRef.current = result.savedResultId;
     setError(null);
-    setLoading(true);
+    setOpeningResultId(result.savedResultId);
     try {
       const nextDetail = await getEventSavedMatchingResult(eventName, result);
       if (detailRequestIdRef.current === requestId) setDetail(nextDetail);
@@ -211,8 +250,12 @@ export const MatchingHistoryPage: React.FC = () => {
         setError(getMsg('MatchingHistory.detailLoadFailed'));
       }
     } finally {
-      if (detailRequestIdRef.current === requestId) setLoading(false);
+      if (detailRequestIdRef.current === requestId) setOpeningResultId(null);
     }
+  };
+  const handleBackToList = () => {
+    restoreListPositionRef.current = true;
+    setDetail(null);
   };
 
   if (detail) {
@@ -220,17 +263,17 @@ export const MatchingHistoryPage: React.FC = () => {
     try {
       restored = restoreMatchingResultSnapshot(detail.snapshot);
     } catch {
-      return <NoticeDialog title={getMsg('MatchingHistory.pageTitle')} message={getMsg('MatchingHistory.invalidSnapshot')} closeLabel={getMsg('MatchingHistory.backToList')} onClose={() => setDetail(null)} />;
+      return <NoticeDialog title={getMsg('MatchingHistory.pageTitle')} message={getMsg('MatchingHistory.invalidSnapshot')} closeLabel={getMsg('MatchingHistory.backToList')} onClose={handleBackToList} />;
     }
     return (
-      <div>
+      <div ref={detailTopRef}>
         <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
           <div className={styles.historyDetailHeading}>
             <div>
               <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{detail.label}</h1>
               <p className={shared.pageHeaderSubtitle}>{getMsg('MatchingHistory.detailMeta', { count: detail.winnerCount, date: detail.createdAt })}</p>
             </div>
-            <button type="button" className={shared.btnSecondary} onClick={() => setDetail(null)}>{getMsg('MatchingHistory.backToList')}</button>
+            <button type="button" className={shared.btnSecondary} onClick={handleBackToList}>{getMsg('MatchingHistory.backToList')}</button>
           </div>
         </header>
         <MatchingResultsView
@@ -248,8 +291,13 @@ export const MatchingHistoryPage: React.FC = () => {
   return (
     <div>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
-        <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('MatchingHistory.pageTitle')}</h1>
-        <p className={shared.pageHeaderSubtitle}>{getMsg('MatchingHistory.pageDescription')}</p>
+        <div className={styles.historyDetailHeading}>
+          <div>
+            <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('MatchingHistory.pageTitle')}</h1>
+            <p className={shared.pageHeaderSubtitle}>{getMsg('MatchingHistory.pageDescription')}</p>
+          </div>
+          <button type="button" className={shared.btnSecondary} disabled={openingResultId !== null} onClick={onBackToStart}>{getMsg('DataManagementStart.backToStart')}</button>
+        </div>
       </header>
       <section className={shared.sectionBlock}>
         {loading ? (
@@ -258,17 +306,32 @@ export const MatchingHistoryPage: React.FC = () => {
           <p className={styles.historyStatus}>{getMsg('MatchingHistory.empty')}</p>
         ) : (
           <ul className={styles.historyList}>
-            {results.map((result) => (
-              <li key={result.savedResultId} className={styles.historyItem}>
-                <div className={styles.historyItemText}>
-                  <strong>{result.label}</strong>
-                  <span>{getMsg('MatchingHistory.listMeta', { count: result.winnerCount, date: result.createdAt })}</span>
-                </div>
-                <button type="button" className={shared.btnSecondary} onClick={() => { void handleOpen(result); }}>
-                  <ListChecks size={16} aria-hidden="true" />{getMsg('MatchingHistory.open')}
-                </button>
-              </li>
-            ))}
+            {results.map((result) => {
+              const labelId = `saved-matching-${result.savedResultId}-label`;
+              const metaId = `saved-matching-${result.savedResultId}-meta`;
+              const actionId = `saved-matching-${result.savedResultId}-action`;
+              return (
+                <li key={result.savedResultId} className={styles.historyItem}>
+                  <div className={styles.historyItemText}>
+                    <strong id={labelId}>{result.label}</strong>
+                    <span id={metaId}>{getMsg('MatchingHistory.listMeta', { count: result.winnerCount, date: result.createdAt })}</span>
+                  </div>
+                  <button
+                    ref={(button) => {
+                      if (button) resultButtonRefs.current.set(result.savedResultId, button);
+                      else resultButtonRefs.current.delete(result.savedResultId);
+                    }}
+                    type="button"
+                    className={shared.btnSecondary}
+                    aria-labelledby={`${labelId} ${metaId} ${actionId}`}
+                    disabled={openingResultId !== null}
+                    onClick={() => { void handleOpen(result); }}
+                  >
+                    <ListChecks size={16} aria-hidden="true" /><span id={actionId}>{getMsg(openingResultId === result.savedResultId ? 'common.loading' : 'MatchingHistory.open')}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

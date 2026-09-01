@@ -1,13 +1,6 @@
-/* ========================================
-   モーダル
-   ======================================== */
-
-.modal-content--wide {
-  max-width: 680px;
-}
-
-.modal-content--extra-wide {
-  max-width: 760px;
+/* 確認文の末尾1～2文字だけが孤立しない幅を確保する。 */
+.message-dialog {
+  max-width: 480px;
 }
 
 .modal-message {

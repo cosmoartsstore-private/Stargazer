@@ -83,7 +83,7 @@
 }
 
 .pre-lottery-terminal {
-  margin-top: 14px;
+  margin: 14px 0 20px;
   background: var(--surface-panel);
   border: 1px solid var(--border-default);
   border-radius: 6px;
@@ -172,18 +172,19 @@
 
 .start-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 .start-card {
-  display: flex;
-  min-height: 190px;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 24px;
+  grid-template-rows: max-content max-content;
+  align-content: center;
+  column-gap: 20px;
+  row-gap: 6px;
+  min-height: 140px;
+  padding: 26px 30px;
   border: 1px solid var(--border-default);
   border-radius: 10px;
   background: var(--surface-panel);
@@ -193,7 +194,6 @@
 }
 
 .start-card:hover {
-  border-color: var(--border-input);
   background: var(--surface-panel-muted);
 }
 
@@ -203,18 +203,38 @@
 }
 
 .start-card svg {
+  grid-row: 1 / -1;
+  align-self: center;
   color: var(--text-muted);
 }
 
+.start-card > svg:first-child {
+  width: 30px;
+  height: 30px;
+}
+
+.start-card-arrow {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--text-muted);
+  transition: transform 140ms ease, color 140ms ease;
+}
+
+.start-card:hover .start-card-arrow {
+  transform: translateX(3px);
+}
+
 .start-card-title {
+  grid-column: 2;
   color: var(--text-heading);
   font-size: 17px;
   font-weight: 800;
 }
 
 .start-card-description {
+  grid-column: 2;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -255,6 +275,11 @@
   font-size: 12px;
 }
 
+.history-item > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .history-detail-heading {
   display: flex;
   align-items: flex-start;
@@ -272,12 +297,29 @@
   border-top: 1px solid var(--border-default);
 }
 
+.workflow-back-button {
+  border: 1px solid var(--border-default);
+}
+
+:global([data-theme="skyblue"]) .workflow-back-button {
+  background-color: #ffffff;
+}
+
+:global([data-theme="skyblue"]) .workflow-back-button:hover:not(:disabled) {
+  border-color: var(--border-input);
+  background-color: var(--surface-hover);
+}
+
 @media (max-width: 900px) {
-  .start-card-grid {
-    grid-template-columns: 1fr;
+  .start-card {
+    grid-template-columns: 34px minmax(0, 1fr) 20px;
+    column-gap: 16px;
+    min-height: 120px;
+    padding: 22px 24px;
   }
 
-  .start-card {
-    min-height: 140px;
+  .start-card > svg:first-child {
+    width: 26px;
+    height: 26px;
   }
 }

@@ -28,7 +28,7 @@ StellaRecordへの登録処理では、StellaRecordが所有するDBを外部境
 
 `desktop/src/db/database.ts` が共有DBと現在セッションDBの接続を管理します。接続世代番号も管理し、同じイベント・timestampへ戻った場合でも、切替前に開始した非同期処理の結果を採用しません。イベント切替では切替先DBを開けることを確認してから旧接続を閉じ、旧作業セッションを破棄します。イベント管理画面では使用中イベントの削除ボタンを表示せず、使用していないイベントを削除する前に、そのイベントへ残っている書込みの完了を待ちます。
 
-schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義です。新しいイベントと取込セッションは、一時ディレクトリ内で現行 schema の初期化と追加設定を完了してから最終ディレクトリへ移します。途中で失敗したデータは一覧へ公開せず、一時ディレクトリだけを削除します。一覧には、有効な名前で規定位置に `stargazer.db` ファイルがあるディレクトリを表示します。一覧取得時はDB内容を検証せず、選択して開くときにRust側でDB種別、必須table、必須columnを検証します。現行 schema に適合しないDBにはschemaの移行や補完を行わず、利用を拒否します。ただし、検証前にSQLiteの接続設定を適用するため、journal関連の状態や補助ファイルが更新される場合があります。Frontend repository は schema を作成しません。
+schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義です。新しいイベントと取込セッションは、一時ディレクトリ内で現行 schema の初期化と追加設定を完了してから最終ディレクトリへ移します。途中で失敗したデータは一覧へ公開せず、一時ディレクトリだけを削除します。一覧には、有効な名前で規定位置に `stargazer.db` ファイルがあるディレクトリを表示します。一覧取得時はDB内容を検証せず、選択して開くときにRust側でDB種別、必須table、必須columnを検証します。必要なtableまたはcolumnを満たさないDBにはschemaの移行や補完を行わず、利用を拒否します。ただし、検証前にSQLiteの接続設定を適用するため、journal関連の状態や補助ファイルが更新される場合があります。Frontend repository は schema を作成しません。
 
 複数テーブルを更新する保存処理は Rust command の単一 transaction にまとめます。単純な一覧取得は Tauri SQL plugin から直接実行します。
 
@@ -62,7 +62,9 @@ schema の正は `desktop/src-tauri/src/lib.rs` の現行 schema 定義です。
 3. `AppContainer` がイベント共有データを読み込む。作業セッションは復元しない。
 4. 読込中に接続世代が変わった場合、イベント名とtimestampが再び同じでも古い非同期要求の結果は破棄する。
 
-最後に開いたイベントは単一JSONとして localStorage へ保存します。テーマとテーマ調整も端末設定として localStorage に置きます。作業セッション、抽選条件、当選者などの業務データは保存しません。
+最後に開いたイベントは単一JSONとして localStorage へ保存します。テーマとテーマ調整も端末設定として localStorage に置きます。TSV取込時のヘッダーと列マッピングは、同じ列構成を再利用するための端末キャッシュとして localStorage に保存します。応募者行、作業セッション、抽選条件、当選者などの業務データは保存しません。
+
+応募管理の画面は、他の管理領域を表示している間も作業中の取込、応募データ、抽選、マッチングの状態を保持します。サイドバーの親項目を再選択した場合、これらの作業中画面は現在の工程を再表示し、保存済み抽選・マッチング結果の閲覧画面からは応募管理の開始画面へ戻ります。保存済みマッチングの詳細から一覧へ戻ると、開いた項目の位置とフォーカスを復元します。
 
 Context の公開契約を変更するときは、`desktop/src/features/guide/guideSampleContext.ts` の `createGuideSampleContext` も更新します。ヘルプ画面は実画面コンポーネントを固定サイズのサンプルContext内で描画するためです。
 
@@ -83,7 +85,7 @@ Web Workerを開始する前に、イベント共有DBと取込セッションDB
 
 応募者の X ID は `username` または `@username` 形式で受け付け、英数字とアンダースコアからなる1〜15文字のユーザー名を先頭の `@` なしで保存します。プロフィール URL は入力値として受け付けません。前後の空白、先頭の `@`、大文字小文字を除いた値で一意である必要があり、取込前とDBから読み込んだ一覧に同じ規則を適用します。不正行が存在する間は抽選・マッチング画面を開かず、Backendも抽選結果の確定と履歴保存を拒否します。自動削除は行わず、画面には対象行を示して安定IDによる個別削除だけを許可します。
 
-要注意ユーザーの X ID は、入力時の大文字小文字を保った `username` 形式で保存します。候補集計、登録時の重複判定、固定登録と応募者の照合では、小文字化して先頭の `@` を除いた比較キーを使います。応募者名と利用者が入力した登録名が両方ある場合は名前も照合します。登録名が未入力でX IDを表示名へ補完した場合は、X IDだけで照合します。
+要注意人物の X ID は、入力時の大文字小文字を保った `username` 形式で保存します。候補集計、登録時の重複判定、固定登録と応募者の照合では、小文字化して先頭の `@` を除いた比較キーを使います。応募者名と利用者が入力した登録名が両方ある場合は名前も照合します。登録名が未入力でX IDを表示名へ補完した場合は、X IDだけで照合します。
 
 希望または確定済みマッチングが現在存在しないキャストIDを参照する場合は、希望キャストとして判定できない可能性を警告します。抽選、マッチング、再実行、結果解除、PNG・TSV出力は制限しません。M000はキャストを参照しませんが、応募データの修正対象を確認できるよう応募者側の参照警告は表示し、マッチング結果に由来する警告は対象外とします。
 
@@ -96,6 +98,7 @@ Web Workerを開始する前に、イベント共有DBと取込セッションDB
 | 現行抽選結果 | 取込セッションDB `lottery_results` | 再抽選、応募者の置換・削除、または作業セッションを破棄するまで |
 | 保存済み抽選・マッチング | イベント共有DB `saved_results` | イベントを削除するまで |
 | テーマ・テーマ調整・最終イベント | localStorage | 端末設定を変更・削除するまで |
+| TSV取込のヘッダー・列マッピング | localStorage | 端末設定を削除するまで |
 | 計算中入力 | Web Worker の構造化コピー | 1回の計算完了または画面破棄まで |
 | 未保存の最終マッチング | AppContext | アプリ終了、イベント・セッション切替、結果解除まで |
 
@@ -119,13 +122,18 @@ PNGとTSVは画面上の結果から都度生成し、アプリ内キャッシ�
 
 ## Verification
 
-Frontend の純粋ロジックと repository は Vitest、Backend の schema 初期化と transaction は Rust test で確認します。
+Frontend の純粋ロジックと repository は Vitest、Backend の schema 初期化と transaction は Rust test で確認します。JavaScript依存関係は `desktop/package-lock.json` を正とし、ルートへ依存関係やlockfileを生成しません。
 
 ```bash
-npm test
+npm ci --ignore-scripts --prefix desktop
+npm audit --audit-level=low --prefix desktop
 npm run test:coverage
 npm run build --prefix desktop
-cargo test --manifest-path desktop/src-tauri/Cargo.toml
+cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
 ```
 
 `npm run build --prefix desktop` は TypeScript と Vite の生成までを確認します。ルートの `npm run build` は Tauri の配布物生成を含むため、リリース前に実行します。
+
+2026-08-11時点では、Frontend 55ファイル・450件、Rust 40件が成功し、Frontend coverageは Statements 96.16%、Branches 89.38%、Functions 100%、Lines 97.06%です。

@@ -1,8 +1,9 @@
 // 機能別ガイドの静的説明で共有する見出しと一覧の表示部品。
 
 import React from 'react';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
+import styles from '../../GuidePage.module.css';
 
 const STEP_NUMBER_STYLE: React.CSSProperties = {
   width: 26,
@@ -73,7 +74,7 @@ export const Section: React.FC<{ title: string; children: React.ReactNode }> = (
         <div style={{ padding: '8px 14px', background: headerBackground, borderBottom: `1px solid ${sectionColor}` }}>
           <h3 id={headingId} style={{ fontSize: 11, fontWeight: headingWeight, color: headingColor, margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</h3>
         </div>
-        <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
+        <div className={styles.guideContentSectionBody} style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
           {children}
         </div>
       </div>
@@ -81,23 +82,54 @@ export const Section: React.FC<{ title: string; children: React.ReactNode }> = (
   );
 };
 
-export const FeatureList: React.FC<{ items: string[] }> = ({ items }) => {
+interface GuideActionRow {
+  target: React.ReactNode;
+  action: React.ReactNode;
+}
+
+interface GuideActionTableProps {
+  rows: readonly GuideActionRow[];
+}
+
+/** 対象を行見出し、対応する操作をデータセルとして表示する。 */
+export const GuideActionTable: React.FC<GuideActionTableProps> = ({ rows }) => {
   return (
-    <ul style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 0, padding: 0, listStyle: 'none' }}>
-      {items.map((item, i) => (
-        <li
-          key={i}
-          style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 10px',
-            borderRadius: 6, background: 'var(--surface-panel)', border: '1px solid var(--border-default)',
-          }}
-        >
-          <span style={{ color: 'var(--accent-primary)', flexShrink: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }} aria-hidden="true">›</span>
-          <span style={{ fontSize: 13, color: 'var(--text-default)', lineHeight: 1.5 }}>{item}</span>
-        </li>
-      ))}
-    </ul>
+    <div className={styles.guideActionTableWrap}>
+      <table className={styles.guideActionTable}>
+        <thead>
+          <tr>
+            <th scope="col">{getMsg('GuidePage.table.target')}</th>
+            <th scope="col">{getMsg('GuidePage.table.action')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index}>
+              <th scope="row">{row.target}</th>
+              <td>{row.action}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
+};
+
+function splitGuideFeatureItem(item: string, index: number): GuideActionRow {
+  const bracketMatch = item.match(/^【([^】]+)】\s*(.+)$/u);
+  if (bracketMatch) return { target: bracketMatch[1], action: bracketMatch[2] };
+
+  const separatorIndex = item.indexOf('：');
+  if (separatorIndex > 0) {
+    return { target: item.slice(0, separatorIndex), action: item.slice(separatorIndex + 1) };
+  }
+
+  return { target: getMsg('GuidePage.table.item', { number: index + 1 }), action: item };
+}
+
+/** 文言カタログの「対象：操作」形式をガイド表へ変換する。 */
+export const FeatureTable: React.FC<{ items: string[] }> = ({ items }) => {
+  return <GuideActionTable rows={items.map(splitGuideFeatureItem)} />;
 };
 
 export const StepList: React.FC<{ items: string[] }> = ({ items }) => {

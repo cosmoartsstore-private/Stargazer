@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { BarChart3, CheckCircle, Database, FileText } from 'lucide-react';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
 import { FeatureGuideSample } from '../GuideFeatureSample';
 import {
   FeatureHeader,
-  FeatureList,
+  FeatureTable,
+  GuideActionTable,
   NoteList,
   NOTICE_SECTION_TITLE,
   Section,
@@ -33,7 +34,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       </Section>
 
       <Section title={getMsg('GuidePage.section.mainFeatures')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.applicantData.feature1'), getMsg('GuidePage.feature.applicantData.feature2'),
           getMsg('GuidePage.feature.applicantData.feature3'), getMsg('GuidePage.feature.applicantData.feature4'),
           getMsg('GuidePage.feature.applicantData.feature5'), getMsg('GuidePage.feature.applicantData.feature6'),
@@ -75,7 +76,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       </Section>
 
       <Section title={getMsg('GuidePage.feature.import.mappingTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.import.mapping1'), getMsg('GuidePage.feature.import.mapping2'),
           getMsg('GuidePage.feature.import.mapping3'), getMsg('GuidePage.feature.import.mapping4'),
         ]} />
@@ -103,38 +104,16 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       <FeatureGuideSample feature="lottery" />
 
       <Section title={getMsg('GuidePage.feature.lottery.matchingFormatTitle')}>
-        <ul style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, margin: 0, padding: 0, listStyle: 'none' }}>
-          {([
-            {
-              title: getMsg('GuidePage.feature.lottery.rotationTitle'),
-              desc: getMsg('GuidePage.feature.lottery.rotationDescription'),
-            },
-            {
-              title: getMsg('GuidePage.feature.lottery.random'),
-              desc: getMsg('GuidePage.feature.lottery.randomDescription'),
-            },
-            {
-              title: getMsg('GuidePage.feature.lottery.groupTitle'),
-              desc: getMsg('GuidePage.feature.lottery.groupDescription'),
-            },
-            {
-              title: getMsg('GuidePage.feature.lottery.onlyTitle'),
-              desc: getMsg('GuidePage.feature.lottery.onlyDescription'),
-            },
-          ] as const).map(m => (
-              <li
-                key={m.title}
-                style={{ borderRadius: 8, padding: '12px 14px', background: 'var(--surface-panel)', border: '1px solid var(--border-default)' }}
-              >
-                <h4 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--text-heading)' }}>{m.title}</h4>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{m.desc}</p>
-              </li>
-          ))}
-        </ul>
+        <GuideActionTable rows={[
+          { target: getMsg('GuidePage.feature.lottery.rotationTitle'), action: getMsg('GuidePage.feature.lottery.rotationDescription') },
+          { target: getMsg('GuidePage.feature.lottery.random'), action: getMsg('GuidePage.feature.lottery.randomDescription') },
+          { target: getMsg('GuidePage.feature.lottery.groupTitle'), action: getMsg('GuidePage.feature.lottery.groupDescription') },
+          { target: getMsg('GuidePage.feature.lottery.onlyTitle'), action: getMsg('GuidePage.feature.lottery.onlyDescription') },
+        ]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.lottery.settingsTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.lottery.setting1'), getMsg('GuidePage.feature.lottery.setting2'),
           getMsg('GuidePage.feature.lottery.setting3'), getMsg('GuidePage.feature.lottery.setting4'),
           getMsg('GuidePage.feature.lottery.setting5'), getMsg('GuidePage.feature.lottery.setting6'),
@@ -147,7 +126,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       </Section>
 
       <Section title={getMsg('GuidePage.feature.lottery.afterExecutionTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.lottery.result1'), getMsg('GuidePage.feature.lottery.result2'),
           getMsg('GuidePage.feature.lottery.result3'), getMsg('GuidePage.feature.lottery.result4'),
           getMsg('GuidePage.feature.lottery.result5'),
@@ -171,7 +150,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       <FeatureGuideSample feature="matching" />
 
       <Section title={getMsg('GuidePage.section.screenLayout')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.matching.layout1'), getMsg('GuidePage.feature.matching.layout2'),
           getMsg('GuidePage.feature.matching.layout3'), getMsg('GuidePage.feature.matching.layout4'),
         ]} />
@@ -179,7 +158,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
 
       <Section title={getMsg('GuidePage.feature.matching.ngTitle')}>
         <p>{getMsg('GuidePage.feature.matching.ngDescription')}</p>
-        <FeatureList items={[getMsg('GuidePage.feature.matching.ng1'), getMsg('GuidePage.feature.matching.ng2')]} />
+        <FeatureTable items={[getMsg('GuidePage.feature.matching.ng1'), getMsg('GuidePage.feature.matching.ng2')]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.matching.executeTitle')}>
@@ -187,7 +166,7 @@ export const APPLICANT_MANAGEMENT_FEATURE_CONTENT: Record<ApplicantManagementFea
       </Section>
 
       <Section title={getMsg('GuidePage.feature.matching.outputTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.matching.output1'), getMsg('GuidePage.feature.matching.output2'),
           getMsg('GuidePage.feature.matching.output3'),
         ]} />

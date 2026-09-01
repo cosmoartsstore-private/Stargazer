@@ -297,6 +297,12 @@
   background: var(--surface-tab-hover, var(--surface-hover));
 }
 
+/* チェックテーマのタブは面を塗らず、文字色と下線だけで状態を示す。 */
+:global([data-theme="skyblue"]) .page-tab:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-heading);
+}
+
 .page-tab--active {
   color: var(--accent-primary, var(--accent-primary));
   border-bottom-color: var(--accent-primary, var(--accent-primary));

@@ -6,8 +6,9 @@
   --attendance-surface: var(--surface-panel);
   --attendance-surface-raised: var(--surface-panel-muted);
   --attendance-surface-deep: var(--surface-panel);
-  --attendance-sticky-bg: #171b24;
-  --attendance-sticky-head-bg: #10131a;
+  --attendance-records-bg: #14141b;
+  --attendance-sticky-bg: #1b1b23;
+  --attendance-sticky-head-bg: #111117;
   --attendance-border: var(--border-default);
   --attendance-border-strong: rgba(255, 255, 255, 0.18);
   --attendance-grid: #2e3542;
@@ -197,7 +198,8 @@
 button.attendance-record-button {
   border: 1px solid var(--semantic-active-green);
   background-color: var(--semantic-active-green);
-  color: var(--attendance-present-contrast);
+  /* 保存モーダルはページ外へポータル表示されるため、ページ内変数へ依存させない。 */
+  color: #ffffff;
   font-weight: 800;
 }
 
@@ -410,7 +412,7 @@ button.attendance-record-button:focus-visible {
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--attendance-records-bg);
   border: 1px solid var(--attendance-border);
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -449,20 +451,13 @@ button.attendance-record-button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.attendance-matrix-frame {
-  display: grid;
-  grid-template-columns: 256px minmax(0, 1fr);
-  align-items: start;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  background: transparent;
-}
-
 .attendance-matrix-wrap {
   min-width: 0;
+  max-height: clamp(320px, calc(100vh - 310px), 760px);
   overflow: auto;
-  background: transparent;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: var(--attendance-records-bg);
   border: none;
   border-radius: 0;
   isolation: isolate;
@@ -470,24 +465,12 @@ button.attendance-record-button:focus-visible {
 
 .attendance-matrix {
   width: max-content;
-  min-width: 0;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  background: transparent;
+  background: var(--attendance-records-bg);
   font-size: 13px;
   table-layout: fixed;
-}
-
-.attendance-matrix-summary {
-  position: relative;
-  z-index: 2;
-  width: 256px;
-  min-width: 256px;
-  box-shadow: 1px 0 0 var(--attendance-grid);
-}
-
-.attendance-matrix-dates {
-  width: max-content;
 }
 
 .attendance-matrix th,
@@ -505,9 +488,11 @@ button.attendance-record-button:focus-visible {
 }
 
 .attendance-matrix thead th {
-  position: static;
+  position: sticky;
+  top: 0;
+  z-index: 3;
   height: 46px;
-  background: transparent;
+  background: var(--attendance-sticky-head-bg);
   color: var(--attendance-muted);
   font-size: 11px;
   font-weight: 700;
@@ -518,11 +503,14 @@ button.attendance-record-button:focus-visible {
 
 .attendance-matrix-cast-head,
 .attendance-matrix-cast-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   width: 168px;
   min-width: 168px;
   max-width: 168px;
   border-right: 1px solid var(--attendance-grid);
-  background: transparent;
+  background: var(--attendance-sticky-bg);
   text-align: left;
 }
 
@@ -535,11 +523,21 @@ button.attendance-record-button:focus-visible {
 
 .attendance-matrix-count-head,
 .attendance-matrix-count-cell {
+  position: sticky;
+  left: 168px;
+  z-index: 2;
   width: 88px;
   min-width: 88px;
   max-width: 88px;
-  background: transparent;
+  background: var(--attendance-sticky-bg);
   text-align: center;
+  box-shadow: 1px 0 0 var(--attendance-grid);
+}
+
+.attendance-matrix thead .attendance-matrix-cast-head,
+.attendance-matrix thead .attendance-matrix-count-head {
+  z-index: 4;
+  background: var(--attendance-sticky-head-bg);
 }
 
 .attendance-matrix th.attendance-matrix-count-head {
@@ -601,7 +599,7 @@ button.attendance-record-button:focus-visible {
   max-width: 104px;
   text-align: center;
   color: var(--attendance-muted);
-  background: transparent;
+  background: var(--attendance-records-bg);
 }
 
 .attendance-present-mark,
@@ -715,7 +713,7 @@ button.attendance-record-button:focus-visible {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0;
-  padding: 18px 24px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
 }
@@ -760,9 +758,22 @@ button.attendance-record-button:focus-visible {
   outline: none;
 }
 
+/* カレンダー表示中だけ、モーダル外へ続く日付行を切り取らない。 */
+.save-modal-panel:has(.record-date-calendar-panel) {
+  overflow: visible;
+}
+
+.save-modal-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .save-modal-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-rows: max-content minmax(0, 1fr);
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -862,12 +873,19 @@ button.attendance-record-button:focus-visible {
   color: var(--text-heading);
 }
 
+.record-date-calendar-button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
 .record-date-calendar-panel {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
   z-index: 20;
-  width: min(300px, calc(100vw - 48px));
+  width: max(320px, 100%);
+  min-width: 320px;
+  max-width: calc(100vw - 48px);
   padding: 12px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -995,12 +1013,23 @@ button.attendance-record-button:focus-visible {
 }
 
 .save-cast-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
   align-content: start;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.save-cast-list:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
 }
 
 .save-cast-item {
@@ -1012,9 +1041,8 @@ button.attendance-record-button:focus-visible {
   border-radius: 6px;
   background: var(--surface-panel);
   border: 1px solid var(--border-default);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .modal-footer {
@@ -1062,8 +1090,9 @@ button.attendance-record-button:focus-visible {
   --attendance-surface: #f7fbff;
   --attendance-surface-raised: #ffffff;
   --attendance-surface-deep: #edf8ff;
+  --attendance-records-bg: #ffffff;
   --attendance-sticky-bg: #ffffff;
-  --attendance-sticky-head-bg: #edf8ff;
+  --attendance-sticky-head-bg: #f7f9fb;
   --attendance-border: #bfdbfe;
   --attendance-border-strong: #93c5fd;
   --attendance-grid: #bfdbfe;
@@ -1133,8 +1162,9 @@ button.attendance-record-button:focus-visible {
   --attendance-surface: var(--surface-panel);
   --attendance-surface-raised: var(--surface-panel-muted);
   --attendance-surface-deep: var(--surface-panel);
-  --attendance-sticky-bg: #171b24;
-  --attendance-sticky-head-bg: #10131a;
+  --attendance-records-bg: #14141b;
+  --attendance-sticky-bg: #1b1b23;
+  --attendance-sticky-head-bg: #111117;
   --attendance-border: var(--border-default);
   --attendance-border-strong: rgba(255, 255, 255, 0.18);
   --attendance-grid: #2e3542;
@@ -1232,7 +1262,12 @@ button.attendance-record-button:focus-visible {
   }
 
   .save-modal-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content max-content minmax(0, 1fr);
+  }
+
+  .save-cast-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .modal-footer {

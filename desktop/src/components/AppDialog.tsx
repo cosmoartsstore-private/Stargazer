@@ -1,7 +1,7 @@
 // Radix Dialog を基盤に、共通のモーダル構造と閉じる操作を提供する。
 
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ComponentProps, CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
@@ -25,6 +25,29 @@ interface AppDialogProps {
   closeOnInteractOutside?: boolean;
 }
 
+/** 条件レンダーでDialog.Rootごと外れる場合も、閉じた後に開元へフォーカスを戻す。 */
+export function useRestoreFocusOnDialogUnmount(): void {
+  const returnFocusRef = useRef<HTMLElement | null>(
+    typeof document !== 'undefined'
+      && document.activeElement instanceof HTMLElement
+      && document.activeElement !== document.body
+      ? document.activeElement
+      : null,
+  );
+
+  useEffect(() => () => {
+    const returnTarget = returnFocusRef.current;
+    if (!returnTarget?.isConnected) return;
+    window.requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+      const hasOnlyDialogFallbackFocus = activeElement === null
+        || activeElement === document.body
+        || (activeElement instanceof HTMLElement && activeElement.hasAttribute('data-radix-focus-guard'));
+      if (returnTarget.isConnected && hasOnlyDialogFallbackFocus) returnTarget.focus();
+    });
+  }, []);
+}
+
 export function AppDialog({
   open,
   onOpenChange,
@@ -41,6 +64,7 @@ export function AppDialog({
   useDefaultContentClass = true,
   closeOnInteractOutside = true,
 }: AppDialogProps) {
+  useRestoreFocusOnDialogUnmount();
   // ポータル配置先、aria属性、追加クラスを公開propsから導出する。
   const modalContainer =
     typeof document !== 'undefined' ? (document.getElementById('modal-root') ?? document.body) : undefined;

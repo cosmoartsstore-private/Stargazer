@@ -446,14 +446,22 @@
 .import-raw-modal {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   width: min(1120px, calc(100vw - 48px));
   max-width: 1120px;
+  height: min(760px, calc(100vh - 48px));
   max-height: calc(100vh - 48px);
+  overflow: hidden;
+}
+
+.import-raw-modal-header {
+  flex: 0 0 auto;
 }
 
 .import-raw-modal-meta {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 8px;
   margin-bottom: 12px;
   color: var(--text-muted);
@@ -468,9 +476,10 @@
 }
 
 .import-raw-table-scroll {
-  min-height: 220px;
-  max-height: min(68vh, 620px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--surface-panel);
@@ -502,7 +511,7 @@
   font-size: 11px;
   font-weight: 800;
   text-align: left;
-  background: var(--surface-panel-muted);
+  background: var(--surface-sticky-muted);
 }
 
 .import-raw-table thead th {
@@ -535,7 +544,7 @@
   max-width: 52px !important;
   color: var(--text-muted) !important;
   text-align: right !important;
-  background: var(--surface-panel-muted) !important;
+  background: var(--surface-sticky-muted) !important;
 }
 
 .import-raw-table thead .import-raw-row-index {
