@@ -4,7 +4,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { GuideFeatureDetails } from '@/features/guide/components/GuideFeatureDetails';
 import { GuideFlowContent } from '@/features/guide/components/GuideFlowContent';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { isStellaRecordAvailable, registerToStellaRecord } from '@/tauri';
 import { getMsg } from '@/messages/getMsg';
 import styles from './GuidePage.module.css';

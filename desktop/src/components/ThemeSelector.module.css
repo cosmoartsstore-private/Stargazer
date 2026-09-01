@@ -7,6 +7,17 @@
   padding: 10px;
 }
 
+:global([data-theme="skyblue"]) .theme-button {
+  border: 1px solid #d2dae1;
+  background: #e9edf1;
+  color: var(--text-heading);
+}
+
+:global([data-theme="skyblue"]) .theme-button:hover:not(:disabled) {
+  border-color: #c3ccd4;
+  background: #dfe5ea;
+}
+
 .theme-dialog {
   max-width: 760px;
   max-height: calc(100dvh - 32px);

@@ -358,7 +358,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
         <nav className={styles.workflowNavigation} aria-label={getMsg('DataManagementStart.workflowNavigation')}>
           <button
             type="button"
-            className={shared.btnSecondary}
+            className={`${shared.btnSecondary} ${styles.workflowBackButton}`}
             disabled={isDataManagementBusy}
             onClick={() => {
               if (workflowPage === 'lottery') navigate('import');

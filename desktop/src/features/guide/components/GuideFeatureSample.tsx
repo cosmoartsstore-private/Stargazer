@@ -1,51 +1,9 @@
-// 機能別ガイドへ実画面と注釈一覧を埋め込むpreview基盤。
+// 機能別ガイドへ固定の実画面画像と注釈一覧を埋め込む。
 
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, HelpCircle, Settings, Users } from 'lucide-react';
-import { HeaderLogo } from '@/components/HeaderLogo';
-import { ThemeSelector } from '@/components/ThemeSelector';
-import { DataManagementPage } from '@/features/data-management/DataManagementPage';
-import { InternalManagementPage } from '@/features/internal-management/InternalManagementPage';
-import { AppContext } from '@/stores/AppContext';
-import type { PageType } from '@/layout/appNavigation';
-import { DEFAULT_THEME_CUSTOMIZATION, buildThemeCssVariables } from '@/common/themeCustomization';
-import { detectColumnMapping } from '@/common/importFormat';
-import type { ImportPageInitialData } from '@/features/import/ImportPage';
-import {
-  createGuideSampleContext,
-  isApplicationFeature,
-  noopGuideSampleAction,
-  type FeatureId,
-} from '@/features/guide/guideSampleContext';
+import React from 'react';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
 import styles from '../GuidePage.module.css';
-import shared from '@/styles/shared.module.css';
-import appStyles from '@/layout/AppContainer.module.css';
-
-// 実画面previewは基準解像度から表示領域へ等比縮小する。
-const GUIDE_PREVIEW_WIDTH = 1920;
-const GUIDE_PREVIEW_HEIGHT = 1080;
-
-const GUIDE_IMPORT_HEADERS = [
-  getMsg('GuidePage.label.timestamp'),
-  getMsg('ImportPage.userNameLabel'),
-  getMsg('ImportPage.xIdLabel'),
-  getMsg('ImportPage.vrchatLinkLabel'),
-  getMsg('ImportPage.preferredCastColumn', { rank: 1 }),
-  getMsg('ImportPage.preferredCastColumn', { rank: 2 }),
-  getMsg('ImportPage.preferredCastColumn', { rank: 3 }),
-];
-
-const GUIDE_IMPORT_INITIAL_DATA: ImportPageInitialData = {
-  headers: GUIDE_IMPORT_HEADERS,
-  sourceRows: [
-    [getMsg('GuidePage.sample.timestamp1'), getMsg('GuidePage.sample.applicant001'), getMsg('GuidePage.sample.xId001'), '', getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC')],
-    [getMsg('GuidePage.sample.timestamp2'), getMsg('GuidePage.sample.applicant002'), getMsg('GuidePage.sample.xId002'), '', getMsg('GuidePage.sample.castB'), getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castE')],
-    [getMsg('GuidePage.sample.timestamp3'), getMsg('GuidePage.sample.applicant003'), getMsg('GuidePage.sample.xId003'), '', getMsg('GuidePage.sample.castC'), getMsg('GuidePage.sample.castA'), getMsg('GuidePage.sample.castB')],
-  ].map((cells, index) => ({ rowNumber: index + 1, cells })),
-  fileName: 'responses.tsv',
-  mapping: detectColumnMapping(GUIDE_IMPORT_HEADERS),
-};
 
 type AnnotationPoint = {
   number: number;
@@ -58,7 +16,6 @@ type AnnotationPoint = {
 type FeatureSampleMeta = {
   title: string;
   summary: string;
-  activeNav: string;
   points: AnnotationPoint[];
 };
 
@@ -75,7 +32,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   'applicant-data': {
     title: getMsg('GuidePage.meta.applicantData.title'),
     summary: getMsg('GuidePage.meta.applicantData.summary'),
-    activeNav: getMsg('GuidePage.nav.import'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.applicantData.point1.title'), description: getMsg('GuidePage.meta.applicantData.point1.description'), x: 30, y: 14 },
       { number: 2, title: getMsg('GuidePage.meta.applicantData.point2.title'), description: getMsg('GuidePage.meta.applicantData.point2.description'), x: 66, y: 14 },
@@ -87,7 +43,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   import: {
     title: getMsg('GuidePage.meta.import.title'),
     summary: getMsg('GuidePage.meta.import.summary'),
-    activeNav: getMsg('GuidePage.nav.import'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.import.point1.title'), description: getMsg('GuidePage.meta.import.point1.description'), x: 26, y: 22 },
       { number: 2, title: getMsg('GuidePage.meta.import.point2.title'), description: getMsg('GuidePage.meta.import.point2.description'), x: 30, y: 33 },
@@ -99,7 +54,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   lottery: {
     title: getMsg('GuidePage.meta.lottery.title'),
     summary: getMsg('GuidePage.meta.lottery.summary'),
-    activeNav: getMsg('GuidePage.nav.lottery'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.lottery.point1.title'), description: getMsg('GuidePage.meta.lottery.point1.description'), x: 32, y: 38 },
       { number: 2, title: getMsg('GuidePage.meta.lottery.point2.title'), description: getMsg('GuidePage.meta.lottery.point2.description'), x: 41, y: 54 },
@@ -111,7 +65,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   matching: {
     title: getMsg('GuidePage.meta.matching.title'),
     summary: getMsg('GuidePage.meta.matching.summary'),
-    activeNav: getMsg('GuidePage.nav.matching'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.matching.point1.title'), description: getMsg('GuidePage.meta.matching.point1.description'), x: 29, y: 28 },
       { number: 2, title: getMsg('GuidePage.meta.matching.point2.title'), description: getMsg('GuidePage.meta.matching.point2.description'), x: 42, y: 71 },
@@ -123,7 +76,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   cast: {
     title: getMsg('GuidePage.meta.cast.title'),
     summary: getMsg('GuidePage.meta.cast.summary'),
-    activeNav: getMsg('GuidePage.nav.cast'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.cast.point1.title'), description: getMsg('GuidePage.meta.cast.point1.description'), x: 29, y: 29 },
       { number: 2, title: getMsg('GuidePage.meta.cast.point2.title'), description: getMsg('GuidePage.meta.cast.point2.description'), x: 31, y: 82 },
@@ -135,7 +87,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   ng: {
     title: getMsg('GuidePage.meta.ng.title'),
     summary: getMsg('GuidePage.meta.ng.summary'),
-    activeNav: getMsg('GuidePage.nav.ng'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.ng.point1.title'), description: getMsg('GuidePage.meta.ng.point1.description'), x: 31, y: 13 },
       { number: 2, title: getMsg('GuidePage.meta.ng.point2.title'), description: getMsg('GuidePage.meta.ng.point2.description'), x: 36, y: 26 },
@@ -147,7 +98,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   attendance: {
     title: getMsg('GuidePage.meta.attendance.title'),
     summary: getMsg('GuidePage.meta.attendance.summary'),
-    activeNav: getMsg('GuidePage.nav.attendance'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.attendance.point1.title'), description: getMsg('GuidePage.meta.attendance.point1.description'), x: 26, y: 13 },
       { number: 2, title: getMsg('GuidePage.meta.attendance.point2.title'), description: getMsg('GuidePage.meta.attendance.point2.description'), x: 38, y: 38 },
@@ -159,7 +109,6 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   tweet: {
     title: getMsg('GuidePage.meta.tweet.title'),
     summary: getMsg('GuidePage.meta.tweet.summary'),
-    activeNav: getMsg('GuidePage.nav.tweet'),
     points: [
       { number: 1, title: getMsg('GuidePage.meta.tweet.point1.title'), description: getMsg('GuidePage.meta.tweet.point1.description'), x: 40, y: 30 },
       { number: 2, title: getMsg('GuidePage.meta.tweet.point2.title'), description: getMsg('GuidePage.meta.tweet.point2.description'), x: 40, y: 44 },
@@ -170,35 +119,53 @@ const FEATURE_SAMPLE_META: Record<FeatureId, FeatureSampleMeta> = {
   },
 };
 
-const GuideScaledAppFrame: React.FC<{ children: React.ReactNode; points: AnnotationPoint[] }> = ({ children, points }) => {
-  // 基準解像度の実画面を、親要素の横幅へ収まる倍率で表示する。
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(0.5);
+const GUIDE_FEATURE_SCREENSHOT_PATHS: Record<FeatureId, string> = {
+  'applicant-data': '/guide-screenshots/applicant-data.png',
+  import: '/guide-screenshots/import.png',
+  lottery: '/guide-screenshots/lottery.png',
+  matching: '/guide-screenshots/matching.png',
+  cast: '/guide-screenshots/cast.png',
+  ng: '/guide-screenshots/ng-cast.png',
+  attendance: '/guide-screenshots/attendance.png',
+  tweet: '/guide-screenshots/tweet.png',
+};
 
-  useLayoutEffect(function observeGuidePreviewFrame() {
-    const frame = frameRef.current;
-    if (!frame) return undefined;
+function resolveGuideFeatureScreenshot(
+  feature: FeatureId,
+  initialNgTab?: 'cast-ng' | 'caution',
+): string {
+  if (feature === 'ng' && initialNgTab === 'caution') {
+    return '/guide-screenshots/ng-caution.png';
+  }
+  return GUIDE_FEATURE_SCREENSHOT_PATHS[feature];
+}
 
-    // 実画面を固定サイズで組み立て、表示領域に合わせて縮小する。
-    // これによりヘルプ枠の幅でタブや表が再配置されることを防ぐ。
-    const updateScale = () => {
-      setScale(frame.clientWidth / GUIDE_PREVIEW_WIDTH);
-    };
-    updateScale();
+interface GuideActualFeaturePreviewProps {
+  feature: FeatureId;
+  initialScrollTop?: number;
+  initialNgTab?: 'cast-ng' | 'caution';
+  points?: AnnotationPoint[];
+}
 
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(frame);
-    return () => observer.disconnect();
-  }, []);
-
-  const viewportStyle: React.CSSProperties = { height: GUIDE_PREVIEW_HEIGHT * scale };
-  const canvasStyle: React.CSSProperties = { transform: `scale(${scale})` };
+/** 保存済みの実画面画像を表示し、操作箇所の注釈だけを画像上へ重ねる。 */
+export const GuideActualFeaturePreview: React.FC<GuideActualFeaturePreviewProps> = ({
+  feature,
+  initialNgTab,
+  points = [],
+}) => {
+  const imagePath = resolveGuideFeatureScreenshot(feature, initialNgTab);
+  const featureTitle = FEATURE_SAMPLE_META[feature].title;
 
   return (
-    <div ref={frameRef} className={styles.guideScaledViewport} style={viewportStyle}>
-      <div className={styles.guideScaledCanvas} style={canvasStyle}>
-        {children}
-      </div>
+    <div className={styles.guidePreviewAppFrame}>
+      <img
+        className={styles.guidePreviewImage}
+        src={imagePath}
+        alt={getMsg('GuidePage.sampleScreen.imageAlt', { feature: featureTitle })}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
       <div className={styles.guidePreviewMarkerLayer} aria-hidden="true">
         {points.map(point => (
           <span key={point.number} className={styles.guidePreviewMarker} style={{ left: `${point.x}%`, top: `${point.y}%` }}>
@@ -209,87 +176,6 @@ const GuideScaledAppFrame: React.FC<{ children: React.ReactNode; points: Annotat
     </div>
   );
 };
-
-interface GuideActualSampleScreenProps {
-  feature: FeatureId;
-  initialScrollTop?: number;
-  initialNgTab?: 'cast-ng' | 'caution';
-}
-
-const GuideActualSampleScreen: React.FC<GuideActualSampleScreenProps> = ({ feature, initialScrollTop = 0, initialNgTab }) => {
-  // プレビュー専用Contextとテーマを、表示中featureから組み立てる。
-  const context = useMemo(() => createGuideSampleContext(feature), [feature]);
-  const mainScrollRef = useRef<HTMLDivElement | null>(null);
-  const themeCssVariables = useMemo(
-    () => buildThemeCssVariables('dark', DEFAULT_THEME_CUSTOMIZATION),
-    [],
-  );
-  useLayoutEffect(() => {
-    if (mainScrollRef.current) mainScrollRef.current.scrollTop = initialScrollTop;
-  }, [feature, initialScrollTop]);
-  const mainNav = isApplicationFeature(feature)
-    ? getMsg('GuidePage.nav.applicantManagement')
-    : getMsg('GuidePage.nav.internalManagement');
-
-  const sidebarButtons: { text: string; page: PageType; icon: React.ReactNode }[] = [
-    { text: getMsg('GuidePage.nav.applicantManagement'), page: 'dataManagement', icon: <Users size={18} /> },
-    { text: getMsg('GuidePage.nav.internalManagement'), page: 'internalManagement', icon: <Settings size={18} /> },
-    { text: getMsg('GuidePage.nav.eventManagement'), page: 'eventManagement', icon: <CalendarDays size={18} /> },
-    { text: getMsg('GuidePage.nav.guide'), page: 'guide', icon: <HelpCircle size={18} /> },
-  ];
-
-  return (
-    <AppContext.Provider value={context}>
-      <div className={`${appStyles.appContainer} ${styles.guideActualAppShell}`} data-theme="dark" data-guide-theme-preview="dark" style={themeCssVariables as React.CSSProperties} inert>
-        <aside className={appStyles.sidebar}>
-          <div className={appStyles.sidebarInner}>
-            <div className={appStyles.sidebarTitle}><HeaderLogo /></div>
-            {sidebarButtons.map(function renderSidebarButton(button) {
-              const active = button.text === mainNav;
-              return (
-                <button key={button.text} type="button" className={`${appStyles.sidebarButton}${active ? ` ${appStyles.active}` : ''}`} tabIndex={-1}>{button.icon}<span className={appStyles.sidebarButtonLabel}>{button.text}</span></button>
-              );
-            })}
-            <div className={`${appStyles.sidebarBlock} ${appStyles.sidebarBlockPush}`} />
-            <div className={`${appStyles.sidebarBlock} ${appStyles.sidebarThemeSlider}`}>
-              <ThemeSelector themeId="dark" setThemeId={noopGuideSampleAction} customization={DEFAULT_THEME_CUSTOMIZATION} setCustomization={noopGuideSampleAction} />
-            </div>
-          </div>
-        </aside>
-        <div className={appStyles.mainContent}>
-          <div ref={mainScrollRef} className={`${appStyles.mainContentScroll} ${shared.customScrollbar} ${styles.guideActualMainScroll}`}>
-            {/* 応募管理系と内部管理系で、プレビューへ埋め込む実画面コンテナを切り替える。 */}
-            {isApplicationFeature(feature)
-              ? <DataManagementPage onImportUsers={noopGuideSampleAction} initialImportData={feature === 'import' ? GUIDE_IMPORT_INITIAL_DATA : undefined} />
-              : <InternalManagementPage previewMode initialSelectedCastId={feature === 'cast' ? context.casts[0]?.id : undefined} initialNgTab={initialNgTab} />}
-          </div>
-        </div>
-      </div>
-    </AppContext.Provider>
-  );
-};
-
-interface GuideActualFeaturePreviewProps extends GuideActualSampleScreenProps {
-  points?: AnnotationPoint[];
-}
-
-/** サンプルContextで構成した実画面を、ガイド内の表示領域へ縮小して埋め込む。 */
-export const GuideActualFeaturePreview: React.FC<GuideActualFeaturePreviewProps> = ({
-  feature,
-  initialScrollTop,
-  initialNgTab,
-  points = [],
-}) => (
-  <div className={styles.guidePreviewAppFrame}>
-    <GuideScaledAppFrame points={points}>
-      <GuideActualSampleScreen
-        feature={feature}
-        initialScrollTop={initialScrollTop}
-        initialNgTab={initialNgTab}
-      />
-    </GuideScaledAppFrame>
-  </div>
-);
 
 export const FeatureGuideSample: React.FC<{ feature: FeatureId }> = ({ feature }) => {
   const meta = FEATURE_SAMPLE_META[feature];

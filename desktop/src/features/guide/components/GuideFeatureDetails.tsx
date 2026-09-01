@@ -4,7 +4,7 @@ import React from 'react';
 import {
   BarChart3, Calendar, CheckCircle, Database, FileText, Settings, Users, UserX,
 } from 'lucide-react';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
 import styles from '../GuidePage.module.css';
 import { APPLICANT_MANAGEMENT_FEATURE_CONTENT } from './content/ApplicantManagementFeatureContent';

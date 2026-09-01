@@ -9,3 +9,5 @@
 | `theme-background-ui-demo.html` | テーマ背景の検討 |
 | `click-effects-showcase.html` | クリック効果の比較 |
 | `lottery-matching-fullscreen-demo.html` | 抽選・マッチング全画面案 |
+| `applicant-warning-design-proposals.html` | 応募データ警告の比較案 |
+| `guide-content-design-proposals.html` | ヘルプ詳細セクションの比較案 |

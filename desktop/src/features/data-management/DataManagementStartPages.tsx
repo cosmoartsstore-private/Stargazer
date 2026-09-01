@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, FileInput, History, ListChecks } from 'lucide-react';
+import { Archive, ArrowRight, FileInput, History, ListChecks } from 'lucide-react';
 import { NoticeDialog } from '@/components/ConfirmModal';
 import { MatchingResultsView } from '@/features/matching/components/MatchingResultsView';
 import {
@@ -68,6 +68,7 @@ export const DataManagementLanding: React.FC<DataManagementLandingProps> = ({
             <Icon size={24} aria-hidden="true" />
             <span className={styles.startCardTitle}>{getMsg(titleKey)}</span>
             <span className={styles.startCardDescription}>{getMsg(descriptionKey)}</span>
+            <ArrowRight className={styles.startCardArrow} size={20} aria-hidden="true" />
           </button>
         ))}
       </div>

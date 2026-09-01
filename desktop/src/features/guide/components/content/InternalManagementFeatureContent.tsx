@@ -2,12 +2,13 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import { Calendar, Settings, Users, UserX } from 'lucide-react';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { getMsg } from '@/messages/getMsg';
 import { FeatureGuideSample } from '../GuideFeatureSample';
 import {
   FeatureHeader,
-  FeatureList,
+  FeatureTable,
+  GuideActionTable,
   NoteList,
   NOTICE_SECTION_TITLE,
   Section,
@@ -43,14 +44,14 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
       </Section>
 
       <Section title={getMsg('GuidePage.feature.cast.listTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.cast.list1'), getMsg('GuidePage.feature.cast.list2'),
           getMsg('GuidePage.feature.cast.list3'), getMsg('GuidePage.feature.cast.list4'),
         ]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.cast.detailTitle')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.cast.detail1'), getMsg('GuidePage.feature.cast.detail2'),
           getMsg('GuidePage.feature.cast.detail3'), getMsg('GuidePage.feature.cast.detail4'),
           getMsg('GuidePage.feature.cast.detail5'), getMsg('GuidePage.feature.cast.detail6'),
@@ -83,12 +84,12 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
       <FeatureGuideSample feature="ng" />
 
       <Section title={getMsg('GuidePage.section.tabStructure')}>
-        <FeatureList items={[getMsg('GuidePage.feature.ng.tab1'), getMsg('GuidePage.feature.ng.tab2')]} />
+        <FeatureTable items={[getMsg('GuidePage.feature.ng.tab1'), getMsg('GuidePage.feature.ng.tab2')]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.ng.castTabTitle')}>
         <p>{getMsg('GuidePage.feature.ng.castTabDescription')}</p>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.ng.castFeature1'), getMsg('GuidePage.feature.ng.castFeature2'),
           getMsg('GuidePage.feature.ng.castFeature3'), getMsg('GuidePage.feature.ng.castFeature4'),
           getMsg('GuidePage.feature.ng.castFeature5'),
@@ -99,13 +100,13 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
         <p>{getMsg('GuidePage.feature.ng.cautionTabDescription')}</p>
 
         <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>{getMsg('GuidePage.feature.ng.candidateSection')}</h4>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.ng.candidate1'), getMsg('GuidePage.feature.ng.candidate2'),
           getMsg('GuidePage.feature.ng.candidate3'), getMsg('GuidePage.feature.ng.candidate4'),
         ]} />
 
         <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>{getMsg('GuidePage.feature.ng.registeredSection')}</h4>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.ng.registered1'), getMsg('GuidePage.feature.ng.registered2'),
           getMsg('GuidePage.feature.ng.registered3'), getMsg('GuidePage.feature.ng.registered4'),
         ]} />
@@ -128,19 +129,19 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
       <FeatureGuideSample feature="attendance" />
 
       <Section title={getMsg('GuidePage.section.tabStructure')}>
-        <FeatureList items={[getMsg('GuidePage.feature.attendance.tab1'), getMsg('GuidePage.feature.attendance.tab2')]} />
+        <FeatureTable items={[getMsg('GuidePage.feature.attendance.tab1'), getMsg('GuidePage.feature.attendance.tab2')]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.attendance.settingsTabTitle')}>
         <p>{getMsg('GuidePage.feature.attendance.settingsDescription')}</p>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.attendance.setting1'), getMsg('GuidePage.feature.attendance.setting2'),
           getMsg('GuidePage.feature.attendance.setting3'), getMsg('GuidePage.feature.attendance.setting4'),
           getMsg('GuidePage.feature.attendance.setting5'),
         ]} />
 
         <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>{getMsg('GuidePage.feature.attendance.saveModalTitle')}</h4>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.attendance.modal1'), getMsg('GuidePage.feature.attendance.modal2'),
           getMsg('GuidePage.feature.attendance.modal3'), getMsg('GuidePage.feature.attendance.modal4'),
           getMsg('GuidePage.feature.attendance.modal5'),
@@ -148,7 +149,7 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
       </Section>
 
       <Section title={getMsg('GuidePage.feature.attendance.historyTabTitle')}>
-        <FeatureList items={[getMsg('GuidePage.feature.attendance.history1'), getMsg('GuidePage.feature.attendance.history2'), getMsg('GuidePage.feature.attendance.history3')]} />
+        <FeatureTable items={[getMsg('GuidePage.feature.attendance.history1'), getMsg('GuidePage.feature.attendance.history2'), getMsg('GuidePage.feature.attendance.history3')]} />
       </Section>
 
       <Section title={NOTICE_SECTION_TITLE}>
@@ -171,35 +172,28 @@ export const INTERNAL_MANAGEMENT_FEATURE_CONTENT: Record<InternalManagementFeatu
       <FeatureGuideSample feature="tweet" />
 
       <Section title={getMsg('GuidePage.section.screenLayout')}>
-        <FeatureList items={[getMsg('GuidePage.feature.tweet.layout1'), getMsg('GuidePage.feature.tweet.layout2')]} />
+        <FeatureTable items={[getMsg('GuidePage.feature.tweet.layout1'), getMsg('GuidePage.feature.tweet.layout2')]} />
       </Section>
 
       <Section title={getMsg('GuidePage.feature.tweet.editorTitle')}>
         <p>{getMsg('GuidePage.feature.tweet.editorDescription')}</p>
 
         <h4 style={{ color: 'var(--text-heading)', fontSize: 14, fontWeight: 600, margin: '16px 0 8px' }}>{getMsg('GuidePage.feature.tweet.placeholderListTitle')}</h4>
-        <dl style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: 0 }}>
-          {([
-            { ph: getMsg('GuidePage.feature.tweet.castsToken'), desc: getMsg('GuidePage.feature.tweet.castsDescription') },
-            { ph: getMsg('GuidePage.feature.tweet.eventNameToken'), desc: getMsg('GuidePage.feature.tweet.eventNameDescription') },
-          ] as const).map(({ ph, desc }) => (
-            <div
-              key={ph}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
-                borderRadius: 7, background: 'var(--surface-panel)', border: '1px solid var(--border-default)',
-              }}
-            >
-              <dt><code style={TWEET_PLACEHOLDER_CODE_STYLE}>{ph}</code></dt>
-              <dd style={{ margin: 0, fontSize: 13, color: 'var(--text-default)' }}><span aria-hidden="true">→ </span>{desc}</dd>
-            </div>
-          ))}
-        </dl>
+        <GuideActionTable rows={[
+          {
+            target: <code style={TWEET_PLACEHOLDER_CODE_STYLE}>{getMsg('GuidePage.feature.tweet.castsToken')}</code>,
+            action: getMsg('GuidePage.feature.tweet.castsDescription'),
+          },
+          {
+            target: <code style={TWEET_PLACEHOLDER_CODE_STYLE}>{getMsg('GuidePage.feature.tweet.eventNameToken')}</code>,
+            action: getMsg('GuidePage.feature.tweet.eventNameDescription'),
+          },
+        ]} />
         <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>{getMsg('GuidePage.feature.tweet.placeholderHelp')}</p>
       </Section>
 
       <Section title={getMsg('GuidePage.section.preview')}>
-        <FeatureList items={[
+        <FeatureTable items={[
           getMsg('GuidePage.feature.tweet.preview1'), getMsg('GuidePage.feature.tweet.preview2'),
           getMsg('GuidePage.feature.tweet.preview3'), getMsg('GuidePage.feature.tweet.preview4'),
         ]} />

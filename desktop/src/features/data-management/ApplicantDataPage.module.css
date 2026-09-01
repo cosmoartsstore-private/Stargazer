@@ -13,20 +13,28 @@
 
 .applicant-list-page,
 .applicant-detail-modal {
-  --applicant-cast-issue-surface: #ffd43b;
-  --applicant-cast-issue-hover-surface: #ffe16a;
-  --applicant-cast-issue-on-surface: #1a1503;
-  --applicant-cast-issue-border: #d1a000;
+  --applicant-cast-issue-surface: #302b17;
+  --applicant-cast-issue-hover-surface: #3b351c;
+  --applicant-cast-issue-on-surface: #f6cf45;
+  --applicant-cast-issue-border: #5b5230;
   --applicant-cast-issue-panel: #302b17;
 }
 
 :global([data-theme="skyblue"]) .applicant-list-page,
 :global([data-theme="skyblue"]) .applicant-detail-modal {
+  --applicant-cast-issue-surface: #ffd43b;
+  --applicant-cast-issue-hover-surface: #ffe16a;
+  --applicant-cast-issue-on-surface: #1a1503;
+  --applicant-cast-issue-border: #d1a000;
   --applicant-cast-issue-panel: #fff7c7;
 }
 
 :global([data-guide-theme-preview="dark"]) .applicant-list-page,
 :global([data-guide-theme-preview="dark"]) .applicant-detail-modal {
+  --applicant-cast-issue-surface: #302b17;
+  --applicant-cast-issue-hover-surface: #3b351c;
+  --applicant-cast-issue-on-surface: #f6cf45;
+  --applicant-cast-issue-border: #5b5230;
   --applicant-cast-issue-panel: #302b17;
 }
 

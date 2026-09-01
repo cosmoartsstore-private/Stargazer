@@ -6,8 +6,9 @@
   --attendance-surface: var(--surface-panel);
   --attendance-surface-raised: var(--surface-panel-muted);
   --attendance-surface-deep: var(--surface-panel);
-  --attendance-sticky-bg: #171b24;
-  --attendance-sticky-head-bg: #10131a;
+  --attendance-records-bg: #14141b;
+  --attendance-sticky-bg: #1b1b23;
+  --attendance-sticky-head-bg: #111117;
   --attendance-border: var(--border-default);
   --attendance-border-strong: rgba(255, 255, 255, 0.18);
   --attendance-grid: #2e3542;
@@ -197,7 +198,8 @@
 button.attendance-record-button {
   border: 1px solid var(--semantic-active-green);
   background-color: var(--semantic-active-green);
-  color: var(--attendance-present-contrast);
+  /* 保存モーダルはページ外へポータル表示されるため、ページ内変数へ依存させない。 */
+  color: #ffffff;
   font-weight: 800;
 }
 
@@ -410,7 +412,7 @@ button.attendance-record-button:focus-visible {
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--attendance-records-bg);
   border: 1px solid var(--attendance-border);
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -455,7 +457,7 @@ button.attendance-record-button:focus-visible {
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background: transparent;
+  background: var(--attendance-records-bg);
   border: none;
   border-radius: 0;
   isolation: isolate;
@@ -466,7 +468,7 @@ button.attendance-record-button:focus-visible {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  background: transparent;
+  background: var(--attendance-records-bg);
   font-size: 13px;
   table-layout: fixed;
 }
@@ -597,7 +599,7 @@ button.attendance-record-button:focus-visible {
   max-width: 104px;
   text-align: center;
   color: var(--attendance-muted);
-  background: transparent;
+  background: var(--attendance-records-bg);
 }
 
 .attendance-present-mark,
@@ -756,6 +758,11 @@ button.attendance-record-button:focus-visible {
   outline: none;
 }
 
+/* カレンダー表示中だけ、モーダル外へ続く日付行を切り取らない。 */
+.save-modal-panel:has(.record-date-calendar-panel) {
+  overflow: visible;
+}
+
 .save-modal-form {
   display: flex;
   flex: 1;
@@ -876,7 +883,9 @@ button.attendance-record-button:focus-visible {
   top: calc(100% + 8px);
   left: 0;
   z-index: 20;
-  width: min(300px, calc(100vw - 48px));
+  width: max(320px, 100%);
+  min-width: 320px;
+  max-width: calc(100vw - 48px);
   padding: 12px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
@@ -1081,8 +1090,9 @@ button.attendance-record-button:focus-visible {
   --attendance-surface: #f7fbff;
   --attendance-surface-raised: #ffffff;
   --attendance-surface-deep: #edf8ff;
+  --attendance-records-bg: #ffffff;
   --attendance-sticky-bg: #ffffff;
-  --attendance-sticky-head-bg: #edf8ff;
+  --attendance-sticky-head-bg: #f7f9fb;
   --attendance-border: #bfdbfe;
   --attendance-border-strong: #93c5fd;
   --attendance-grid: #bfdbfe;
@@ -1152,8 +1162,9 @@ button.attendance-record-button:focus-visible {
   --attendance-surface: var(--surface-panel);
   --attendance-surface-raised: var(--surface-panel-muted);
   --attendance-surface-deep: var(--surface-panel);
-  --attendance-sticky-bg: #171b24;
-  --attendance-sticky-head-bg: #10131a;
+  --attendance-records-bg: #14141b;
+  --attendance-sticky-bg: #1b1b23;
+  --attendance-sticky-head-bg: #111117;
   --attendance-border: var(--border-default);
   --attendance-border-strong: rgba(255, 255, 255, 0.18);
   --attendance-grid: #2e3542;

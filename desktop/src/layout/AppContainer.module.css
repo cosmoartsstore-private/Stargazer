@@ -71,13 +71,14 @@
   --accent-primary: var(--theme-check-accent, #2d8fd3);
   /* 危険・警告・成功は、ユーザーが変更できるテーマ色相へ追従させない。 */
   --accent-success: var(--semantic-success-solid);
+  /* 大きな閲覧・作業面は白を基準とし、選択・hoverだけにテーマ色を使う。 */
   --surface-panel: #ffffff;
-  --surface-page: hsl(var(--theme-check-hue, 204) 100% 99%);
-  --surface-panel-muted: hsl(var(--theme-check-hue, 204) 100% 97%);
+  --surface-page: #ffffff;
+  --surface-panel-muted: #ffffff;
   --surface-panel-elevated: #ffffff;
-  --surface-sticky: #f8fcff;
-  --surface-sticky-muted: #eef7fd;
-  --surface-sticky-subtle: #f4faff;
+  --surface-sticky: #ffffff;
+  --surface-sticky-muted: #f7f9fb;
+  --surface-sticky-subtle: #ffffff;
   --surface-sticky-hover: #e6f3fb;
   --surface-hover: hsl(var(--theme-check-hue, 204) 75% 94%);
   --surface-selected: hsl(var(--theme-check-hue, 204) 72% 89%);
