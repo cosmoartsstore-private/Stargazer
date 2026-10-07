@@ -76,12 +76,5 @@ export function resolveImportColumnMapping(mapping: ColumnMapping): ColumnMappin
 
 /** 応募項目へ割り当て済みの列インデックスを返す。 */
 export function getMappedColumnIndexes(mapping: ColumnMapping): Set<number> {
-  return new Set([
-    mapping.name,
-    mapping.x_id,
-    mapping.vrc_url,
-    mapping.cast1,
-    mapping.cast2,
-    mapping.cast3,
-  ].filter((index) => index >= 0));
+  return new Set([mapping.name, mapping.x_id, mapping.vrc_url, mapping.cast1, mapping.cast2, mapping.cast3].filter((index) => index >= 0));
 }

@@ -17,9 +17,7 @@ function matchEntry(user: UserBean, entry: NGUserEntry): boolean {
   );
 }
 
-/**
- * キャストのNGリスト（ng_entries）に対してユーザーがNGかどうか判定する。
- */
+/** キャストのNGリスト（ng_entries）に対してユーザーがNGかどうか判定する。 */
 export function isUserNGForCast(user: UserBean, cast: CastBean): boolean {
   const entries = cast.ng_entries;
   if (entries && entries.length > 0) {
@@ -28,9 +26,7 @@ export function isUserNGForCast(user: UserBean, cast: CastBean): boolean {
   return false;
 }
 
-/**
- * 結果整合性の確認でNG組み合わせを検出した場合の理由文言を返す。
- */
+/** 結果整合性の確認でNG組み合わせを検出した場合の理由文言を返す。 */
 export function getNGReasonForCast(castName: string): string {
   return getMsg('ngJudgment.ngReasonForCast', { castName });
 }

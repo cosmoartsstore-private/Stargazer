@@ -4,7 +4,7 @@ import type { CastBean } from '@/common/types/entities';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../CastManagementPage.module.css';
-import { filterCasts } from '../castManagementModel';
+import { CAST_NAME_MAX_LENGTH, CAST_SEARCH_MAX_LENGTH, filterCasts } from '../castManagementModel';
 
 interface CastListItemProps {
   cast: CastBean;
@@ -40,17 +40,7 @@ export interface CastListPanelProps {
   onSelectCast: (castId: number) => void;
 }
 
-export const CastListPanel = ({
-  casts,
-  selectedCastId,
-  searchQuery,
-  inputCastName,
-  isCreating,
-  onSearchQueryChange,
-  onInputCastNameChange,
-  onAddCast,
-  onSelectCast,
-}: CastListPanelProps) => {
+export const CastListPanel = ({ casts, selectedCastId, searchQuery, inputCastName, isCreating, onSearchQueryChange, onInputCastNameChange, onAddCast, onSelectCast }: CastListPanelProps) => {
   const filteredCasts = filterCasts(casts, searchQuery);
 
   const handleSearchQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -68,22 +58,20 @@ export const CastListPanel = ({
     <div className={`${shared.managementListPanel} ${styles.castPanelHeight}`}>
       <div className={shared.managementListPanel__search}>
         <Search size={14} className={shared.managementListPanel__searchIcon} />
-        <input type="search" className={shared.managementListPanel__searchInput} placeholder={getMsg('common.searchPlaceholder')} aria-label={getMsg('common.searchPlaceholder')} value={searchQuery} onChange={handleSearchQueryChange} />
+        <input type="search" className={shared.managementListPanel__searchInput} placeholder={getMsg('common.searchPlaceholder')} aria-label={getMsg('common.searchPlaceholder')} value={searchQuery} maxLength={CAST_SEARCH_MAX_LENGTH} onChange={handleSearchQueryChange} />
       </div>
 
       <div className={`${shared.managementListPanel__items} ${shared.customScrollbar}`}>
         {filteredCasts.length === 0 ? (
           <div className={shared.managementListPanel__empty}>{getMsg('CastManagementPage.noCasts')}</div>
         ) : (
-          filteredCasts.map((cast) => (
-            <CastListItem key={cast.id} cast={cast} isSelected={cast.id === selectedCastId} onSelect={onSelectCast} />
-          ))
+          filteredCasts.map((cast) => (<CastListItem key={cast.id} cast={cast} isSelected={cast.id === selectedCastId} onSelect={onSelectCast} />))
         )}
       </div>
 
       <div className={shared.managementListPanel__add}>
         <form className={shared.managementListPanel__addRow} onSubmit={handleAddCastSubmit}>
-          <input type="text" className={shared.managementListPanel__addInput} placeholder={getMsg('CastManagementPage.addCastPlaceholder')} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} value={inputCastName} onChange={handleInputCastNameChange} disabled={isCreating} />
+          <input type="text" className={shared.managementListPanel__addInput} placeholder={getMsg('CastManagementPage.addCastPlaceholder')} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} value={inputCastName} maxLength={CAST_NAME_MAX_LENGTH} onChange={handleInputCastNameChange} disabled={isCreating} />
           <button type="submit" className={`${shared.btnSuccess} ${shared.managementListPanel__addBtn}`} disabled={isCreating} aria-label={getMsg('CastManagementPage.addCastAriaLabel')}><UserPlus size={14} /></button>
         </form>
       </div>

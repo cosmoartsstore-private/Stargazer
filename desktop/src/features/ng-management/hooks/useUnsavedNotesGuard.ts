@@ -57,11 +57,5 @@ export function useUnsavedNotesGuard() {
   const discard = (): void => resolveDecision(true);
   const keepEditing = (): void => resolveDecision(false);
 
-  return {
-    dialogOpen,
-    discardGeneration,
-    handleDirtyChange,
-    discard,
-    keepEditing,
-  };
+  return { dialogOpen, discardGeneration, handleDirtyChange, discard, keepEditing };
 }

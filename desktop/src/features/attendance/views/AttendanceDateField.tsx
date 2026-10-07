@@ -1,24 +1,10 @@
 // 出席記録と履歴期間で共用する、手入力対応のカレンダー付き日付欄。
 
 import { CalendarDays } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { getMsg } from '@/messages/getMsg';
 import styles from '../AttendancePage.module.css';
-import {
-  buildCalendarDays,
-  formatRecordDateInput,
-  formatRecordDateValue,
-  parseRecordDate,
-} from '../models/recordDate';
+import { buildCalendarDays, formatRecordDateInput, formatRecordDateValue, parseRecordDate } from '../models/recordDate';
 
 const FIRST_RECORD_DATE = '0001-01-01';
 const LAST_RECORD_DATE = '9999-12-31';
@@ -62,32 +48,14 @@ interface CalendarDayButtonProps {
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, date: Date) => void;
 }
 
-function CalendarDayButton({
-  date,
-  className,
-  ariaLabel,
-  selected,
-  disabled,
-  focused,
-  onSelect,
-  onKeyDown,
-}: CalendarDayButtonProps) {
+function CalendarDayButton({ date, className, ariaLabel, selected, disabled, focused, onSelect, onKeyDown }: CalendarDayButtonProps) {
   const dateValue = formatRecordDateValue(date);
   const handleClick = () => onSelect(date);
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => onKeyDown(event, date);
 
   return (
     <div className={styles.recordDateCalendarCell} role="gridcell" aria-selected={selected} aria-disabled={disabled || undefined}>
-      <button
-        type="button"
-        className={className}
-        data-calendar-date={dateValue}
-        aria-label={ariaLabel}
-        tabIndex={focused ? 0 : -1}
-        disabled={disabled}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-      >
+      <button type="button" className={className} data-calendar-date={dateValue} aria-label={ariaLabel} tabIndex={focused ? 0 : -1} disabled={disabled} onClick={handleClick} onKeyDown={handleKeyDown}>
         {date.getDate()}
       </button>
     </div>
@@ -107,18 +75,7 @@ interface AttendanceDateFieldProps {
   onCalendarOpenChange?: (open: boolean) => void;
 }
 
-export function AttendanceDateField({
-  id,
-  value,
-  onValueChange,
-  autoFocus = false,
-  min,
-  max,
-  ariaInvalid,
-  ariaDescribedBy,
-  calendarOpen,
-  onCalendarOpenChange,
-}: AttendanceDateFieldProps) {
+export function AttendanceDateField({ id, value, onValueChange, autoFocus = false, min, max, ariaInvalid, ariaDescribedBy, calendarOpen, onCalendarOpenChange }: AttendanceDateFieldProps) {
   const parsedDate = parseRecordDate(value);
   const [internalCalendarOpen, setInternalCalendarOpen] = useState(false);
   const initialCalendarDate = clampCalendarDate(parsedDate ?? new Date(), min, max);
@@ -127,10 +84,7 @@ export function AttendanceDateField({
   const calendarPanelId = useId();
   const calendarHeadingId = useId();
   const calendarDays = useMemo(() => buildCalendarDays(viewDate), [viewDate]);
-  const calendarWeeks = useMemo(() => Array.from(
-    { length: 6 },
-    (_, weekIndex) => calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7),
-  ), [calendarDays]);
+  const calendarWeeks = useMemo(() => Array.from({ length: 6 }, (_, weekIndex) => calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7)), [calendarDays]);
   const selectedDateValue = parsedDate ? formatRecordDateValue(parsedDate) : '';
   const currentMonth = viewDate.getMonth();
   const weekdayLabels = getMsg('SaveAttendanceModal.weekdays').split(',');
@@ -171,9 +125,7 @@ export function AttendanceDateField({
   useEffect(() => {
     if (!isCalendarOpen || pendingFocusDateRef.current === null) return;
     const dateValue = pendingFocusDateRef.current;
-    const dayButton = calendarPanelRef.current?.querySelector<HTMLButtonElement>(
-      `[data-calendar-date="${dateValue}"]`,
-    );
+    const dayButton = calendarPanelRef.current?.querySelector<HTMLButtonElement>(`[data-calendar-date="${dateValue}"]`,);
     if (!dayButton) return;
     dayButton.focus();
     pendingFocusDateRef.current = null;
@@ -295,40 +247,10 @@ export function AttendanceDateField({
   return (
     <div ref={fieldRef} className={styles.recordDateField} onKeyDown={handleCalendarKeyDown}>
       <CalendarDays size={16} className={styles.recordDateIcon} aria-hidden />
-      <input
-        id={id}
-        type="text"
-        inputMode="numeric"
-        className={styles.recordDateInput}
-        placeholder={getMsg('SaveAttendanceModal.datePlaceholder')}
-        maxLength={10}
-        value={value}
-        autoFocus={autoFocus}
-        aria-invalid={ariaInvalid || undefined}
-        aria-describedby={ariaDescribedBy}
-        onChange={handleInputChange}
-      />
-      <button
-        ref={calendarTriggerRef}
-        type="button"
-        className={styles.recordDateCalendarButton}
-        aria-label={getMsg('SaveAttendanceModal.openCalendar')}
-        aria-haspopup="dialog"
-        aria-expanded={isCalendarOpen}
-        aria-controls={calendarPanelId}
-        onClick={handleToggleCalendar}
-      >
-        <CalendarDays size={15} />
-      </button>
+      <input id={id} type="text" inputMode="numeric" className={styles.recordDateInput} placeholder={getMsg('SaveAttendanceModal.datePlaceholder')} maxLength={10} value={value} autoFocus={autoFocus} aria-invalid={ariaInvalid || undefined} aria-describedby={ariaDescribedBy} onChange={handleInputChange} />
+      <button ref={calendarTriggerRef} type="button" className={styles.recordDateCalendarButton} aria-label={getMsg('SaveAttendanceModal.openCalendar')} aria-haspopup="dialog" aria-expanded={isCalendarOpen} aria-controls={calendarPanelId} onClick={handleToggleCalendar}><CalendarDays size={15} /></button>
       {isCalendarOpen && (
-        <div
-          ref={calendarPanelRef}
-          id={calendarPanelId}
-          className={styles.recordDateCalendarPanel}
-          role="dialog"
-          aria-modal="false"
-          aria-labelledby={calendarHeadingId}
-        >
+        <div ref={calendarPanelRef} id={calendarPanelId} className={styles.recordDateCalendarPanel} role="dialog" aria-modal="false" aria-labelledby={calendarHeadingId}>
           <div className={styles.recordDateCalendarHeader}>
             <button type="button" onClick={handlePreviousMonth} aria-label={getMsg('SaveAttendanceModal.previousMonth')}>‹</button>
             <strong id={calendarHeadingId} aria-live="polite">{getMsg('SaveAttendanceModal.calendarMonth', { year: viewDate.getFullYear(), month: viewDate.getMonth() + 1 })}</strong>
@@ -353,17 +275,7 @@ export function AttendanceDateField({
                   ].filter(Boolean).join(' ');
                   const ariaLabel = getMsg('SaveAttendanceModal.calendarDate', { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
                   return (
-                    <CalendarDayButton
-                      key={dateValue}
-                      date={date}
-                      className={className}
-                      ariaLabel={ariaLabel}
-                      selected={isSelected}
-                      disabled={isDisabled}
-                      focused={dateValue === focusedDateValue}
-                      onSelect={handleSelectDate}
-                      onKeyDown={handleDayKeyDown}
-                    />
+                    <CalendarDayButton key={dateValue} date={date} className={className} ariaLabel={ariaLabel} selected={isSelected} disabled={isDisabled} focused={dateValue === focusedDateValue} onSelect={handleSelectDate} onKeyDown={handleDayKeyDown} />
                   );
                 })}
               </div>

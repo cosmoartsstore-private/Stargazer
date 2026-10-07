@@ -59,12 +59,7 @@ export interface MatchingRunOptions {
 }
 
 /** 指定された方式コードに応じてマッチングを実行し、警告・スコア集計を付与する。 */
-export function runMatching(
-  winners: UserBean[],
-  allCasts: CastBean[],
-  matchingTypeCode: MatchingTypeCode,
-  options: MatchingRunOptions,
-): MatchingResult {
+export function runMatching(winners: UserBean[], allCasts: CastBean[], matchingTypeCode: MatchingTypeCode, options: MatchingRunOptions): MatchingResult {
   const activeCasts = allCasts.filter((cast) => cast.is_present);
   const userMap = new Map<string, MatchedCast[]>();
   if (winners.length === 0 || activeCasts.length === 0) {
@@ -78,25 +73,10 @@ export function runMatching(
   switch (matchingTypeCode) {
     case 'M001':
     case 'M002':
-      result = runSingleCastMatching(
-        winners,
-        allCasts,
-        totalTables,
-        rotationCount,
-        matchingTypeCode === 'M001',
-      );
+      result = runSingleCastMatching(winners, allCasts, totalTables, rotationCount, matchingTypeCode === 'M001');
       break;
     case 'M003':
-      result = runMultipleMatching(
-        winners,
-        allCasts,
-        {
-          usersPerTable: options.usersPerTable ?? 1,
-          castsPerRotation: options.castsPerRotation ?? 1,
-          rotationCount,
-          totalTables: options.totalTables,
-        },
-      );
+      result = runMultipleMatching(winners, allCasts, { usersPerTable: options.usersPerTable ?? 1, castsPerRotation: options.castsPerRotation ?? 1, rotationCount, totalTables: options.totalTables });
       break;
     default:
       result = { userMap };
@@ -106,10 +86,7 @@ export function runMatching(
 }
 
 /** 完了したアルゴリズム結果へ、画面表示と保存に使う評価集計を付ける。 */
-function finalizeResult(
-  result: MatchingResult,
-  winners: UserBean[],
-): MatchingResult {
+function finalizeResult(result: MatchingResult, winners: UserBean[]): MatchingResult {
   if (!result.ngConflict) {
     result.scoreSummary = evaluateMatchingResult(result, winners);
   }

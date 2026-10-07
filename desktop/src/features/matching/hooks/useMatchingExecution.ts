@@ -1,26 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAllCasts } from '@/db/repositories/castRepository';
-import {
-  captureSessionWriteActivity,
-  getRequiredEventContext,
-  getRequiredSessionContext,
-  isCurrentEventContext,
-  isCurrentSessionContext,
-  isEventRecoveryActive,
-  isSessionRecoveryActive,
-  isSessionWriteActivityUnchanged,
-  waitForEventWritesToSettle,
-  waitForSessionWritesToSettle,
-  type SessionWriteActivity,
-} from '@/db/repositories/commandContext';
+import { captureSessionWriteActivity, getRequiredEventContext, getRequiredSessionContext, isCurrentEventContext, isCurrentSessionContext, isEventRecoveryActive, isSessionRecoveryActive, isSessionWriteActivityUnchanged, waitForEventWritesToSettle, waitForSessionWritesToSettle, type SessionWriteActivity } from '@/db/repositories/commandContext';
 import { getLotteryResults } from '@/db/repositories/lotteryRepository';
 import { flushSessionWorkflowWrites, getSessionWorkflowSnapshot } from '@/db/repositories/sessionWorkflowRepository';
-import {
-  getMatchingCastFingerprint,
-  getMatchingInputFingerprint,
-  isSameLotteryResult,
-  isSameWorkflowState,
-} from '@/features/matching/logics/matching-input-integrity';
+import { getMatchingCastFingerprint, getMatchingInputFingerprint, isSameLotteryResult, isSameWorkflowState } from '@/features/matching/logics/matching-input-integrity';
 import { selectM003Capacity } from '@/features/matching/logics/matching-capacity';
 import { formatFailureMessage } from '@/features/matching/presenters/matching-result-view';
 import { useAppContext } from '@/stores/AppContext';
@@ -31,11 +14,7 @@ import type { MatchingWorkerMessage } from '../matching.worker';
 export const MATCHING_WORKER_TIME_LIMIT_MS = 30_000;
 
 /** 現在有効なWorkerだけを30秒後に停止し、時間切れとして通知する。 */
-export function scheduleMatchingWorkerDeadline(
-  isCurrentRequest: () => boolean,
-  terminateWorker: () => void,
-  reportTimeLimit: () => void,
-): ReturnType<typeof setTimeout> {
+export function scheduleMatchingWorkerDeadline(isCurrentRequest: () => boolean, terminateWorker: () => void, reportTimeLimit: () => void): ReturnType<typeof setTimeout> {
   return setTimeout(() => {
     if (!isCurrentRequest()) return;
     terminateWorker();
@@ -45,27 +24,8 @@ export function scheduleMatchingWorkerDeadline(
 
 /** DBスナップショットの確認からWorkerの終了処理まで、1回のマッチング実行を管理する。 */
 export function useMatchingExecution() {
-  const {
-    currentWinners: winners,
-    casts,
-    updateMatchingResult,
-    isLotteryResultCurrent,
-    sessionWorkflow,
-    matchingResultState: { scoreSummary, isLocked: isMatchingLocked },
-    hasSavedSessionResult,
-    getSessionUiMutationGeneration,
-    isCurrentSessionUiMutation,
-  } = useAppContext();
-  const {
-    matchingTypeCode,
-    rotationCount,
-    totalTables,
-    usersPerTable,
-    castsPerRotation,
-    reserveSameDaySlots,
-    sameDaySlotCount,
-    sameDaySlotUnit,
-  } = sessionWorkflow;
+  const { currentWinners: winners, casts, updateMatchingResult, isLotteryResultCurrent, sessionWorkflow, matchingResultState: { scoreSummary, isLocked: isMatchingLocked }, hasSavedSessionResult, getSessionUiMutationGeneration, isCurrentSessionUiMutation } = useAppContext();
+  const { matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, reserveSameDaySlots, sameDaySlotCount, sameDaySlotUnit } = sessionWorkflow;
 
   // 実行中の表示状態と、現在有効なWorker要求をまとめて管理する。
   const [isComputing, setIsComputing] = useState(false);
@@ -75,12 +35,7 @@ export function useMatchingExecution() {
   const isRunningRef = useRef(false);
 
   // 入力指紋は非同期処理の各境界で最新値と照合する。
-  const inputFingerprint = useMemo(() => getMatchingInputFingerprint({
-    winners,
-    casts,
-    workflow: sessionWorkflow,
-    isLotteryResultCurrent,
-  }), [casts, isLotteryResultCurrent, sessionWorkflow, winners]);
+  const inputFingerprint = useMemo(() => getMatchingInputFingerprint({ winners, casts, workflow: sessionWorkflow, isLotteryResultCurrent }), [casts, isLotteryResultCurrent, sessionWorkflow, winners]);
   const inputFingerprintRef = useRef(inputFingerprint);
   inputFingerprintRef.current = inputFingerprint;
 
@@ -108,14 +63,7 @@ export function useMatchingExecution() {
   }, []);
 
   const clearMatchingResult = useCallback((error: string | null) => {
-    updateMatchingResult({
-      result: null,
-      tableSlots: undefined,
-      error,
-      isLocked: false,
-      scoreSummary: null,
-      isSaved: false,
-    });
+    updateMatchingResult({ result: null, tableSlots: undefined, error, isLocked: false, scoreSummary: null, isSaved: false });
   }, [updateMatchingResult]);
 
   const cancelMatching = useCallback(() => {
@@ -156,10 +104,7 @@ export function useMatchingExecution() {
       && m003LotterySeatCount !== null
       && winners.length > m003LotterySeatCount
     ) {
-      clearMatchingResult(getMsg('lotteryValidation.insufficientGroupSeats', {
-        lotterySeatCount: m003LotterySeatCount,
-        totalWinners: winners.length,
-      }));
+      clearMatchingResult(getMsg('lotteryValidation.insufficientGroupSeats', { lotterySeatCount: m003LotterySeatCount, totalWinners: winners.length }));
       return;
     }
 
@@ -206,15 +151,9 @@ export function useMatchingExecution() {
       }
 
       // 保存待ちを完了させ、画面入力とDBスナップショットが一致する時点だけWorkerを開始する。
-      await Promise.all([
-        waitForEventWritesToSettle(eventContext),
-        flushSessionWorkflowWrites(sessionContext),
-      ]);
+      await Promise.all([waitForEventWritesToSettle(eventContext), flushSessionWorkflowWrites(sessionContext)]);
       while (requestGenerationRef.current === requestGeneration) {
-        await Promise.all([
-          waitForEventWritesToSettle(eventContext),
-          waitForSessionWritesToSettle(sessionContext),
-        ]);
+        await Promise.all([waitForEventWritesToSettle(eventContext), waitForSessionWritesToSettle(sessionContext)]);
         if (
           requestGenerationRef.current !== requestGeneration
           || !isCurrentEventContext(eventContext)
@@ -236,11 +175,7 @@ export function useMatchingExecution() {
 
         const candidateActivity = captureSessionWriteActivity(sessionContext);
         if (!isSessionWriteActivityUnchanged(sessionContext, candidateActivity)) continue;
-        const [workflowSnapshot, persistedLotteryRows, persistedCasts] = await Promise.all([
-          getSessionWorkflowSnapshot(),
-          getLotteryResults(),
-          getAllCasts(),
-        ]);
+        const [workflowSnapshot, persistedLotteryRows, persistedCasts] = await Promise.all([getSessionWorkflowSnapshot(), getLotteryResults(), getAllCasts()]);
         if (
           requestGenerationRef.current !== requestGeneration
           || !isCurrentEventContext(eventContext)
@@ -291,15 +226,7 @@ export function useMatchingExecution() {
     }
     workerRef.current = worker;
 
-    const hasExecutionContextChanged = () => (
-      !isCurrentEventContext(eventContext)
-      || !isCurrentSessionContext(sessionContext)
-      || !isCurrentSessionUiMutation(sessionUiMutationGeneration)
-      || !isSessionWriteActivityUnchanged(sessionContext, matchingWriteActivity)
-      || isEventRecoveryActive(eventContext)
-      || isSessionRecoveryActive(sessionContext)
-      || inputFingerprintRef.current !== requestInputFingerprint
-    );
+    const hasExecutionContextChanged = () => (!isCurrentEventContext(eventContext) || !isCurrentSessionContext(sessionContext) || !isCurrentSessionUiMutation(sessionUiMutationGeneration) || !isSessionWriteActivityUnchanged(sessionContext, matchingWriteActivity) || isEventRecoveryActive(eventContext) || isSessionRecoveryActive(sessionContext) || inputFingerprintRef.current !== requestInputFingerprint);
 
     worker.onmessage = (event: MessageEvent<MatchingWorkerMessage>) => {
       if (workerRef.current !== worker || requestGenerationRef.current !== requestGeneration) return;
@@ -326,14 +253,7 @@ export function useMatchingExecution() {
         clearMatchingResult(getMsg('MatchingPage.unexpectedMatchingError'));
         return;
       }
-      updateMatchingResult({
-        result: result.userMap,
-        tableSlots: result.tableSlots,
-        error: null,
-        isLocked: true,
-        scoreSummary: result.scoreSummary,
-        isSaved: false,
-      });
+      updateMatchingResult({ result: result.userMap, tableSlots: result.tableSlots, error: null, isLocked: true, scoreSummary: result.scoreSummary, isSaved: false });
     };
 
     worker.onerror = () => {
@@ -348,11 +268,7 @@ export function useMatchingExecution() {
     };
 
     // Workerが応答しない場合にも操作を復帰できるよう、画面側で実行時間を制限する。
-    workerDeadlineRef.current = scheduleMatchingWorkerDeadline(
-      () => workerRef.current === worker && requestGenerationRef.current === requestGeneration,
-      stopWorker,
-      () => failCurrentRequest(formatFailureMessage('time-limit')),
-    );
+    workerDeadlineRef.current = scheduleMatchingWorkerDeadline(() => workerRef.current === worker && requestGenerationRef.current === requestGeneration, stopWorker, () => failCurrentRequest(formatFailureMessage('time-limit')));
 
     try {
       worker.postMessage({

@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ヘルプ詳細セクション デザイン比較</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+      --page: #eef7fc;
+      --panel: #ffffff;
+      --panel-muted: #f7f9fb;
+      --ink: #102b49;
+      --muted: #55758f;
+      --border: #c3dceb;
+      --border-strong: #8ebdda;
+      --accent: #2d8fd3;
+      --accent-soft: #e8f4fb;
+      --danger: #c93a3a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    button,
+    summary {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 46px 0 72px;
+    }
+
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.35;
+    }
+
+    .page-lead {
+      max-width: 850px;
+      margin: 10px 0 0;
+      color: var(--muted);
+    }
+
+    .proposal-list {
+      display: grid;
+      gap: 24px;
+    }
+
+    .proposal {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .proposal-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-muted);
+    }
+
+    .proposal-heading h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .proposal-heading p {
+      max-width: 780px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .proposal-number {
+      flex: 0 0 auto;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .specimen {
+      padding: 26px;
+      background: #f4f9fc;
+    }
+
+    .section-title {
+      margin: 0;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .section-caption {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .plain-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plain-list li {
+      position: relative;
+      padding: 10px 8px 10px 24px;
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .plain-list li + li {
+      border-top: 1px solid var(--border);
+    }
+
+    .plain-list li::before {
+      content: '';
+      position: absolute;
+      top: 17px;
+      left: 7px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* 案1：実画面の左右構造を、そのまま説明の配置へ対応させる。 */
+    .screen-map {
+      display: grid;
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .screen-map-column {
+      min-width: 0;
+    }
+
+    .screen-map-column + .screen-map-column {
+      border-left: 1px solid var(--border);
+    }
+
+    .screen-map-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--accent-soft);
+    }
+
+    .screen-map-body {
+      padding: 4px 14px 8px;
+    }
+
+    /* 案2：見出しと区切り線だけで情報をまとめる。 */
+    .divider-guide {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .divider-group {
+      padding: 16px 18px 12px;
+    }
+
+    .divider-group + .divider-group {
+      border-top: 1px solid var(--border-strong);
+    }
+
+    .divider-group-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .divider-group-header span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    /* 案3：対象と操作を列で対応させる。 */
+    .guide-table-wrap {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .guide-table caption {
+      padding: 12px 16px;
+      background: var(--accent-soft);
+      color: var(--ink);
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .guide-table th,
+    .guide-table td {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .guide-table th {
+      width: 190px;
+      background: var(--panel-muted);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .guide-table .danger-row th,
+    .guide-table .danger-row td {
+      color: var(--danger);
+    }
+
+    /* 案4：利用目的で再分類し、場所の説明を二次情報にする。 */
+    .task-guide {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .task-group {
+      padding: 16px 18px;
+    }
+
+    .task-group:nth-child(even) {
+      border-left: 1px solid var(--border);
+    }
+
+    .task-group:nth-child(n + 3) {
+      border-top: 1px solid var(--border);
+    }
+
+    .task-group h3 {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    .task-group p {
+      margin: 0;
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .task-group small {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    /* 案5：長いページで必要な区分だけを開ける。 */
+    .disclosure-guide {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .disclosure-guide details + details {
+      border-top: 1px solid var(--border);
+    }
+
+    .disclosure-guide summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 16px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .disclosure-guide summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .disclosure-guide summary::after {
+      content: '⌄';
+      color: var(--muted);
+      transition: transform 0.15s ease;
+    }
+
+    .disclosure-guide details[open] summary {
+      background: var(--accent-soft);
+    }
+
+    .disclosure-guide details[open] summary::after {
+      transform: rotate(180deg);
+    }
+
+    .disclosure-body {
+      padding: 4px 16px 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100% - 24px, 1220px);
+        padding-top: 24px;
+      }
+
+      .proposal-heading {
+        flex-direction: column-reverse;
+        gap: 4px;
+      }
+
+      .specimen {
+        padding: 14px;
+      }
+
+      .screen-map,
+      .task-guide {
+        grid-template-columns: 1fr;
+      }
+
+      .screen-map-column + .screen-map-column,
+      .task-group:nth-child(even) {
+        border-left: 0;
+      }
+
+      .screen-map-column + .screen-map-column,
+      .task-group + .task-group {
+        border-top: 1px solid var(--border);
+      }
+
+      .guide-table th {
+        width: 120px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <p class="eyebrow">STARGAZER / GUIDE UI COMPARISON</p>
+      <h1>ヘルプ詳細セクション デザイン案</h1>
+      <p class="page-lead">項目ごとの小さな枠を減らし、説明の関係が一目で分かる構成を比較します。文言は現行のキャスト名簿ヘルプを使用しています。</p>
+    </header>
+
+    <div class="proposal-list">
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>実画面に対応する2カラム</h2>
+            <p>左の一覧と右の詳細を、ヘルプでも同じ位置関係で並べます。画面を見ながら説明を探しやすく、個別の小枠も不要です。</p>
+          </div>
+          <span class="proposal-number">案 1 / 推奨</span>
+        </header>
+        <div class="specimen">
+          <div class="screen-map">
+            <section class="screen-map-column">
+              <header class="screen-map-header">
+                <h3 class="section-title">キャスト一覧</h3>
+                <span class="section-caption">画面左側</span>
+              </header>
+              <div class="screen-map-body">
+                <ul class="plain-list">
+                  <li>キャスト名とグループ名を確認</li>
+                  <li>名前でキャストを絞り込み</li>
+                  <li>一覧下部の入力欄からキャストを追加</li>
+                  <li>選択中のキャストを強調表示</li>
+                </ul>
+              </div>
+            </section>
+            <section class="screen-map-column">
+              <header class="screen-map-header">
+                <h3 class="section-title">キャスト詳細</h3>
+                <span class="section-caption">画面右側</span>
+              </header>
+              <div class="screen-map-body">
+                <ul class="plain-list">
+                  <li>写真、キャスト名、別名義、グループ名、プロフィールを編集</li>
+                  <li>DM、Webプロフィール、Xのユーザー名を連絡先として登録</li>
+                  <li>キャストの選択に関係なく外部リンクを開く</li>
+                  <li>確認画面からキャストを削除</li>
+                </ul>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>見出し＋区切り線リスト</h2>
+            <p>現在と同じ縦方向の読む順序を保ち、項目の囲みだけを廃止します。実装変更が小さく、文章量が増えても崩れにくい案です。</p>
+          </div>
+          <span class="proposal-number">案 2</span>
+        </header>
+        <div class="specimen">
+          <div class="divider-guide">
+            <section class="divider-group">
+              <header class="divider-group-header"><h3 class="section-title">キャスト一覧</h3><span>画面左側</span></header>
+              <ul class="plain-list">
+                <li>キャスト名とグループ名を確認</li>
+                <li>名前でキャストを絞り込み</li>
+                <li>一覧下部の入力欄からキャストを追加</li>
+                <li>選択中のキャストを強調表示</li>
+              </ul>
+            </section>
+            <section class="divider-group">
+              <header class="divider-group-header"><h3 class="section-title">キャスト詳細</h3><span>画面右側</span></header>
+              <ul class="plain-list">
+                <li>写真・画像ファイルを選んで登録</li>
+                <li>キャスト名、別名義、グループ名、プロフィールを編集</li>
+                <li>連絡先と外部リンクを登録</li>
+                <li>確認画面からキャストを削除</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>対象と操作を対応させる表</h2>
+            <p>設定項目が多い画面でも、探している対象から操作内容へ直線的にたどれます。説明文より参照性を優先する案です。</p>
+          </div>
+          <span class="proposal-number">案 3</span>
+        </header>
+        <div class="specimen">
+          <div class="guide-table-wrap">
+            <table class="guide-table">
+              <caption>キャスト名簿でできること</caption>
+              <tbody>
+                <tr><th scope="row">一覧</th><td>名前で絞り込み、選択中のキャストを確認します。</td></tr>
+                <tr><th scope="row">写真</th><td>画像ファイルを選択して登録します。</td></tr>
+                <tr><th scope="row">基本情報</th><td>キャスト名、別名義、グループ名、プロフィールを編集します。</td></tr>
+                <tr><th scope="row">連絡先</th><td>DM、Webプロフィール、Xのユーザー名を登録し、リンクから開きます。</td></tr>
+                <tr><th scope="row">外部リンク</th><td>キャストの選択に関係なく、DMやVRChatを開きます。</td></tr>
+                <tr class="danger-row"><th scope="row">削除</th><td>確認画面で対象を確認してからキャストを削除します。</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>利用目的で4分類</h2>
+            <p>画面上の位置ではなく、利用者が達成したい操作で説明を分けます。初めて使う人が目的から情報を探しやすい案です。</p>
+          </div>
+          <span class="proposal-number">案 4</span>
+        </header>
+        <div class="specimen">
+          <div class="task-guide">
+            <section class="task-group"><h3>探す・選ぶ</h3><p>名前で絞り込み、一覧から対象キャストを選択します。</p><small>キャスト一覧／画面左側</small></section>
+            <section class="task-group"><h3>登録・編集する</h3><p>写真、名称、別名義、グループ、プロフィールを編集します。</p><small>キャスト詳細／画面右側</small></section>
+            <section class="task-group"><h3>連絡先を開く</h3><p>DM、Webプロフィール、X、VRChatへのリンクを利用します。</p><small>詳細欄・画面上部の外部リンク</small></section>
+            <section class="task-group"><h3>削除する</h3><p>削除対象を確認し、キャスト名簿から取り除きます。</p><small>キャスト詳細／削除操作</small></section>
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>区分単位の折りたたみ</h2>
+            <p>機能別ヘルプ全体が長くなる場合に、必要な区分だけを展開します。1項目ずつではなく、意味のあるまとまりごとに開閉します。</p>
+          </div>
+          <span class="proposal-number">案 5</span>
+        </header>
+        <div class="specimen">
+          <div class="disclosure-guide">
+            <details open>
+              <summary><span><strong>キャスト一覧</strong><span class="section-caption">探す・選ぶ・追加する</span></span></summary>
+              <div class="disclosure-body"><ul class="plain-list"><li>名前でキャストを絞り込み</li><li>一覧下部の入力欄からキャストを追加</li><li>選択中のキャストを強調表示</li></ul></div>
+            </details>
+            <details>
+              <summary><span><strong>キャスト詳細</strong><span class="section-caption">基本情報と連絡先を編集する</span></span></summary>
+              <div class="disclosure-body"><ul class="plain-list"><li>写真と基本情報を編集</li><li>連絡先と外部リンクを登録</li><li>確認画面から削除</li></ul></div>
+            </details>
+            <details>
+              <summary><span><strong>出席設定との関係</strong><span class="section-caption">名簿と当日の出席状態</span></span></summary>
+              <div class="disclosure-body"><ul class="plain-list"><li>名簿に登録されたキャストを出席設定で選択</li><li>出席状態はイベントごとに管理</li></ul></div>
+            </details>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

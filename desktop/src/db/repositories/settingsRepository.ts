@@ -24,8 +24,5 @@ export async function getSetting(key: string): Promise<string | null> {
 export async function setSetting(key: string, value: string): Promise<void> {
   const db = getSharedDb();
   const eventName = getRequiredEventName();
-  await enqueueEventWrite(
-    eventName,
-    () => db.execute(UPSERT_SETTING_SQL, [key, value]).then(() => undefined),
-  );
+  await enqueueEventWrite(eventName, () => db.execute(UPSERT_SETTING_SQL, [key, value]).then(() => undefined));
 }

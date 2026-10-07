@@ -1,12 +1,6 @@
 // キャスト別NGと要注意人物の二つの管理ワークフローを切り替えるページ。
 
-import {
-  useEffect,
-  useState,
-  type FC,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useEffect, useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
 import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
@@ -21,10 +15,7 @@ import { useProfileLinkConfirmation } from './hooks/useProfileLinkConfirmation';
 import { useUnsavedNotesGuard } from './hooks/useUnsavedNotesGuard';
 import styles from './NGUserManagementPage.module.css';
 
-export {
-  resolveDisplayedThreshold,
-  resolveSelectedCastId,
-} from './ngUserManagementModel';
+export { resolveDisplayedThreshold, resolveSelectedCastId } from './ngUserManagementModel';
 
 export type NgManagementTab = 'cast-ng' | 'caution';
 
@@ -41,38 +32,18 @@ function getNgSubTabClassName(isActive: boolean): string {
   ].filter(Boolean).join(' ');
 }
 
-export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({
-  initialTab = 'cast-ng',
-  onBusyChange,
-}) => {
+export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({ initialTab = 'cast-ng', onBusyChange }) => {
   // ページ全体で共有するタブ選択と、操作結果を通知するalert。
   const [ngTab, setNgTab] = useState<NgManagementTab>(initialTab);
   const [pendingFocusTab, setPendingFocusTab] = useState<NgManagementTab | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // 両ワークフローが参照するイベント共有データとContext更新契約。
-  const {
-    casts,
-    setCasts,
-    matchingSettings,
-    setMatchingSettings,
-    currentEventName,
-  } = useAppContext();
+  const { casts, setCasts, matchingSettings, setMatchingSettings, currentEventName } = useAppContext();
 
   // 保存調停は各workflowへ分離し、ページはタブと共通ダイアログだけを統括する。
-  const castNg = useCastNgManagement({
-    casts,
-    setCasts,
-    currentEventName,
-    showAlert: setAlertMessage,
-  });
-  const cautionUsers = useCautionUserManagement({
-    casts,
-    matchingSettings,
-    setMatchingSettings,
-    currentEventName,
-    showAlert: setAlertMessage,
-  });
+  const castNg = useCastNgManagement({ casts, setCasts, currentEventName, showAlert: setAlertMessage });
+  const cautionUsers = useCautionUserManagement({ casts, matchingSettings, setMatchingSettings, currentEventName, showAlert: setAlertMessage });
   const profileLink = useProfileLinkConfirmation({ showAlert: setAlertMessage });
   const unsavedNotes = useUnsavedNotesGuard();
   const isBusy = castNg.state.isSaving
@@ -163,9 +134,7 @@ export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({
       })
     : '';
   const unregisterCautionMessage = cautionUsers.pendingDeleteAccountId
-    ? getMsg('NGUserManagementPage.unregisterCautionMessage', {
-        accountId: formatXAccountIdForDisplay(cautionUsers.pendingDeleteAccountId),
-      })
+    ? getMsg('NGUserManagementPage.unregisterCautionMessage', { accountId: formatXAccountIdForDisplay(cautionUsers.pendingDeleteAccountId) })
     : '';
   const openProfileMessage = profileLink.pendingLink
     ? getMsg('NGUserManagementPage.openLinkMessage', { label: profileLink.pendingLink.label })
@@ -184,58 +153,20 @@ export const NGUserManagementPage: FC<NGUserManagementPageProps> = ({
       </div>
 
       {unsavedNotes.dialogOpen && (
-        <ConfirmDialog
-          title={getMsg('NGUserManagementPage.unsavedNotesTitle')}
-          message={getMsg('NGUserManagementPage.unsavedNotesMessage')}
-          confirmLabel={getMsg('NGUserManagementPage.discardUnsavedNotes')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={unsavedNotes.discard}
-          onCancel={unsavedNotes.keepEditing}
-        />
+        <ConfirmDialog title={getMsg('NGUserManagementPage.unsavedNotesTitle')} message={getMsg('NGUserManagementPage.unsavedNotesMessage')} confirmLabel={getMsg('NGUserManagementPage.discardUnsavedNotes')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={unsavedNotes.discard} onCancel={unsavedNotes.keepEditing} />
       )}
 
       {alertMessage && (
-        <NoticeDialog
-          title={getMsg('InternalManagementPage.ngManagementTab')}
-          message={alertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleAlertConfirm}
-        />
+        <NoticeDialog title={getMsg('InternalManagementPage.ngManagementTab')} message={alertMessage} closeLabel={getMsg('common.close')} onClose={handleAlertConfirm} />
       )}
       {castNg.pendingDelete && (
-        <ConfirmDialog
-          title={getMsg('NGUserManagementPage.deleteNgRegistrationTitle')}
-          message={deleteNgRegistrationMessage}
-          confirmLabel={deleteNgConfirmLabel}
-          cancelLabel={getMsg('common.cancel')}
-          confirmDisabled={castNg.state.isSaving}
-          intent="danger"
-          onConfirm={handleCastNgDeleteConfirm}
-          onCancel={castNg.cancelDelete}
-        />
+        <ConfirmDialog title={getMsg('NGUserManagementPage.deleteNgRegistrationTitle')} message={deleteNgRegistrationMessage} confirmLabel={deleteNgConfirmLabel} cancelLabel={getMsg('common.cancel')} confirmDisabled={castNg.state.isSaving} intent="danger" onConfirm={handleCastNgDeleteConfirm} onCancel={castNg.cancelDelete} />
       )}
       {cautionUsers.pendingDeleteAccountId && (
-        <ConfirmDialog
-          title={getMsg('NGUserManagementPage.unregisterCautionTitle')}
-          message={unregisterCautionMessage}
-          confirmLabel={unregisterCautionConfirmLabel}
-          cancelLabel={getMsg('common.cancel')}
-          confirmDisabled={cautionUsers.state.isSaving}
-          intent="danger"
-          onConfirm={handleCautionDeleteConfirm}
-          onCancel={cautionUsers.cancelDelete}
-        />
+        <ConfirmDialog title={getMsg('NGUserManagementPage.unregisterCautionTitle')} message={unregisterCautionMessage} confirmLabel={unregisterCautionConfirmLabel} cancelLabel={getMsg('common.cancel')} confirmDisabled={cautionUsers.state.isSaving} intent="danger" onConfirm={handleCautionDeleteConfirm} onCancel={cautionUsers.cancelDelete} />
       )}
       {profileLink.pendingLink && (
-        <ConfirmDialog
-          title={getMsg('common.openLink')}
-          message={openProfileMessage}
-          confirmLabel={getMsg('common.openLink')}
-          cancelLabel={getMsg('common.cancel')}
-          onConfirm={handleProfileLinkConfirm}
-          onCancel={profileLink.cancel}
-        />
+        <ConfirmDialog title={getMsg('common.openLink')} message={openProfileMessage} confirmLabel={getMsg('common.openLink')} cancelLabel={getMsg('common.cancel')} onConfirm={handleProfileLinkConfirm} onCancel={profileLink.cancel} />
       )}
     </div>
   );

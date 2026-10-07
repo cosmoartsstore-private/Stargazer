@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>希望キャスト名表示 デザイン比較</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+      --page: #edf7fc;
+      --panel: #ffffff;
+      --panel-muted: #f4f8fb;
+      --ink: #102b49;
+      --muted: #55758f;
+      --border: #c3dceb;
+      --link: #0067c5;
+      --warning: #a56600;
+      --warning-strong: #7a4c00;
+      --warning-soft: #fff2bd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    button { font: inherit; }
+
+    .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 44px 0 72px;
+    }
+
+    .page-header { margin-bottom: 26px; }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: #2d8fd3;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.35;
+    }
+
+    .lead {
+      max-width: 860px;
+      margin: 10px 0 0;
+      color: var(--muted);
+    }
+
+    .confirmed-rule {
+      margin: 18px 0 0;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .confirmed-rule strong { color: var(--ink); }
+
+    .dark-specimen {
+      margin-top: 10px;
+      overflow: hidden;
+      border: 1px solid #363440;
+      border-radius: 8px;
+      background: #111019;
+      color: #dbdee1;
+    }
+
+    .dark-specimen-header,
+    .dark-specimen-row {
+      display: grid;
+      grid-template-columns: 18% 22% minmax(0, 1fr) 12%;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border-bottom: 1px solid #363440;
+    }
+
+    .dark-specimen-header {
+      min-height: 34px;
+      color: #949ba4;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .dark-specimen-row { font-size: 12px; }
+    .dark-specimen-row:last-child { border-bottom: 0; }
+    .dark-specimen .x-id { color: #4eb2ff; }
+    .dark-specimen .cast-values { padding-right: 12px; }
+    .dark-specimen .cast-action { color: #ffd43b; }
+
+    .proposal-list {
+      display: grid;
+      gap: 22px;
+    }
+
+    .proposal {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .proposal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-muted);
+    }
+
+    .proposal-header h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.45;
+    }
+
+    .proposal-header p {
+      max-width: 760px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .proposal-number {
+      flex: 0 0 auto;
+      color: #2d8fd3;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .specimen {
+      padding: 20px;
+      background: #f8fbfd;
+    }
+
+    .table-shell {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      height: 44px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      height: 36px;
+      background: var(--panel-muted);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    th:nth-child(1) { width: 18%; }
+    th:nth-child(2) { width: 22%; }
+    th:nth-child(3) { width: 48%; }
+    th:nth-child(4) { width: 12%; }
+
+    .x-id {
+      color: var(--link);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .cast-values {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .cast-action {
+      justify-self: start;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-weight: 800;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+
+    .cast-action:focus-visible {
+      outline: 2px solid #2d8fd3;
+      outline-offset: 3px;
+    }
+
+    .delete {
+      color: #ef4444;
+      font-size: 17px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    /* 案1: 黄色文字だけ。 */
+    .option-1 .cast-action { color: var(--warning); }
+
+    /* 案2: 通常時は文字だけ、操作時だけ下線を追加。 */
+    .option-2 .cast-action { color: var(--warning); }
+    .option-2 .cast-action:hover,
+    .option-2 .cast-action:focus-visible {
+      color: var(--warning-strong);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    /* 案3: 小さな状態点と通常文字。 */
+    .option-3 .cast-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--ink);
+    }
+
+    .option-3 .cast-action::before {
+      width: 6px;
+      height: 6px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #d59a00;
+      content: "";
+    }
+
+    .option-3 .cast-action:hover { text-decoration: underline; }
+
+    /* 案4: 警告記号と黄色文字。 */
+    .option-4 .cast-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--warning-strong);
+    }
+
+    .option-4 .cast-action::before {
+      color: #c98c00;
+      content: "△";
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .option-4 .cast-action:hover { text-decoration: underline; }
+
+    /* 案5: 枠線を使わない淡い面。 */
+    .option-5 .cast-action {
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--warning-soft);
+      color: var(--warning-strong);
+    }
+
+    .option-5 .cast-action:hover { background: #ffe89b; }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100% - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .proposal-header {
+        flex-direction: column-reverse;
+        gap: 4px;
+      }
+
+      .specimen { padding: 10px; }
+      th:nth-child(2), td:nth-child(2) { display: none; }
+      th:nth-child(1) { width: 24%; }
+      th:nth-child(3) { width: 64%; }
+      .cast-values { gap: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <p class="eyebrow">STARGAZER / CAST LABEL COMPARISON</p>
+      <h1>希望キャスト名の表示案</h1>
+      <p class="lead">ライトテーマの応募データ一覧で、名簿と紐づかない希望キャストをどう示すか比較します。各名称は選び直し画面を開く操作です。</p>
+      <p class="confirmed-rule"><strong>確定済み：</strong>ダークテーマは黄色文字だけを使い、枠線と背景色は付けません。</p>
+      <div class="dark-specimen" aria-label="ダークテーマの確定表示">
+        <div class="dark-specimen-header"><span>ユーザー名</span><span>X ID</span><span>希望キャスト</span><span>操作</span></div>
+        <div class="dark-specimen-row"><span>綾野 なずな</span><span class="x-id">@nazuna_h</span><span class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></span><span class="delete">×</span></div>
+      </div>
+    </header>
+
+    <div class="proposal-list">
+      <section class="proposal option-1">
+        <header class="proposal-header">
+          <div><h2>黄色文字だけ</h2><p>装飾を最小限にして一覧性を優先します。クリック可能であることは周辺の案内文で補います。</p></div>
+          <span class="proposal-number">案 1</span>
+        </header>
+        <div class="specimen"><div class="table-shell"><table><thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>操作</th></tr></thead><tbody>
+          <tr><td>綾野 なずな</td><td><span class="x-id">@nazuna_h</span></td><td><div class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></div></td><td class="delete">×</td></tr>
+          <tr><td>星川 リト</td><td><span class="x-id">@rito_h</span></td><td><div class="cast-values"><button class="cast-action">Mio</button><button class="cast-action">Noa</button><button class="cast-action">Sora</button></div></td><td class="delete">×</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <section class="proposal option-2">
+        <header class="proposal-header">
+          <div><h2>黄色文字＋操作時の下線</h2><p>通常時は静かに表示し、ホバーとキーボードフォーカス時だけ操作対象であることを示します。</p></div>
+          <span class="proposal-number">案 2 / 推奨</span>
+        </header>
+        <div class="specimen"><div class="table-shell"><table><thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>操作</th></tr></thead><tbody>
+          <tr><td>綾野 なずな</td><td><span class="x-id">@nazuna_h</span></td><td><div class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></div></td><td class="delete">×</td></tr>
+          <tr><td>星川 リト</td><td><span class="x-id">@rito_h</span></td><td><div class="cast-values"><button class="cast-action">Mio</button><button class="cast-action">Noa</button><button class="cast-action">Sora</button></div></td><td class="delete">×</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <section class="proposal option-3">
+        <header class="proposal-header">
+          <div><h2>状態点＋通常文字</h2><p>文字色を本文と揃え、小さな黄色の点だけで確認対象を示します。長時間見る一覧で色の面積を抑えられます。</p></div>
+          <span class="proposal-number">案 3</span>
+        </header>
+        <div class="specimen"><div class="table-shell"><table><thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>操作</th></tr></thead><tbody>
+          <tr><td>綾野 なずな</td><td><span class="x-id">@nazuna_h</span></td><td><div class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></div></td><td class="delete">×</td></tr>
+          <tr><td>星川 リト</td><td><span class="x-id">@rito_h</span></td><td><div class="cast-values"><button class="cast-action">Mio</button><button class="cast-action">Noa</button><button class="cast-action">Sora</button></div></td><td class="delete">×</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <section class="proposal option-4">
+        <header class="proposal-header">
+          <div><h2>警告記号＋黄色文字</h2><p>色だけに頼らず確認対象を示します。対象が多い場合は記号が繰り返され、やや強い表示になります。</p></div>
+          <span class="proposal-number">案 4</span>
+        </header>
+        <div class="specimen"><div class="table-shell"><table><thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>操作</th></tr></thead><tbody>
+          <tr><td>綾野 なずな</td><td><span class="x-id">@nazuna_h</span></td><td><div class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></div></td><td class="delete">×</td></tr>
+          <tr><td>星川 リト</td><td><span class="x-id">@rito_h</span></td><td><div class="cast-values"><button class="cast-action">Mio</button><button class="cast-action">Noa</button><button class="cast-action">Sora</button></div></td><td class="delete">×</td></tr>
+        </tbody></table></div></div>
+      </section>
+
+      <section class="proposal option-5">
+        <header class="proposal-header">
+          <div><h2>枠線なしの淡い背景</h2><p>名称のまとまりと操作範囲を明確にしつつ、現在の濃い黄色と枠線を弱めます。</p></div>
+          <span class="proposal-number">案 5</span>
+        </header>
+        <div class="specimen"><div class="table-shell"><table><thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>操作</th></tr></thead><tbody>
+          <tr><td>綾野 なずな</td><td><span class="x-id">@nazuna_h</span></td><td><div class="cast-values"><button class="cast-action">Rin</button><button class="cast-action">Sora</button><button class="cast-action">Noa</button></div></td><td class="delete">×</td></tr>
+          <tr><td>星川 リト</td><td><span class="x-id">@rito_h</span></td><td><div class="cast-values"><button class="cast-action">Mio</button><button class="cast-action">Noa</button><button class="cast-action">Sora</button></div></td><td class="delete">×</td></tr>
+        </tbody></table></div></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

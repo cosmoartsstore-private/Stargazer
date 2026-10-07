@@ -66,18 +66,11 @@ export function getCastPreferenceIndex(user: UserBean, cast: CastBean): number {
 export function attachCastIdsToUsers(users: UserBean[], casts: CastBean[]): UserBean[] {
   const castIdByName = buildCastIdByFormalName(casts);
 
-  return users.map((user) => ({
-    ...user,
-    cast_ids: user.casts.map((castName) => castIdByName.get(castName) ?? null),
-  }));
+  return users.map((user) => ({ ...user, cast_ids: user.casts.map((castName) => castIdByName.get(castName) ?? null) }));
 }
 
 /** キャスト名変更を、安定IDで参照している応募者の希望表示名へ反映する。 */
-export function renameCastInPreferences(
-  users: UserBean[],
-  renamedCast: CastBean,
-  newName: string,
-): UserBean[] {
+export function renameCastInPreferences(users: UserBean[], renamedCast: CastBean, newName: string): UserBean[] {
   return users.map((user) => {
     let changed = false;
     const castNames = user.casts.map((castName, index) => {
@@ -90,10 +83,7 @@ export function renameCastInPreferences(
 }
 
 /** 現在のキャストへ解決できない希望参照を、応募者全体から抽出する。 */
-export function findUnavailableCastReferences(
-  users: UserBean[],
-  casts: CastBean[],
-): UnavailableCastReference[] {
+export function findUnavailableCastReferences(users: UserBean[], casts: CastBean[]): UnavailableCastReference[] {
   const currentCastIds = new Set(casts.map((cast) => cast.id));
   const issues: UnavailableCastReference[] = [];
 
@@ -105,23 +95,9 @@ export function findUnavailableCastReferences(
       if (!castName && castId === null) continue;
 
       if (castId === null) {
-        issues.push({
-          applicantName: user.name,
-          xId: user.x_id,
-          preferenceIndex,
-          castName,
-          castId,
-          reason: 'unresolved',
-        });
+        issues.push({ applicantName: user.name, xId: user.x_id, preferenceIndex, castName, castId, reason: 'unresolved' });
       } else if (!currentCastIds.has(castId)) {
-        issues.push({
-          applicantName: user.name,
-          xId: user.x_id,
-          preferenceIndex,
-          castName,
-          castId,
-          reason: 'deleted',
-        });
+        issues.push({ applicantName: user.name, xId: user.x_id, preferenceIndex, castName, castId, reason: 'deleted' });
       }
     }
   }

@@ -19,11 +19,7 @@ function hungarianAssign(scoreMatrix: number[][]): number[] {
   return assignment;
 }
 
-const PREFERENCE_WEIGHTS: Readonly<Record<number, number>> = {
-  1: 90,
-  2: 70,
-  3: 50,
-};
+const PREFERENCE_WEIGHTS: Readonly<Record<number, number>> = { 1: 90, 2: 70, 3: 50 };
 
 /** 画面表示用の希望順位を、順不同希望では順位なしとして算出する。 */
 export function getPreferenceRank(user: UserBean, cast: CastBean): number {
@@ -54,24 +50,16 @@ export function getPreferenceScore(user: UserBean, cast: CastBean): number {
 /** 先頭スロットを1つずつずらし、ローテーションごとの巡回表を構築する。 */
 export function buildRotation<T>(base: readonly T[], numRounds: number): T[][] {
   const roundCount = Math.max(1, numRounds);
-  return Array.from({ length: roundCount }, (_, roundIndex) =>
-    Array.from({ length: base.length }, (_, slotIndex) => base[(slotIndex + roundIndex) % base.length]),
-  );
+  return Array.from({ length: roundCount }, (_, roundIndex) => Array.from({ length: base.length }, (_, slotIndex) => base[(slotIndex + roundIndex) % base.length]));
 }
 
 /** 任意のスロット評価関数を使い、各行に最も総得点が高いスロットを割り当てる。 */
-export function assignWithHungarian<TSlot>(
-  rowCount: number,
-  slots: readonly TSlot[],
-  scoreFor: (rowIndex: number, slot: TSlot, slotIndex: number) => number,
-): { assignment: number[]; hasInfeasible: boolean } {
+export function assignWithHungarian<TSlot>(rowCount: number, slots: readonly TSlot[], scoreFor: (rowIndex: number, slot: TSlot, slotIndex: number) => number): { assignment: number[]; hasInfeasible: boolean } {
   if (rowCount === 0 || slots.length === 0) {
     return { assignment: [], hasInfeasible: false };
   }
 
-  const scoreMatrix = Array.from({ length: rowCount }, (_, rowIndex) =>
-    slots.map((slot, slotIndex) => scoreFor(rowIndex, slot, slotIndex)),
-  );
+  const scoreMatrix = Array.from({ length: rowCount }, (_, rowIndex) => slots.map((slot, slotIndex) => scoreFor(rowIndex, slot, slotIndex)));
 
   const assignment = hungarianAssign(scoreMatrix);
   const hasInfeasible = assignment.some((slotIndex, rowIndex) => {

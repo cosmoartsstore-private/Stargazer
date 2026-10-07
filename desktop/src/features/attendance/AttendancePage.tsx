@@ -3,11 +3,7 @@
 import { useEffect, type KeyboardEvent } from 'react';
 import { registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { NoticeDialog } from '@/components/ConfirmModal';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-  waitForSuccessfulEventWrites,
-} from '@/db/repositories/commandContext';
+import { getOpenEventContext, isCurrentEventContext, waitForSuccessfulEventWrites } from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 import shared from '@/styles/shared.module.css';
@@ -20,10 +16,7 @@ import { AttendanceSetupView } from './views/AttendanceSetupView';
 import { SaveAttendanceModal } from './views/SaveAttendanceModal';
 
 // 出欠管理ページで切り替える表示区分。
-const ATTENDANCE_TABS: { id: AttendanceTab; label: string }[] = [
-  { id: 'setup', label: getMsg('AttendancePage.setupTab') },
-  { id: 'records', label: getMsg('AttendancePage.recordsTab') },
-];
+const ATTENDANCE_TABS: { id: AttendanceTab; label: string }[] = [{ id: 'setup', label: getMsg('AttendancePage.setupTab') }, { id: 'records', label: getMsg('AttendancePage.recordsTab') }];
 
 interface AttendanceTabButtonProps {
   id: AttendanceTab;
@@ -94,65 +87,28 @@ export function AttendancePage({ previewMode = false }: AttendancePageProps) {
 
   return (
     <div className={`${shared.pageWrapper} ${shared.pageWrapperInner} ${styles.attendancePage}`}>
-      <div className={styles.attendanceTabs} role="tablist" aria-label={getMsg('AttendancePage.tabListLabel')}>
-        {ATTENDANCE_TABS.map((tab) => (
-          <AttendanceTabButton key={tab.id} id={tab.id} label={tab.label} selected={attendance.activeTab === tab.id} onSelect={attendance.setActiveTab} onKeyDown={handleTabKeyDown} />
-        ))}
-      </div>
+      <div className={styles.attendanceTabs} role="tablist" aria-label={getMsg('AttendancePage.tabListLabel')}>{ATTENDANCE_TABS.map((tab) => (<AttendanceTabButton key={tab.id} id={tab.id} label={tab.label} selected={attendance.activeTab === tab.id} onSelect={attendance.setActiveTab} onKeyDown={handleTabKeyDown} />))}</div>
 
       <div id="attendance-tabpanel" className={styles.attendanceTabContent} role="tabpanel" aria-labelledby={`attendance-tab-${attendance.activeTab}`} tabIndex={0}>
         {attendance.activeTab === 'setup' && (
-          <AttendanceSetupView
-            casts={casts}
-            presentCount={attendance.presentCount}
-            groupedPresent={attendance.groupedPresent}
-            saving={attendance.saving}
-            onOpenSaveModal={attendance.handleOpenSaveModal}
-            onSetAll={attendance.handleSetAll}
-            onTogglePresence={attendance.handleTogglePresence}
-          />
+          <AttendanceSetupView casts={casts} presentCount={attendance.presentCount} groupedPresent={attendance.groupedPresent} saving={attendance.saving} onOpenSaveModal={attendance.handleOpenSaveModal} onSetAll={attendance.handleSetAll} onTogglePresence={attendance.handleTogglePresence} />
         )}
 
         {attendance.activeTab === 'records' && (
-          <AttendanceRecordsView
-            attendanceDates={attendance.attendanceDates}
-            attendanceRows={attendance.attendanceRows}
-            attendancePeriod={attendance.attendancePeriod}
-            periodDialogOpen={attendance.attendancePeriodDialogOpen}
-            loadStatus={attendance.historyLoadStatus}
-            onOpenPeriodDialog={attendance.handleOpenAttendancePeriodDialog}
-          />
+          <AttendanceRecordsView attendanceDates={attendance.attendanceDates} attendanceRows={attendance.attendanceRows} attendancePeriod={attendance.attendancePeriod} periodDialogOpen={attendance.attendancePeriodDialogOpen} loadStatus={attendance.historyLoadStatus} onOpenPeriodDialog={attendance.handleOpenAttendancePeriodDialog} />
         )}
       </div>
 
       {attendance.attendancePeriodDialogOpen && (
-        <AttendancePeriodDialog
-          period={attendance.attendancePeriod}
-          onApply={attendance.handleApplyAttendancePeriod}
-          onClose={attendance.handleCloseAttendancePeriodDialog}
-        />
+        <AttendancePeriodDialog period={attendance.attendancePeriod} onApply={attendance.handleApplyAttendancePeriod} onClose={attendance.handleCloseAttendancePeriodDialog} />
       )}
 
       {attendance.confirmSave && (
-        <SaveAttendanceModal
-          presentCasts={attendance.presentCasts}
-          presentCount={attendance.presentCount}
-          saving={attendance.saving}
-          recordDate={attendance.recordDate}
-          dateRecordStatus={attendance.dateRecordStatus}
-          onClose={handleCloseSaveModal}
-          onRecordDateChange={attendance.handleRecordDateChange}
-          onSave={attendance.handleSave}
-        />
+        <SaveAttendanceModal presentCasts={attendance.presentCasts} presentCount={attendance.presentCount} saving={attendance.saving} recordDate={attendance.recordDate} dateRecordStatus={attendance.dateRecordStatus} onClose={handleCloseSaveModal} onRecordDateChange={attendance.handleRecordDateChange} onSave={attendance.handleSave} />
       )}
 
       {attendance.alertMessage && (
-        <NoticeDialog
-          title={getMsg('AttendancePage.tabListLabel')}
-          message={attendance.alertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleDismissAlert}
-        />
+        <NoticeDialog title={getMsg('AttendancePage.tabListLabel')} message={attendance.alertMessage} closeLabel={getMsg('common.close')} onClose={handleDismissAlert} />
       )}
     </div>
   );

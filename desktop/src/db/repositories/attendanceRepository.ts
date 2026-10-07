@@ -28,11 +28,7 @@ export async function getCastAttendanceHistory(): Promise<CastAttendanceRecord[]
      GROUP BY DATE(ca.recorded_at), c.id, c.name
      ORDER BY recorded_at DESC, c.name`,
   );
-  return rows.map((row) => ({
-    recordedAt: row.recorded_at,
-    castName: row.cast_name,
-    attendanceCount: row.attendance_count,
-  }));
+  return rows.map((row) => ({ recordedAt: row.recorded_at, castName: row.cast_name, attendanceCount: row.attendance_count }));
 }
 
 /** 出席者が0人の日を含む、保存済みの記録日を新しい順で返す。 */
@@ -47,16 +43,9 @@ export async function getCastAttendanceRecordDates(): Promise<string[]> {
 }
 
 /** 出席記録を保存。同日付の既存レコードのみ削除して再挿入。recordedAt は "YYYY-MM-DD" 形式 */
-export async function recordCastAttendance(
-  presentCastIds: number[],
-  recordedAt: string,
-): Promise<void> {
+export async function recordCastAttendance(presentCastIds: number[], recordedAt: string): Promise<void> {
   const eventName = getRequiredEventName();
-  await enqueueEventWrite(eventName, () => invoke('record_cast_attendance_atomic', {
-    eventName,
-    presentCastIds,
-    recordedAt,
-  }));
+  await enqueueEventWrite(eventName, () => invoke('record_cast_attendance_atomic', { eventName, presentCastIds, recordedAt }));
 }
 
 /** 指定日付の出席記録が存在するか。出席者0人の記録も対象にする。 */

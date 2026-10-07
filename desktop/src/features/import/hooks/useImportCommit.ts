@@ -3,18 +3,8 @@ import { attachCastIdsToUsers } from '@/common/castReferences';
 import type { UserBean } from '@/common/types/entities';
 import { DEFAULT_SESSION_WORKFLOW_STATE } from '@/common/types/sessionWorkflow';
 import { findXIdIdentityIssues } from '@/common/xIdUtils';
-import {
-  captureSessionWriteActivity,
-  getRequiredSessionContext,
-  isCurrentSessionContext,
-  isSessionRecoveryActive,
-  isSessionWriteActivityUnchanged,
-} from '@/db/repositories/commandContext';
-import {
-  getSessionWorkflowSnapshot,
-  loadApplicants,
-  persistApplicants,
-} from '@/db';
+import { captureSessionWriteActivity, getRequiredSessionContext, isCurrentSessionContext, isSessionRecoveryActive, isSessionWriteActivityUnchanged } from '@/db/repositories/commandContext';
+import { getSessionWorkflowSnapshot, loadApplicants, persistApplicants } from '@/db';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from '@/layout/appNavigation';
@@ -39,36 +29,14 @@ export interface ImportCommitState {
 }
 
 /** 取込の上書き確認、セッション保存、世代検証後の画面再同期を管理する。 */
-export function useImportCommit({
-  onAlert,
-  requestSessionReload,
-}: UseImportCommitOptions): ImportCommitState {
-  const {
-    setActivePage,
-    casts,
-    applicants,
-    setApplicants,
-    currentWinners,
-    setCurrentWinners,
-    hydrateSessionWorkflow,
-    ensureWritableSession,
-    startNewImportSession,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-    resetMatching,
-    beginSessionUiMutation,
-    isCurrentSessionUiMutation,
-  } = useAppContext();
+export function useImportCommit({ onAlert, requestSessionReload }: UseImportCommitOptions): ImportCommitState {
+  const { setActivePage, casts, applicants, setApplicants, currentWinners, setCurrentWinners, hydrateSessionWorkflow, ensureWritableSession, startNewImportSession, isLotteryInputReadOnly, hasSavedSessionResult, resetMatching, beginSessionUiMutation, isCurrentSessionUiMutation } = useAppContext();
   const [isMutationLoading, setIsMutationLoading] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const importRunningRef = useRef(false);
 
   // 保存後も同じ接続・UI操作・書込み世代である場合だけ、再読込結果を画面へ反映する。
-  const applyImport = async (
-    users: UserBean[],
-    nextPage: PageType = 'import',
-    createNewSession = false,
-  ) => {
+  const applyImport = async (users: UserBean[], nextPage: PageType = 'import', createNewSession = false) => {
     // React stateの反映前に連続実行されても、取込処理は一つだけ開始する。
     if (importRunningRef.current) return;
     importRunningRef.current = true;
@@ -76,10 +44,7 @@ export function useImportCommit({
     try {
       setIsMutationLoading(true);
       failureMessage = getMsg('AppContainer.importFailed');
-      const identityIssues = findXIdIdentityIssues(users.map((user, index) => ({
-        rowNumber: index + 1,
-        xId: user.x_id,
-      })));
+      const identityIssues = findXIdIdentityIssues(users.map((user, index) => ({ rowNumber: index + 1, xId: user.x_id })));
       const destinationPage = identityIssues.length > 0 ? 'import' : nextPage;
       const usersWithCastIds = attachCastIdsToUsers(users, casts);
       if (createNewSession) {
@@ -111,10 +76,7 @@ export function useImportCommit({
       let loadedApplicants;
       let workflowSnapshot;
       try {
-        [loadedApplicants, workflowSnapshot] = await Promise.all([
-          loadApplicants(),
-          getSessionWorkflowSnapshot(),
-        ]);
+        [loadedApplicants, workflowSnapshot] = await Promise.all([loadApplicants(), getSessionWorkflowSnapshot()]);
       } catch (error) {
         if (
           isCurrentSessionContext(context)
@@ -123,10 +85,7 @@ export function useImportCommit({
           setApplicants([]);
           setCurrentWinners([]);
           resetMatching();
-          hydrateSessionWorkflow({
-            state: { ...DEFAULT_SESSION_WORKFLOW_STATE },
-            isLotteryResultCurrent: false,
-          });
+          hydrateSessionWorkflow({ state: { ...DEFAULT_SESSION_WORKFLOW_STATE }, isLotteryResultCurrent: false });
           requestSessionReload();
         }
         failureMessage = getMsg('AppContainer.savedButRefreshFailed');
@@ -142,10 +101,7 @@ export function useImportCommit({
       }
       setApplicants(loadedApplicants);
       setCurrentWinners([]);
-      hydrateSessionWorkflow({
-        ...workflowSnapshot,
-        isLotteryResultCurrent: false,
-      });
+      hydrateSessionWorkflow({ ...workflowSnapshot, isLotteryResultCurrent: false });
       resetMatching();
       setActivePage(destinationPage);
     } catch {
@@ -181,12 +137,5 @@ export function useImportCommit({
 
   const cancelImportOverwrite = () => setPendingImport(null);
 
-  return {
-    isMutationLoading,
-    pendingImport,
-    importUsers,
-    importNewUsers,
-    confirmImportOverwrite,
-    cancelImportOverwrite,
-  };
+  return { isMutationLoading, pendingImport, importUsers, importNewUsers, confirmImportOverwrite, cancelImportOverwrite };
 }

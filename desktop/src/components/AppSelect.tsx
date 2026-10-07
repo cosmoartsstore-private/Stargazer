@@ -27,20 +27,8 @@ type AppSelectAccessibleName =
 
 type AppSelectProps = AppSelectBaseProps & AppSelectAccessibleName;
 
-/**
- * 共通プルダウン。Radix Select ベースでデザイン・a11y を統一。
- */
-export const AppSelect: React.FC<AppSelectProps> = ({
-  value,
-  onValueChange,
-  options,
-  placeholder = getMsg('common.selectPlease'),
-  id,
-  disabled = false,
-  className = '',
-  ariaLabel,
-  ariaLabelledBy,
-}) => {
+/** 共通プルダウン。Radix Select ベースでデザイン・a11y を統一。 */
+export const AppSelect: React.FC<AppSelectProps> = ({ value, onValueChange, options, placeholder = getMsg('common.selectPlease'), id, disabled = false, className = '', ariaLabel, ariaLabelledBy }) => {
   // モーダル内でも前面へ表示できるポータル配置先を選ぶ。
   const portalContainer =
     typeof document !== 'undefined'

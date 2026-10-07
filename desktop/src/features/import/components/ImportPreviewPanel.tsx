@@ -3,10 +3,7 @@ import { ChevronDown, Sheet } from 'lucide-react';
 import type { ColumnMapping } from '@/common/importFormat';
 import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
-import {
-  IMPORT_PREVIEW_MAX_ROWS,
-  type ImportPreviewModel,
-} from '../importPreviewModel';
+import { IMPORT_PREVIEW_MAX_ROWS, type ImportPreviewModel } from '../importPreviewModel';
 import styles from '../ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -27,17 +24,7 @@ interface ImportPreviewPanelProps {
 }
 
 /** 変換後の応募者、本人確認エラー、取込操作を同じ検証モデルから表示する。 */
-export const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
-  open,
-  sourceRowCount,
-  castInputType,
-  model,
-  disabled = false,
-  onOpenChange,
-  onOpenRawColumns,
-  onImportAndOpenLottery,
-  onImportOnly,
-}) => {
+export const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({ open, sourceRowCount, castInputType, model, disabled = false, onOpenChange, onOpenRawColumns, onImportAndOpenLottery, onImportOnly }) => {
   const previewTableId = React.useId();
   const importCount = model.canImport ? model.mappedRows.length : 0;
   const previewCastGridStyle = getCastGridStyle(model.previewCastColumnIndexes.length);

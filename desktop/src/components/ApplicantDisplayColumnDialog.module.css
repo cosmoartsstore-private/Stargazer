@@ -1,0 +1,81 @@
+.display-column-dialog {
+  width: min(520px, calc(100vw - 40px));
+}
+
+.display-column-dialog-description {
+  margin: -6px 0 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.display-column-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.display-column-legend {
+  margin-bottom: 8px;
+  color: var(--text-heading);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.display-column-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(360px, 48vh);
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.display-column-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--surface-panel-muted);
+  color: var(--text-default);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.display-column-option:hover {
+  border-color: var(--accent-primary);
+}
+
+.display-column-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent-primary);
+}
+
+.display-column-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.display-column-dialog-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 520px) {
+  .display-column-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .display-column-dialog-actions button {
+    width: 100%;
+  }
+}

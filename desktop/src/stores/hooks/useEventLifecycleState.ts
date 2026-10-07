@@ -1,29 +1,10 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { CastBean, UserBean } from '@/common/types/entities';
-import {
-  clearSavedLocation,
-  initializeApp,
-  saveLastLocation,
-} from '@/db/initializer';
-import {
-  closeEvent,
-  closeSession,
-  getCurrentEventName,
-  getCurrentSessionTimestamp,
-  openEvent,
-  openSession,
-} from '@/db/database';
+import { clearSavedLocation, initializeApp, saveLastLocation } from '@/db/initializer';
+import { closeEvent, closeSession, getCurrentEventName, getCurrentSessionTimestamp, openEvent, openSession } from '@/db/database';
 import { runWithEventLifecycleLock } from '@/db/repositories/commandContext';
-import {
-  createImportSession,
-  deleteEvent as deleteEventStorage,
-  discardSession,
-  renameEvent as renameEventStorage,
-} from '@/db/repositories/eventRepository';
-import {
-  createSessionFromSavedLotteryForLifecycle,
-  type SavedLotteryResultTarget,
-} from '@/db/repositories/lotteryRepository';
+import { createImportSession, deleteEvent as deleteEventStorage, discardSession, renameEvent as renameEventStorage } from '@/db/repositories/eventRepository';
+import { createSessionFromSavedLotteryForLifecycle, type SavedLotteryResultTarget } from '@/db/repositories/lotteryRepository';
 import { getMsg } from '@/messages/getMsg';
 
 type SessionAccessState = 'none' | 'writable' | 'savedLotteryInput';
@@ -61,13 +42,7 @@ export interface EventLifecycleContextState {
 }
 
 /** イベント共有DBと、1件だけ存在できる一時作業セッションのライフサイクルを管理する。 */
-export function useEventLifecycleState({
-  setCasts,
-  setApplicants,
-  beginSessionUiMutation,
-  clearSessionWorkflowState,
-  resetMatching,
-}: UseEventLifecycleStateOptions): EventLifecycleContextState {
+export function useEventLifecycleState({ setCasts, setApplicants, beginSessionUiMutation, clearSessionWorkflowState, resetMatching }: UseEventLifecycleStateOptions): EventLifecycleContextState {
   const [isDbReady, setIsDbReady] = useState(false);
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [currentEventName, setCurrentEventName] = useState<string | null>(null);
@@ -115,16 +90,13 @@ export function useEventLifecycleState({
     saveLastLocation(name);
   };
 
-  const restoreEventConnection = async (
-    eventName: string,
-    timestamp: string | null,
-  ): Promise<void> => {
+  const restoreEventConnection = async (eventName: string, timestamp: string | null): Promise<void> => {
     await closeEvent();
     await openEvent(eventName);
     if (timestamp !== null) await openSession(timestamp);
   };
 
-  /** 接続を先に閉じ、Windowsでも対象ディレクトリを安全に隔離できる順序で破棄する。 */
+  /** 接続を先に閉じ、Windowsでも対象directoryを安全に隔離できる順序で破棄する。 */
   const discardOpenSession = async (eventName: string, timestamp: string): Promise<void> => {
     await closeSession();
     try {

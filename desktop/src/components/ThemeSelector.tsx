@@ -3,14 +3,7 @@
 import React, { type ChangeEvent, type CSSProperties, useEffect, useId, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { THEME_IDS, type ThemeId } from '@/common/themes';
-import {
-  CUSTOM_THEME_MAX_COLORS,
-  DEFAULT_THEME_CUSTOMIZATION,
-  isHexColor,
-  normalizeHexColor,
-  type DefaultThemeCustomization,
-  type ThemeCustomizationState,
-} from '@/common/themeCustomization';
+import { CUSTOM_THEME_MAX_COLORS, DEFAULT_THEME_CUSTOMIZATION, HEX_COLOR_INPUT_MAX_LENGTH, isHexColor, normalizeHexColor, type DefaultThemeCustomization, type ThemeCustomizationState } from '@/common/themeCustomization';
 import { AppDialog } from '@/components/AppDialog';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
@@ -50,16 +43,7 @@ interface ThemeColorRowProps {
   onRemove: (index: number) => void;
 }
 
-function ThemeColorRow({
-  index,
-  color,
-  draftColor,
-  canRemove,
-  onColorChange,
-  onDraftColorChange,
-  onDraftColorBlur,
-  onRemove,
-}: ThemeColorRowProps) {
+function ThemeColorRow({ index, color, draftColor, canRemove, onColorChange, onDraftColorChange, onDraftColorBlur, onRemove }: ThemeColorRowProps) {
   const colorNumber = index + 1;
   const hexDescriptionId = useId();
   const isDraftColorValid = isHexColor(draftColor);
@@ -79,7 +63,7 @@ function ThemeColorRow({
     <div className={styles.themeColorRow}>
       <input type="color" value={color} aria-label={getMsg('ThemeSelector.colorLabel', { index: colorNumber })} onChange={handleColorChange} />
       <div className={styles.themeHexField}>
-        <input type="text" value={draftColor} aria-label={getMsg('ThemeSelector.colorHexLabel', { index: colorNumber })} aria-invalid={!isDraftColorValid} aria-describedby={isDraftColorValid ? undefined : hexDescriptionId} className={hexInputClassName} onChange={handleDraftColorChange} onBlur={handleDraftColorBlur} />
+        <input type="text" value={draftColor} maxLength={HEX_COLOR_INPUT_MAX_LENGTH} aria-label={getMsg('ThemeSelector.colorHexLabel', { index: colorNumber })} aria-invalid={!isDraftColorValid} aria-describedby={isDraftColorValid ? undefined : hexDescriptionId} className={hexInputClassName} onChange={handleDraftColorChange} onBlur={handleDraftColorBlur} />
         {!isDraftColorValid && <p id={hexDescriptionId} className={styles.themeHexError}>{getMsg('ThemeSelector.invalidHexColor')}</p>}
       </div>
       <button type="button" className={styles.themeIconButton} onClick={handleRemove} disabled={!canRemove} aria-label={getMsg('ThemeSelector.removeColor', { index: colorNumber })}><Trash2 size={14} /></button>
@@ -87,14 +71,7 @@ function ThemeColorRow({
   );
 }
 
-export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
-  themeId,
-  setThemeId,
-  customization,
-  setCustomization,
-  dialogOpen,
-  onDialogOpenChange,
-}) => {
+export const ThemeSelector: React.FC<ThemeSelectorProps> = ({ themeId, setThemeId, customization, setCustomization, dialogOpen, onDialogOpenChange }) => {
   // 親から指定されない場所でも単独利用できるよう、表示状態だけは内部状態へフォールバックする。
   const [internalOpen, setInternalOpen] = useState(false);
   const open = dialogOpen ?? internalOpen;
@@ -112,10 +89,7 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
   // ダークテーマの設定更新と、色配列の追加・削除・確定処理。
   const updateDefaultTheme = (patch: Partial<DefaultThemeCustomization>) => {
-    setCustomization((prev) => ({
-      ...prev,
-      dark: { ...prev.dark, ...patch },
-    }));
+    setCustomization((prev) => ({ ...prev, dark: { ...prev.dark, ...patch } }));
   };
 
   const updateColor = (index: number, color: string) => {
@@ -153,10 +127,7 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   };
 
   const resetCurrentTheme = () => {
-    setCustomization((prev) => ({
-      ...prev,
-      [themeId]: DEFAULT_THEME_CUSTOMIZATION[themeId],
-    }));
+    setCustomization((prev) => ({ ...prev, [themeId]: DEFAULT_THEME_CUSTOMIZATION[themeId] }));
   };
 
   // ダイアログと各設定入力のUIイベント。
@@ -178,41 +149,22 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   };
   const handleHueChange = (event: ChangeEvent<HTMLInputElement>) => {
     const hue = Number(event.currentTarget.value);
-    setCustomization((prev) => ({
-      ...prev,
-      skyblue: { hue },
-    }));
+    setCustomization((prev) => ({ ...prev, skyblue: { hue } }));
   };
   // 現在設定から、プレビューと選択ボタンの表示値を導出する。
   const getThemeName = (id: ThemeId) => getMsg(
     id === 'dark' ? 'ThemeSelector.darkThemeName' : 'ThemeSelector.skyblueThemeName',
   );
-  const themePreviewStyle: CSSProperties = {
-    background: `linear-gradient(${customization.dark.direction}deg, ${customization.dark.colors.join(', ')})`,
-  };
-  const huePreviewStyle = {
-    '--preview-hue': customization.skyblue.hue,
-  } as CSSProperties;
+  const themePreviewStyle: CSSProperties = { background: `linear-gradient(${customization.dark.direction}deg, ${customization.dark.colors.join(', ')})`, };
+  const huePreviewStyle = { '--preview-hue': customization.skyblue.hue } as CSSProperties;
 
   return (
     <>
       <button type="button" className={`${shared.btnSecondary} ${styles.themeButton}`} onClick={handleOpen}>{getMsg('ThemeSelector.openButton')}</button>
 
       {open && (
-        <AppDialog
-          open={open}
-          onOpenChange={setOpen}
-          title={getMsg('ThemeSelector.dialogTitle')}
-          description={getMsg('ThemeSelector.dialogDescription')}
-          className={styles.themeDialog}
-          showClose
-          closeOnInteractOutside={false}
-        >
-          <div className={styles.themeModeSwitch} role="group" aria-label={getMsg('ThemeSelector.themeGroupLabel')}>
-            {THEME_IDS.map((id) => (
-              <ThemeModeButton key={id} id={id} label={getThemeName(id)} selected={themeId === id} onSelect={setThemeId} />
-            ))}
-          </div>
+        <AppDialog open={open} onOpenChange={setOpen} title={getMsg('ThemeSelector.dialogTitle')} description={getMsg('ThemeSelector.dialogDescription')} className={styles.themeDialog} showClose closeOnInteractOutside={false}>
+          <div className={styles.themeModeSwitch} role="group" aria-label={getMsg('ThemeSelector.themeGroupLabel')}>{THEME_IDS.map((id) => (<ThemeModeButton key={id} id={id} label={getThemeName(id)} selected={themeId === id} onSelect={setThemeId} />))}</div>
 
           {themeId === 'dark' ? (
             /* ダークテーマのグラデーション設定 */
@@ -231,17 +183,7 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                   {customization.dark.colors.map((color, index) => {
                     const draftColor = draftColors[index] ?? color;
                     return (
-                      <ThemeColorRow
-                        key={`theme-color-${index}`}
-                        index={index}
-                        color={color}
-                        draftColor={draftColor}
-                        canRemove={customization.dark.colors.length > 1}
-                        onColorChange={updateColor}
-                        onDraftColorChange={handleDraftColorChange}
-                        onDraftColorBlur={commitDraftColor}
-                        onRemove={removeColor}
-                      />
+                      <ThemeColorRow key={`theme-color-${index}`} index={index} color={color} draftColor={draftColor} canRemove={customization.dark.colors.length > 1} onColorChange={updateColor} onDraftColorChange={handleDraftColorChange} onDraftColorBlur={commitDraftColor} onRemove={removeColor} />
                     );
                   })}
                 </div>

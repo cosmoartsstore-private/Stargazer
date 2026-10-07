@@ -3,29 +3,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
 import { DelimitedParseError, parseTSV } from '@/common/csvParse';
-import {
-  createEmptyColumnMapping,
-  detectColumnMapping,
-  type ColumnMapping,
-} from '@/common/importFormat';
+import { createEmptyColumnMapping, detectColumnMapping, type ColumnMapping } from '@/common/importFormat';
 import type { UserBean } from '@/common/types/entities';
 import type { PageType } from '@/layout/appNavigation';
 import { getMsg } from '@/messages/getMsg';
-import {
-  buildImportPreviewModel,
-  UNUSED_COLUMN_VALUE,
-  type ImportSourceRow,
-} from './importPreviewModel';
-import {
-  ImportMappingPanel,
-  type ImportColumnKey,
-} from './components/ImportMappingPanel';
+import { buildImportPreviewModel, UNUSED_COLUMN_VALUE, type ImportSourceRow } from './importPreviewModel';
+import { ImportMappingPanel, type ImportColumnKey } from './components/ImportMappingPanel';
 import { ImportPreviewPanel } from './components/ImportPreviewPanel';
 import { RawColumnsDialog } from './components/RawColumnsDialog';
-import {
-  getCachedImportColumnMapping,
-  persistImportColumnMapping,
-} from './importMappingCache';
+import { getCachedImportColumnMapping, persistImportColumnMapping } from './importMappingCache';
 import styles from './ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -43,12 +29,7 @@ export interface ImportPageInitialData {
   mapping: ColumnMapping;
 }
 
-export const ImportPage: React.FC<ImportPageProps> = ({
-  onImportUsers,
-  initialData,
-  onDraftChange,
-  onBusyChange,
-}) => {
+export const ImportPage: React.FC<ImportPageProps> = ({ onImportUsers, initialData, onDraftChange, onBusyChange }) => {
   // 選択ファイル、列設定、補助ダイアログの表示状態。
   const inputRef = useRef<HTMLInputElement>(null);
   const fileReadGenerationRef = useRef(0);
@@ -66,10 +47,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({
   const [isFileReading, setIsFileReading] = useState(false);
 
   // プレビューと取込実行で同じ列変換・本人確認結果を共有する。
-  const previewModel = useMemo(
-    () => buildImportPreviewModel(headers, sourceRows, mapping),
-    [headers, sourceRows, mapping],
-  );
+  const previewModel = useMemo(() => buildImportPreviewModel(headers, sourceRows, mapping), [headers, sourceRows, mapping]);
 
   useEffect(() => {
     onDraftChange?.(sourceRows !== null);
@@ -146,10 +124,7 @@ export const ImportPage: React.FC<ImportPageProps> = ({
     } catch (caughtError) {
       if (readGeneration !== fileReadGenerationRef.current) return;
       setError(caughtError instanceof DelimitedParseError
-        ? getMsg('ImportPage.invalidQuotedField', {
-            line: caughtError.line,
-            column: caughtError.column,
-          })
+        ? getMsg('ImportPage.invalidQuotedField', { line: caughtError.line, column: caughtError.column })
         : getMsg('ImportPage.readFailed'));
     } finally {
       if (readGeneration === fileReadGenerationRef.current) {
@@ -195,45 +170,17 @@ export const ImportPage: React.FC<ImportPageProps> = ({
       </div>
 
       {headers.length > 0 && (
-        <ImportMappingPanel
-          open={mappingOpen}
-          mapping={mapping}
-          columnOptions={previewModel.columnOptions}
-          hasSourceRows={sourceRows !== null}
-          xIdShake={xIdShake}
-          onOpenChange={setMappingOpen}
-          onColumnChange={handleColumnChange}
-          onCastInputTypeChange={handleCastInputTypeChange}
-          onXIdAnimationEnd={handleXIdAnimationEnd}
-        />
+        <ImportMappingPanel open={mappingOpen} mapping={mapping} columnOptions={previewModel.columnOptions} hasSourceRows={sourceRows !== null} xIdShake={xIdShake} onOpenChange={setMappingOpen} onColumnChange={handleColumnChange} onCastInputTypeChange={handleCastInputTypeChange} onXIdAnimationEnd={handleXIdAnimationEnd} />
       )}
 
       {!sourceRows ? (
         <div className={styles.importPreviewEmpty}>{getMsg('ImportPage.previewEmpty')}</div>
       ) : (
-        <ImportPreviewPanel
-          open={previewOpen}
-          sourceRowCount={sourceRows.length}
-          castInputType={mapping.castInputType}
-          model={previewModel}
-          disabled={isFileReading}
-          onOpenChange={setPreviewOpen}
-          onOpenRawColumns={handleOpenRawColumns}
-          onImportAndOpenLottery={handleImportAndOpenLottery}
-          onImportOnly={handleImportOnly}
-        />
+        <ImportPreviewPanel open={previewOpen} sourceRowCount={sourceRows.length} castInputType={mapping.castInputType} model={previewModel} disabled={isFileReading} onOpenChange={setPreviewOpen} onOpenRawColumns={handleOpenRawColumns} onImportAndOpenLottery={handleImportAndOpenLottery} onImportOnly={handleImportOnly} />
       )}
 
       {sourceRows && rawColumnsOpen && (
-        <RawColumnsDialog
-          open={rawColumnsOpen}
-          headers={headers}
-          sourceRows={sourceRows}
-          columnIndexes={previewModel.rawColumnIndexes}
-          issueRowNumbers={previewModel.issueRowNumbers}
-          xIdColumnIndex={previewModel.importMapping.x_id}
-          onOpenChange={setRawColumnsOpen}
-        />
+        <RawColumnsDialog open={rawColumnsOpen} headers={headers} sourceRows={sourceRows} columnIndexes={previewModel.rawColumnIndexes} issueRowNumbers={previewModel.issueRowNumbers} xIdColumnIndex={previewModel.importMapping.x_id} onOpenChange={setRawColumnsOpen} />
       )}
     </div>
   );

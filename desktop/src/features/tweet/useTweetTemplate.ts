@@ -1,29 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSetting, setSetting } from '@/db';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-  waitForEventWritesToSettle,
-} from '@/db/repositories/commandContext';
+import { getOpenEventContext, isCurrentEventContext, waitForEventWritesToSettle } from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
-import {
-  DEFAULT_TWEET_TEMPLATE,
-  resolveTweetTemplate,
-  TWEET_TEMPLATE_KEY,
-} from './tweetTemplate';
+import { DEFAULT_TWEET_TEMPLATE, limitTweetTemplate, resolveTweetTemplate, TWEET_TEMPLATE_KEY } from './tweetTemplate';
+
+const TWEET_TEMPLATE_SAVE_DEBOUNCE_MS = 300;
+
+interface PendingTemplateSave {
+  value: string;
+  mutationGeneration: number;
+}
 
 /** イベント単位の投稿テンプレートを読み書きし、失敗時の復元を調停する。 */
 export function useTweetTemplate(currentEventName: string | null, previewMode = false) {
   const [template, setTemplate] = useState(DEFAULT_TWEET_TEMPLATE);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [loadState, setLoadState] = useState<{
-    eventName: string | null;
-    status: 'ready' | 'loading' | 'failed';
-  }>({ eventName: null, status: 'ready' });
+  const [loadState, setLoadState] = useState<{ eventName: string | null; status: 'ready' | 'loading' | 'failed'; }>({ eventName: null, status: 'ready' });
 
   // 世代番号と最新入力値により、遅れて完了した読み書きが新しい編集を上書きしないようにする。
   const mutationGenerationRef = useRef(0);
   const templateValueRef = useRef(DEFAULT_TWEET_TEMPLATE);
+  const pendingSaveRef = useRef<PendingTemplateSave | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
   const canEditTemplate = previewMode || (
     currentEventName !== null
     && loadState.eventName === currentEventName
@@ -96,25 +94,29 @@ export function useTweetTemplate(currentEventName: string | null, previewMode = 
     };
   }, [currentEventName, previewMode]);
 
-  const persistTemplate = (value: string, mutationGeneration: number) => {
+  const persistTemplate = useCallback(async (value: string, mutationGeneration: number): Promise<boolean> => {
+    if (previewMode) return true;
     const context = getOpenEventContext(currentEventName);
-    if (context === null) return;
-    void setSetting(TWEET_TEMPLATE_KEY, value).catch(async () => {
+    if (context === null) return false;
+    try {
+      await setSetting(TWEET_TEMPLATE_KEY, value);
+      return true;
+    } catch {
       if (
         !isCurrentEventContext(context)
         || mutationGenerationRef.current !== mutationGeneration
-      ) return;
+      ) return false;
       try {
         await waitForEventWritesToSettle(context);
         if (
           !isCurrentEventContext(context)
           || mutationGenerationRef.current !== mutationGeneration
-        ) return;
+        ) return false;
         const saved = await getSetting(TWEET_TEMPLATE_KEY);
         if (
           !isCurrentEventContext(context)
           || mutationGenerationRef.current !== mutationGeneration
-        ) return;
+        ) return false;
         const nextTemplate = resolveTweetTemplate(saved);
         templateValueRef.current = nextTemplate;
         setTemplate(nextTemplate);
@@ -127,17 +129,54 @@ export function useTweetTemplate(currentEventName: string | null, previewMode = 
           setAlertMessage(getMsg('TweetPage.saveFailedReloadRequired'));
         }
       }
-    });
-  };
+      return false;
+    }
+  }, [currentEventName, previewMode]);
+
+  /** 予約中の最新値を直ちに保存し、画面遷移側が完了を待てるようにする。 */
+  const flushTemplate = useCallback(async (): Promise<boolean> => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pendingSave = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (pendingSave === null) return true;
+    return persistTemplate(pendingSave.value, pendingSave.mutationGeneration);
+  }, [persistTemplate]);
+
+  /** 連続入力中のDB書込みを最新値一件へ集約する。 */
+  const scheduleTemplatePersist = useCallback((pendingSave: PendingTemplateSave) => {
+    pendingSaveRef.current = pendingSave;
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      const scheduledSave = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      if (scheduledSave !== null) {
+        void persistTemplate(scheduledSave.value, scheduledSave.mutationGeneration);
+      }
+    }, TWEET_TEMPLATE_SAVE_DEBOUNCE_MS);
+  }, [persistTemplate]);
+
+  // 画面遷移は登録済みcommitが先にflushする。ここでは切替後に旧timerを残さない。
+  useEffect(() => () => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    pendingSaveRef.current = null;
+  }, [currentEventName, previewMode]);
 
   const updateTemplate = (value: string) => {
     if (!canEditTemplateRef.current) return;
+    const limitedValue = limitTweetTemplate(value);
     const mutationGeneration = mutationGenerationRef.current + 1;
     mutationGenerationRef.current = mutationGeneration;
-    templateValueRef.current = value;
-    setTemplate(value);
+    templateValueRef.current = limitedValue;
+    setTemplate(limitedValue);
     if (previewMode) return;
-    persistTemplate(value, mutationGeneration);
+    scheduleTemplatePersist({ value: limitedValue, mutationGeneration });
   };
 
   const appendPlaceholder = (key: string) => {
@@ -152,5 +191,6 @@ export function useTweetTemplate(currentEventName: string | null, previewMode = 
     setAlertMessage,
     updateTemplate,
     appendPlaceholder,
+    flushTemplate,
   };
 }

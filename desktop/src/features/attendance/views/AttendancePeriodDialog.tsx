@@ -23,13 +23,7 @@ export function AttendancePeriodDialog({ period, onApply, onClose }: AttendanceP
   const validationErrorId = useId();
   const hasInvalidStartDate = Boolean(draftPeriod.startDate && !parseRecordDate(draftPeriod.startDate));
   const hasInvalidEndDate = Boolean(draftPeriod.endDate && !parseRecordDate(draftPeriod.endDate));
-  const hasInvalidRange = Boolean(
-    !hasInvalidStartDate
-    && !hasInvalidEndDate
-    && draftPeriod.startDate
-    && draftPeriod.endDate
-    && draftPeriod.startDate > draftPeriod.endDate,
-  );
+  const hasInvalidRange = Boolean(!hasInvalidStartDate && !hasInvalidEndDate && draftPeriod.startDate && draftPeriod.endDate && draftPeriod.startDate > draftPeriod.endDate);
   const hasValidationError = hasInvalidStartDate || hasInvalidEndDate || hasInvalidRange;
   const validationErrorDescription = hasValidationError ? validationErrorId : undefined;
   const validationMessage = hasInvalidStartDate || hasInvalidEndDate
@@ -64,15 +58,7 @@ export function AttendancePeriodDialog({ period, onApply, onClose }: AttendanceP
   const handleEndCalendarOpenChange = (open: boolean) => setOpenCalendar(open ? 'end' : null);
 
   return (
-    <AppDialog
-      open
-      onOpenChange={handleOpenChange}
-      title={getMsg('AttendancePeriodDialog.dialogTitle')}
-      description={getMsg('AttendancePeriodDialog.dialogDescription')}
-      showClose
-      className={styles.attendancePeriodDialog}
-      descriptionClassName={styles.attendancePeriodDescription}
-    >
+    <AppDialog open onOpenChange={handleOpenChange} title={getMsg('AttendancePeriodDialog.dialogTitle')} description={getMsg('AttendancePeriodDialog.dialogDescription')} showClose className={styles.attendancePeriodDialog} descriptionClassName={styles.attendancePeriodDescription}>
       <form className={styles.attendancePeriodForm} onSubmit={handleSubmit}>
         <div className={styles.attendancePeriodFields}>
           <div className={styles.attendancePeriodField}>

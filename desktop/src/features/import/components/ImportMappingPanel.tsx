@@ -3,10 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { AppSelect } from '@/components/AppSelect';
 import type { ColumnMapping } from '@/common/importFormat';
 import { getMsg } from '@/messages/getMsg';
-import {
-  getSelectedImportColumnValue,
-  type ImportColumnOption,
-} from '../importPreviewModel';
+import { getSelectedImportColumnValue, type ImportColumnOption } from '../importPreviewModel';
 import styles from '../ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -52,17 +49,7 @@ interface ImportMappingPanelProps {
 }
 
 /** TSVの各列を応募者項目へ割り当てる操作だけを表示する。 */
-export const ImportMappingPanel: React.FC<ImportMappingPanelProps> = ({
-  open,
-  mapping,
-  columnOptions,
-  hasSourceRows,
-  xIdShake,
-  onOpenChange,
-  onColumnChange,
-  onCastInputTypeChange,
-  onXIdAnimationEnd,
-}) => {
+export const ImportMappingPanel: React.FC<ImportMappingPanelProps> = ({ open, mapping, columnOptions, hasSourceRows, xIdShake, onOpenChange, onColumnChange, onCastInputTypeChange, onXIdAnimationEnd }) => {
   const contentId = useId();
   const xIdMappingClassName = `${styles.importMappingRow}${xIdShake ? ` ${shared.shake}` : ''}`;
   const chevronClassName = `${styles.importDisclosureChevron}${open ? ` ${styles.importDisclosureChevronOpen}` : ''}`;

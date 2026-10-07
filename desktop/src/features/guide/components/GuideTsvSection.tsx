@@ -5,26 +5,7 @@ import { formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import shared from '@/styles/shared.module.css';
 import styles from '../GuidePage.module.css';
 
-const SAMPLE_ROWS = [
-  {
-    timestamp: '2026/7/25 20:14:08',
-    username: getMsg('GuidePage.flow.applicantData.sampleUser1'),
-    xId: getMsg('GuidePage.flow.applicantData.sampleXId1'),
-    preference: getMsg('GuidePage.sample.castA'),
-  },
-  {
-    timestamp: '2026/7/25 20:18:42',
-    username: getMsg('GuidePage.flow.applicantData.sampleUser2'),
-    xId: getMsg('GuidePage.flow.applicantData.sampleXId2'),
-    preference: getMsg('GuidePage.sample.castB'),
-  },
-  {
-    timestamp: '2026/7/25 20:23:11',
-    username: getMsg('GuidePage.flow.applicantData.sampleUser3'),
-    xId: getMsg('GuidePage.flow.applicantData.sampleXId3'),
-    preference: getMsg('GuidePage.sample.castC'),
-  },
-] as const;
+const SAMPLE_ROWS = [{ timestamp: '2026/7/25 20:14:08', username: getMsg('GuidePage.flow.applicantData.sampleUser1'), xId: getMsg('GuidePage.flow.applicantData.sampleXId1'), preference: getMsg('GuidePage.sample.castA') }, { timestamp: '2026/7/25 20:18:42', username: getMsg('GuidePage.flow.applicantData.sampleUser2'), xId: getMsg('GuidePage.flow.applicantData.sampleXId2'), preference: getMsg('GuidePage.sample.castB') }, { timestamp: '2026/7/25 20:23:11', username: getMsg('GuidePage.flow.applicantData.sampleUser3'), xId: getMsg('GuidePage.flow.applicantData.sampleXId3'), preference: getMsg('GuidePage.sample.castC') }] as const;
 
 function FormsResponseSample() {
   return (

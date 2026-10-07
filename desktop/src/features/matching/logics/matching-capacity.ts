@@ -11,15 +11,7 @@ interface M003CapacityInput {
 }
 
 /** M003 の物理席から当日枠を確保し、抽選対象者へ使える接客枠を算出する。 */
-export function selectM003Capacity({
-  totalTables,
-  usersPerTable,
-  totalWinners,
-  activeCastCount,
-  castsPerRotation,
-  reservedSameDaySlotCount,
-  sameDaySlotUnit,
-}: M003CapacityInput) {
+export function selectM003Capacity({ totalTables, usersPerTable, totalWinners, activeCastCount, castsPerRotation, reservedSameDaySlotCount, sameDaySlotUnit }: M003CapacityInput) {
   const completeCastUnitCount = Math.floor(activeCastCount / castsPerRotation);
   const physicalSeatCount = totalTables * usersPerTable;
   const reservedTableCount = sameDaySlotUnit === 'table' ? reservedSameDaySlotCount : 0;

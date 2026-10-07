@@ -32,29 +32,16 @@ export function groupCastsByGroupName(castList: CastBean[]): GroupedCasts {
 }
 
 /** キャスト行を維持したまま、指定期間の出席回数と日付列を構築する。 */
-export function buildAttendanceMatrix(
-  casts: CastBean[],
-  history: CastAttendanceRecord[],
-  period: AttendancePeriod = { startDate: '', endDate: '' },
-  recordDates: string[] = [],
-): { dates: string[]; rows: AttendanceMatrixRow[] } {
+export function buildAttendanceMatrix(casts: CastBean[], history: CastAttendanceRecord[], period: AttendancePeriod = { startDate: '', endDate: '' }, recordDates: string[] = []): { dates: string[]; rows: AttendanceMatrixRow[] } {
   const castOrder = new Map(casts.map((cast, index) => [cast.name, index]));
-  const dates = new Set(
-    recordDates
-      .map((recordDate) => recordDate.slice(0, 10))
-      .filter((recordDate) => isDateInAttendancePeriod(recordDate, period)),
-  );
+  const dates = new Set(recordDates.map((recordDate) => recordDate.slice(0, 10)).filter((recordDate) => isDateInAttendancePeriod(recordDate, period)));
   const rowByCastName = new Map<string, AttendanceMatrixRow>();
 
   for (const record of history) {
     const date = record.recordedAt.slice(0, 10);
     let row = rowByCastName.get(record.castName);
     if (!row) {
-      row = {
-        castName: record.castName,
-        totalCount: 0,
-        dates: new Set(),
-      };
+      row = { castName: record.castName, totalCount: 0, dates: new Set() };
       rowByCastName.set(record.castName, row);
     }
     if (!isDateInAttendancePeriod(date, period)) continue;
@@ -66,11 +53,7 @@ export function buildAttendanceMatrix(
 
   for (const cast of casts) {
     if (!rowByCastName.has(cast.name)) {
-      rowByCastName.set(cast.name, {
-        castName: cast.name,
-        totalCount: 0,
-        dates: new Set(),
-      });
+      rowByCastName.set(cast.name, { castName: cast.name, totalCount: 0, dates: new Set() });
     }
   }
 
@@ -84,8 +67,5 @@ export function buildAttendanceMatrix(
       return a.castName.localeCompare(b.castName, 'ja');
     });
 
-  return {
-    dates: Array.from(dates).sort(),
-    rows,
-  };
+  return { dates: Array.from(dates).sort(), rows };
 }

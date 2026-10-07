@@ -4,7 +4,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { GuideFeatureDetails } from '@/features/guide/components/GuideFeatureDetails';
 import { GuideFlowContent } from '@/features/guide/components/GuideFlowContent';
-import type { FeatureId } from '@/features/guide/guideSampleContext';
+import type { FeatureId } from '@/features/guide/guideFeature';
 import { isStellaRecordAvailable, registerToStellaRecord } from '@/tauri';
 import { getMsg } from '@/messages/getMsg';
 import styles from './GuidePage.module.css';
@@ -14,29 +14,14 @@ type Tab = 'flow' | 'features';
 type StellaStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
 
 // ガイド上部で切り替える主要表示。
-const GUIDE_TABS: ReadonlyArray<{ id: Tab; label: string }> = [
-  { id: 'flow', label: getMsg('GuidePage.tab.flow') },
-  { id: 'features', label: getMsg('GuidePage.tab.features') },
-];
+const GUIDE_TABS: ReadonlyArray<{ id: Tab; label: string }> = [{ id: 'flow', label: getMsg('GuidePage.tab.flow') }, { id: 'features', label: getMsg('GuidePage.tab.features') }];
 
-const GUIDE_TAB_DOM_IDS: Record<Tab, { tab: string; panel: string }> = {
-  flow: { tab: 'guide-tab-flow', panel: 'guide-tabpanel-flow' },
-  features: { tab: 'guide-tab-features', panel: 'guide-tabpanel-features' },
-};
-
-// TODO: StellaRecordリリース後、連携先への登録動作を実機確認してから登録UIを有効化する。
-const IS_STELLA_RECORD_REGISTRATION_ENABLED = false;
+const GUIDE_TAB_DOM_IDS: Record<Tab, { tab: string; panel: string }> = { flow: { tab: 'guide-tab-flow', panel: 'guide-tabpanel-flow' }, features: { tab: 'guide-tab-features', panel: 'guide-tabpanel-features' } };
 
 function getStellaRegisterButtonLabel(status: StellaStatus): string {
   if (status === 'loading') return getMsg('GuidePage.stella.registering');
   if (status === 'success') return getMsg('GuidePage.stella.registered');
   return getMsg('GuidePage.stella.register');
-}
-
-function getStellaMessageColor(status: StellaStatus): string {
-  if (status === 'success') return 'var(--text-success, #03b800)';
-  if (status === 'error' || status === 'unavailable') return '#ed4245';
-  return 'var(--text-muted)';
 }
 
 interface GuideTabButtonProps {
@@ -51,20 +36,9 @@ interface GuideTabButtonProps {
 function GuideTabButton({ id, label, selected, onSelect, onKeyDown, buttonRef }: GuideTabButtonProps) {
   const handleClick = () => onSelect(id);
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => onKeyDown(event, id);
-  const style: React.CSSProperties = {
-    padding: '8px 20px',
-    border: 'none',
-    borderBottom: selected ? '2px solid var(--accent-primary)' : '2px solid transparent',
-    background: 'none',
-    color: selected ? 'var(--accent-primary)' : 'var(--text-muted)',
-    fontWeight: selected ? 700 : 500,
-    fontSize: 14,
-    cursor: 'pointer',
-    borderRadius: '4px 4px 0 0',
-    transition: 'color 0.15s, border-color 0.15s',
-  };
+  const activeClassName = selected ? ` ${styles.guideTabActive}` : '';
 
-  return <button ref={buttonRef} type="button" role="tab" id={GUIDE_TAB_DOM_IDS[id].tab} aria-selected={selected} aria-controls={GUIDE_TAB_DOM_IDS[id].panel} tabIndex={selected ? 0 : -1} onClick={handleClick} onKeyDown={handleKeyDown} style={style}>{label}</button>;
+  return <button ref={buttonRef} type="button" role="tab" id={GUIDE_TAB_DOM_IDS[id].tab} className={`${styles.guideTab}${activeClassName}`} aria-selected={selected} aria-controls={GUIDE_TAB_DOM_IDS[id].panel} tabIndex={selected ? 0 : -1} onClick={handleClick} onKeyDown={handleKeyDown}>{label}</button>;
 }
 
 export const GuidePage: React.FC = () => {
@@ -112,62 +86,40 @@ export const GuidePage: React.FC = () => {
 
   // 連携状態からボタンと結果メッセージの見た目を導出する。
   const isStellaActionDisabled = stellaStatus === 'loading' || stellaStatus === 'success';
-  const stellaButtonStyle: React.CSSProperties = {
-    padding: '8px 20px',
-    border: 'none',
-    borderRadius: 6,
-    background: stellaStatus === 'success' ? 'var(--button-success-bg, #03b800)' : 'var(--accent-primary)',
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: isStellaActionDisabled ? 'default' : 'pointer',
-    opacity: stellaStatus === 'loading' ? 0.6 : 1,
-    transition: 'background 0.15s, opacity 0.15s',
-  };
-  const stellaMessageStyle: React.CSSProperties = {
-    fontSize: 12,
-    color: getStellaMessageColor(stellaStatus),
-  };
+  const stellaButtonClassName = `${stellaStatus === 'success' ? shared.btnSuccess : shared.btnPrimary} ${styles.guideStellaButton}`;
+  const stellaMessageClassName = [
+    styles.guideStellaMessage,
+    stellaStatus === 'success' ? styles.guideStellaMessageSuccess : '',
+    stellaStatus === 'error' || stellaStatus === 'unavailable' ? styles.guideStellaMessageError : '',
+  ].filter(Boolean).join(' ');
 
   return (
-    <div className={`${shared.pageWrapper} ${styles.guidePage}`} style={{ maxWidth: 1560, paddingBottom: 60 }}>
-      <div role="tablist" aria-label={getMsg('GuidePage.tabListLabel')} aria-orientation="horizontal" style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--border-default)' }}>
+    <div className={`${shared.pageWrapper} ${styles.guidePage}`}>
+      <div className={styles.guideTabs} role="tablist" aria-label={getMsg('GuidePage.tabListLabel')} aria-orientation="horizontal">
         {GUIDE_TABS.map((tab) => (
-          <GuideTabButton
-            key={tab.id}
-            id={tab.id}
-            label={tab.label}
-            selected={activeTab === tab.id}
-            onSelect={setActiveTab}
-            onKeyDown={handleTabKeyDown}
-            buttonRef={(element) => { tabRefs.current[tab.id] = element; }}
-          />
+          <GuideTabButton key={tab.id} id={tab.id} label={tab.label} selected={activeTab === tab.id} onSelect={setActiveTab} onKeyDown={handleTabKeyDown} buttonRef={(element) => { tabRefs.current[tab.id] = element; }} />
         ))}
       </div>
 
       <div role="tabpanel" id={GUIDE_TAB_DOM_IDS.flow.panel} aria-labelledby={GUIDE_TAB_DOM_IDS.flow.tab} tabIndex={0} hidden={activeTab !== 'flow'}>
         {activeTab === 'flow' && (
-          <>
+          <div className={styles.guideFlowPageStack}>
             <GuideFlowContent />
-            {IS_STELLA_RECORD_REGISTRATION_ENABLED && (
-              <section className={styles.guideSection} style={{ marginBottom: 40 }}>
-                <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><Settings size={22} />{getMsg('GuidePage.stella.title')}</h2>
-                <div className={styles.guideCard} style={{ padding: '18px 22px' }}>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.7 }}>{getMsg('GuidePage.stella.description')}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button type="button" onClick={handleStellaRegister} disabled={isStellaActionDisabled} style={stellaButtonStyle}>{getStellaRegisterButtonLabel(stellaStatus)}</button>
-                    {stellaMessage && <span style={stellaMessageStyle}>{stellaMessage}</span>}
-                  </div>
+            <section className={`${styles.guideSection} ${styles.guideStellaSection}`}>
+              <h2 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleMd} ${styles.guideSectionTitle}`}><Settings size={22} />{getMsg('GuidePage.stella.title')}</h2>
+              <div className={`${styles.guideCard} ${styles.guideStellaCard}`}>
+                <p className={styles.guideStellaDescription}>{getMsg('GuidePage.stella.description')}</p>
+                <div className={styles.guideStellaActions}>
+                  <button type="button" className={stellaButtonClassName} onClick={handleStellaRegister} disabled={isStellaActionDisabled}>{getStellaRegisterButtonLabel(stellaStatus)}</button>
+                  {stellaMessage && <span className={stellaMessageClassName} role="status">{stellaMessage}</span>}
                 </div>
-              </section>
-            )}
-          </>
+              </div>
+            </section>
+          </div>
         )}
       </div>
 
-      <div role="tabpanel" id={GUIDE_TAB_DOM_IDS.features.panel} aria-labelledby={GUIDE_TAB_DOM_IDS.features.tab} tabIndex={0} hidden={activeTab !== 'features'}>
-        {activeTab === 'features' && <GuideFeatureDetails selectedFeature={selectedFeature} onFeatureChange={setSelectedFeature} />}
-      </div>
+      <div role="tabpanel" id={GUIDE_TAB_DOM_IDS.features.panel} aria-labelledby={GUIDE_TAB_DOM_IDS.features.tab} tabIndex={0} hidden={activeTab !== 'features'}>{activeTab === 'features' && <GuideFeatureDetails selectedFeature={selectedFeature} onFeatureChange={setSelectedFeature} />}</div>
     </div>
   );
 };

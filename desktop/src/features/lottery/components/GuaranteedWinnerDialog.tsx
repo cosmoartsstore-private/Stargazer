@@ -46,37 +46,16 @@ interface GuaranteedWinnerDialogProps {
   onToggle: (xId: string) => Promise<void>;
 }
 
-export const GuaranteedWinnerDialog: React.FC<GuaranteedWinnerDialogProps> = ({
-  applicants,
-  guaranteedIds,
-  guaranteedCount,
-  totalWinners,
-  onClose,
-  onToggle,
-}) => {
-  const guaranteedSelectionMessage = getMsg('LotteryPage.guaranteedSelectionMessage', {
-    guaranteedCount,
-    totalWinners,
-  });
+export const GuaranteedWinnerDialog: React.FC<GuaranteedWinnerDialogProps> = ({ applicants, guaranteedIds, guaranteedCount, totalWinners, onClose, onToggle }) => {
+  const guaranteedSelectionMessage = getMsg('LotteryPage.guaranteedSelectionMessage', { guaranteedCount, totalWinners });
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
 
   return (
-    <AppDialog
-      open
-      onOpenChange={handleOpenChange}
-      title={getMsg('LotteryPage.guaranteedSelectionTitle')}
-      description={guaranteedSelectionMessage}
-      descriptionClassName={dialogStyles.modalMessage}
-      className={styles.guaranteedSelectModalContent}
-    >
+    <AppDialog open onOpenChange={handleOpenChange} title={getMsg('LotteryPage.guaranteedSelectionTitle')} description={guaranteedSelectionMessage} descriptionClassName={dialogStyles.modalMessage} className={styles.guaranteedSelectModalContent}>
       <div className={styles.guaranteedSelectModalList}>
-        <div className={`${styles.guaranteedSelectModalList__scroll} ${shared.customScrollbar}`}>
-          {applicants.map((user) => (
-            <GuaranteedApplicantButton key={user.x_id} user={user} selected={guaranteedIds.has(user.x_id)} onToggle={onToggle} />
-          ))}
-        </div>
+        <div className={`${styles.guaranteedSelectModalList__scroll} ${shared.customScrollbar}`}>{applicants.map((user) => (<GuaranteedApplicantButton key={user.x_id} user={user} selected={guaranteedIds.has(user.x_id)} onToggle={onToggle} />))}</div>
       </div>
       <footer className={dialogStyles.modalButtons}>
         <button type="button" className={dialogStyles.modalBtnCancel} onClick={onClose}>{getMsg('common.close')}</button>

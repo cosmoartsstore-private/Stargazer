@@ -1,9 +1,5 @@
 import type { UserBean, CastBean } from '@/common/types/entities';
-import {
-  runMatching,
-  type MatchingResult,
-  type MatchingRunOptions,
-} from './logics/matching-io';
+import { runMatching, type MatchingResult, type MatchingRunOptions } from './logics/matching-io';
 import type { MatchingTypeCode } from './types/matching-type-codes';
 
 export interface MatchingWorkerRequest {
@@ -20,21 +16,11 @@ export type MatchingWorkerMessage =
 self.onmessage = (event: MessageEvent<MatchingWorkerRequest>) => {
   const request = event.data;
   try {
-    const result = runMatching(
-      request.winners,
-      request.casts,
-      request.matchingTypeCode,
-      request.options,
-    );
+    const result = runMatching(request.winners, request.casts, request.matchingTypeCode, request.options);
 
     // structured clone は Map を保持するため、結果を転送専用DTOへ分解しない。
-    self.postMessage({
-      type: 'complete',
-      result,
-    });
+    self.postMessage({ type: 'complete', result });
   } catch {
-    self.postMessage({
-      type: 'error',
-    });
+    self.postMessage({ type: 'error' });
   }
 };

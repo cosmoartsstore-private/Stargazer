@@ -1,8 +1,5 @@
 import type { UserBean } from '@/common/types/entities';
-import {
-  formatXAccountIdForDisplay,
-  normalizeXAccountId,
-} from '@/common/xIdUtils';
+import { formatXAccountIdForDisplay, normalizeXAccountId } from '@/common/xIdUtils';
 
 export interface LotteryPersistenceRow {
   x_id: string;

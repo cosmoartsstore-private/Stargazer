@@ -5,6 +5,13 @@ import { getMsg } from '@/messages/getMsg';
 export type ContactMarkerKind = 'externalChat' | 'vrchat' | 'x' | 'https' | 'text' | 'empty';
 export type EventMutationResult = 'saved' | 'failed' | 'stale';
 
+export const CAST_SEARCH_MAX_LENGTH = 200;
+export const CAST_NAME_MAX_LENGTH = 200;
+export const CAST_GROUP_NAME_MAX_LENGTH = 200;
+export const CAST_ALIAS_MAX_LENGTH = 200;
+export const CAST_MEMO_MAX_LENGTH = 2_000;
+export const CAST_CONTACT_MAX_LENGTH = 4_096;
+
 export interface CommonShortcutLink {
   key: 'externalChat' | 'x' | 'vrchat';
   label: string;
@@ -83,17 +90,8 @@ export function getFormalNameConflictMessage(name: string, casts: CastBean[]): s
   return getMsg('CastManagementPage.formalNameUsedAsAlias', { name, castName: usage.castName });
 }
 
-export function getAliasConflictMessage(
-  alias: string,
-  casts: CastBean[],
-  owner: CastBean,
-  editingAliasIndex?: number,
-): string | null {
-  const usage = findCastNameUsages(alias, casts).find((item) => !(
-    item.castId === owner.id
-    && item.source === 'alias'
-    && item.aliasIndex === editingAliasIndex
-  ));
+export function getAliasConflictMessage(alias: string, casts: CastBean[], owner: CastBean, editingAliasIndex?: number): string | null {
+  const usage = findCastNameUsages(alias, casts).find((item) => !(item.castId === owner.id && item.source === 'alias' && item.aliasIndex === editingAliasIndex));
   if (!usage) return null;
   if (usage.castId === owner.id && usage.source === 'name') {
     return getMsg('CastManagementPage.aliasMatchesFormalName', { alias });
@@ -110,10 +108,7 @@ export function getAliasConflictMessage(
 export function filterCasts(casts: CastBean[], searchQuery: string): CastBean[] {
   const query = searchQuery.trim().toLowerCase();
   if (!query) return casts;
-  return casts.filter((cast) => (
-    cast.name.toLowerCase().includes(query)
-    || cast.aliases?.some((alias) => alias.toLowerCase().includes(query))
-  ));
+  return casts.filter((cast) => (cast.name.toLowerCase().includes(query) || cast.aliases?.some((alias) => alias.toLowerCase().includes(query))));
 }
 
 export function getEditableContactUrls(cast: CastBean): string[] {

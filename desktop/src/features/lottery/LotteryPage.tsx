@@ -9,34 +9,12 @@ import { LotteryConditionPanel } from './components/LotteryConditionPanel';
 import { LotteryResultPanel } from './components/LotteryResultPanel';
 import { validateLotteryConditions } from './services/lottery-validation';
 import { drawLotteryWinners, formatSavedLotteryLabel } from './services/lottery-draw';
-import {
-  buildLotteryPersistenceRows,
-  restoreLotteryWinners,
-} from './services/lottery-result-persistence';
+import { buildLotteryPersistenceRows, restoreLotteryWinners } from './services/lottery-result-persistence';
 import { useAppContext } from '@/stores/AppContext';
-import {
-  getLotteryResults,
-  replaceLotteryResults,
-  saveLotteryResult,
-} from '@/db/repositories/lotteryRepository';
-import {
-  loadApplicants,
-  replaceApplicantGuarantees,
-} from '@/db/repositories/applicantRepository';
-import {
-  flushSessionWorkflowWrites,
-  getSessionWorkflowSnapshot,
-} from '@/db/repositories/sessionWorkflowRepository';
-import {
-  captureSessionWriteActivity,
-  getRequiredSessionContext,
-  isCurrentSessionContext,
-  isSessionRecoveryActive,
-  isSessionWriteActivityUnchanged,
-  runAsSessionRecovery,
-  waitForEventWritesToSettle,
-  waitForSessionWritesToSettle,
-} from '@/db/repositories/commandContext';
+import { getLotteryResults, replaceLotteryResults, saveLotteryResult } from '@/db/repositories/lotteryRepository';
+import { loadApplicants, replaceApplicantGuarantees } from '@/db/repositories/applicantRepository';
+import { flushSessionWorkflowWrites, getSessionWorkflowSnapshot } from '@/db/repositories/sessionWorkflowRepository';
+import { captureSessionWriteActivity, getRequiredSessionContext, isCurrentSessionContext, isSessionRecoveryActive, isSessionWriteActivityUnchanged, runAsSessionRecovery, waitForEventWritesToSettle, waitForSessionWritesToSettle } from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 
@@ -46,38 +24,9 @@ interface LotteryPageProps {
 
 export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   // セッション共有の応募者・条件・結果と、永続化世代の制御APIを取得する。
-  const {
-    applicants,
-    setApplicants,
-    casts,
-    currentWinners,
-    setCurrentWinners,
-    isLotteryResultCurrent,
-    setIsLotteryResultCurrent,
-    resetMatching,
-    sessionWorkflow,
-    updateSessionWorkflow,
-    hydrateSessionWorkflow,
-    currentSessionTimestamp,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-    markCurrentSessionResultSaved,
-    beginSessionUiMutation,
-    getSessionUiMutationGeneration,
-    isCurrentSessionUiMutation,
-  } = useAppContext();
+  const { applicants, setApplicants, casts, currentWinners, setCurrentWinners, isLotteryResultCurrent, setIsLotteryResultCurrent, resetMatching, sessionWorkflow, updateSessionWorkflow, hydrateSessionWorkflow, currentSessionTimestamp, isLotteryInputReadOnly, hasSavedSessionResult, markCurrentSessionResultSaved, beginSessionUiMutation, getSessionUiMutationGeneration, isCurrentSessionUiMutation } = useAppContext();
   const isLotteryReadOnly = isLotteryInputReadOnly || hasSavedSessionResult;
-  const {
-    matchingTypeCode,
-    lotteryCount,
-    rotationCount,
-    totalTables,
-    usersPerTable,
-    castsPerRotation,
-    reserveSameDaySlots,
-    sameDaySlotCount,
-    sameDaySlotUnit,
-  } = sessionWorkflow;
+  const { matchingTypeCode, lotteryCount, rotationCount, totalTables, usersPerTable, castsPerRotation, reserveSameDaySlots, sameDaySlotCount, sameDaySlotUnit } = sessionWorkflow;
 
   const activeCastCount = casts.filter((cast) => cast.is_present).length;
 
@@ -89,10 +38,7 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   const currentWinnersRef = useRef(currentWinners);
   currentWinnersRef.current = currentWinners;
   const [lotteryMessage, setLotteryMessage] = useState<string | null>(null);
-  const guaranteedWinners = useMemo(
-    () => applicants.filter((applicant) => applicant.is_guaranteed),
-    [applicants],
-  );
+  const guaranteedWinners = useMemo(() => applicants.filter((applicant) => applicant.is_guaranteed), [applicants]);
 
   useEffect(() => {
     savingLotteryResultRef.current = false;
@@ -111,21 +57,7 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   const guaranteedCount = guaranteedWinners.length;
   const availableLotteryCandidateCount = Math.max(0, applicants.length - guaranteedCount);
   const totalWinners = lotteryCount + guaranteedCount;
-  const validation = validateLotteryConditions({
-    matchingTypeCode,
-    totalWinners,
-    lotteryCount,
-    guaranteedCount,
-    availableLotteryCandidateCount,
-    rotationCount,
-    totalTables,
-    activeCastCount,
-    castsPerRotation,
-    usersPerTable,
-    reserveSameDaySlots,
-    sameDaySlotCount,
-    sameDaySlotUnit,
-  });
+  const validation = validateLotteryConditions({ matchingTypeCode, totalWinners, lotteryCount, guaranteedCount, availableLotteryCandidateCount, rotationCount, totalTables, activeCastCount, castsPerRotation, usersPerTable, reserveSameDaySlots, sameDaySlotCount, sameDaySlotUnit });
   const isLotteryExecutionReadOnly = isLotteryReadOnly;
 
   // 条件または確定当選者の変更時は、現在の抽選結果と後続マッチングを無効化する。
@@ -137,26 +69,17 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   };
 
   // 保存失敗時は同じセッションの応募者・抽選結果・workflowを一組で復元する。
-  async function recoverPersistedLotteryState(
-    context: ReturnType<typeof getRequiredSessionContext>,
-  ): Promise<boolean> {
+  async function recoverPersistedLotteryState(context: ReturnType<typeof getRequiredSessionContext>): Promise<boolean> {
     return runAsSessionRecovery(context, async () => {
       // 後続操作が読込中に始まった場合は、その保存完了後の状態でもう一度同期する。
       while (isCurrentSessionContext(context)) {
         const generation = getSessionUiMutationGeneration();
-        await Promise.all([
-          waitForEventWritesToSettle(context),
-          waitForSessionWritesToSettle(context),
-        ]);
+        await Promise.all([waitForEventWritesToSettle(context), waitForSessionWritesToSettle(context)]);
         if (!isCurrentSessionContext(context)) return false;
         if (!isCurrentSessionUiMutation(generation)) continue;
         const writeActivity = captureSessionWriteActivity(context);
         if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
-        const [persistedApplicants, persistedRows, workflowSnapshot] = await Promise.all([
-          loadApplicants(),
-          getLotteryResults(),
-          getSessionWorkflowSnapshot(),
-        ]);
+        const [persistedApplicants, persistedRows, workflowSnapshot] = await Promise.all([loadApplicants(), getLotteryResults(), getSessionWorkflowSnapshot()]);
         if (!isCurrentSessionContext(context)) return false;
         if (!isCurrentSessionUiMutation(generation)) continue;
         if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
@@ -213,10 +136,7 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
   };
 
   // 確定当選者の選択状態と条件欄の要約表示を組み立てる。
-  const guaranteedIds = useMemo(
-    () => new Set(guaranteedWinners.map((winner) => winner.x_id)),
-    [guaranteedWinners],
-  );
+  const guaranteedIds = useMemo(() => new Set(guaranteedWinners.map((winner) => winner.x_id)), [guaranteedWinners]);
   // 抽選の純粋処理結果を先行表示し、対応する条件revisionと一緒に永続化する。
   const runLottery = async () => {
     // warningは運営判断のため表示だけ行い、errorがない限り抽選を許可する。
@@ -367,10 +287,7 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
       : [...guaranteedIds, xId];
     const generation = beginSessionUiMutation();
     const nextGuaranteedIdSet = new Set(nextGuaranteedXIds);
-    setApplicants(applicants.map((applicant) => ({
-      ...applicant,
-      is_guaranteed: nextGuaranteedIdSet.has(applicant.x_id),
-    })));
+    setApplicants(applicants.map((applicant) => ({ ...applicant, is_guaranteed: nextGuaranteedIdSet.has(applicant.x_id) })));
     invalidateInMemoryResult();
     try {
       await replaceApplicantGuarantees(nextGuaranteedXIds, context);
@@ -449,71 +366,19 @@ export const LotteryPage: React.FC<LotteryPageProps> = ({ onBusyChange }) => {
         <p className={shared.pageHeaderSubtitle}>{getMsg('LotteryPage.pageDescription')}</p>
       </header>
 
-      <LotteryConditionPanel
-        matchingTypeCode={matchingTypeCode}
-        lotteryCount={lotteryCount}
-        totalWinners={totalWinners}
-        guaranteedWinners={guaranteedWinners}
-        rotationCount={rotationCount}
-        totalTables={totalTables}
-        usersPerTable={usersPerTable}
-        castsPerRotation={castsPerRotation}
-        reserveSameDaySlots={reserveSameDaySlots}
-        sameDaySlotCount={sameDaySlotCount}
-        sameDaySlotUnit={sameDaySlotUnit}
-        validation={validation}
-        readOnly={isLotteryReadOnly || savingLotteryResult}
-        runDisabled={isLotteryExecutionReadOnly || savingLotteryResult}
-        onLotteryCountChange={handleLotteryCountChange}
-        onOpenGuaranteedSelect={handleOpenGuaranteedSelect}
-        onMatchingTypeChange={handleMatchingTypeChange}
-        onRotationCountChange={handleRotationCountChange}
-        onTotalTablesChange={handleTotalTablesChange}
-        onUsersPerTableChange={handleUsersPerTableChange}
-        onCastsPerRotationChange={handleCastsPerRotationChange}
-        onReserveSameDaySlotsToggle={handleReserveSameDaySlotsToggle}
-        onSameDaySlotCountChange={handleSameDaySlotCountChange}
-        onSameDaySlotUnitChange={handleSameDaySlotUnitChange}
-        onRunLottery={handleRunLotteryClick}
-      />
+      <LotteryConditionPanel matchingTypeCode={matchingTypeCode} lotteryCount={lotteryCount} totalWinners={totalWinners} guaranteedCount={guaranteedCount} rotationCount={rotationCount} totalTables={totalTables} usersPerTable={usersPerTable} castsPerRotation={castsPerRotation} reserveSameDaySlots={reserveSameDaySlots} sameDaySlotCount={sameDaySlotCount} sameDaySlotUnit={sameDaySlotUnit} validation={validation} readOnly={isLotteryReadOnly || savingLotteryResult} runDisabled={isLotteryExecutionReadOnly || savingLotteryResult} onLotteryCountChange={handleLotteryCountChange} onOpenGuaranteedSelect={handleOpenGuaranteedSelect} onMatchingTypeChange={handleMatchingTypeChange} onRotationCountChange={handleRotationCountChange} onTotalTablesChange={handleTotalTablesChange} onUsersPerTableChange={handleUsersPerTableChange} onCastsPerRotationChange={handleCastsPerRotationChange} onReserveSameDaySlotsToggle={handleReserveSameDaySlotsToggle} onSameDaySlotCountChange={handleSameDaySlotCountChange} onSameDaySlotUnitChange={handleSameDaySlotUnitChange} onRunLottery={handleRunLotteryClick} />
 
-      <LotteryResultPanel
-        resultRows={resultRows}
-        ngWinnerCount={ngWinnerCount}
-        savingLotteryResult={savingLotteryResult}
-        hasStaleLotteryResult={hasStaleLotteryResult}
-        readOnly={isLotteryExecutionReadOnly}
-        onSaveLotteryResult={handleSaveLotteryResultClick}
-      />
+      <LotteryResultPanel resultRows={resultRows} ngWinnerCount={ngWinnerCount} savingLotteryResult={savingLotteryResult} hasStaleLotteryResult={hasStaleLotteryResult} readOnly={isLotteryExecutionReadOnly} onSaveLotteryResult={handleSaveLotteryResultClick} />
 
       {showGuaranteedSelect && (
-        <GuaranteedWinnerDialog
-          applicants={applicants}
-          guaranteedIds={guaranteedIds}
-          guaranteedCount={guaranteedCount}
-          totalWinners={totalWinners}
-          onClose={handleCloseGuaranteedSelect}
-          onToggle={handleGuaranteedToggle}
-        />
+        <GuaranteedWinnerDialog applicants={applicants} guaranteedIds={guaranteedIds} guaranteedCount={guaranteedCount} totalWinners={totalWinners} onClose={handleCloseGuaranteedSelect} onToggle={handleGuaranteedToggle} />
       )}
 
       {confirmReplace && (
-        <ConfirmDialog
-          title={getMsg('LotteryPage.replaceResultTitle')}
-          message={getMsg('LotteryPage.replaceResultMessage')}
-          confirmLabel={getMsg('LotteryPage.replaceResultConfirm')}
-          cancelLabel={getMsg('common.cancel')}
-          onConfirm={handleConfirmReplace}
-          onCancel={handleCancelReplace}
-        />
+        <ConfirmDialog title={getMsg('LotteryPage.replaceResultTitle')} message={getMsg('LotteryPage.replaceResultMessage')} confirmLabel={getMsg('LotteryPage.replaceResultConfirm')} cancelLabel={getMsg('common.cancel')} onConfirm={handleConfirmReplace} onCancel={handleCancelReplace} />
       )}
       {lotteryMessage && (
-        <NoticeDialog
-          title={getMsg('LotteryPage.resultDialogTitle')}
-          message={lotteryMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleCloseLotteryMessage}
-        />
+        <NoticeDialog title={getMsg('LotteryPage.resultDialogTitle')} message={lotteryMessage} closeLabel={getMsg('common.close')} onClose={handleCloseLotteryMessage} />
       )}
     </>
   );

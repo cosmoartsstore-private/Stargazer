@@ -33,6 +33,7 @@
 
 .match-chip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   max-width: 100%;
@@ -61,7 +62,7 @@
 }
 
 .match-chip-ng-reason {
-  flex-basis: 100%;
+  flex: 1 0 100%;
   color: var(--text-danger);
   font-size: 10px;
   font-weight: 700;

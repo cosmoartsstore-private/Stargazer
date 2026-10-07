@@ -362,10 +362,11 @@
   margin-top: 16px;
 }
 
-.workflow-result-table {
+.workflow-result-table-container .workflow-result-table {
   width: 100%;
-  min-width: 840px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
 }
 
 .workflow-result-table-header {
@@ -376,16 +377,81 @@
   text-align: center;
 }
 
-.workflow-result-optional-header {
-  min-width: 180px;
+.workflow-result-user-column {
+  width: 180px;
+}
+
+.workflow-result-x-id-column {
+  width: 170px;
+}
+
+.workflow-result-type-column {
+  width: 110px;
+}
+
+.workflow-result-preferred-column {
+  width: 280px;
+}
+
+.workflow-result-ng-column {
+  width: 180px;
+}
+
+.workflow-result-optional-column {
+  width: 240px;
+}
+
+.workflow-result-base-header {
+  vertical-align: bottom;
   white-space: nowrap;
 }
 
+.workflow-result-text-cell {
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.workflow-result-no-wrap-cell {
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.workflow-result-user-header,
+.workflow-result-user-cell {
+  position: sticky;
+  left: 0;
+  box-shadow: inset -1px 0 0 var(--border-default);
+}
+
+.workflow-result-user-header {
+  z-index: 2;
+  background-color: var(--surface-panel-muted);
+}
+
+.workflow-result-user-cell {
+  z-index: 1;
+  background-color: var(--surface-panel);
+}
+
+.workflow-result-optional-header,
 .workflow-result-optional-cell {
+  width: 240px;
   min-width: 180px;
   max-width: 320px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.workflow-result-optional-header {
+  vertical-align: bottom;
+  white-space: normal;
+}
+
+.workflow-result-optional-cell {
+  vertical-align: top;
+  white-space: pre-wrap;
 }
 
 .workflow-result-toolbar__actions {
@@ -417,76 +483,7 @@
   font-weight: 700;
 }
 
-.workflow-result-column-dialog {
-  width: min(520px, calc(100vw - 40px));
-}
-
-.workflow-result-column-dialog-description {
-  margin: -6px 0 18px;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.workflow-result-column-fieldset {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.workflow-result-column-legend {
-  margin-bottom: 8px;
-  color: var(--text-heading);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.workflow-result-column-list {
-  display: grid;
-  gap: 8px;
-  max-height: min(360px, 48vh);
-  padding-right: 4px;
-  overflow-y: auto;
-}
-
-.workflow-result-column-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 9px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: 7px;
-  background: var(--surface-panel-muted);
-  color: var(--text-default);
-  font-size: 13px;
-  line-height: 1.5;
-  cursor: pointer;
-}
-
-.workflow-result-column-option:hover {
-  border-color: var(--accent-primary);
-}
-
-.workflow-result-column-option input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--accent-primary);
-}
-
-.workflow-result-column-dialog-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-/* ========================================
-   Lottery Validation Panel
-   ======================================== */
+/* 抽選条件の検証パネル。 */
 
 .lottery-form-card {
   display: flex;
@@ -621,9 +618,7 @@
   border-top: 1px solid var(--border-default);
 }
 
-/* ========================================
-   Guaranteed Select Modal
-   ======================================== */
+/* 確定当選者の選択モーダル。 */
 
 .guaranteed-select-modal-list {
   display: flex;
@@ -769,7 +764,7 @@
 }
 
 /* ========================================
-   Responsive
+   画面幅への対応
    ======================================== */
 
 @media (max-width: 1180px) {

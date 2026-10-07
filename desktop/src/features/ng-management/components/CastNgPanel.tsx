@@ -1,17 +1,11 @@
-import type {
-  ChangeEvent,
-  KeyboardEvent,
-} from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
 import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
-import {
-  buildXProfileUrl,
-  formatXAccountIdForDisplay,
-} from '@/common/xIdUtils';
+import { buildXProfileUrl, formatXAccountIdForDisplay, X_ACCOUNT_ID_INPUT_MAX_LENGTH } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
-import type { CastNgFormValues } from '../ngUserManagementModel';
+import { NG_DISPLAY_NAME_MAX_LENGTH, NG_NOTES_MAX_LENGTH, NG_SEARCH_MAX_LENGTH, type CastNgFormValues } from '../ngUserManagementModel';
 import styles from '../NGUserManagementPage.module.css';
 import { EntryDetailsEditor } from './EntryDetailsEditor';
 
@@ -79,17 +73,7 @@ interface CastNgEntryRowProps {
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
 
-function CastNgEntryRow({
-  castId,
-  entry,
-  entryIndex,
-  isSaving,
-  notesDiscardGeneration,
-  onRequestDelete,
-  onEntryNotesDirtyChange,
-  onUpdateNotes,
-  onRequestProfileLink,
-}: CastNgEntryRowProps) {
+function CastNgEntryRow({ castId, entry, entryIndex, isSaving, notesDiscardGeneration, onRequestDelete, onEntryNotesDirtyChange, onUpdateNotes, onRequestProfileLink }: CastNgEntryRowProps) {
   // 登録内容から表示名、リンク可否、操作ラベルを導出する。
   const fallbackLabel = entry.username ?? getMsg('NGUserManagementPage.ngUserFallback');
   const displayAccountId = entry.accountId
@@ -97,14 +81,8 @@ function CastNgEntryRow({
     : null;
   const accountLabel = displayAccountId ?? fallbackLabel;
   const hasProfileLink = buildXProfileUrl(entry.accountId) !== null;
-  const openProfileAriaLabel = getMsg(
-    'NGUserManagementPage.openXAccountAriaLabel',
-    { accountId: accountLabel },
-  );
-  const deleteNgRegistrationAriaLabel = getMsg(
-    'NGUserManagementPage.deleteNgRegistrationAriaLabel',
-    { label: accountLabel },
-  );
+  const openProfileAriaLabel = getMsg('NGUserManagementPage.openXAccountAriaLabel', { accountId: accountLabel });
+  const deleteNgRegistrationAriaLabel = getMsg('NGUserManagementPage.deleteNgRegistrationAriaLabel', { label: accountLabel });
 
   // この行の型付き対象を、各DOMイベントから直接親の操作へ渡す。
   function handleProfileLinkClick(): void {
@@ -142,24 +120,10 @@ function CastNgEntryRow({
 /** キャストの検索・選択と、選択中キャストのNG登録を表示する。 */
 export function CastNgPanel({ controller, notesDiscardGeneration, onEntryNotesDirtyChange, onRequestProfileLink }: CastNgPanelProps) {
   // controllerが管理する表示状態。
-  const {
-    filteredCasts,
-    selectedCastId,
-    selectedCast,
-    search,
-    form,
-    isSaving,
-  } = controller.state;
+  const { filteredCasts, selectedCastId, selectedCast, search, form, isSaving } = controller.state;
 
   // controllerが提供する検索、選択、登録、更新操作。
-  const {
-    setSearch,
-    selectCast,
-    updateForm,
-    add,
-    requestDelete,
-    updateNotes,
-  } = controller.actions;
+  const { setSearch, selectCast, updateForm, add, requestDelete, updateNotes } = controller.actions;
 
   // 検索と追加フォームのDOMイベントを、対応する状態更新へ接続する。
   function handleSearchChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -200,15 +164,13 @@ export function CastNgPanel({ controller, notesDiscardGeneration, onEntryNotesDi
       <div className={shared.managementListPanel}>
         <div className={shared.managementListPanel__search}>
           <Search size={14} className={shared.managementListPanel__searchIcon} />
-          <input type="search" className={shared.managementListPanel__searchInput} placeholder={getMsg('common.searchPlaceholder')} aria-label={getMsg('common.searchPlaceholder')} value={search} onChange={handleSearchChange} />
+          <input type="search" className={shared.managementListPanel__searchInput} placeholder={getMsg('common.searchPlaceholder')} aria-label={getMsg('common.searchPlaceholder')} value={search} maxLength={NG_SEARCH_MAX_LENGTH} onChange={handleSearchChange} />
         </div>
         <div className={`${shared.managementListPanel__items} ${shared.customScrollbar}`}>
           {filteredCasts.length === 0 ? (
             <div className={shared.managementListPanel__empty}>{getMsg('NGUserManagementPage.noCasts')}</div>
           ) : (
-            filteredCasts.map((cast) => (
-              <CastListItem key={cast.id} cast={cast} isSelected={selectedCastId === cast.id} onSelect={handleCastSelect} />
-            ))
+            filteredCasts.map((cast) => (<CastListItem key={cast.id} cast={cast} isSelected={selectedCastId === cast.id} onSelect={handleCastSelect} />))
           )}
         </div>
       </div>
@@ -219,9 +181,9 @@ export function CastNgPanel({ controller, notesDiscardGeneration, onEntryNotesDi
             <span className={shared.managementDetailLabel}>{getMsg('NGUserManagementPage.castNgHeading', { castName: selectedCast.name })}</span>
           </div>
           <div className={`${styles.ngPage__addRow} ${styles.ngPage__addRowSpaced}`}>
-            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputName}`} placeholder={getMsg('NGUserManagementPage.usernamePlaceholder')} aria-label={getMsg('NGUserManagementPage.usernamePlaceholder')} value={form.username} onChange={handleUsernameChange} />
-            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputId}`} placeholder={getMsg('NGUserManagementPage.xIdPlaceholder')} aria-label={getMsg('NGUserManagementPage.xIdPlaceholder')} value={form.accountId} onChange={handleAccountIdChange} onKeyDown={handleAddInputKeyDown} />
-            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalReasonAndNotes')} aria-label={getMsg('NGUserManagementPage.optionalReasonAndNotes')} value={form.notes} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
+            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputName}`} placeholder={getMsg('NGUserManagementPage.usernamePlaceholder')} aria-label={getMsg('NGUserManagementPage.usernamePlaceholder')} value={form.username} maxLength={NG_DISPLAY_NAME_MAX_LENGTH} onChange={handleUsernameChange} />
+            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputId}`} placeholder={getMsg('NGUserManagementPage.xIdPlaceholder')} aria-label={getMsg('NGUserManagementPage.xIdPlaceholder')} value={form.accountId} maxLength={X_ACCOUNT_ID_INPUT_MAX_LENGTH} onChange={handleAccountIdChange} onKeyDown={handleAddInputKeyDown} />
+            <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalReasonAndNotes')} aria-label={getMsg('NGUserManagementPage.optionalReasonAndNotes')} value={form.notes} maxLength={NG_NOTES_MAX_LENGTH} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
             <button type="button" className={`${shared.btnPrimary} ${shared.btnFixedH}`} disabled={isSaving} onClick={handleAddClick}>{isSaving ? getMsg('common.saving') : getMsg('common.add')}</button>
           </div>
           <div className={shared.managementDetailDivider} />
@@ -233,18 +195,7 @@ export function CastNgPanel({ controller, notesDiscardGeneration, onEntryNotesDi
                 // X IDは同一キャスト内で一意なため、並び順が変わっても編集行を維持できる。
                 const entryKey = `${selectedCast.id}-${entry.accountId}`;
                 return (
-                  <CastNgEntryRow
-                    key={entryKey}
-                    castId={selectedCast.id}
-                    entry={entry}
-                    entryIndex={entryIndex}
-                    isSaving={isSaving}
-                    notesDiscardGeneration={notesDiscardGeneration}
-                    onRequestDelete={requestDelete}
-                    onEntryNotesDirtyChange={onEntryNotesDirtyChange}
-                    onUpdateNotes={updateNotes}
-                    onRequestProfileLink={onRequestProfileLink}
-                  />
+                  <CastNgEntryRow key={entryKey} castId={selectedCast.id} entry={entry} entryIndex={entryIndex} isSaving={isSaving} notesDiscardGeneration={notesDiscardGeneration} onRequestDelete={requestDelete} onEntryNotesDirtyChange={onEntryNotesDirtyChange} onUpdateNotes={updateNotes} onRequestProfileLink={onRequestProfileLink} />
                 );
               })}
             </div>

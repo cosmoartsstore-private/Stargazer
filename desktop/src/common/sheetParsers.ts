@@ -7,11 +7,8 @@ function getCell(row: unknown[] | null | undefined, colIndex: number): string {
   return (row[colIndex] ?? '').toString().trim();
 }
 
-/** カラムマッピングに従って1行を UserBean に変換する（テンプレート／カスタム用） */
-export function mapRowToUserBeanWithMapping(
-  row: unknown[],
-  mapping: ColumnMapping,
-): UserBean {
+/** columnマッピングに従って1行を UserBean に変換する（テンプレート／カスタム用） */
+export function mapRowToUserBeanWithMapping(row: unknown[], mapping: ColumnMapping): UserBean {
   let casts: string[];
   let preferenceMode: UserBean['preference_mode'] = 'ranked';
   const useSplitComma = mapping.castInputType === 'multiple' && mapping.cast1 >= 0;
@@ -24,9 +21,7 @@ export function mapRowToUserBeanWithMapping(
     } else {
       // 順位なし希望には件数上限を設けず、同じ名称の重複だけを先頭の1件へまとめる。
       const seenCastNames = new Set<string>();
-      casts = cast1Val
-        .split(',')
-        .map((s) => s.trim())
+      casts = cast1Val.split(',').map((s) => s.trim())
         .filter((castName) => {
           if (!castName || seenCastNames.has(castName)) return false;
           seenCastNames.add(castName);
@@ -57,12 +52,5 @@ export function mapRowToUserBeanWithMapping(
     }
   }
 
-  return {
-    name,
-    x_id: normalizedXId,
-    vrc_url: vrcUrl,
-    casts,
-    preference_mode: preferenceMode,
-    raw_extra: rawExtra,
-  };
+  return { name, x_id: normalizedXId, vrc_url: vrcUrl, casts, preference_mode: preferenceMode, raw_extra: rawExtra };
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getVisiblePage, isPageActive, isSidebarPageDisabled } from '@/layout/appNavigation';
+import {
+  getDataManagementSidebarTarget,
+  getVisiblePage,
+  isPageActive,
+  isSidebarPageDisabled,
+} from '@/layout/appNavigation';
 
 describe('isSidebarPageDisabled', () => {
   it('イベント未選択時は応募管理と内部管理を非活性にする', () => {
@@ -60,5 +65,23 @@ describe('isPageActive', () => {
   it('親項目ではないページは画面識別子が一致するときだけ選択中として扱う', () => {
     expect(isPageActive('guide', 'guide')).toBe(true);
     expect(isPageActive('eventManagement', 'guide')).toBe(false);
+  });
+});
+
+describe('getDataManagementSidebarTarget', () => {
+  it('保存結果の閲覧画面では応募管理の開始画面へ戻す', () => {
+    expect(getDataManagementSidebarTarget('savedLottery')).toBe('dataManagement');
+    expect(getDataManagementSidebarTarget('matchingHistory')).toBe('dataManagement');
+  });
+
+  it('作業中画面では現在の工程を再表示する', () => {
+    expect(getDataManagementSidebarTarget('importNew')).toBe('importNew');
+    expect(getDataManagementSidebarTarget('import')).toBe('import');
+    expect(getDataManagementSidebarTarget('lottery')).toBe('lottery');
+    expect(getDataManagementSidebarTarget('matching')).toBe('matching');
+  });
+
+  it('応募管理の開始画面では同じ画面を表示する', () => {
+    expect(getDataManagementSidebarTarget('dataManagement')).toBe('dataManagement');
   });
 });

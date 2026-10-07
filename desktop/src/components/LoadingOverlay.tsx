@@ -2,6 +2,7 @@
 
 import React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+import { useRestoreFocusOnDialogUnmount } from '@/components/AppDialog';
 import { getMsg } from '@/messages/getMsg';
 import styles from './LoadingOverlay.module.css';
 
@@ -12,12 +13,8 @@ interface LoadingOverlayProps {
   onCancel?: () => void;
 }
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
-  message = getMsg('common.loading'),
-  fullscreen = false,
-  cancelLabel = getMsg('common.cancel'),
-  onCancel,
-}) => {
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message = getMsg('common.loading'), fullscreen = false, cancelLabel = getMsg('common.cancel'), onCancel }) => {
+  useRestoreFocusOnDialogUnmount();
   // 全画面表示の有無を共通クラスへ反映する。
   const overlayClassName = `${styles.loadingOverlay}${fullscreen ? ` ${styles.loadingOverlayFullscreen}` : ''}`;
 

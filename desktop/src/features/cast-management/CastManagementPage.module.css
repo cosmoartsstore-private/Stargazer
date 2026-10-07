@@ -361,7 +361,7 @@
    キャスト管理 キャラクタープロフィール（縦1列）
    ======================================== */
 
-/* 左写真 / 右プロフィール 2カラム */
+/* 左写真 / 右プロフィール 2column */
 .cast-char-profile-layout {
   display: grid;
   grid-template-columns: minmax(260px, 32%) 1fr;
@@ -370,20 +370,20 @@
   width: 100%;
 }
 
-/* 左カラム：写真 */
+/* 左column：写真 */
 .cast-char-photo-col {
   display: flex;
   flex-direction: column;
 }
 
-/* 右カラム：プロフィール情報 */
+/* 右column：プロフィール情報 */
 .cast-char-info-col {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-/* 右カラム内：左揃え上書き */
+/* 右column内：左揃え上書き */
 .cast-char-info-col .cast-char-name-input {
   text-align: left;
   font-size: 20px;
@@ -417,7 +417,7 @@
   background: var(--surface-panel);
 }
 
-/* 3. 写真フレーム：左カラム内でポートレート */
+/* 3. 写真フレーム：左column内でポートレート */
 .cast-char-photo-frame {
   position: relative;
   width: 100%;

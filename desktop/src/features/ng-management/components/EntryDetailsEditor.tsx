@@ -1,12 +1,8 @@
-import {
-  useEffect,
-  useId,
-  useState,
-  type ChangeEvent,
-} from 'react';
+import { useEffect, useId, useState, type ChangeEvent } from 'react';
 import { Save } from 'lucide-react';
 import { getMsg } from '@/messages/getMsg';
 import { useExclusiveMutation } from '../hooks/useExclusiveMutation';
+import { NG_NOTES_MAX_LENGTH } from '../ngUserManagementModel';
 import styles from '../NGUserManagementPage.module.css';
 
 export interface EntryDetailsEditorProps {
@@ -19,14 +15,7 @@ export interface EntryDetailsEditorProps {
 }
 
 /** 保存済みの理由・メモとは分離した下書きを編集し、変更分だけを保存する。 */
-export function EntryDetailsEditor({
-  notes,
-  disabled,
-  discardGeneration,
-  saveTargetLabel,
-  onSave,
-  onDirtyChange,
-}: EntryDetailsEditorProps) {
+export function EntryDetailsEditor({ notes, disabled, discardGeneration, saveTargetLabel, onSave, onDirtyChange }: EntryDetailsEditorProps) {
   const notesInputId = useId();
 
   // 保存済み値と分離した編集下書き、および保存中状態。
@@ -76,7 +65,7 @@ export function EntryDetailsEditor({
     <div className={editorClassName}>
       <label htmlFor={notesInputId} className={styles.ngEntryDetailsField}>
         <span className={styles.ngEntryDetailsLabel}>{getMsg('EntryDetailsEditor.reasonAndNotes')}</span>
-        <textarea id={notesInputId} className={styles.ngEntryDetailsTextarea} placeholder={getMsg('EntryDetailsEditor.ngNotesPlaceholder')} rows={2} value={notesDraft} disabled={editorDisabled} onChange={handleNotesChange} />
+        <textarea id={notesInputId} className={styles.ngEntryDetailsTextarea} placeholder={getMsg('EntryDetailsEditor.ngNotesPlaceholder')} rows={2} value={notesDraft} maxLength={NG_NOTES_MAX_LENGTH} disabled={editorDisabled} onChange={handleNotesChange} />
       </label>
       <button type="button" className={styles.ngEntryDetailsSave} aria-label={saveAriaLabel} disabled={saveDisabled} onClick={handleSaveClick}><Save size={12} />{saveLabel}</button>
     </div>

@@ -13,9 +13,7 @@ export const NgCastResultCell: React.FC<{ ngCastNames: string[] }> = ({ ngCastNa
   const label = ngCastNames.length === 1
     ? ngCastNames[0]
     : getMsg('NgCastResultCell.multipleCastLabel', { count: ngCastNames.length });
-  const accessibleLabel = getMsg('NgCastResultCell.castNamesAriaLabel', {
-    names: ngCastNames.join(getMsg('NgCastResultCell.nameSeparator')),
-  });
+  const accessibleLabel = getMsg('NgCastResultCell.castNamesAriaLabel', { names: ngCastNames.join(getMsg('NgCastResultCell.nameSeparator')) });
 
   return <span className={styles.ngBadge} role="note" aria-label={accessibleLabel}>{label}</span>;
 };

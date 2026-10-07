@@ -32,9 +32,7 @@
 :global([data-guide-theme-preview="dark"]) .header-logo__img--full.header-logo__img--dark  { display: block; }
 :global([data-guide-theme-preview="dark"]) .header-logo__img--full.header-logo__img--light { display: none; }
 
-/* =========================================================
-   Context-aware overrides (parent provides data-context attr)
-   ========================================================= */
+/* 親要素の data-context 属性に応じた上書き。 */
 
 /* モバイルヘッダー: フルロゴ非表示、モバイルロゴに切り替え */
 @media (max-width: 768px) {

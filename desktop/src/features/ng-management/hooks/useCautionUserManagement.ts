@@ -1,50 +1,24 @@
 import { useMemo, useState } from 'react';
 import type { CastBean, CautionUser } from '@/common/types/entities';
-import {
-  deleteCautionUserByAccountId,
-  upsertCautionUser,
-} from '@/db';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-  type EventCommandContext,
-} from '@/db/repositories/commandContext';
-import {
-  computeCautionCandidates,
-  type CautionCandidate,
-} from '@/features/matching/logics/caution-user';
+import { deleteCautionUserByAccountId, upsertCautionUser } from '@/db';
+import { getOpenEventContext, isCurrentEventContext, type EventCommandContext } from '@/db/repositories/commandContext';
+import { computeCautionCandidates, type CautionCandidate } from '@/features/matching/logics/caution-user';
 import type { MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
 import { getMsg } from '@/messages/getMsg';
-import {
-  EMPTY_CAUTION_FORM,
-  clearSubmittedNgFormValues,
-  createCandidateCautionUser,
-  createManualCautionUser,
-  hasCautionUserAccountId,
-  mergeCautionUser,
-  type CautionFormValues,
-} from '../ngUserManagementModel';
+import { EMPTY_CAUTION_FORM, clearSubmittedNgFormValues, createCandidateCautionUser, createManualCautionUser, hasCautionUserAccountId, mergeCautionUser, type CautionFormValues } from '../ngUserManagementModel';
 import { useCautionThreshold } from './useCautionThreshold';
 import { useExclusiveMutation } from './useExclusiveMutation';
 
 interface UseCautionUserManagementParams {
   casts: CastBean[];
   matchingSettings: MatchingSettingsState;
-  setMatchingSettings: (
-    state: MatchingSettingsState | ((current: MatchingSettingsState) => MatchingSettingsState),
-  ) => void;
+  setMatchingSettings: (state: MatchingSettingsState | ((current: MatchingSettingsState) => MatchingSettingsState)) => void;
   currentEventName: string | null;
   showAlert: (message: string) => void;
 }
 
 /** 要注意人物の候補表示、固定登録、イベント単位の閾値保存を調停する。 */
-export function useCautionUserManagement({
-  casts,
-  matchingSettings,
-  setMatchingSettings,
-  currentEventName,
-  showAlert,
-}: UseCautionUserManagementParams) {
+export function useCautionUserManagement({ casts, matchingSettings, setMatchingSettings, currentEventName, showAlert }: UseCautionUserManagementParams) {
   // 手動登録フォーム。
   const [form, setForm] = useState<CautionFormValues>(EMPTY_CAUTION_FORM);
 
@@ -52,58 +26,25 @@ export function useCautionUserManagement({
   const [pendingDeleteAccountId, setPendingDeleteAccountId] = useState<string | null>(null);
 
   // state反映前の連打を防ぎつつ、人物更新を単一操作へ制限する。
-  const {
-    isActive: isSaving,
-    run: runMutation,
-    getIsActive: isMutationInFlight,
-  } = useExclusiveMutation();
+  const { isActive: isSaving, run: runMutation, getIsActive: isMutationInFlight } = useExclusiveMutation();
 
   // 閾値保存は人物更新から独立して進行し、候補一覧へ表示値を提供する。
   const cautionUsers = matchingSettings.caution.cautionUsers;
   const savedThreshold = matchingSettings.caution.candidateThreshold;
-  const {
-    thresholdDraft,
-    displayedThreshold,
-    isSavingThreshold,
-    setThresholdDraft,
-    commitThreshold,
-  } = useCautionThreshold({
-    currentEventName,
-    savedThreshold,
-    setMatchingSettings,
-    showAlert,
-  });
-  const candidates = useMemo(
-    () => computeCautionCandidates(
-      casts,
-      displayedThreshold,
-      cautionUsers.map((user) => user.accountId),
-    ),
-    [casts, cautionUsers, displayedThreshold],
-  );
+  const { thresholdDraft, displayedThreshold, isSavingThreshold, setThresholdDraft, commitThreshold } = useCautionThreshold({ currentEventName, savedThreshold, setMatchingSettings, showAlert });
+  const candidates = useMemo(() => computeCautionCandidates(casts, displayedThreshold, cautionUsers.map((user) => user.accountId)), [casts, cautionUsers, displayedThreshold]);
 
   /** 手動登録フォームの指定項目だけを更新する。 */
   function updateForm(patch: Partial<CautionFormValues>): void {
     setForm((current) => ({ ...current, ...patch }));
   }
 
-  async function persistNewCautionUser(
-    context: EventCommandContext,
-    entry: CautionUser,
-    failureMessage: string,
-    afterSave?: () => void,
-  ): Promise<void> {
+  async function persistNewCautionUser(context: EventCommandContext, entry: CautionUser, failureMessage: string, afterSave?: () => void): Promise<void> {
     await runMutation(async () => {
       try {
         await upsertCautionUser(entry);
         if (!isCurrentEventContext(context)) return;
-        setMatchingSettings((current) => ({
-          ...current,
-          caution: {
-            ...current.caution,
-            cautionUsers: mergeCautionUser(current.caution.cautionUsers, entry),
-          },
-        }));
+        setMatchingSettings((current) => ({ ...current, caution: { ...current.caution, cautionUsers: mergeCautionUser(current.caution.cautionUsers, entry) } }));
         afterSave?.();
       } catch {
         if (isCurrentEventContext(context)) showAlert(failureMessage);
@@ -148,28 +89,15 @@ export function useCautionUserManagement({
     }
     const candidateNames = candidate.usernames.map((name) => name.trim()).filter(Boolean).join(' / ');
     const notes = candidateNames
-      ? getMsg('NGUserManagementPage.candidateRegistrationReasonWithNames', {
-          count: candidate.castCount,
-          names: candidateNames,
-        })
-      : getMsg('NGUserManagementPage.candidateRegistrationReason', {
-          count: candidate.castCount,
-        });
-    const newEntry = createCandidateCautionUser(
-      candidate,
-      new Date().toISOString(),
-      notes,
-    );
+      ? getMsg('NGUserManagementPage.candidateRegistrationReasonWithNames', { count: candidate.castCount, names: candidateNames })
+      : getMsg('NGUserManagementPage.candidateRegistrationReason', { count: candidate.castCount });
+    const newEntry = createCandidateCautionUser(candidate, new Date().toISOString(), notes);
     if (newEntry === null) {
       showAlert(getMsg('NGUserManagementPage.candidateInvalidXId'));
       return;
     }
     if (hasCautionUserAccountId(cautionUsers, newEntry.accountId)) return;
-    await persistNewCautionUser(
-      context,
-      newEntry,
-      getMsg('NGUserManagementPage.addCandidateFailed'),
-    );
+    await persistNewCautionUser(context, newEntry, getMsg('NGUserManagementPage.addCandidateFailed'));
   }
 
   function requestDelete(accountId: string): void {
@@ -190,15 +118,7 @@ export function useCautionUserManagement({
       try {
         await deleteCautionUserByAccountId(accountId);
         if (!isCurrentEventContext(context)) return;
-        setMatchingSettings((current) => ({
-          ...current,
-          caution: {
-            ...current.caution,
-            cautionUsers: current.caution.cautionUsers.filter(
-              (user) => user.accountId !== accountId,
-            ),
-          },
-        }));
+        setMatchingSettings((current) => ({ ...current, caution: { ...current.caution, cautionUsers: current.caution.cautionUsers.filter((user) => user.accountId !== accountId) } }));
       } catch {
         if (isCurrentEventContext(context)) {
           showAlert(getMsg('NGUserManagementPage.unregisterCautionFailed'));
@@ -249,27 +169,5 @@ export function useCautionUserManagement({
     });
   }
 
-  return {
-    state: {
-      cautionUsers,
-      candidates,
-      displayedThreshold,
-      thresholdDraft,
-      form,
-      isSaving,
-      isSavingThreshold,
-    },
-    actions: {
-      setThresholdDraft,
-      commitThreshold,
-      updateForm,
-      addManual,
-      addCandidate,
-      requestDelete,
-      updateDetails,
-    },
-    pendingDeleteAccountId,
-    confirmDelete,
-    cancelDelete,
-  };
+  return { state: { cautionUsers, candidates, displayedThreshold, thresholdDraft, form, isSaving, isSavingThreshold }, actions: { setThresholdDraft, commitThreshold, updateForm, addManual, addCandidate, requestDelete, updateDetails }, pendingDeleteAccountId, confirmDelete, cancelDelete };
 }

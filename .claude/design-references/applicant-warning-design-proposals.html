@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>応募データ警告 デザイン比較</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+      --page: #edf7fc;
+      --panel: #ffffff;
+      --panel-muted: #f7f9fb;
+      --ink: #102b49;
+      --muted: #55758f;
+      --border: #c3dceb;
+      --border-strong: #8ebdda;
+      --primary: #2d8fd3;
+      --primary-hover: #247cc0;
+      --warning: #d29a00;
+      --warning-strong: #725400;
+      --warning-surface: #fff8df;
+      --warning-surface-strong: #ffe993;
+      --warning-border: #e2b631;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    button,
+    summary {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.35;
+    }
+
+    .page-lead {
+      max-width: 820px;
+      margin: 10px 0 0;
+      color: var(--muted);
+    }
+
+    .proposal-list {
+      display: grid;
+      gap: 24px;
+    }
+
+    .proposal {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .proposal-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-muted);
+    }
+
+    .proposal-heading h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .proposal-heading p {
+      max-width: 720px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .proposal-number {
+      flex: 0 0 auto;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .specimen {
+      padding: 26px;
+      background: #f4f9fc;
+    }
+
+    .warning-icon {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: var(--warning-surface-strong);
+      color: var(--warning-strong);
+    }
+
+    .warning-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .chevron {
+      display: inline-flex;
+      flex: 0 0 auto;
+      color: var(--muted);
+      transition: transform 0.15s ease;
+    }
+
+    details[open] .chevron {
+      transform: rotate(180deg);
+    }
+
+    .count-label {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 9px;
+      border: 1px solid var(--warning-border);
+      border-radius: 5px;
+      background: var(--warning-surface);
+      color: var(--warning-strong);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .target-names {
+      color: var(--warning-strong);
+      font-weight: 800;
+    }
+
+    .action-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .action-link:hover {
+      border-color: var(--primary);
+      background: #eef7fd;
+    }
+
+    /* 案1：要約を常時見せ、詳細だけ折りたたむ。 */
+    .notice-summary {
+      border: 1px solid var(--warning-border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .notice-summary > summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .notice-summary > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .summary-copy {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .summary-copy strong {
+      font-size: 14px;
+    }
+
+    .summary-copy span {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .summary-detail {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+      gap: 22px;
+      padding: 14px 16px 16px 56px;
+      border-top: 1px solid #ecd998;
+      background: var(--warning-surface);
+    }
+
+    .summary-detail p {
+      margin: 0;
+    }
+
+    .summary-target {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* 案2：原因・影響・対応を読む順に並べる。 */
+    .notice-structured {
+      overflow: hidden;
+      border: 1px solid var(--warning-border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .structured-head {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 16px;
+      background: var(--warning-surface);
+    }
+
+    .structured-head strong {
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .structured-body {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid #ecd998;
+    }
+
+    .structured-item {
+      min-width: 0;
+      padding: 15px 16px 17px;
+    }
+
+    .structured-item + .structured-item {
+      border-left: 1px solid var(--border);
+    }
+
+    .structured-item dt {
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .structured-item dd {
+      margin: 0;
+      font-size: 13px;
+    }
+
+    /* 案3：警告を画面上部の通知行として最小化する。 */
+    .notice-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      padding: 9px 12px;
+      border: 1px solid var(--warning-border);
+      border-radius: 8px;
+      background: var(--warning-surface);
+    }
+
+    .notice-strip strong {
+      flex: 0 0 auto;
+    }
+
+    .notice-strip p {
+      min-width: 0;
+      flex: 1;
+      margin: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .notice-strip .warning-icon {
+      width: 26px;
+      height: 26px;
+      background: transparent;
+    }
+
+    /* 案4：修正対象を主役にして次の操作を明示する。 */
+    .notice-action {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      padding: 17px 18px;
+      border: 1px solid var(--warning-border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .notice-action-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .notice-action h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .notice-action p {
+      margin: 3px 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .notice-action-target {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      font-size: 12px;
+    }
+
+    .notice-action-side {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 1px solid var(--border);
+      padding-left: 20px;
+    }
+
+    .primary-action {
+      min-height: 34px;
+      padding: 7px 14px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .primary-action:hover {
+      background: var(--primary-hover);
+    }
+
+    /* 案5：一覧の操作部と警告を一体化し、縦方向の占有を抑える。 */
+    .table-shell {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .table-notice {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--warning-border);
+      background: var(--warning-surface);
+      font-size: 12px;
+    }
+
+    .table-notice .warning-icon {
+      width: 24px;
+      height: 24px;
+      background: transparent;
+    }
+
+    .table-notice strong {
+      font-size: 13px;
+    }
+
+    .table-notice-copy {
+      min-width: 0;
+      flex: 1;
+      color: var(--muted);
+    }
+
+    .mock-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mock-toolbar strong {
+      font-size: 13px;
+    }
+
+    .mock-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .mock-tab {
+      padding: 5px 10px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mock-tab-active {
+      background: #e8f4fb;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .mock-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .mock-table th,
+    .mock-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .mock-table th {
+      background: var(--panel-muted);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .mock-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .issue-text {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--warning-border);
+      border-radius: 4px;
+      background: #ffd43b;
+      color: #1a1503;
+      font-weight: 800;
+    }
+
+    .delete-mark {
+      color: var(--danger);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100% - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .proposal-heading,
+      .summary-detail,
+      .notice-action {
+        grid-template-columns: 1fr;
+      }
+
+      .proposal-heading {
+        flex-direction: column-reverse;
+        gap: 4px;
+      }
+
+      .specimen {
+        padding: 14px;
+      }
+
+      .summary-detail {
+        padding-left: 16px;
+      }
+
+      .structured-body {
+        grid-template-columns: 1fr;
+      }
+
+      .structured-item + .structured-item {
+        border-top: 1px solid var(--border);
+        border-left: 0;
+      }
+
+      .notice-strip {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .notice-strip p {
+        flex-basis: calc(100% - 50px);
+        white-space: normal;
+      }
+
+      .notice-action-side {
+        justify-content: flex-end;
+        border-top: 1px solid var(--border);
+        border-left: 0;
+        padding-top: 14px;
+        padding-left: 0;
+      }
+
+      .table-notice {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .table-notice-copy {
+        flex-basis: calc(100% - 40px);
+      }
+
+      .mock-table th:nth-child(2),
+      .mock-table td:nth-child(2) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <p class="eyebrow">STARGAZER / UI COMPARISON</p>
+      <h1>応募データ警告 デザイン案</h1>
+      <p class="page-lead">同じ不整合情報を、重要度は保ちつつ画面を占有しすぎない形で比較します。案1は現行機能との対応が分かりやすく、案5に近づくほど一覧の閲覧を優先した構成です。</p>
+    </header>
+
+    <div class="proposal-list">
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>要約付きアコーディオン</h2>
+            <p>警告の要点と件数は常に表示し、理由と対応方法だけを展開します。現行の折りたたみ挙動を維持しやすい案です。</p>
+          </div>
+          <span class="proposal-number">案 1 / 推奨</span>
+        </header>
+        <div class="specimen">
+          <details class="notice-summary" open>
+            <summary>
+              <span class="warning-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </span>
+              <span class="summary-copy">
+                <strong>希望キャストを確認してください</strong>
+                <span>現在のキャスト名簿と紐づかない希望が6件あります</span>
+              </span>
+              <span class="count-label">確認対象 6件</span>
+              <span class="chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="summary-detail">
+              <p>抽選とマッチングは実行できますが、希望どおりに割り当てられない場合があります。応募データで警告色の希望キャストを選び直し、修正内容を保存してください。</p>
+              <div class="summary-target"><span>対象</span><span class="target-names">Noa、Rin、Mio、ほか3件</span></div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>原因・影響・対応の3区分</h2>
+            <p>文章を役割ごとに分け、利用者が「何が起きたか」「続行できるか」「何を直すか」を短時間で判断できる案です。</p>
+          </div>
+          <span class="proposal-number">案 2</span>
+        </header>
+        <div class="specimen">
+          <section class="notice-structured" aria-labelledby="proposal-2-title">
+            <header class="structured-head">
+              <span class="warning-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </span>
+              <strong id="proposal-2-title">希望キャストに確認が必要です</strong>
+              <span class="count-label">6件</span>
+            </header>
+            <dl class="structured-body">
+              <div class="structured-item">
+                <dt>原因</dt>
+                <dd>現在のキャスト名簿と紐づかない希望キャスト名があります。</dd>
+              </div>
+              <div class="structured-item">
+                <dt>影響</dt>
+                <dd>抽選とマッチングは続行できますが、希望どおりにならない場合があります。</dd>
+              </div>
+              <div class="structured-item">
+                <dt>対応</dt>
+                <dd><span class="target-names">Noa、Rin、Mio、ほか3件</span>を応募データで選び直してください。</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>省スペース通知バー</h2>
+            <p>一覧の表示領域を優先し、警告を1行へ集約します。詳細説明を別途開く前提のため、繰り返し作業する利用者向けです。</p>
+          </div>
+          <span class="proposal-number">案 3</span>
+        </header>
+        <div class="specimen">
+          <div class="notice-strip" role="alert">
+            <span class="warning-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </span>
+            <strong>希望キャスト6件を確認してください</strong>
+            <p>Noa、Rin、Mio、ほか3件は現在のキャスト名簿と紐づいていません。</p>
+            <button type="button" class="action-link">詳細を表示</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>修正導線を強調した通知</h2>
+            <p>警告の説明よりも「どこを直すか」を優先します。将来、警告対象だけを絞り込む操作へ接続する場合に向く案です。</p>
+          </div>
+          <span class="proposal-number">案 4</span>
+        </header>
+        <div class="specimen">
+          <section class="notice-action" aria-labelledby="proposal-4-title">
+            <div class="notice-action-main">
+              <span class="warning-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </span>
+              <div>
+                <h3 id="proposal-4-title">希望キャストの選び直しが必要です</h3>
+                <p>現在の名簿と紐づかない希望があります。未修正でも続行できますが、割り当て結果に影響する場合があります。</p>
+                <div class="notice-action-target"><span>確認対象 6件</span><span class="target-names">Noa、Rin、Mio、ほか3件</span></div>
+              </div>
+            </div>
+            <div class="notice-action-side">
+              <button type="button" class="action-link">後で確認</button>
+              <button type="button" class="primary-action">対象を表示</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="proposal">
+        <header class="proposal-heading">
+          <div>
+            <h2>一覧一体型の警告行</h2>
+            <p>独立した大きな警告枠をやめ、対象を確認する一覧の直前へ通知を置きます。画面全体のまとまりと一覧件数の視認性を優先します。</p>
+          </div>
+          <span class="proposal-number">案 5</span>
+        </header>
+        <div class="specimen">
+          <section class="table-shell" aria-label="応募データ一覧の表示例">
+            <div class="table-notice" role="alert">
+              <span class="warning-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </span>
+              <strong>希望キャスト6件に確認が必要です</strong>
+              <span class="table-notice-copy">警告色の項目を選び直すと、現在の名簿へ紐づけられます。</span>
+              <button type="button" class="action-link">対象だけ表示</button>
+            </div>
+            <div class="mock-toolbar">
+              <strong>20件</strong>
+              <div class="mock-tabs" aria-label="表示対象">
+                <button type="button" class="mock-tab">全件（20）</button>
+                <button type="button" class="mock-tab mock-tab-active">希望キャスト（19）</button>
+              </div>
+            </div>
+            <table class="mock-table">
+              <thead><tr><th>ユーザー名</th><th>X ID</th><th>希望キャスト</th><th>NGキャスト</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td>星川 リト</td><td>@rito_h</td><td><span class="issue-text">Mio</span>　<span class="issue-text">Noa</span>　<span class="issue-text">Sora</span></td><td>—</td><td class="delete-mark">×</td></tr>
+                <tr><td>葵 知花</td><td>@chihana_a</td><td><span class="issue-text">Sora</span>　<span class="issue-text">Haru</span>　<span class="issue-text">Rin</span></td><td>—</td><td class="delete-mark">×</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

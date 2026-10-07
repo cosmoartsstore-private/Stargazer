@@ -1,25 +1,12 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  type ChangeEvent,
-  type FocusEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useEffect, useId, useRef, type ChangeEvent, type FocusEvent, type KeyboardEvent } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { CautionUser } from '@/common/types/entities';
-import {
-  flushPendingPageCommits,
-  registerPendingPageCommit,
-} from '@/common/pageCommitRegistry';
-import {
-  buildXProfileUrl,
-  formatXAccountIdForDisplay,
-} from '@/common/xIdUtils';
+import { flushPendingPageCommits, registerPendingPageCommit } from '@/common/pageCommitRegistry';
+import { buildXProfileUrl, formatXAccountIdForDisplay, X_ACCOUNT_ID_INPUT_MAX_LENGTH } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import type { CautionCandidate } from '@/features/matching/logics/caution-user';
 import shared from '@/styles/shared.module.css';
-import type { CautionFormValues } from '../ngUserManagementModel';
+import { NG_DISPLAY_NAME_MAX_LENGTH, NG_NOTES_MAX_LENGTH, type CautionFormValues } from '../ngUserManagementModel';
 import styles from '../NGUserManagementPage.module.css';
 import { EntryDetailsEditor } from './EntryDetailsEditor';
 
@@ -92,27 +79,13 @@ interface CautionUserRowProps {
   onRequestProfileLink: (accountId: string | undefined, fallbackLabel: string) => void;
 }
 
-function CautionUserRow({
-  user,
-  isSaving,
-  notesDiscardGeneration,
-  onRequestDelete,
-  onEntryNotesDirtyChange,
-  onUpdateDetails,
-  onRequestProfileLink,
-}: CautionUserRowProps) {
+function CautionUserRow({ user, isSaving, notesDiscardGeneration, onRequestDelete, onEntryNotesDirtyChange, onUpdateDetails, onRequestProfileLink }: CautionUserRowProps) {
   // 対象アカウントからリンク可否と各操作の表示ラベルを導出する。
   const hasProfileLink = buildXProfileUrl(user.accountId) !== null;
   const displayAccountId = formatXAccountIdForDisplay(user.accountId);
   const isCandidateRegistration = (user.ngCastCount ?? 0) > 0;
-  const openProfileAriaLabel = getMsg(
-    'NGUserManagementPage.openXAccountAriaLabel',
-    { accountId: displayAccountId },
-  );
-  const unregisterCautionAriaLabel = getMsg(
-    'NGUserManagementPage.unregisterCautionAriaLabel',
-    { accountId: displayAccountId },
-  );
+  const openProfileAriaLabel = getMsg('NGUserManagementPage.openXAccountAriaLabel', { accountId: displayAccountId });
+  const unregisterCautionAriaLabel = getMsg('NGUserManagementPage.unregisterCautionAriaLabel', { accountId: displayAccountId });
 
   // この行の型付き対象を、各DOMイベントから直接親の操作へ渡す。
   function handleProfileLinkClick(): void {
@@ -160,26 +133,10 @@ export function CautionUserPanel({ controller, notesDiscardGeneration, onEntryNo
   const thresholdInputRef = useRef<HTMLInputElement>(null);
 
   // controllerが管理する候補、登録済み一覧、入力状態。
-  const {
-    cautionUsers,
-    candidates,
-    displayedThreshold,
-    thresholdDraft,
-    form,
-    isSaving,
-    isSavingThreshold,
-  } = controller.state;
+  const { cautionUsers, candidates, displayedThreshold, thresholdDraft, form, isSaving, isSavingThreshold } = controller.state;
 
   // controllerが提供する閾値、登録、削除、詳細更新操作。
-  const {
-    setThresholdDraft,
-    commitThreshold,
-    updateForm,
-    addManual,
-    addCandidate,
-    requestDelete,
-    updateDetails,
-  } = controller.actions;
+  const { setThresholdDraft, commitThreshold, updateForm, addManual, addCandidate, requestDelete, updateDetails } = controller.actions;
   const thresholdCommitRef = useRef(commitThreshold);
   thresholdCommitRef.current = commitThreshold;
 
@@ -245,15 +202,9 @@ export function CautionUserPanel({ controller, notesDiscardGeneration, onEntryNo
         </div>
 
         {candidates.length === 0 ? (
-          <div className={styles.ngDetailEmpty}>
-            {getMsg('NGUserManagementPage.noCandidates', { threshold: displayedThreshold })}
-          </div>
+          <div className={styles.ngDetailEmpty}>{getMsg('NGUserManagementPage.noCandidates', { threshold: displayedThreshold })}</div>
         ) : (
-          <div className={styles.cautionCandidateList}>
-            {candidates.map((candidate) => (
-              <CautionCandidateCard key={candidate.accountId} candidate={candidate} isSaving={isSaving} onAdd={addCandidate} />
-            ))}
-          </div>
+          <div className={styles.cautionCandidateList}>{candidates.map((candidate) => (<CautionCandidateCard key={candidate.accountId} candidate={candidate} isSaving={isSaving} onAdd={addCandidate} />))}</div>
         )}
       </div>
 
@@ -264,29 +215,16 @@ export function CautionUserPanel({ controller, notesDiscardGeneration, onEntryNo
           <p className={styles.ngPage__sectionDesc}>{getMsg('NGUserManagementPage.registeredCautionDescription')}</p>
         </div>
         <div className={`${styles.ngPage__addRow} ${styles.ngPage__addRowSpaced}`}>
-          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputName}`} placeholder={getMsg('NGUserManagementPage.usernamePlaceholder')} aria-label={getMsg('NGUserManagementPage.usernamePlaceholder')} value={form.username} onChange={handleUsernameChange} />
-          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputId}`} placeholder={getMsg('NGUserManagementPage.xIdPlaceholder')} aria-label={getMsg('NGUserManagementPage.xIdPlaceholder')} value={form.accountId} onChange={handleAccountIdChange} onKeyDown={handleAddInputKeyDown} />
-          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalReasonAndNotes')} aria-label={getMsg('NGUserManagementPage.optionalReasonAndNotes')} value={form.notes} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
+          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputName}`} placeholder={getMsg('NGUserManagementPage.usernamePlaceholder')} aria-label={getMsg('NGUserManagementPage.usernamePlaceholder')} value={form.username} maxLength={NG_DISPLAY_NAME_MAX_LENGTH} onChange={handleUsernameChange} />
+          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputId}`} placeholder={getMsg('NGUserManagementPage.xIdPlaceholder')} aria-label={getMsg('NGUserManagementPage.xIdPlaceholder')} value={form.accountId} maxLength={X_ACCOUNT_ID_INPUT_MAX_LENGTH} onChange={handleAccountIdChange} onKeyDown={handleAddInputKeyDown} />
+          <input type="text" className={`${shared.formInput} ${styles.ngPage__addInputNotes}`} placeholder={getMsg('NGUserManagementPage.optionalReasonAndNotes')} aria-label={getMsg('NGUserManagementPage.optionalReasonAndNotes')} value={form.notes} maxLength={NG_NOTES_MAX_LENGTH} onChange={handleNotesChange} onKeyDown={handleAddInputKeyDown} />
           <button type="button" className={`${shared.btnPrimary} ${shared.btnFixedH}`} disabled={isSaving} onClick={handleAddClick}>{isSaving ? getMsg('common.saving') : getMsg('NGUserManagementPage.registerCaution')}</button>
         </div>
 
         {cautionUsers.length === 0 ? (
           <div className={styles.ngDetailEmpty}>{getMsg('NGUserManagementPage.noCautionRegistrations')}</div>
         ) : (
-          <div className={styles.ngDetailList}>
-            {cautionUsers.map((user) => (
-              <CautionUserRow
-                key={user.accountId}
-                user={user}
-                isSaving={isSaving}
-                notesDiscardGeneration={notesDiscardGeneration}
-                onRequestDelete={requestDelete}
-                onEntryNotesDirtyChange={onEntryNotesDirtyChange}
-                onUpdateDetails={updateDetails}
-                onRequestProfileLink={onRequestProfileLink}
-              />
-            ))}
-          </div>
+          <div className={styles.ngDetailList}>{cautionUsers.map((user) => (<CautionUserRow key={user.accountId} user={user} isSaving={isSaving} notesDiscardGeneration={notesDiscardGeneration} onRequestDelete={requestDelete} onEntryNotesDirtyChange={onEntryNotesDirtyChange} onUpdateDetails={updateDetails} onRequestProfileLink={onRequestProfileLink} />))}</div>
         )}
       </div>
     </div>

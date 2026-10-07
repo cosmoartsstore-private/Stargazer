@@ -1,23 +1,7 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 import type { UserBean } from '@/common/types/entities';
-import {
-  deleteApplicant,
-  flushApplicantWrites,
-  getLotteryResults,
-  getSessionWorkflowSnapshot,
-  loadApplicants,
-  persistApplicants,
-  updateApplicantCastPreferences,
-} from '@/db';
-import {
-  captureSessionWriteActivity,
-  getRequiredSessionContext,
-  isCurrentSessionContext,
-  isSessionRecoveryActive,
-  isSessionWriteActivityUnchanged,
-  runAsSessionRecovery,
-  waitForEventWritesToSettle,
-} from '@/db/repositories/commandContext';
+import { deleteApplicant, flushApplicantWrites, getLotteryResults, getSessionWorkflowSnapshot, loadApplicants, persistApplicants, updateApplicantCastPreferences } from '@/db';
+import { captureSessionWriteActivity, getRequiredSessionContext, isCurrentSessionContext, isSessionRecoveryActive, isSessionWriteActivityUnchanged, runAsSessionRecovery, waitForEventWritesToSettle } from '@/db/repositories/commandContext';
 import { restoreLotteryWinners } from '@/features/lottery/services/lottery-result-persistence';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
@@ -29,21 +13,8 @@ interface UseApplicantMutationsParams {
 }
 
 /** 応募者の更新を、依存結果の失効・失敗時再同期・処理中状態まで一体で調停する。 */
-export function useApplicantMutations({
-  setSelectedUser,
-  setShowImportForm,
-}: UseApplicantMutationsParams) {
-  const {
-    setApplicants,
-    setCurrentWinners,
-    resetMatching,
-    beginSessionUiMutation,
-    getSessionUiMutationGeneration,
-    hydrateSessionWorkflow,
-    isCurrentSessionUiMutation,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-  } = useAppContext();
+export function useApplicantMutations({ setSelectedUser, setShowImportForm }: UseApplicantMutationsParams) {
+  const { setApplicants, setCurrentWinners, resetMatching, beginSessionUiMutation, getSessionUiMutationGeneration, hydrateSessionWorkflow, isCurrentSessionUiMutation, isLotteryInputReadOnly, hasSavedSessionResult } = useAppContext();
   const isSessionReadOnly = isLotteryInputReadOnly || hasSavedSessionResult;
 
   // 確認対象と、保存・復旧結果を通知するダイアログ状態。
@@ -63,24 +34,15 @@ export function useApplicantMutations({
   };
 
   // 別操作が再読込中に始まった場合は、その書込みも含む最終状態を読み直す。
-  const reconcilePersistedSessionState = async (
-    context: ReturnType<typeof getRequiredSessionContext>,
-  ): Promise<boolean> => runAsSessionRecovery(context, async () => {
+  const reconcilePersistedSessionState = async (context: ReturnType<typeof getRequiredSessionContext>): Promise<boolean> => runAsSessionRecovery(context, async () => {
     while (isCurrentSessionContext(context)) {
       const generation = getSessionUiMutationGeneration();
-      await Promise.all([
-        flushApplicantWrites(context),
-        waitForEventWritesToSettle(context),
-      ]);
+      await Promise.all([flushApplicantWrites(context), waitForEventWritesToSettle(context)]);
       if (!isCurrentSessionContext(context)) return false;
       if (!isCurrentSessionUiMutation(generation)) continue;
       const writeActivity = captureSessionWriteActivity(context);
       if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;
-      const [reloadedApplicants, lotteryRows, workflowSnapshot] = await Promise.all([
-        loadApplicants(),
-        getLotteryResults(),
-        getSessionWorkflowSnapshot(),
-      ]);
+      const [reloadedApplicants, lotteryRows, workflowSnapshot] = await Promise.all([loadApplicants(), getLotteryResults(), getSessionWorkflowSnapshot()]);
       if (!isCurrentSessionContext(context)) return false;
       if (!isCurrentSessionUiMutation(generation)) continue;
       if (!isSessionWriteActivityUnchanged(context, writeActivity)) continue;

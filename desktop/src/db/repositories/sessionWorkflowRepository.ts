@@ -1,25 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import {
-  MATCHING_TYPE_CODES,
-  SAME_DAY_SLOT_UNITS,
-  type MatchingTypeCode,
-  type SameDaySlotUnit,
-  type SessionWorkflowSnapshot,
-  type SessionWorkflowState,
-} from '@/common/types/sessionWorkflow';
+import { MATCHING_TYPE_CODES, SAME_DAY_SLOT_UNITS, type MatchingTypeCode, type SameDaySlotUnit, type SessionWorkflowSnapshot, type SessionWorkflowState } from '@/common/types/sessionWorkflow';
 import { getSessionDb } from '../database';
-import {
-  enqueueSessionWrite,
-  getRequiredSessionContext,
-  waitForSuccessfulSessionWrites,
-  type SessionCommandContext,
-} from './commandContext';
+import { enqueueSessionWrite, getRequiredSessionContext, waitForSuccessfulSessionWrites, type SessionCommandContext } from './commandContext';
 
-export {
-  DEFAULT_SESSION_WORKFLOW_STATE,
-  type SessionWorkflowSnapshot,
-  type SessionWorkflowState,
-} from '@/common/types/sessionWorkflow';
+export { DEFAULT_SESSION_WORKFLOW_STATE, type SessionWorkflowSnapshot, type SessionWorkflowState } from '@/common/types/sessionWorkflow';
 
 interface SessionWorkflowRow {
   matching_type_code: string;
@@ -85,9 +69,7 @@ function requireSameDaySlotUnit(value: string): SameDaySlotUnit {
 }
 
 /** 現行schemaのDB行を検証し、画面で利用するセッション条件へ変換する。 */
-function readSessionWorkflowRow(
-  row: SessionWorkflowRow | undefined,
-): SessionWorkflowSnapshot {
+function readSessionWorkflowRow(row: SessionWorkflowRow | undefined): SessionWorkflowSnapshot {
   if (!row) {
     throw new Error('セッション条件が保存されていません。');
   }
@@ -97,21 +79,7 @@ function readSessionWorkflowRow(
   if (row.is_lottery_result_current !== 0 && row.is_lottery_result_current !== 1) {
     throw new Error('抽選結果の状態が不正です。');
   }
-  return {
-    state: {
-      matchingTypeCode: requireMatchingTypeCode(row.matching_type_code),
-      lotteryCount: requirePositiveInteger(row.lottery_count, '抽選人数'),
-      rotationCount: requirePositiveInteger(row.rotation_count, 'ラウンド数'),
-      totalTables: requirePositiveInteger(row.total_tables, '総テーブル数'),
-      usersPerTable: requirePositiveInteger(row.users_per_table, '1テーブルの応募者数'),
-      castsPerRotation: requirePositiveInteger(row.casts_per_rotation, '1ラウンドのキャスト数'),
-      reserveSameDaySlots: row.reserve_same_day_slots === 1,
-      sameDaySlotCount: requireNonNegativeInteger(row.same_day_slot_count, '当日枠'),
-      sameDaySlotUnit: requireSameDaySlotUnit(row.same_day_slot_unit),
-    },
-    isLotteryResultCurrent: row.is_lottery_result_current === 1,
-    conditionRevision: requireNonNegativeInteger(row.condition_revision, '条件revision'),
-  };
+  return { state: { matchingTypeCode: requireMatchingTypeCode(row.matching_type_code), lotteryCount: requirePositiveInteger(row.lottery_count, '抽選人数'), rotationCount: requirePositiveInteger(row.rotation_count, 'ラウンド数'), totalTables: requirePositiveInteger(row.total_tables, '総テーブル数'), usersPerTable: requirePositiveInteger(row.users_per_table, '1テーブルの応募者数'), castsPerRotation: requirePositiveInteger(row.casts_per_rotation, '1ラウンドのキャスト数'), reserveSameDaySlots: row.reserve_same_day_slots === 1, sameDaySlotCount: requireNonNegativeInteger(row.same_day_slot_count, '当日枠'), sameDaySlotUnit: requireSameDaySlotUnit(row.same_day_slot_unit) }, isLotteryResultCurrent: row.is_lottery_result_current === 1, conditionRevision: requireNonNegativeInteger(row.condition_revision, '条件revision') };
 }
 
 /** 現在セッションの条件と、保存済み抽選結果がその条件に対応するかを読み込む。 */
@@ -124,34 +92,12 @@ export async function getSessionWorkflowSnapshot(): Promise<SessionWorkflowSnaps
  * セッション条件の書き込みを呼出順に直列化する。
  * イベント切替後も、呼出時点のイベント・セッション識別子へ保存する。
  */
-export function persistSessionWorkflowState(
-  state: SessionWorkflowState,
-  context: SessionCommandContext = getRequiredSessionContext(),
-): Promise<void> {
+export function persistSessionWorkflowState(state: SessionWorkflowState, context: SessionCommandContext = getRequiredSessionContext()): Promise<void> {
   // 同じDBを開き直して接続世代が変わっても、古い書込みと新しい書込みを並行させない。
-  return enqueueSessionWrite(context, () => invoke<void>(
-    'persist_session_workflow_state_atomic',
-    {
-      eventName: context.eventName,
-      timestamp: context.timestamp,
-      state: {
-        matching_type_code: state.matchingTypeCode,
-        lottery_count: state.lotteryCount,
-        rotation_count: state.rotationCount,
-        total_tables: state.totalTables,
-        users_per_table: state.usersPerTable,
-        casts_per_rotation: state.castsPerRotation,
-        reserve_same_day_slots: state.reserveSameDaySlots,
-        same_day_slot_count: state.sameDaySlotCount,
-        same_day_slot_unit: state.sameDaySlotUnit,
-      },
-    },
-  ));
+  return enqueueSessionWrite(context, () => invoke<void>('persist_session_workflow_state_atomic', { eventName: context.eventName, timestamp: context.timestamp, state: { matching_type_code: state.matchingTypeCode, lottery_count: state.lotteryCount, rotation_count: state.rotationCount, total_tables: state.totalTables, users_per_table: state.usersPerTable, casts_per_rotation: state.castsPerRotation, reserve_same_day_slots: state.reserveSameDaySlots, same_day_slot_count: state.sameDaySlotCount, same_day_slot_unit: state.sameDaySlotUnit } }));
 }
 
 /** 先行する条件保存が完了するまで待機する。 */
-export async function flushSessionWorkflowWrites(
-  context: SessionCommandContext,
-): Promise<void> {
+export async function flushSessionWorkflowWrites(context: SessionCommandContext): Promise<void> {
   await waitForSuccessfulSessionWrites(context);
 }

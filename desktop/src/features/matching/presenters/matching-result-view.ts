@@ -34,10 +34,7 @@ export function buildResultRows(winners: UserBean[], resultMap: Map<string, Matc
   if (!resultMap) {
     return [];
   }
-  return winners.map((winner) => ({
-    user: winner,
-    matches: resultMap.get(winner.x_id) ?? [],
-  }));
+  return winners.map((winner) => ({ user: winner, matches: resultMap.get(winner.x_id) ?? [] }));
 }
 
 /** ユーザー別結果をキャスト別に再集計し、キャスト結果表の行を作る。 */
@@ -77,10 +74,7 @@ export function buildCastResultRows(rows: ResultRow[], casts: CastBean[]): CastR
       const rightName = castById.get(right)?.name ?? '';
       return leftName.localeCompare(rightName, 'ja') || left - right;
     })
-    .map((castId) => ({
-      cast: castById.get(castId)!,
-      assignments: assignmentsByCast.get(castId) ?? [],
-    }));
+    .map((castId) => ({ cast: castById.get(castId)!, assignments: assignmentsByCast.get(castId) ?? [] }));
 }
 
 /** マッチング失敗理由を、画面に表示する説明文へ変換する。 */
@@ -127,12 +121,7 @@ export function groupMatchesByRotation(matches: MatchedCast[]): RotationMatchGro
     grouped.set(key, current);
   });
 
-  return [...grouped.entries()]
-    .sort((left, right) => left[0] - right[0])
-    .map(([rotationIndex, groupMatches]) => ({
-      rotationIndex,
-      matches: groupMatches,
-    }));
+  return [...grouped.entries()].sort((left, right) => left[0] - right[0]).map(([rotationIndex, groupMatches]) => ({ rotationIndex, matches: groupMatches }));
 }
 
 /** 結果全体から、キャスト別表で必要なローテーション列の番号を集める。 */
@@ -181,7 +170,5 @@ export function groupTableSlots(tableSlots: TableSlot[] | undefined): TableSlotG
     grouped.set(tableIndex, current);
   });
 
-  return [...grouped.entries()]
-    .sort((left, right) => left[0] - right[0])
-    .map(([tableIndex, slots]) => ({ tableIndex, slots }));
+  return [...grouped.entries()].sort((left, right) => left[0] - right[0]).map(([tableIndex, slots]) => ({ tableIndex, slots }));
 }

@@ -1,9 +1,4 @@
-import {
-  getCurrentConnectionGeneration,
-  getCurrentEventConnectionGeneration,
-  getCurrentEventName,
-  getCurrentSessionTimestamp,
-} from '../database';
+import { getCurrentConnectionGeneration, getCurrentEventConnectionGeneration, getCurrentEventName, getCurrentSessionTimestamp } from '../database';
 import { getMsg } from '@/messages/getMsg';
 
 export interface SessionCommandContext {
@@ -35,18 +30,10 @@ export class CommandWriteQueue {
     this.advanceActivityVersion(key);
     const previous = this.entries.get(key);
     const result = (previous?.settled ?? Promise.resolve()).then(operation);
-    const settled = result.then(
-      () => this.advanceActivityVersion(key),
-      () => this.advanceActivityVersion(key),
-    );
+    const settled = result.then(() => this.advanceActivityVersion(key), () => this.advanceActivityVersion(key));
     // 後続処理自体は失敗後も実行するが、待機側には同じ連続操作内の失敗を伝える。
-    const successful = Promise.allSettled([
-      previous?.successful ?? Promise.resolve(),
-      result,
-    ]).then((outcomes) => {
-      const failure = outcomes.find(
-        (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
-      );
+    const successful = Promise.allSettled([previous?.successful ?? Promise.resolve(), result]).then((outcomes) => {
+      const failure = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
       if (failure) throw failure.reason;
     });
     void successful.catch(() => undefined);
@@ -106,9 +93,7 @@ export class CommandWriteQueue {
   }
 
   /** 条件に一致する全キーの処理を完了させ、いずれかの失敗も呼出元へ返す。 */
-  async waitUntilSuccessfulIdleMatching(
-    matches: (key: string) => boolean,
-  ): Promise<void> {
+  async waitUntilSuccessfulIdleMatching(matches: (key: string) => boolean): Promise<void> {
     while (true) {
       const keys = [...this.entries.keys()].filter(matches);
       if (keys.length === 0) return;
@@ -138,10 +123,7 @@ export function captureEventWriteActivity(context: EventCommandContext): number 
 }
 
 /** 固定後に共有DBへの新しい書込みが始まらず、処理も残っていないかを判定する。 */
-export function isEventWriteActivityUnchanged(
-  context: EventCommandContext,
-  activityVersion: number,
-): boolean {
+export function isEventWriteActivityUnchanged(context: EventCommandContext, activityVersion: number): boolean {
   return eventCommandWriteQueue.isIdle(context.eventName)
     && eventCommandWriteQueue.getActivityVersion(context.eventName) === activityVersion;
 }
@@ -164,10 +146,7 @@ export function isEventRecoveryActive(context: EventCommandContext): boolean {
 }
 
 /** 失敗したイベント共有データをDBへ同期し直す処理の開始と終了を記録する。 */
-export async function runAsEventRecovery<T>(
-  context: EventCommandContext,
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runAsEventRecovery<T>(context: EventCommandContext, operation: () => Promise<T>): Promise<T> {
   const key = getEventRecoveryKey(context);
   eventRecoveryCounts.set(key, (eventRecoveryCounts.get(key) ?? 0) + 1);
   try {
@@ -188,10 +167,7 @@ export function isSessionRecoveryActive(context: SessionCommandContext): boolean
  * 失敗した楽観更新をDBへ同期し直す間だけ、同じセッションの新規業務操作へ再試行を求める。
  * 通常の書込みは対象にせず、失敗回復中の古い画面値が次の保存入力になることだけを防ぐ。
  */
-export async function runAsSessionRecovery<T>(
-  context: SessionCommandContext,
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runAsSessionRecovery<T>(context: SessionCommandContext, operation: () => Promise<T>): Promise<T> {
   const key = getSessionRecoveryKey(context);
   sessionRecoveryCounts.set(key, (sessionRecoveryCounts.get(key) ?? 0) + 1);
   try {
@@ -208,20 +184,12 @@ function isSessionCommandKeyForEvent(key: string, eventName: string): boolean {
 }
 
 /** セッション再読込の前後で比較する、共有DBとセッションDBの書込み世代を固定する。 */
-export function captureSessionWriteActivity(
-  context: SessionCommandContext,
-): SessionWriteActivity {
-  return {
-    eventVersion: eventCommandWriteQueue.getActivityVersion(context.eventName),
-    sessionVersion: sessionCommandWriteQueue.getActivityVersion(getSessionCommandKey(context)),
-  };
+export function captureSessionWriteActivity(context: SessionCommandContext): SessionWriteActivity {
+  return { eventVersion: eventCommandWriteQueue.getActivityVersion(context.eventName), sessionVersion: sessionCommandWriteQueue.getActivityVersion(getSessionCommandKey(context)) };
 }
 
 /** 固定後に新しい書込みが始まらず、対象DBの処理も残っていないかを判定する。 */
-export function isSessionWriteActivityUnchanged(
-  context: SessionCommandContext,
-  activity: SessionWriteActivity,
-): boolean {
+export function isSessionWriteActivityUnchanged(context: SessionCommandContext, activity: SessionWriteActivity): boolean {
   const sessionKey = getSessionCommandKey(context);
   return eventCommandWriteQueue.isIdle(context.eventName)
     && sessionCommandWriteQueue.isIdle(sessionKey)
@@ -234,19 +202,13 @@ function getEventLifecycleError(eventName: string): Error {
 }
 
 /** イベントの切替中でなければ、共有DB書込みを呼出順に実行する。 */
-export function enqueueEventWrite<T>(
-  eventName: string,
-  operation: () => Promise<T>,
-): Promise<T> {
+export function enqueueEventWrite<T>(eventName: string, operation: () => Promise<T>): Promise<T> {
   if (eventLifecycleLocks.has(eventName)) return Promise.reject(getEventLifecycleError(eventName));
   return eventCommandWriteQueue.enqueue(eventName, operation);
 }
 
 /** イベントの切替中でなければ、取込セッションDB書込みを呼出順に実行する。 */
-export function enqueueSessionWrite<T>(
-  context: SessionCommandContext,
-  operation: () => Promise<T>,
-): Promise<T> {
+export function enqueueSessionWrite<T>(context: SessionCommandContext, operation: () => Promise<T>): Promise<T> {
   if (eventLifecycleLocks.has(context.eventName)) {
     return Promise.reject(getEventLifecycleError(context.eventName));
   }
@@ -257,21 +219,13 @@ export function enqueueSessionWrite<T>(
  * イベント配下の全DB書込みを止めて既存処理を完了させ、改名・削除・接続切替を排他的に行う。
  * ロック開始後の新規書込みは旧パスへ遅延実行せず、呼出元へ再試行可能な失敗として返す。
  */
-export async function runWithEventLifecycleLock<T>(
-  eventNames: string[],
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runWithEventLifecycleLock<T>(eventNames: string[], operation: () => Promise<T>): Promise<T> {
   const names = [...new Set(eventNames.filter(Boolean))].sort();
   const lockedName = names.find((name) => eventLifecycleLocks.has(name));
   if (lockedName) throw getEventLifecycleError(lockedName);
   names.forEach((name) => eventLifecycleLocks.add(name));
   try {
-    await Promise.all(names.flatMap((name) => [
-      eventCommandWriteQueue.waitUntilSuccessfulIdle(name),
-      sessionCommandWriteQueue.waitUntilSuccessfulIdleMatching(
-        (key) => isSessionCommandKeyForEvent(key, name),
-      ),
-    ]));
+    await Promise.all(names.flatMap((name) => [eventCommandWriteQueue.waitUntilSuccessfulIdle(name), sessionCommandWriteQueue.waitUntilSuccessfulIdleMatching((key) => isSessionCommandKeyForEvent(key, name))]));
     return await operation();
   } finally {
     names.forEach((name) => eventLifecycleLocks.delete(name));
@@ -279,34 +233,26 @@ export async function runWithEventLifecycleLock<T>(
 }
 
 /** 失敗時の再読込前に、同じイベント共有DBへの書込みがすべて終わるまで待つ。 */
-export async function waitForEventWritesToSettle(
-  context: EventCommandContext,
-): Promise<void> {
+export async function waitForEventWritesToSettle(context: EventCommandContext): Promise<void> {
   await eventCommandWriteQueue.waitUntilIdle(context.eventName);
 }
 
 /** 画面を離れる前に、同じイベント共有DBの先行書込み完了と成功を確認する。 */
-export async function waitForSuccessfulEventWrites(
-  context: EventCommandContext,
-): Promise<void> {
+export async function waitForSuccessfulEventWrites(context: EventCommandContext): Promise<void> {
   await eventCommandWriteQueue.waitUntilSuccessfulIdle(context.eventName);
 }
 
 /** 失敗時の再読込前に、同じ取込セッションDBへの書込みがすべて終わるまで待つ。 */
-export async function waitForSessionWritesToSettle(
-  context: SessionCommandContext,
-): Promise<void> {
+export async function waitForSessionWritesToSettle(context: SessionCommandContext): Promise<void> {
   await sessionCommandWriteQueue.waitUntilIdle(getSessionCommandKey(context));
 }
 
 /** 依存処理の開始前に、同じセッションの先行書込み完了と成功を確認する。 */
-export async function waitForSuccessfulSessionWrites(
-  context: SessionCommandContext,
-): Promise<void> {
+export async function waitForSuccessfulSessionWrites(context: SessionCommandContext): Promise<void> {
   await sessionCommandWriteQueue.wait(getSessionCommandKey(context));
 }
 
-/** 共有 DB への backend command に必要な、現在開いているイベント名を返す。 */
+/** 共有 DB への Backend command に必要な、現在開いているイベント名を返す。 */
 export function getRequiredEventName(): string {
   const eventName = getCurrentEventName();
   if (!eventName) throw new Error(getMsg('common.eventNotOpen'));
@@ -315,16 +261,11 @@ export function getRequiredEventName(): string {
 
 /** 非同期処理の開始時点に固定する、イベント接続の識別情報を返す。 */
 export function getRequiredEventContext(): EventCommandContext {
-  return {
-    eventName: getRequiredEventName(),
-    generation: getCurrentEventConnectionGeneration(),
-  };
+  return { eventName: getRequiredEventName(), generation: getCurrentEventConnectionGeneration() };
 }
 
 /** 画面が想定するイベントと、現在開いている共有DBが一致する場合だけ識別情報を返す。 */
-export function getOpenEventContext(
-  expectedEventName: string | null,
-): EventCommandContext | null {
+export function getOpenEventContext(expectedEventName: string | null): EventCommandContext | null {
   if (expectedEventName === null) return null;
   try {
     const context = getRequiredEventContext();
@@ -340,16 +281,12 @@ export function isCurrentEventContext(context: EventCommandContext): boolean {
     && getCurrentEventConnectionGeneration() === context.generation;
 }
 
-/** セッション DB への backend command に必要な、イベント名とセッション timestamp を返す。 */
+/** セッション DB への Backend command に必要な、イベント名とセッション timestamp を返す。 */
 export function getRequiredSessionContext(): SessionCommandContext {
   const eventName = getRequiredEventName();
   const timestamp = getCurrentSessionTimestamp();
   if (!timestamp) throw new Error(getMsg('commandContext.sessionNotOpen'));
-  return {
-    eventName,
-    timestamp,
-    generation: getCurrentConnectionGeneration(),
-  };
+  return { eventName, timestamp, generation: getCurrentConnectionGeneration() };
 }
 
 /** 非同期処理の開始時に固定したセッションが、現在も開かれているかを判定する。 */
