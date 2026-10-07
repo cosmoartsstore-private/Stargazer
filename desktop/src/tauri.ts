@@ -2,6 +2,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { getBrowserStorage, readBrowserStorageItemResult } from '@/common/browserStorage';
 import { STORAGE_KEYS } from '@/common/config';
+import { getMsg } from '@/messages/getMsg';
 
 export interface DataBackupDeviceSettings {
   stargazer_theme_id: string | null;
@@ -20,7 +21,7 @@ export interface DataRestoreResult {
   cleanup_warning: string | null;
 }
 
-const DATA_BACKUP_FILTER = [{ name: 'Stargazer バックアップ', extensions: ['zip'] }];
+const DATA_BACKUP_FILTER = [{ name: getMsg('tauri.dataBackupFilterName'), extensions: ['zip'] }];
 const DEVICE_SETTING_KEYS = [STORAGE_KEYS.THEME, STORAGE_KEYS.THEME_CUSTOMIZATION, STORAGE_KEYS.IMPORT_COLUMN_MAPPINGS, STORAGE_KEYS.APPLICANT_DISPLAY_COLUMNS, STORAGE_KEYS.LAST_LOCATION] as const;
 
 function getDefaultBackupFileName(): string {
@@ -32,7 +33,7 @@ function getDefaultBackupFileName(): string {
 
 function requireDesktopApp(): void {
   if (!isTauri()) {
-    throw new Error('データのバックアップと復元はデスクトップアプリでのみ利用できます。');
+    throw new Error(getMsg('tauri.dataBackupDesktopOnly'));
   }
 }
 
@@ -41,7 +42,7 @@ export function getDataBackupDeviceSettings(): DataBackupDeviceSettings {
   const readSetting = (key: string): string | null => {
     const result = readBrowserStorageItemResult(key);
     if (!result.ok) {
-      throw new Error('端末設定を読み取れないため、バックアップを作成できません。');
+      throw new Error(getMsg('tauri.deviceSettingsReadFailed'));
     }
     return result.value;
   };
@@ -88,7 +89,7 @@ export async function commitPreparedDataBackupRestore(restoreToken: string): Pro
 /** 復元した5設定をまとめて反映し、途中で失敗した場合は以前の値へ戻す。 */
 export function applyRestoredDeviceSettings(settings: DataBackupDeviceSettings): void {
   const storage = getBrowserStorage();
-  if (!storage) throw new Error('端末設定の保存領域を利用できません。');
+  if (!storage) throw new Error(getMsg('tauri.deviceSettingsStorageUnavailable'));
   const previous = new Map<string, string | null>();
   for (const key of DEVICE_SETTING_KEYS) previous.set(key, storage.getItem(key));
 
@@ -106,7 +107,7 @@ export function applyRestoredDeviceSettings(settings: DataBackupDeviceSettings):
         else storage.setItem(key, value);
       }
     } catch {
-      throw new Error('復元した端末設定を反映できず、以前の設定にも戻せませんでした。');
+      throw new Error(getMsg('tauri.deviceSettingsApplyAndRollbackFailed'));
     }
     throw error;
   }
@@ -130,7 +131,7 @@ export async function isStellaRecordAvailable(): Promise<boolean> {
 /** 現在のStargazerをStellaRecordへ登録する。 */
 export async function registerToStellaRecord(): Promise<void> {
   if (!isTauri()) {
-    throw new Error('StellaRecordへの登録はデスクトップアプリでのみ利用できます。');
+    throw new Error(getMsg('tauri.stellaRecordRegistrationDesktopOnly'));
   }
   await invoke<void>('register_to_stellarecord');
 }
