@@ -1,29 +1,9 @@
-import {
-  useEffect,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { CastBean, NGUserEntry } from '@/common/types/entities';
 import { updateCastFields } from '@/db';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-  type EventCommandContext,
-} from '@/db/repositories/commandContext';
+import { getOpenEventContext, isCurrentEventContext, type EventCommandContext } from '@/db/repositories/commandContext';
 import { getMsg } from '@/messages/getMsg';
-import {
-  EMPTY_CAST_NG_FORM,
-  clearSubmittedNgFormValues,
-  createCastNgEntry,
-  filterCastsByName,
-  isDuplicateCastNgEntry,
-  removeCastNgEntry,
-  resolveSelectedCastId,
-  updateCastNgEntryNotes,
-  type CastNgFormValues,
-  type PendingCastNgDeletion,
-} from '../ngUserManagementModel';
+import { EMPTY_CAST_NG_FORM, clearSubmittedNgFormValues, createCastNgEntry, filterCastsByName, isDuplicateCastNgEntry, removeCastNgEntry, resolveSelectedCastId, updateCastNgEntryNotes, type CastNgFormValues, type PendingCastNgDeletion } from '../ngUserManagementModel';
 import { useExclusiveMutation } from './useExclusiveMutation';
 
 interface UseCastNgManagementParams {
@@ -43,12 +23,7 @@ interface PersistCastNgEntriesOptions {
 }
 
 /** キャスト別NGの表示状態と、イベント共有DBへの保存操作を調停する。 */
-export function useCastNgManagement({
-  casts,
-  setCasts,
-  currentEventName,
-  showAlert,
-}: UseCastNgManagementParams) {
+export function useCastNgManagement({ casts, setCasts, currentEventName, showAlert }: UseCastNgManagementParams) {
   // 選択中のキャスト、検索語、追加フォームという利用者の入力状態。
   const [selectedCastId, setSelectedCastId] = useState<number | null>(casts[0]?.id ?? null);
   const [search, setSearch] = useState('');
@@ -56,11 +31,7 @@ export function useCastNgManagement({
 
   // 削除確認の対象と、保存中表示に使う非同期操作の状態。
   const [pendingDelete, setPendingDelete] = useState<PendingCastNgDeletion | null>(null);
-  const {
-    isActive: isSaving,
-    run: runMutation,
-    getIsActive: isMutationInFlight,
-  } = useExclusiveMutation();
+  const { isActive: isSaving, run: runMutation, getIsActive: isMutationInFlight } = useExclusiveMutation();
 
   // 現在の名簿と検索語から、パネルが直接描画できる値を導出する。
   const filteredCasts = filterCastsByName(casts, search);
@@ -75,16 +46,7 @@ export function useCastNgManagement({
     setForm((current) => ({ ...current, ...patch }));
   }
 
-  async function persistCastNgEntries(
-    {
-      context,
-      castId,
-      entries,
-      failureMessage,
-      afterSave,
-      afterSettled,
-    }: PersistCastNgEntriesOptions,
-  ): Promise<void> {
+  async function persistCastNgEntries({ context, castId, entries, failureMessage, afterSave, afterSettled }: PersistCastNgEntriesOptions): Promise<void> {
     await runMutation(async () => {
       try {
         await updateCastFields(castId, { ng_entries: entries });
@@ -174,11 +136,7 @@ export function useCastNgManagement({
   }
 
   /** NG登録のメモだけを置き換え、同じイベントを表示中の場合だけ一覧を更新する。 */
-  async function updateNotes(
-    castId: number,
-    entryIndex: number,
-    notes: string,
-  ): Promise<void> {
+  async function updateNotes(castId: number, entryIndex: number, notes: string): Promise<void> {
     if (isMutationInFlight()) return;
     const context = getOpenEventContext(currentEventName);
     if (context === null) {
@@ -192,33 +150,8 @@ export function useCastNgManagement({
       return;
     }
     const nextEntries = updateCastNgEntryNotes(targetCast.ng_entries ?? [], entryIndex, notes);
-    await persistCastNgEntries({
-      context,
-      castId,
-      entries: nextEntries,
-      failureMessage: getMsg('NGUserManagementPage.detailsSaveFailed'),
-    });
+    await persistCastNgEntries({ context, castId, entries: nextEntries, failureMessage: getMsg('NGUserManagementPage.detailsSaveFailed') });
   }
 
-  return {
-    state: {
-      filteredCasts,
-      selectedCastId,
-      selectedCast,
-      search,
-      form,
-      isSaving,
-    },
-    actions: {
-      setSearch,
-      selectCast: setSelectedCastId,
-      updateForm,
-      add,
-      requestDelete,
-      updateNotes,
-    },
-    pendingDelete,
-    confirmDelete,
-    cancelDelete,
-  };
+  return { state: { filteredCasts, selectedCastId, selectedCast, search, form, isSaving }, actions: { setSearch, selectCast: setSelectedCastId, updateForm, add, requestDelete, updateNotes }, pendingDelete, confirmDelete, cancelDelete };
 }

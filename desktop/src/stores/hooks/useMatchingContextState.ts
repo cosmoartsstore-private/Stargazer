@@ -1,14 +1,7 @@
 import { useCallback, useState } from 'react';
-import type {
-  MatchedCast,
-  MatchingScoreSummary,
-  TableSlot,
-} from '@/features/matching/logics/matching-io';
+import type { MatchedCast, MatchingScoreSummary, TableSlot } from '@/features/matching/logics/matching-io';
 import { updateMatchingResultCastName } from '@/features/matching/logics/matching-result-integrity';
-import {
-  getInitialMatchingSettings,
-  type MatchingSettingsState,
-} from '@/features/matching/stores/matching-settings-store';
+import { getInitialMatchingSettings, type MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
 
 export interface MatchingResultState {
   result: Map<string, MatchedCast[]> | null;
@@ -19,20 +12,11 @@ export interface MatchingResultState {
   isSaved: boolean;
 }
 
-const EMPTY_MATCHING_RESULT_STATE: MatchingResultState = {
-  result: null,
-  tableSlots: undefined,
-  error: null,
-  isLocked: false,
-  scoreSummary: null,
-  isSaved: false,
-};
+const EMPTY_MATCHING_RESULT_STATE: MatchingResultState = { result: null, tableSlots: undefined, error: null, isLocked: false, scoreSummary: null, isSaved: false };
 
 export interface MatchingContextState {
   matchingSettings: MatchingSettingsState;
-  setMatchingSettings: (
-    state: MatchingSettingsState | ((previous: MatchingSettingsState) => MatchingSettingsState)
-  ) => void;
+  setMatchingSettings: (state: MatchingSettingsState | ((previous: MatchingSettingsState) => MatchingSettingsState)) => void;
   matchingResultState: MatchingResultState;
   updateMatchingResult: (patch: Partial<MatchingResultState>) => void;
   updateMatchingCastName: (castId: number, name: string) => void;
@@ -41,12 +25,8 @@ export interface MatchingContextState {
 
 /** 端末設定と一時マッチング結果を管理し、キャスト改名を表示結果へ反映する。 */
 export function useMatchingContextState(): MatchingContextState {
-  const [matchingSettings, setMatchingSettingsState] = useState<MatchingSettingsState>(
-    () => getInitialMatchingSettings(),
-  );
-  const [matchingResultState, setMatchingResultState] = useState<MatchingResultState>(
-    EMPTY_MATCHING_RESULT_STATE,
-  );
+  const [matchingSettings, setMatchingSettingsState] = useState<MatchingSettingsState>(() => getInitialMatchingSettings());
+  const [matchingResultState, setMatchingResultState] = useState<MatchingResultState>(EMPTY_MATCHING_RESULT_STATE);
 
   const setMatchingSettings: MatchingContextState['setMatchingSettings'] = setMatchingSettingsState;
 
@@ -60,22 +40,10 @@ export function useMatchingContextState(): MatchingContextState {
 
   const updateMatchingCastName = useCallback((castId: number, name: string) => {
     setMatchingResultState((current) => {
-      const updated = updateMatchingResultCastName(
-        current.result,
-        current.tableSlots,
-        castId,
-        name,
-      );
+      const updated = updateMatchingResultCastName(current.result, current.tableSlots, castId, name);
       return { ...current, result: updated.resultMap, tableSlots: updated.tableSlots };
     });
   }, []);
 
-  return {
-    matchingSettings,
-    setMatchingSettings,
-    matchingResultState,
-    updateMatchingResult,
-    updateMatchingCastName,
-    resetMatching,
-  };
+  return { matchingSettings, setMatchingSettings, matchingResultState, updateMatchingResult, updateMatchingCastName, resetMatching };
 }

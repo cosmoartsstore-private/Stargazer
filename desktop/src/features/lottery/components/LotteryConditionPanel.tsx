@@ -1,13 +1,9 @@
 // 抽選条件の入力、確定当選者の要約、条件検証を表示する。
 
 import React, { useId } from 'react';
-import type { UserBean } from '@/common/types/entities';
 import type { SameDaySlotUnit } from '@/common/types/sessionWorkflow';
 import { CounterControl } from '@/components/CounterControl';
-import {
-  MATCHING_TYPE_LABELS,
-  type MatchingTypeCode,
-} from '@/features/matching/types/matching-type-codes';
+import { MATCHING_TYPE_LABELS, type MatchingTypeCode } from '@/features/matching/types/matching-type-codes';
 import { getMsg } from '@/messages/getMsg';
 import type { LotteryValidationResult } from '../services/lottery-validation';
 import { LotteryValidationPanel } from './LotteryValidationPanel';
@@ -39,7 +35,7 @@ interface LotteryConditionPanelProps {
   matchingTypeCode: MatchingTypeCode;
   lotteryCount: number;
   totalWinners: number;
-  guaranteedWinners: readonly UserBean[];
+  guaranteedCount: number;
   rotationCount: number;
   totalTables: number;
   usersPerTable: number;
@@ -63,33 +59,7 @@ interface LotteryConditionPanelProps {
   onRunLottery: () => void;
 }
 
-export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
-  matchingTypeCode,
-  lotteryCount,
-  totalWinners,
-  guaranteedWinners,
-  rotationCount,
-  totalTables,
-  usersPerTable,
-  castsPerRotation,
-  reserveSameDaySlots,
-  sameDaySlotCount,
-  sameDaySlotUnit,
-  validation,
-  readOnly = false,
-  runDisabled,
-  onLotteryCountChange,
-  onOpenGuaranteedSelect,
-  onMatchingTypeChange,
-  onRotationCountChange,
-  onTotalTablesChange,
-  onUsersPerTableChange,
-  onCastsPerRotationChange,
-  onReserveSameDaySlotsToggle,
-  onSameDaySlotCountChange,
-  onSameDaySlotUnitChange,
-  onRunLottery,
-}) => {
+export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({ matchingTypeCode, lotteryCount, totalWinners, guaranteedCount, rotationCount, totalTables, usersPerTable, castsPerRotation, reserveSameDaySlots, sameDaySlotCount, sameDaySlotUnit, validation, readOnly = false, runDisabled, onLotteryCountChange, onOpenGuaranteedSelect, onMatchingTypeChange, onRotationCountChange, onTotalTablesChange, onUsersPerTableChange, onCastsPerRotationChange, onReserveSameDaySlotsToggle, onSameDaySlotCountChange, onSameDaySlotUnitChange, onRunLottery }) => {
   const isLotteryOnlyMode = matchingTypeCode === 'M000';
   const isGroupMode = matchingTypeCode === 'M003';
   const matchingSettingsSlotClassName = [
@@ -110,6 +80,12 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
   const sameDaySlotCountLabel = getMsg(isGroupMode && sameDaySlotUnit === 'person'
     ? 'LotteryPage.sameDayPersonCount'
     : 'LotteryPage.sameDayTableCount');
+  const guaranteedWinnerSummary = guaranteedCount === 0
+    ? getMsg('LotteryPage.noGuaranteedWinners')
+    : getMsg('LotteryPage.guaranteedWinnerRegisteredCount', { count: guaranteedCount });
+  const guaranteedWinnerActionLabel = guaranteedCount === 0
+    ? getMsg('LotteryPage.selectGuaranteedWinners')
+    : getMsg('LotteryPage.reviewGuaranteedWinners');
 
   return (
     <section className={`${shared.sectionBlock} ${styles.workflowConditionBlock}`}>
@@ -134,18 +110,14 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
               <div className={styles.workflowInlineCard__header}>
                 <strong>{getMsg('LotteryPage.guaranteedWinners')}</strong>
                 <span className={styles.workflowInlineCard__meta}>{getMsg('LotteryPage.totalWinnerCount', { count: totalWinners })}</span>
-                <button type="button" className={shared.btnSecondary} disabled={readOnly} onClick={onOpenGuaranteedSelect}>{getMsg('LotteryPage.selectGuaranteedWinners')}</button>
+                <button type="button" className={shared.btnSecondary} disabled={readOnly} onClick={onOpenGuaranteedSelect}>{guaranteedWinnerActionLabel}</button>
               </div>
-              <p className={styles.workflowInlineCard__registrationCount}>{getMsg('LotteryPage.guaranteedWinnerRegisteredCount', { count: guaranteedWinners.length })}</p>
+              <p className={styles.workflowInlineCard__registrationCount}>{guaranteedWinnerSummary}</p>
             </div>
 
             <div className={`${shared.formGroup} ${styles.workflowFormWide}`}>
               <span id={matchingTypeLabelId} className={shared.formLabel}>{getMsg('LotteryPage.matchingType')}</span>
-              <div className={styles.matchingTypeOptions} role="group" aria-labelledby={matchingTypeLabelId}>
-                {MATCHING_TYPE_DISPLAY_ORDER.map((code) => (
-                  <MatchingTypeOptionButton key={code} code={code} selected={matchingTypeCode === code} disabled={readOnly} onSelect={onMatchingTypeChange} />
-                ))}
-              </div>
+              <div className={styles.matchingTypeOptions} role="group" aria-labelledby={matchingTypeLabelId}>{MATCHING_TYPE_DISPLAY_ORDER.map((code) => (<MatchingTypeOptionButton key={code} code={code} selected={matchingTypeCode === code} disabled={readOnly} onSelect={onMatchingTypeChange} />))}</div>
             </div>
 
             <div className={styles.workflowVariableSettings}>
@@ -214,15 +186,7 @@ export const LotteryConditionPanel: React.FC<LotteryConditionPanelProps> = ({
           </div>
         </div>
 
-        <aside className={styles.workflowConditionStatus}>
-          <LotteryValidationPanel
-            validation={validation}
-            title={getMsg('LotteryPage.statusTitle')}
-            description={getMsg('LotteryPage.statusDescription')}
-            onRunClick={onRunLottery}
-            runDisabled={runDisabled ?? readOnly}
-          />
-        </aside>
+        <aside className={styles.workflowConditionStatus}><LotteryValidationPanel validation={validation} title={getMsg('LotteryPage.statusTitle')} description={getMsg('LotteryPage.statusDescription')} onRunClick={onRunLottery} runDisabled={runDisabled ?? readOnly} /></aside>
       </div>
     </section>
   );

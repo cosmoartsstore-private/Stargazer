@@ -3,6 +3,8 @@
    ======================================== */
 
 .guide-page {
+  max-width: 1560px;
+  padding-bottom: 60px;
   /* ガイド本体はテーマのアクセント調整を継承せず、固定した案内用配色で表示する。 */
   --surface-panel: rgba(0, 0, 0, 0.25);
   --surface-page: transparent;
@@ -61,10 +63,43 @@
   --border-tab: #bdd8ea;
   --button-primary-bg: #2d8fd3;
   --button-primary-hover-bg: #247cc0;
-  --button-secondary-bg: #e5f1f8;
-  --button-secondary-hover-bg: #d6e9f4;
+  --button-secondary-bg: #ffffff;
+  --button-secondary-hover-bg: #ffffff;
   --guide-accent-primary: #2d8fd3;
   --guide-accent-output: #dc5b66;
+}
+
+.guide-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.guide-tab {
+  padding: 8px 20px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.guide-tab--active {
+  border-bottom-color: var(--accent-primary);
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.guide-flow-page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
 }
 
 .guide-flow-content {
@@ -76,6 +111,45 @@
 .guide-section {
   min-width: 0;
   margin: 0;
+}
+
+.guide-stella-section {
+  min-width: 0;
+}
+
+.guide-stella-card {
+  padding: 18px 22px;
+}
+
+.guide-stella-description {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.guide-stella-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.guide-stella-button {
+  min-width: 160px;
+}
+
+.guide-stella-message {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.guide-stella-message--success {
+  color: var(--text-success, #03b800);
+}
+
+.guide-stella-message--error {
+  color: var(--accent-danger, #ed4245);
 }
 
 .guide-section-title {

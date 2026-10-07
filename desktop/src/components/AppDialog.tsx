@@ -48,22 +48,7 @@ export function useRestoreFocusOnDialogUnmount(): void {
   }, []);
 }
 
-export function AppDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  children,
-  className = '',
-  contentStyle,
-  titleClassName = '',
-  headerClassName = '',
-  descriptionClassName = '',
-  closeClassName = '',
-  showClose = false,
-  useDefaultContentClass = true,
-  closeOnInteractOutside = true,
-}: AppDialogProps) {
+export function AppDialog({ open, onOpenChange, title, description, children, className = '', contentStyle, titleClassName = '', headerClassName = '', descriptionClassName = '', closeClassName = '', showClose = false, useDefaultContentClass = true, closeOnInteractOutside = true }: AppDialogProps) {
   useRestoreFocusOnDialogUnmount();
   // ポータル配置先、aria属性、追加クラスを公開propsから導出する。
   const modalContainer =

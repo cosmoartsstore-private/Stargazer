@@ -4,15 +4,9 @@
  */
 
 import { STORAGE_KEYS } from '@/common/config';
-import {
-  readBrowserStorageItem,
-  writeBrowserStorageItem,
-} from '@/common/browserStorage';
+import { readBrowserStorageItem, writeBrowserStorageItem } from '@/common/browserStorage';
 import { DEFAULT_THEME_ID, THEME_IDS, type ThemeId } from '@/common/themes';
-import {
-  normalizeThemeCustomization,
-  type ThemeCustomizationState,
-} from '@/common/themeCustomization';
+import { normalizeThemeCustomization, type ThemeCustomizationState } from '@/common/themeCustomization';
 
 /** JSON 文字列を object として読み取る。壊れた JSON や配列は復元不可として扱う。 */
 function parseStoredObject(raw: string | null): Record<string, unknown> | null {

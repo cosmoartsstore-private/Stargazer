@@ -1,10 +1,7 @@
 import React from 'react';
 import { AppDialog } from '@/components/AppDialog';
 import { getMsg } from '@/messages/getMsg';
-import {
-  getImportHeaderLabel,
-  type ImportSourceRow,
-} from '../importPreviewModel';
+import { getImportHeaderLabel, type ImportSourceRow } from '../importPreviewModel';
 import styles from '../ImportPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -19,24 +16,9 @@ interface RawColumnsDialogProps {
 }
 
 /** 元TSVの全セルを、取込後も保持する元行番号で確認するダイアログ。 */
-export const RawColumnsDialog: React.FC<RawColumnsDialogProps> = ({
-  open,
-  headers,
-  sourceRows,
-  columnIndexes,
-  issueRowNumbers,
-  xIdColumnIndex,
-  onOpenChange,
-}) => {
+export const RawColumnsDialog: React.FC<RawColumnsDialogProps> = ({ open, headers, sourceRows, columnIndexes, issueRowNumbers, xIdColumnIndex, onOpenChange }) => {
   return (
-    <AppDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={getMsg('ImportPage.rawColumnsDialogTitle')}
-      showClose
-      className={styles.importRawModal}
-      headerClassName={styles.importRawModalHeader}
-    >
+    <AppDialog open={open} onOpenChange={onOpenChange} title={getMsg('ImportPage.rawColumnsDialogTitle')} showClose className={styles.importRawModal} headerClassName={styles.importRawModalHeader}>
       <div className={styles.importRawModalMeta}>
         <span>{getMsg('ImportPage.columnCount', { count: columnIndexes.length })}</span>
         <span>{getMsg('ImportPage.rowCount', { count: sourceRows.length })}</span>

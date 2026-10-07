@@ -1,31 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-} from '@/db/repositories/commandContext';
-import {
-  persistEventCautionThreshold,
-  type MatchingSettingsState,
-} from '@/features/matching/stores/matching-settings-store';
+import { getOpenEventContext, isCurrentEventContext } from '@/db/repositories/commandContext';
+import { persistEventCautionThreshold, type MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
 import { getMsg } from '@/messages/getMsg';
 import { resolveDisplayedThreshold } from '../ngUserManagementModel';
 
 interface UseCautionThresholdParams {
   currentEventName: string | null;
   savedThreshold: number;
-  setMatchingSettings: (
-    state: MatchingSettingsState | ((current: MatchingSettingsState) => MatchingSettingsState),
-  ) => void;
+  setMatchingSettings: (state: MatchingSettingsState | ((current: MatchingSettingsState) => MatchingSettingsState)) => void;
   showAlert: (message: string) => void;
 }
 
 /** 要注意候補の閾値下書きと、イベント共有DBへの保存を調停する。 */
-export function useCautionThreshold({
-  currentEventName,
-  savedThreshold,
-  setMatchingSettings,
-  showAlert,
-}: UseCautionThresholdParams) {
+export function useCautionThreshold({ currentEventName, savedThreshold, setMatchingSettings, showAlert }: UseCautionThresholdParams) {
   const [thresholdDraft, setThresholdDraft] = useState(() => String(savedThreshold));
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
   const mutationInFlightRef = useRef<Promise<boolean> | null>(null);
@@ -56,10 +43,7 @@ export function useCautionThreshold({
       try {
         await persistEventCautionThreshold(nextThreshold);
         if (!isCurrentEventContext(context)) return false;
-        setMatchingSettings((current) => ({
-          ...current,
-          caution: { ...current.caution, candidateThreshold: nextThreshold },
-        }));
+        setMatchingSettings((current) => ({ ...current, caution: { ...current.caution, candidateThreshold: nextThreshold } }));
         return true;
       } catch {
         if (isCurrentEventContext(context)) {
@@ -79,11 +63,5 @@ export function useCautionThreshold({
     return commitPromise;
   }
 
-  return {
-    thresholdDraft,
-    displayedThreshold,
-    isSavingThreshold,
-    setThresholdDraft,
-    commitThreshold,
-  };
+  return { thresholdDraft, displayedThreshold, isSavingThreshold, setThresholdDraft, commitThreshold };
 }

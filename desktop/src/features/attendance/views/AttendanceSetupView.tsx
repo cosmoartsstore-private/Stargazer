@@ -17,15 +17,7 @@ interface AttendanceSetupViewProps {
   onTogglePresence: (castId: number, isPresent: boolean) => Promise<void>;
 }
 
-export function AttendanceSetupView({
-  casts,
-  presentCount,
-  groupedPresent,
-  saving,
-  onOpenSaveModal,
-  onSetAll,
-  onTogglePresence,
-}: AttendanceSetupViewProps) {
+export function AttendanceSetupView({ casts, presentCount, groupedPresent, saving, onOpenSaveModal, onSetAll, onTogglePresence }: AttendanceSetupViewProps) {
   // 現在の出欠状態を、件数とグループ別表示へ変換する。
   const absentCount = casts.length - presentCount;
   const absentGroups = groupCastsByGroupName(casts.filter((cast) => !cast.is_present));
@@ -58,24 +50,8 @@ export function AttendanceSetupView({
       ) : (
         /* 出欠設定列を表示する場合 */
         <div className={styles.setupColumns}>
-          <AttendanceSetupColumn
-            title={getMsg('AttendanceSetupView.presentTitle')}
-            count={presentCount}
-            groups={groupedPresent}
-            variant="present"
-            badgeClassName={styles.setupColBadgePresent}
-            emptyLabel={getMsg('common.none')}
-            onSelect={onTogglePresence}
-          />
-          <AttendanceSetupColumn
-            title={getMsg('AttendanceSetupView.absentTitle')}
-            count={absentCount}
-            groups={absentGroups}
-            variant="absent"
-            badgeClassName={styles.setupColBadgeAbsent}
-            emptyLabel={getMsg('common.none')}
-            onSelect={onTogglePresence}
-          />
+          <AttendanceSetupColumn title={getMsg('AttendanceSetupView.presentTitle')} count={presentCount} groups={groupedPresent} variant="present" badgeClassName={styles.setupColBadgePresent} emptyLabel={getMsg('common.none')} onSelect={onTogglePresence} />
+          <AttendanceSetupColumn title={getMsg('AttendanceSetupView.absentTitle')} count={absentCount} groups={absentGroups} variant="absent" badgeClassName={styles.setupColBadgeAbsent} emptyLabel={getMsg('common.none')} onSelect={onTogglePresence} />
         </div>
       )}
     </div>
@@ -102,29 +78,13 @@ interface AttendanceCastChipProps {
   onSelect: (castId: number, isPresent: boolean) => Promise<void>;
 }
 
-function AttendanceCastChip({
-  castId,
-  name,
-  className,
-  ariaLabel,
-  statusLabel,
-  nextPresence,
-  onSelect,
-}: AttendanceCastChipProps) {
+function AttendanceCastChip({ castId, name, className, ariaLabel, statusLabel, nextPresence, onSelect }: AttendanceCastChipProps) {
   const handleClick = () => { void onSelect(castId, nextPresence); };
 
   return <button type="button" className={className} aria-label={ariaLabel} data-status-label={statusLabel} onClick={handleClick}>{name}</button>;
 }
 
-function AttendanceSetupColumn({
-  title,
-  count,
-  groups,
-  variant,
-  badgeClassName,
-  emptyLabel,
-  onSelect,
-}: AttendanceSetupColumnProps) {
+function AttendanceSetupColumn({ title, count, groups, variant, badgeClassName, emptyLabel, onSelect }: AttendanceSetupColumnProps) {
   const isAbsentColumn = variant === 'absent';
 
   return (

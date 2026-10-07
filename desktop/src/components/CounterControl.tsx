@@ -21,16 +21,7 @@ function clampCounterValue(value: number, min?: number, max?: number): number {
   return max === undefined ? aboveMin : Math.min(max, aboveMin);
 }
 
-export const CounterControl: React.FC<CounterControlProps> = ({
-  value,
-  onChange,
-  label,
-  min,
-  max,
-  step = 1,
-  disabled = false,
-  className,
-}) => {
+export const CounterControl: React.FC<CounterControlProps> = ({ value, onChange, label, min, max, step = 1, disabled = false, className }) => {
   // 現在値と増減操作を、propsで指定された範囲へ正規化する。
   const normalizedValue = clampCounterValue(value, min, max);
   const setNextValue = useCallback((nextValue: number) => {
@@ -82,18 +73,7 @@ export const CounterControl: React.FC<CounterControlProps> = ({
   return (
     <div className={rootClassName}>
       <button type="button" className={styles.counterButton} onClick={decrement} disabled={decrementDisabled} aria-label={getMsg('CounterControl.decrease', { label })}>-</button>
-      <div
-        className={styles.counterValue}
-        role="spinbutton"
-        tabIndex={disabled ? -1 : 0}
-        onKeyDown={handleKeyDown}
-        onWheel={handleWheel}
-        aria-label={label}
-        aria-valuenow={normalizedValue}
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-disabled={disabled}
-      >{normalizedValue}</div>
+      <div className={styles.counterValue} role="spinbutton" tabIndex={disabled ? -1 : 0} onKeyDown={handleKeyDown} onWheel={handleWheel} aria-label={label} aria-valuenow={normalizedValue} aria-valuemin={min} aria-valuemax={max} aria-disabled={disabled}>{normalizedValue}</div>
       <button type="button" className={styles.counterButton} onClick={increment} disabled={incrementDisabled} aria-label={getMsg('CounterControl.increase', { label })}>+</button>
     </div>
   );

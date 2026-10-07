@@ -148,9 +148,7 @@ tbody tr:nth-child(even) {
   background-color: var(--surface-subtle);
 }
 
-/* ========================================
-   Keyframe animations (global, referenced by modules)
-   ======================================== */
+/* 複数の CSS module から参照する keyframes。 */
 
 @keyframes pageFadeIn {
   from { opacity: 0; }

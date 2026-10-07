@@ -1,43 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
-import {
-  getCastAttendanceHistory,
-  getCastAttendanceRecordDates,
-  getAllCasts,
-  hasCastAttendanceForDate,
-  recordCastAttendance,
-  setAllCastPresence,
-  updateCastFields,
-} from '@/db';
-import {
-  captureEventWriteActivity,
-  getOpenEventContext,
-  isEventWriteActivityUnchanged,
-  isCurrentEventContext,
-  runAsEventRecovery,
-  waitForEventWritesToSettle,
-  type EventCommandContext,
-} from '@/db/repositories/commandContext';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { getCastAttendanceHistory, getCastAttendanceRecordDates, getAllCasts, hasCastAttendanceForDate, recordCastAttendance, setAllCastPresence, updateCastFields } from '@/db';
+import { captureEventWriteActivity, getOpenEventContext, isEventWriteActivityUnchanged, isCurrentEventContext, runAsEventRecovery, waitForEventWritesToSettle, type EventCommandContext } from '@/db/repositories/commandContext';
 import type { CastBean } from '@/common/types/entities';
 import { getMsg } from '@/messages/getMsg';
-import {
-  buildAttendanceMatrix,
-  groupCastsByGroupName,
-} from '../models/attendanceMatrix';
-import type {
-  AttendanceDateRecordStatus,
-  AttendanceHistoryLoadStatus,
-  AttendancePeriod,
-  AttendanceTab,
-  CastAttendanceRecord,
-} from '../models/types';
+import { buildAttendanceMatrix, groupCastsByGroupName } from '../models/attendanceMatrix';
+import type { AttendanceDateRecordStatus, AttendanceHistoryLoadStatus, AttendancePeriod, AttendanceTab, CastAttendanceRecord } from '../models/types';
 import { formatRecordDateValue, parseRecordDate } from '../models/recordDate';
 
 interface UseAttendanceStateParams {
@@ -75,10 +42,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   const presentCasts = useMemo(() => casts.filter((cast) => cast.is_present), [casts]);
   const presentCount = presentCasts.length;
   const groupedPresent = useMemo(() => groupCastsByGroupName(presentCasts), [presentCasts]);
-  const attendanceMatrix = useMemo(
-    () => buildAttendanceMatrix(casts, history, attendancePeriod, recordDates),
-    [attendancePeriod, casts, history, recordDates],
-  );
+  const attendanceMatrix = useMemo(() => buildAttendanceMatrix(casts, history, attendancePeriod, recordDates), [attendancePeriod, casts, history, recordDates]);
 
   // 現在のイベント世代だけに出欠履歴の読込結果を反映する。
   const loadData = useCallback(async () => {
@@ -105,10 +69,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
         historyLoadGenerationRef.current !== generation
         || !isCurrentEventContext(context)
       ) return;
-      const [nextHistory, nextRecordDates] = await Promise.all([
-        getCastAttendanceHistory(),
-        getCastAttendanceRecordDates(),
-      ]);
+      const [nextHistory, nextRecordDates] = await Promise.all([getCastAttendanceHistory(), getCastAttendanceRecordDates()]);
       if (
         historyLoadGenerationRef.current !== generation
         || !isCurrentEventContext(context)
@@ -129,9 +90,7 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
   }, [currentEventName]);
 
   // 更新失敗時は、他のイベント書込が停止した時点の名簿を復元する。
-  const restorePersistedCasts = useCallback(async (
-    context: EventCommandContext,
-  ): Promise<boolean> => {
+  const restorePersistedCasts = useCallback(async (context: EventCommandContext): Promise<boolean> => {
     return runAsEventRecovery(context, async () => {
       while (isCurrentEventContext(context)) {
         await waitForEventWritesToSettle(context);
@@ -313,16 +272,12 @@ export function useAttendanceState({ currentEventName, casts, setCasts }: UseAtt
         if (!isCurrentEventContext(context)) return;
         try {
           const restored = await restorePersistedCasts(context);
-          const hasLatestTarget = affectedCastIds.some(
-            (castId) => presenceMutationByCastIdRef.current.get(castId) === token,
-          );
+          const hasLatestTarget = affectedCastIds.some((castId) => presenceMutationByCastIdRef.current.get(castId) === token);
           if (restored && hasLatestTarget) {
             setAlertMessage(getMsg('useAttendanceState.presenceRollback'));
           }
         } catch {
-          const hasLatestTarget = affectedCastIds.some(
-            (castId) => presenceMutationByCastIdRef.current.get(castId) === token,
-          );
+          const hasLatestTarget = affectedCastIds.some((castId) => presenceMutationByCastIdRef.current.get(castId) === token);
           if (isCurrentEventContext(context) && hasLatestTarget) {
             setAlertMessage(getMsg('useAttendanceState.presenceSaveFailed'));
           }

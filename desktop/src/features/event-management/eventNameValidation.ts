@@ -1,5 +1,6 @@
-// イベント名はWindows上の保存先ディレクトリ名として同じ規則で扱う。
+// イベント名はWindows上の保存先directory名として同じ規則で扱う。
 export const EVENT_NAME_MAX_LENGTH = 64;
+export const EVENT_NOTES_MAX_LENGTH = 2_000;
 
 const EVENT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const WINDOWS_RESERVED_EVENT_NAME_PATTERN = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;

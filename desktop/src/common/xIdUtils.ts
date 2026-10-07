@@ -1,5 +1,7 @@
 /** Xのユーザー名を保存・比較・表示の各用途へ変換する。 */
 
+export const X_ACCOUNT_ID_INPUT_MAX_LENGTH = 16;
+
 const X_USERNAME_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
 
 /**
@@ -49,12 +51,8 @@ export interface XIdIdentityIssue extends XIdRowIdentity {
   kind: XIdIdentityIssueKind;
 }
 
-/**
- * 空、形式不正、または先頭の@と大文字小文字を除いて重複するX IDを返す。
- */
-export function findXIdIdentityIssues(
-  rows: XIdRowIdentity[],
-): XIdIdentityIssue[] {
+/** 空、形式不正、または先頭の@と大文字小文字を除いて重複するX IDを返す。 */
+export function findXIdIdentityIssues(rows: XIdRowIdentity[]): XIdIdentityIssue[] {
   const counts = new Map<string, number>();
   for (const row of rows) {
     const key = normalizeXAccountId(row.xId);

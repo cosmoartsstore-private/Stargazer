@@ -69,9 +69,7 @@ export function getMsg(key: string, params: MessageParams = {}): string {
   const template = messages.get(key);
   if (template === undefined) throw new Error(`文言キー「${key}」が定義されていません。`);
 
-  const escapedTemplate = template
-    .split('{{').join(LITERAL_OPEN_BRACE)
-    .split('}}').join(LITERAL_CLOSE_BRACE);
+  const escapedTemplate = template.split('{{').join(LITERAL_OPEN_BRACE).split('}}').join(LITERAL_CLOSE_BRACE);
   const resolved = escapedTemplate.replace(PLACEHOLDER_PATTERN, (_, name: string) => {
     if (!(name in params)) {
       throw new Error(`文言キー「${key}」の変数「${name}」が指定されていません。`);
@@ -79,7 +77,5 @@ export function getMsg(key: string, params: MessageParams = {}): string {
     return String(params[name]);
   });
 
-  return resolved
-    .split(LITERAL_OPEN_BRACE).join('{')
-    .split(LITERAL_CLOSE_BRACE).join('}');
+  return resolved.split(LITERAL_OPEN_BRACE).join('{').split(LITERAL_CLOSE_BRACE).join('}');
 }

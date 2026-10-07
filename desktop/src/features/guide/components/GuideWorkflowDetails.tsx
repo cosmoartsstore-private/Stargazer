@@ -19,81 +19,7 @@ interface WorkflowStep {
   };
 }
 
-const WORKFLOW_STEPS: readonly WorkflowStep[] = [
-  {
-    number: 1,
-    icon: <FileText size={18} />,
-    title: getMsg('GuidePage.flow.import.title'),
-    items: [
-      getMsg('GuidePage.flow.import.step1'),
-      getMsg('GuidePage.flow.import.step2'),
-      getMsg('GuidePage.flow.import.step3'),
-      getMsg('GuidePage.flow.import.step4'),
-    ],
-    preview: { feature: 'import' },
-  },
-  {
-    number: 2,
-    icon: <Database size={18} />,
-    title: getMsg('GuidePage.flow.applicantData.title'),
-    items: [
-      getMsg('GuidePage.flow.applicantData.step1'),
-      getMsg('GuidePage.flow.applicantData.step2'),
-      getMsg('GuidePage.flow.applicantData.step3'),
-      getMsg('GuidePage.flow.applicantData.step4'),
-    ],
-    preview: { feature: 'applicant-data' },
-  },
-  {
-    number: 3,
-    icon: <Users size={18} />,
-    title: getMsg('GuidePage.flow.attendance.title'),
-    items: [
-      getMsg('GuidePage.flow.attendance.step1'),
-      getMsg('GuidePage.flow.attendance.step2'),
-      getMsg('GuidePage.flow.attendance.step3'),
-      getMsg('GuidePage.flow.attendance.step4'),
-    ],
-    preview: { feature: 'attendance' },
-  },
-  {
-    number: 4,
-    icon: <Settings size={18} />,
-    title: getMsg('GuidePage.flow.lottery.title'),
-    items: [
-      getMsg('GuidePage.flow.lottery.step1'),
-      getMsg('GuidePage.flow.lottery.step2'),
-      getMsg('GuidePage.flow.lottery.step3'),
-      getMsg('GuidePage.flow.lottery.step4'),
-      getMsg('GuidePage.flow.lottery.step5'),
-    ],
-    preview: { feature: 'lottery' },
-  },
-  {
-    number: 5,
-    icon: <CheckCircle size={18} />,
-    title: getMsg('GuidePage.flow.matching.title'),
-    items: [
-      getMsg('GuidePage.flow.matching.step1'),
-      getMsg('GuidePage.flow.matching.step2'),
-      getMsg('GuidePage.flow.matching.step3'),
-      getMsg('GuidePage.flow.matching.step4'),
-    ],
-    preview: { feature: 'matching' },
-  },
-  {
-    number: 6,
-    icon: <BarChart3 size={18} />,
-    title: getMsg('GuidePage.flow.output.title'),
-    items: [
-      getMsg('GuidePage.flow.output.step1'),
-      getMsg('GuidePage.flow.output.step2'),
-      getMsg('GuidePage.flow.output.step3'),
-      getMsg('GuidePage.flow.output.step4'),
-    ],
-    preview: { feature: 'matching', initialScrollTop: 700 },
-  },
-];
+const WORKFLOW_STEPS: readonly WorkflowStep[] = [{ number: 1, icon: <FileText size={18} />, title: getMsg('GuidePage.flow.import.title'), items: [getMsg('GuidePage.flow.import.step1'), getMsg('GuidePage.flow.import.step2'), getMsg('GuidePage.flow.import.step3'), getMsg('GuidePage.flow.import.step4')], preview: { feature: 'import' } }, { number: 2, icon: <Database size={18} />, title: getMsg('GuidePage.flow.applicantData.title'), items: [getMsg('GuidePage.flow.applicantData.step1'), getMsg('GuidePage.flow.applicantData.step2'), getMsg('GuidePage.flow.applicantData.step3'), getMsg('GuidePage.flow.applicantData.step4')], preview: { feature: 'applicant-data' } }, { number: 3, icon: <Users size={18} />, title: getMsg('GuidePage.flow.attendance.title'), items: [getMsg('GuidePage.flow.attendance.step1'), getMsg('GuidePage.flow.attendance.step2'), getMsg('GuidePage.flow.attendance.step3'), getMsg('GuidePage.flow.attendance.step4')], preview: { feature: 'attendance' } }, { number: 4, icon: <Settings size={18} />, title: getMsg('GuidePage.flow.lottery.title'), items: [getMsg('GuidePage.flow.lottery.step1'), getMsg('GuidePage.flow.lottery.step2'), getMsg('GuidePage.flow.lottery.step3'), getMsg('GuidePage.flow.lottery.step4'), getMsg('GuidePage.flow.lottery.step5')], preview: { feature: 'lottery' } }, { number: 5, icon: <CheckCircle size={18} />, title: getMsg('GuidePage.flow.matching.title'), items: [getMsg('GuidePage.flow.matching.step1'), getMsg('GuidePage.flow.matching.step2'), getMsg('GuidePage.flow.matching.step3'), getMsg('GuidePage.flow.matching.step4')], preview: { feature: 'matching' } }, { number: 6, icon: <BarChart3 size={18} />, title: getMsg('GuidePage.flow.output.title'), items: [getMsg('GuidePage.flow.output.step1'), getMsg('GuidePage.flow.output.step2'), getMsg('GuidePage.flow.output.step3'), getMsg('GuidePage.flow.output.step4')], preview: { feature: 'matching', initialScrollTop: 700 } }];
 
 interface FlowStepHeaderProps {
   headingId: string;
@@ -123,18 +49,10 @@ const WorkflowStepCard: React.FC<{ step: WorkflowStep }> = ({ step }) => {
 
   return (
     <article className={styles.guideCard} style={{ padding: 0, overflow: 'hidden' }} aria-labelledby={headingId}>
-      <FlowStepHeader
-        headingId={headingId}
-        number={step.number}
-        icon={step.icon}
-        title={step.title}
-      />
+      <FlowStepHeader headingId={headingId} number={step.number} icon={step.icon} title={step.title} />
       <div className={styles.guideWorkflowStepLayout}>
         <FlowStepList items={step.items} />
-        <GuideActualFeaturePreview
-          feature={step.preview.feature}
-          initialScrollTop={step.preview.initialScrollTop}
-        />
+        <GuideActualFeaturePreview feature={step.preview.feature} initialScrollTop={step.preview.initialScrollTop} />
       </div>
     </article>
   );
@@ -147,8 +65,6 @@ export const GuideWorkflowDetails: React.FC = () => (
       <FileText size={22} aria-hidden="true" />
       {getMsg('GuidePage.flow.stepDetailsTitle')}
     </h2>
-    <div className={styles.guideStackVertical}>
-      {WORKFLOW_STEPS.map(step => <WorkflowStepCard key={step.number} step={step} />)}
-    </div>
+    <div className={styles.guideStackVertical}>{WORKFLOW_STEPS.map(step => <WorkflowStepCard key={step.number} step={step} />)}</div>
   </section>
 );

@@ -26,10 +26,7 @@ export interface PreLotteryCheckState {
 
 function formatCastNames(names: string[]): string {
   if (names.length <= 3) return names.join(', ');
-  return getMsg('dataManagementNavigation.moreCastNames', {
-    names: names.slice(0, 3).join(', '),
-    count: names.length - 3,
-  });
+  return getMsg('dataManagementNavigation.moreCastNames', { names: names.slice(0, 3).join(', '), count: names.length - 3 });
 }
 
 /** 応募管理タブの利用可否を、抽選結果の鮮度を含めて判定する。 */
@@ -57,10 +54,7 @@ export function buildPreLotteryChecks(state: PreLotteryCheckState): PreLotteryCh
       label: getMsg('dataManagementNavigation.attendingCasts'),
       detail: state.attendingCastNames.length === 0
         ? getMsg('dataManagementNavigation.noAttendingCasts')
-        : getMsg('dataManagementNavigation.attendingCastSummary', {
-            count: state.attendingCastNames.length,
-            names: formatCastNames(state.attendingCastNames),
-          }),
+        : getMsg('dataManagementNavigation.attendingCastSummary', { count: state.attendingCastNames.length, names: formatCastNames(state.attendingCastNames) }),
     });
   }
 
@@ -68,9 +62,7 @@ export function buildPreLotteryChecks(state: PreLotteryCheckState): PreLotteryCh
     level: state.currentWinnerCount > 0 ? 'warning' : 'ok',
     label: getMsg('dataManagementNavigation.lotteryResult'),
     detail: state.currentWinnerCount > 0
-      ? getMsg('dataManagementNavigation.lotteryResultOverwrite', {
-          count: state.currentWinnerCount,
-        })
+      ? getMsg('dataManagementNavigation.lotteryResultOverwrite', { count: state.currentWinnerCount })
       : getMsg('common.none'),
   });
 

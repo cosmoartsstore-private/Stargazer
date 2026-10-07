@@ -21,16 +21,7 @@ interface SaveAttendanceModalProps {
   onSave: () => Promise<void>;
 }
 
-export function SaveAttendanceModal({
-  presentCasts,
-  presentCount,
-  saving,
-  recordDate,
-  dateRecordStatus,
-  onClose,
-  onRecordDateChange,
-  onSave,
-}: SaveAttendanceModalProps) {
+export function SaveAttendanceModal({ presentCasts, presentCount, saving, recordDate, dateRecordStatus, onClose, onRecordDateChange, onSave }: SaveAttendanceModalProps) {
   // 入力日付と保存状況から、保存可否と表示文言を導出する。
   const parsedRecordDate = parseRecordDate(recordDate);
   const hasInvalidRecordDate = recordDate.length === 10 && parsedRecordDate === null;
@@ -65,17 +56,7 @@ export function SaveAttendanceModal({
   };
 
   return (
-    <AppDialog
-      open
-      onOpenChange={handleOpenChange}
-      title={getMsg('SaveAttendanceModal.dialogTitle')}
-      showClose
-      useDefaultContentClass={false}
-      className={styles.saveModalPanel}
-      headerClassName={styles.modalHeader}
-      titleClassName={styles.modalTitle}
-      closeClassName={styles.modalClose}
-    >
+    <AppDialog open onOpenChange={handleOpenChange} title={getMsg('SaveAttendanceModal.dialogTitle')} showClose useDefaultContentClass={false} className={styles.saveModalPanel} headerClassName={styles.modalHeader} titleClassName={styles.modalTitle} closeClassName={styles.modalClose}>
       <form className={styles.saveModalForm} onSubmit={handleSubmit}>
         <div className={styles.saveModalBody}>
           <div className={styles.saveModalCol}>

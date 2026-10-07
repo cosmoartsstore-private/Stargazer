@@ -5,10 +5,7 @@
 
 import { readBrowserStorageItem, writeBrowserStorageItem } from '@/common/browserStorage';
 import { STORAGE_KEYS } from '@/common/config';
-import {
-  resolveImportColumnMapping,
-  type ColumnMapping,
-} from '@/common/importFormat';
+import { resolveImportColumnMapping, type ColumnMapping } from '@/common/importFormat';
 
 interface CachedImportMapping {
   headers: string[];
@@ -20,14 +17,7 @@ interface ImportMappingCacheStore {
   entries: CachedImportMapping[];
 }
 
-const COLUMN_INDEX_KEYS = [
-  'name',
-  'x_id',
-  'vrc_url',
-  'cast1',
-  'cast2',
-  'cast3',
-] as const satisfies readonly (keyof ColumnMapping)[];
+const COLUMN_INDEX_KEYS = ['name', 'x_id', 'vrc_url', 'cast1', 'cast2', 'cast3'] as const satisfies readonly (keyof ColumnMapping)[];
 
 function headersMatch(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((header, index) => header === right[index]);
@@ -49,10 +39,7 @@ function normalizeMapping(value: unknown, columnCount: number): ColumnMapping | 
     mapping[key] = columnIndex;
   }
   if (source.castInputType !== 'single' && source.castInputType !== 'multiple') return null;
-  return resolveImportColumnMapping({
-    ...mapping,
-    castInputType: source.castInputType,
-  });
+  return resolveImportColumnMapping({ ...mapping, castInputType: source.castInputType });
 }
 
 function parseCache(raw: string | null): CachedImportMapping[] {
@@ -87,19 +74,10 @@ export function getCachedImportColumnMapping(headers: readonly string[]): Column
 }
 
 /** 取込に使用した列マッピングを、元のヘッダー行と一組で端末へ保存する。 */
-export function persistImportColumnMapping(
-  headers: readonly string[],
-  mapping: ColumnMapping,
-): void {
+export function persistImportColumnMapping(headers: readonly string[], mapping: ColumnMapping): void {
   const normalizedMapping = normalizeMapping(resolveImportColumnMapping(mapping), headers.length);
   if (!normalizedMapping) return;
   const current = parseCache(readBrowserStorageItem(STORAGE_KEYS.IMPORT_COLUMN_MAPPINGS));
-  const nextStore: ImportMappingCacheStore = {
-    version: 1,
-    entries: [
-      ...current.filter((entry) => !headersMatch(entry.headers, headers)),
-      { headers: [...headers], mapping: normalizedMapping },
-    ],
-  };
+  const nextStore: ImportMappingCacheStore = { version: 1, entries: [...current.filter((entry) => !headersMatch(entry.headers, headers)), { headers: [...headers], mapping: normalizedMapping }] };
   writeBrowserStorageItem(STORAGE_KEYS.IMPORT_COLUMN_MAPPINGS, JSON.stringify(nextStore));
 }

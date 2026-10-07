@@ -13,16 +13,9 @@ import type { UserBean } from '@/common/types/entities';
 import { getMsg } from '@/messages/getMsg';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from '@/layout/appNavigation';
-import {
-  buildPreLotteryChecks,
-  type PreLotteryCheckItem,
-} from './dataManagementNavigation';
+import { buildPreLotteryChecks, type PreLotteryCheckItem } from './dataManagementNavigation';
 import { buildDataManagementViewModel } from './dataManagementViewModel';
-import {
-  DataManagementLanding,
-  MatchingHistoryPage,
-  SavedLotteryStartPage,
-} from './DataManagementStartPages';
+import { DataManagementLanding, MatchingHistoryPage, SavedLotteryStartPage } from './DataManagementStartPages';
 import shared from '@/styles/shared.module.css';
 import styles from './DataManagementPage.module.css';
 
@@ -43,32 +36,8 @@ function toWorkflowPage(page: PageType): WorkflowPage | null {
   return null;
 }
 
-export const DataManagementPage: React.FC<DataManagementPageProps> = ({
-  onImportUsers,
-  onImportNewUsers = onImportUsers,
-  initialImportData,
-  page,
-  onNavigate,
-  onUnsavedChange,
-  onBusyChange,
-}) => {
-  const {
-    activePage: contextPage,
-    setActivePage,
-    applicants,
-    casts,
-    currentWinners,
-    matchingResultState: {
-      result: globalMatchingResult,
-      tableSlots: globalTableSlots,
-      isLocked: isMatchingLocked,
-      isSaved: isMatchingResultSaved,
-    },
-    isLotteryResultCurrent,
-    sessionWorkflow,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-  } = useAppContext();
+export const DataManagementPage: React.FC<DataManagementPageProps> = ({ onImportUsers, onImportNewUsers = onImportUsers, initialImportData, page, onNavigate, onUnsavedChange, onBusyChange }) => {
+  const { activePage: contextPage, setActivePage, applicants, casts, currentWinners, matchingResultState: { result: globalMatchingResult, tableSlots: globalTableSlots, isLocked: isMatchingLocked, isSaved: isMatchingResultSaved }, isLotteryResultCurrent, sessionWorkflow, isLotteryInputReadOnly, hasSavedSessionResult } = useAppContext();
   const currentPage = page ?? contextPage;
   const navigate = onNavigate ?? setActivePage;
   const workflowPage = toWorkflowPage(currentPage);
@@ -97,43 +66,8 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
     || hasUnsavedLotteryResult
     || hasUnsavedMatchingResult;
 
-  const {
-    attendingCastNames,
-    hasApplicants,
-    applicantIdentityIssues,
-    hasApplicantIdentityIssues,
-    isLotteryOnly,
-    showUnavailableCastWarning,
-    hasUnavailableApplicantCastReferences,
-    hasUnavailableMatchingResultCasts,
-    hasUnresolvedCastReferences,
-    hasDeletedApplicantCastReferences,
-    unavailableCastNames,
-    disabledTabs,
-  } = useMemo(() => buildDataManagementViewModel({
-    applicants,
-    casts,
-    currentWinners,
-    matchingResult: globalMatchingResult,
-    tableSlots: globalTableSlots,
-    matchingTypeCode: sessionWorkflow.matchingTypeCode,
-    isLotteryResultCurrent,
-  }), [
-    applicants,
-    casts,
-    currentWinners,
-    globalMatchingResult,
-    globalTableSlots,
-    sessionWorkflow.matchingTypeCode,
-    isLotteryResultCurrent,
-  ]);
-  const dataIssueSignature = [
-    hasUnavailableApplicantCastReferences,
-    hasUnavailableMatchingResultCasts,
-    hasUnresolvedCastReferences,
-    hasDeletedApplicantCastReferences,
-    unavailableCastNames,
-  ].join('|');
+  const { attendingCastNames, hasApplicants, applicantIdentityIssues, hasApplicantIdentityIssues, isLotteryOnly, showUnavailableCastWarning, hasUnavailableApplicantCastReferences, hasUnavailableMatchingResultCasts, hasUnresolvedCastReferences, hasDeletedApplicantCastReferences, unavailableCastNames, disabledTabs } = useMemo(() => buildDataManagementViewModel({ applicants, casts, currentWinners, matchingResult: globalMatchingResult, tableSlots: globalTableSlots, matchingTypeCode: sessionWorkflow.matchingTypeCode, isLotteryResultCurrent }), [applicants, casts, currentWinners, globalMatchingResult, globalTableSlots, sessionWorkflow.matchingTypeCode, isLotteryResultCurrent]);
+  const dataIssueSignature = [hasUnavailableApplicantCastReferences, hasUnavailableMatchingResultCasts, hasUnresolvedCastReferences, hasDeletedApplicantCastReferences, unavailableCastNames].join('|');
 
   useEffect(() => {
     if (showUnavailableCastWarning) setDataIssueOpen(true);
@@ -173,21 +107,11 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
     if (workflowPage === 'matching' && disabledTabs.has('matching')) {
       navigate(hasApplicants ? 'lottery' : 'import');
     }
-  }, [
-    disabledTabs,
-    hasApplicantIdentityIssues,
-    hasApplicants,
-    navigate,
-    workflowPage,
-  ]);
+  }, [disabledTabs, hasApplicantIdentityIssues, hasApplicants, navigate, workflowPage]);
 
   const requestLotteryPage = () => {
     if (disabledTabs.has('lottery')) return;
-    const checks = buildPreLotteryChecks({
-      attendingCastNames,
-      currentWinnerCount: currentWinners.length,
-      isLotteryOnly,
-    });
+    const checks = buildPreLotteryChecks({ attendingCastNames, currentWinnerCount: currentWinners.length, isLotteryOnly });
     if (checks.every((check) => check.level === 'ok')) {
       navigateWithDraftCheck('lottery');
       return;
@@ -247,11 +171,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
     switch (currentPage) {
       case 'dataManagement':
         return (
-          <DataManagementLanding
-            onStartNewImport={() => navigate('importNew')}
-            onOpenSavedLottery={() => navigate('savedLottery')}
-            onOpenMatchingHistory={() => navigate('matchingHistory')}
-          />
+          <DataManagementLanding onStartNewImport={() => navigate('importNew')} onOpenSavedLottery={() => navigate('savedLottery')} onOpenMatchingHistory={() => navigate('matchingHistory')} />
         );
       case 'importNew':
         return (
@@ -260,30 +180,18 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
               <h1 className={`${shared.pageHeaderTitle} ${shared.pageHeaderTitleLg}`}>{getMsg('DataManagementStart.newImportPageTitle')}</h1>
               <p className={shared.pageHeaderSubtitle}>{getMsg('DataManagementStart.newImportPageDescription')}</p>
             </header>
-            <section className={shared.sectionBlock}>
-              <ImportPage onImportUsers={onImportNewUsers} onDraftChange={setImportDraftUnsaved} onBusyChange={setIsImportReading} />
-            </section>
+            <section className={shared.sectionBlock}><ImportPage onImportUsers={onImportNewUsers} onDraftChange={setImportDraftUnsaved} onBusyChange={setIsImportReading} /></section>
           </div>
         );
       case 'savedLottery':
         return (
-          <SavedLotteryStartPage
-            onOpened={() => navigate('lottery')}
-            onOpeningChange={setIsOpeningSavedLottery}
-            onBackToStart={() => navigate('dataManagement')}
-          />
+          <SavedLotteryStartPage onOpened={() => navigate('lottery')} onOpeningChange={setIsOpeningSavedLottery} onBackToStart={() => navigate('dataManagement')} />
         );
       case 'matchingHistory':
         return <MatchingHistoryPage onBackToStart={() => navigate('dataManagement')} />;
       case 'import':
         return (
-          <ApplicantDataPage
-            onImportUsers={onImportUsers}
-            initialImportData={initialImportData}
-            onDraftChange={setImportDraftUnsaved}
-            onBusyChange={setIsImportReading}
-            hasUnsavedImportDraft={importDraftUnsaved}
-          />
+          <ApplicantDataPage onImportUsers={onImportUsers} initialImportData={initialImportData} onDraftChange={setImportDraftUnsaved} onBusyChange={setIsImportReading} hasUnsavedImportDraft={importDraftUnsaved} />
         );
       case 'lottery':
         return hasApplicantIdentityIssues ? null : <LotteryPage onBusyChange={setIsLotterySaving} />;
@@ -356,16 +264,11 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
 
       {(showBackToStart || workflowPage !== null) && (
         <nav className={styles.workflowNavigation} aria-label={getMsg('DataManagementStart.workflowNavigation')}>
-          <button
-            type="button"
-            className={`${shared.btnSecondary} ${styles.workflowBackButton}`}
-            disabled={isDataManagementBusy}
-            onClick={() => {
+          <button type="button" className={`${shared.btnSecondary} ${styles.workflowBackButton}`} disabled={isDataManagementBusy} onClick={() => {
               if (workflowPage === 'lottery') navigate('import');
               else if (workflowPage === 'matching') navigate('lottery');
               else navigateWithDraftCheck('dataManagement');
-            }}
-          >
+            }}>
             <ArrowLeft size={16} aria-hidden="true" />
             {workflowBackLabel}
           </button>
@@ -383,14 +286,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
       )}
 
       {preLotteryChecks && (
-        <AppDialog
-          open
-          onOpenChange={handlePreLotteryOpenChange}
-          title={getMsg('DataManagementPage.preLotteryTitle')}
-          description={preLotteryMessage}
-          descriptionClassName={dialogStyles.modalMessage}
-          className={dialogStyles.modalContentWide}
-        >
+        <AppDialog open onOpenChange={handlePreLotteryOpenChange} title={getMsg('DataManagementPage.preLotteryTitle')} description={preLotteryMessage} descriptionClassName={dialogStyles.modalMessage} className={dialogStyles.modalContentWide}>
           <div className={styles.preLotteryTerminal}>
             {preLotteryChecks.map((item, index) => (
               <div key={index} className={styles.terminalLine}>
@@ -407,15 +303,7 @@ export const DataManagementPage: React.FC<DataManagementPageProps> = ({
         </AppDialog>
       )}
       {pendingDraftNavigation !== null && (
-        <ConfirmDialog
-          title={getMsg('DataManagementPage.discardImportDraftTitle')}
-          message={getMsg('DataManagementPage.discardImportDraftMessage')}
-          confirmLabel={getMsg('DataManagementPage.discardImportDraftConfirm')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={handleConfirmDraftNavigation}
-          onCancel={handleCancelDraftNavigation}
-        />
+        <ConfirmDialog title={getMsg('DataManagementPage.discardImportDraftTitle')} message={getMsg('DataManagementPage.discardImportDraftMessage')} confirmLabel={getMsg('DataManagementPage.discardImportDraftConfirm')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={handleConfirmDraftNavigation} onCancel={handleCancelDraftNavigation} />
       )}
     </div>
   );

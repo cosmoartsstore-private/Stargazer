@@ -46,10 +46,7 @@ export async function openSession(timestamp: string): Promise<void> {
     throw new Error(getMsg('database.eventNotOpen'));
   }
   if (_sessionDb) await closeSession();
-  const uri = await invoke<string>('get_session_db_uri', {
-    eventName: _eventName,
-    timestamp,
-  });
+  const uri = await invoke<string>('get_session_db_uri', { eventName: _eventName, timestamp });
   const db = await loadDatabase(uri);
   _sessionDb = db;
   _sessionTs = timestamp;

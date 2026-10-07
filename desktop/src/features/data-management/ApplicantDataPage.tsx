@@ -1,7 +1,9 @@
 // 応募者データの一覧表示・絞り込み・削除・再取込を管理するページ。
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getApplicantDisplayColumnValue, type ApplicantDisplayColumn } from '@/common/applicantDisplayColumns';
 import { AppDialog } from '@/components/AppDialog';
+import { ApplicantDisplayColumnDialog } from '@/components/ApplicantDisplayColumnDialog';
 import { AppSelect, type AppSelectOption } from '@/components/AppSelect';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import dialogStyles from '@/components/ConfirmModal.module.css';
@@ -12,11 +14,7 @@ import type { CastBean, UserBean } from '@/common/types/entities';
 import { buildXProfileUrl, formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { openExternalUrl } from '@/tauri';
-import {
-  buildApplicantListViewModel,
-  EMPTY_APPLICANT_ROW_DATA,
-  type ApplicantFilterMode,
-} from './applicantListModel';
+import { buildApplicantListViewModel, EMPTY_APPLICANT_ROW_DATA, type ApplicantFilterMode } from './applicantListModel';
 import { useApplicantMutations } from './hooks/useApplicantMutations';
 import styles from './ApplicantDataPage.module.css';
 import shared from '@/styles/shared.module.css';
@@ -37,7 +35,8 @@ function formatCastList(casts: string[]): string {
 }
 
 function getCastGridStyle(columnCount: number): React.CSSProperties {
-  return { gridTemplateColumns: `repeat(${columnCount}, minmax(128px, 128px))` };
+  const visibleColumnCount = Math.max(1, Math.min(columnCount, 3));
+  return { gridTemplateColumns: `repeat(${visibleColumnCount}, minmax(0, 1fr))` };
 }
 
 function getPreferenceLabel(user: UserBean, index: number): string {
@@ -65,15 +64,7 @@ const XProfileButton: React.FC<XProfileButtonProps> = ({ accountId, onRequestOpe
   const handleClick = () => onRequestOpen({ label, url: profileUrl });
 
   return (
-    <button
-      type="button"
-      className={styles.applicantXProfileLink}
-      aria-label={getMsg('ApplicantDataPage.openXProfileAriaLabel', { id: label })}
-      aria-haspopup="dialog"
-      onClick={handleClick}
-    >
-      {label}
-    </button>
+    <button type="button" className={styles.applicantXProfileLink} aria-label={getMsg('ApplicantDataPage.openXProfileAriaLabel', { id: label })} aria-haspopup="dialog" onClick={handleClick}>{label}</button>
   );
 };
 
@@ -91,41 +82,19 @@ interface DetailModalProps {
   onClose: () => void;
 }
 
-const ApplicantDetailModal: React.FC<DetailModalProps> = ({
-  user,
-  isCaution,
-  ngCastNames,
-  unavailablePreferenceIndexes,
-  casts,
-  extraFields,
-  isSaving,
-  readOnly,
-  onSave,
-  onRequestXProfileOpen,
-  onClose,
-}) => {
+const ApplicantDetailModal: React.FC<DetailModalProps> = ({ user, isCaution, ngCastNames, unavailablePreferenceIndexes, casts, extraFields, isSaving, readOnly, onSave, onRequestXProfileOpen, onClose }) => {
   // 詳細ダイアログの警告状態と希望形式を応募者データから導出する。
   const hasNgCasts = ngCastNames.length > 0;
   const hasUnavailablePreferences = unavailablePreferenceIndexes.length > 0;
   const isFlatPreference = user.preference_mode === 'flat';
-  const unavailablePreferenceIndexSet = useMemo(
-    () => new Set(unavailablePreferenceIndexes),
-    [unavailablePreferenceIndexes],
-  );
-  const [preferenceSelections, setPreferenceSelections] = useState<Record<number, string>>(
-    () => Object.fromEntries(
-      unavailablePreferenceIndexes.map((index) => [index, UNRESOLVED_PREFERENCE_VALUE]),
-    ),
-  );
-  const castById = useMemo(
-    () => new Map(casts.map((cast) => [cast.id, cast])),
-    [casts],
-  );
-  const castOptions: AppSelectOption[] = useMemo(() => [
-    { value: UNRESOLVED_PREFERENCE_VALUE, label: getMsg('ApplicantDataPage.selectReplacementCast') },
-    { value: REMOVE_PREFERENCE_VALUE, label: getMsg('ApplicantDataPage.removePreference') },
-    ...casts.map((cast) => ({ value: String(cast.id), label: cast.name })),
-  ], [casts]);
+  const unavailablePreferenceIndexSet = useMemo(() => new Set(unavailablePreferenceIndexes), [unavailablePreferenceIndexes]);
+  const [preferenceSelections, setPreferenceSelections] = useState<Record<number, string>>(() => Object.fromEntries(unavailablePreferenceIndexes.map((index) => [index, UNRESOLVED_PREFERENCE_VALUE])));
+  const [copiedDetailKey, setCopiedDetailKey] = useState<string | null>(null);
+  const [copyStatusMessage, setCopyStatusMessage] = useState('');
+  const [copyAlertMessage, setCopyAlertMessage] = useState<string | null>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
+  const castById = useMemo(() => new Map(casts.map((cast) => [cast.id, cast])), [casts]);
+  const castOptions: AppSelectOption[] = useMemo(() => [{ value: UNRESOLVED_PREFERENCE_VALUE, label: getMsg('ApplicantDataPage.selectReplacementCast') }, { value: REMOVE_PREFERENCE_VALUE, label: getMsg('ApplicantDataPage.removePreference') }, ...casts.map((cast) => ({ value: String(cast.id), label: cast.name }))], [casts]);
   const selectedCastIds = Array.from(
     { length: Math.max(user.casts.length, user.cast_ids?.length ?? 0) },
     (_, index) => {
@@ -139,14 +108,9 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
   );
   const hasDuplicateSelection = unavailablePreferenceIndexes.some((index) => {
     const castId = selectedCastIds[index];
-    return castId !== null && selectedCastIds.some(
-      (otherCastId, otherIndex) => otherIndex !== index && otherCastId === castId,
-    );
+    return castId !== null && selectedCastIds.some((otherCastId, otherIndex) => otherIndex !== index && otherCastId === castId);
   });
-  const hasUnresolvedSelection = unavailablePreferenceIndexes.some(
-    (index) => preferenceSelections[index] === undefined
-      || preferenceSelections[index] === UNRESOLVED_PREFERENCE_VALUE,
-  );
+  const hasUnresolvedSelection = unavailablePreferenceIndexes.some((index) => preferenceSelections[index] === undefined || preferenceSelections[index] === UNRESOLVED_PREFERENCE_VALUE);
   const canSave = !readOnly && hasUnavailablePreferences && !hasUnresolvedSelection && !hasDuplicateSelection && !isSaving;
   const titleBadgeLabel = hasUnavailablePreferences
     ? getMsg('ApplicantDataPage.castCorrectionRequired')
@@ -158,16 +122,16 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
   const handleOpenChange = (open: boolean) => {
     if (!open && !isSaving) onClose();
   };
+  useEffect(() => () => {
+    if (copyResetTimerRef.current !== null) window.clearTimeout(copyResetTimerRef.current);
+  }, []);
   const handlePreferenceChange = (index: number, value: string) => {
     setPreferenceSelections((current) => ({ ...current, [index]: value }));
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSave) return;
-    const nextCasts = Array.from(
-      { length: selectedCastIds.length },
-      (_, index) => user.casts[index] ?? '',
-    );
+    const nextCasts = Array.from({ length: selectedCastIds.length }, (_, index) => user.casts[index] ?? '');
     const nextCastIds = [...selectedCastIds];
     for (const index of unavailablePreferenceIndexes) {
       const castId = nextCastIds[index];
@@ -179,13 +143,24 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
         : [{ castId, castName: nextCasts[index] }]
     ));
     const updatedUser = isFlatPreference
-      ? {
-          ...user,
-          casts: activeFlatPreferences.map(({ castName }) => castName),
-          cast_ids: activeFlatPreferences.map(({ castId }) => castId),
-        }
+      ? { ...user, casts: activeFlatPreferences.map(({ castName }) => castName), cast_ids: activeFlatPreferences.map(({ castId }) => castId) }
       : { ...user, casts: nextCasts, cast_ids: nextCastIds };
     if (await onSave(updatedUser)) onClose();
+  };
+  const handleCopyDetailValue = async (key: string, label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedDetailKey(key);
+      setCopyStatusMessage(getMsg('ApplicantDataPage.copyStatus', { label }));
+      if (copyResetTimerRef.current !== null) window.clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = window.setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopiedDetailKey(null);
+        setCopyStatusMessage('');
+      }, 2000);
+    } catch {
+      setCopyAlertMessage(getMsg('ApplicantDataPage.copyFailed'));
+    }
   };
   const title = (
     <>
@@ -204,98 +179,105 @@ const ApplicantDetailModal: React.FC<DetailModalProps> = ({
     const labelId = `applicant-preference-label-${user.id ?? 'unknown'}-${index}`;
     return (
       <div className={styles.applicantPreferenceEditor}>
-        <span id={labelId} className={styles.applicantPreferenceOriginal}>
-          {getMsg('ApplicantDataPage.currentInvalidPreference', { name: castName })}
-        </span>
-        <AppSelect
-          value={preferenceSelections[index] ?? UNRESOLVED_PREFERENCE_VALUE}
-          onValueChange={(value) => handlePreferenceChange(index, value)}
-          options={castOptions}
-          disabled={isSaving}
-          className={styles.applicantPreferenceSelect}
-          ariaLabelledBy={labelId}
-        />
+        <span id={labelId} className={styles.applicantPreferenceOriginal}>{getMsg('ApplicantDataPage.currentInvalidPreference', { name: castName })}</span>
+        <AppSelect value={preferenceSelections[index] ?? UNRESOLVED_PREFERENCE_VALUE} onValueChange={(value) => handlePreferenceChange(index, value)} options={castOptions} disabled={isSaving} className={styles.applicantPreferenceSelect} ariaLabelledBy={labelId} />
       </div>
     );
   };
-  const preferenceIndexes = Array.from(
-    { length: Math.max(user.casts.length, user.cast_ids?.length ?? 0) },
-    (_, index) => index,
-  ).filter((index) => Boolean(user.casts[index]) || unavailablePreferenceIndexSet.has(index));
+  const preferenceIndexes = Array.from({ length: Math.max(user.casts.length, user.cast_ids?.length ?? 0) }, (_, index) => index).filter((index) => Boolean(user.casts[index]) || unavailablePreferenceIndexSet.has(index));
+  const renderCopyableValue = (key: string, label: string, value: string, content: React.ReactNode = value) => {
+    const isCopied = copiedDetailKey === key;
+    return (
+      <div className={styles.applicantDetailValue}>
+        <div className={`${styles.applicantDetailValueContent} ${shared.customScrollbar}`}>{content}</div>
+        {value !== '' && (
+          <button type="button" className={styles.applicantDetailCopyButton} aria-label={getMsg(
+              isCopied
+                ? 'ApplicantDataPage.copyCompleteAriaLabel'
+                : 'ApplicantDataPage.copyValueAriaLabel',
+              { label },
+            )} onClick={() => { void handleCopyDetailValue(key, label, value); }}>
+            {isCopied ? getMsg('ApplicantDataPage.copyComplete') : getMsg('ApplicantDataPage.copyValue')}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <AppDialog
-      open
-      onOpenChange={handleOpenChange}
-      title={title}
-      showClose
-      className={styles.applicantDetailModal}
-      titleClassName={styles.applicantDetailTitle}
-      closeOnInteractOutside={!isSaving}
-    >
-      <form className={styles.applicantDetailForm} onSubmit={handleSubmit}>
-        <div className={`${styles.applicantDetailModalBody} ${shared.customScrollbar}`}>
-          {hasUnavailablePreferences && !readOnly && (
-            <p className={styles.applicantPreferenceHelp} role="alert">
-              {getMsg('ApplicantDataPage.preferenceCorrectionHelp')}
-            </p>
-          )}
-          <dl className={styles.applicantRow__detailGrid}>
-            <dt>{getMsg('ApplicantDataPage.xIdLabel')}</dt>
-            <dd><XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} /></dd>
-
-            {user.vrc_url && (
-              <>
-                <dt>{getMsg('ApplicantDataPage.vrcUrlLabel')}</dt>
-                <dd><a href={user.vrc_url} target="_blank" rel="noreferrer">{user.vrc_url}</a></dd>
-              </>
+    <>
+      <AppDialog open onOpenChange={handleOpenChange} title={title} showClose className={styles.applicantDetailModal} titleClassName={styles.applicantDetailTitle} closeOnInteractOutside={!isSaving}>
+        <form className={styles.applicantDetailForm} onSubmit={handleSubmit}>
+          <p className={styles.applicantDetailCopyStatus} role="status" aria-live="polite" aria-atomic="true">{copyStatusMessage}</p>
+          <div className={`${styles.applicantDetailModalBody} ${shared.customScrollbar}`}>
+            {hasUnavailablePreferences && !readOnly && (
+              <p className={styles.applicantPreferenceHelp} role="alert">{getMsg('ApplicantDataPage.preferenceCorrectionHelp')}</p>
             )}
+            <dl className={styles.applicantRow__detailGrid}>
+              <dt>{getMsg('ApplicantDataPage.xIdLabel')}</dt>
+              <dd><XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} /></dd>
 
-            {isFlatPreference && !hasUnavailablePreferences ? (
-              /* 正常な一覧形式の希望キャストを1項目で表示する。 */
-              <>
-                <dt>{getMsg('ApplicantDataPage.preferredCasts')}</dt>
-                <dd>{formatCastList(user.casts)}</dd>
-              </>
-            ) : (
-              /* 修正対象を含む希望は、対象位置ごとに選び直せるよう表示する。 */
-              preferenceIndexes.map((index) => (
-                <React.Fragment key={index}>
-                  <dt>{getPreferenceLabel(user, index)}</dt>
-                  <dd>{renderPreferenceValue(index)}</dd>
+              {user.vrc_url && (
+                <>
+                  <dt>{getMsg('ApplicantDataPage.vrcUrlLabel')}</dt>
+                  <dd>
+                    {renderCopyableValue(
+                      'vrc-url',
+                      getMsg('ApplicantDataPage.vrcUrlLabel'),
+                      user.vrc_url,
+                      <a href={user.vrc_url} target="_blank" rel="noreferrer">{user.vrc_url}</a>,
+                    )}
+                  </dd>
+                </>
+              )}
+
+              {isFlatPreference && !hasUnavailablePreferences ? (
+                /* 正常な一覧形式の希望キャストを1項目で表示する。 */
+                <>
+                  <dt>{getMsg('ApplicantDataPage.preferredCasts')}</dt>
+                  <dd>{formatCastList(user.casts)}</dd>
+                </>
+              ) : (
+                /* 修正対象を含む希望は、対象位置ごとに選び直せるよう表示する。 */
+                preferenceIndexes.map((index) => (
+                  <React.Fragment key={index}>
+                    <dt>{getPreferenceLabel(user, index)}</dt>
+                    <dd>{renderPreferenceValue(index)}</dd>
+                  </React.Fragment>
+                ))
+              )}
+
+              {extraFields.map((field, index) => (
+                <React.Fragment key={`${field.key}-${index}`}>
+                  <dt>{field.key}</dt>
+                  <dd>{renderCopyableValue(`extra-${index}`, field.key, field.value)}</dd>
                 </React.Fragment>
-              ))
+              ))}
+
+              {hasNgCasts && (
+                <>
+                  <dt>{getMsg('ApplicantDataPage.ngCasts')}</dt>
+                  <dd className={styles.cautionReason}>{getMsg('ApplicantDataPage.ngReason', { names: ngCastNames.join('、') })}</dd>
+                </>
+              )}
+            </dl>
+
+            {hasDuplicateSelection && (
+              <p className={styles.applicantPreferenceError} role="alert">{getMsg('ApplicantDataPage.duplicatePreference')}</p>
             )}
-
-            {extraFields.map((field, index) => (
-              <React.Fragment key={`${field.key}-${index}`}>
-                <dt>{field.key}</dt>
-                <dd>{field.value}</dd>
-              </React.Fragment>
-            ))}
-
-            {hasNgCasts && (
-              <>
-                <dt>{getMsg('ApplicantDataPage.ngCasts')}</dt>
-                <dd className={styles.cautionReason}>{getMsg('ApplicantDataPage.ngReason', { names: ngCastNames.join('、') })}</dd>
-              </>
-            )}
-          </dl>
-
-          {hasDuplicateSelection && (
-            <p className={styles.applicantPreferenceError} role="alert">
-              {getMsg('ApplicantDataPage.duplicatePreference')}
-            </p>
+          </div>
+          {hasUnavailablePreferences && !readOnly && (
+            <footer className={`${dialogStyles.modalButtons} ${styles.applicantPreferenceActions}`}>
+              <button type="button" className={dialogStyles.modalBtnCancel} onClick={onClose} disabled={isSaving}>{getMsg('common.cancel')}</button>
+              <button type="submit" className={`${shared.btnPrimary} ${dialogStyles.modalBtnAction}`} disabled={!canSave}>{isSaving ? getMsg('ApplicantDataPage.savingPreferences') : getMsg('ApplicantDataPage.savePreferences')}</button>
+            </footer>
           )}
-        </div>
-        {hasUnavailablePreferences && !readOnly && (
-          <footer className={`${dialogStyles.modalButtons} ${styles.applicantPreferenceActions}`}>
-            <button type="button" className={dialogStyles.modalBtnCancel} onClick={onClose} disabled={isSaving}>{getMsg('common.cancel')}</button>
-            <button type="submit" className={`${shared.btnPrimary} ${dialogStyles.modalBtnAction}`} disabled={!canSave}>{isSaving ? getMsg('ApplicantDataPage.savingPreferences') : getMsg('ApplicantDataPage.savePreferences')}</button>
-          </footer>
-        )}
-      </form>
-    </AppDialog>
+        </form>
+      </AppDialog>
+      {copyAlertMessage && (
+        <NoticeDialog title={getMsg('ApplicantDataPage.pageTitle')} message={copyAlertMessage} closeLabel={getMsg('common.close')} onClose={() => setCopyAlertMessage(null)} />
+      )}
+    </>
   );
 };
 
@@ -308,13 +290,14 @@ interface RowProps {
   isFlatList: boolean;
   flatCastColumnIndexes: number[];
   flatCastGridStyle: React.CSSProperties;
+  displayColumns: readonly ApplicantDisplayColumn[];
   readOnly: boolean;
   onSelect: (user: UserBean) => void;
   onRemove: (user: UserBean) => void;
   onRequestXProfileOpen: (target: PendingXProfile) => void;
 }
 
-const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, ngCastNames, unavailablePreferenceIndexes, isFlatList, flatCastColumnIndexes, flatCastGridStyle, readOnly, onSelect, onRemove, onRequestXProfileOpen }) => {
+const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, ngCastNames, unavailablePreferenceIndexes, isFlatList, flatCastColumnIndexes, flatCastGridStyle, displayColumns, readOnly, onSelect, onRemove, onRequestXProfileOpen }) => {
   // 行の警告表示と行内操作を、この応募者へ束縛する。
   const hasAttention = isCaution || ngCastNames.length > 0;
   const unavailablePreferenceIndexSet = new Set(unavailablePreferenceIndexes);
@@ -340,9 +323,7 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, 
   return (
     <tr className={rowClassName}>
       <td className={styles.applicantListNameCell}><button type="button" className={styles.applicantDetailButton} aria-label={getMsg('ApplicantDataPage.openDetailsAriaLabel', { label: applicantLabel })} onClick={handleSelect}>{user.name || getMsg('common.unnamed')}</button></td>
-      <td className={styles.applicantListIdCell}>
-        <XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} />
-      </td>
+      <td className={styles.applicantListIdCell}><XProfileButton accountId={user.x_id} onRequestOpen={onRequestXProfileOpen} /></td>
       {isFlatList ? (
         /* 希望キャストを一覧形式の1列で表示 */
         <td className={styles.applicantListFlatCastCell}>
@@ -370,7 +351,15 @@ const ApplicantRow = React.memo<RowProps>(({ user, isCaution, hasIdentityIssue, 
         </>
       )}
       <td className={styles.applicantListNgCell}><NgCastCell ngCastNames={ngCastNames} /></td>
-      <td><button type="button" className={styles.applicantDeleteButton} onClick={handleDelete} disabled={readOnly} aria-label={getMsg('ApplicantDataPage.deleteApplicantAriaLabel', { label: applicantLabel })}>×</button></td>
+      {displayColumns.map((column) => {
+        const value = getApplicantDisplayColumnValue(user, column);
+        return (
+          <td key={column.id} className={styles.applicantListOptionalCell}>
+            {value.trim() ? value : getMsg('common.emptyMarker')}
+          </td>
+        );
+      })}
+      <td className={styles.applicantListActionCell}><button type="button" className={styles.applicantDeleteButton} onClick={handleDelete} disabled={readOnly} aria-label={getMsg('ApplicantDataPage.deleteApplicantAriaLabel', { label: applicantLabel })}>×</button></td>
     </tr>
   );
 });
@@ -389,22 +378,9 @@ const NgCastCell: React.FC<NgCastCellProps> = ({ ngCastNames }) => {
   return <span className={styles.ngCastSummary}>{getMsg('ApplicantDataPage.ngCastSummary', { count: ngCastNames.length })}</span>;
 };
 
-export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
-  onImportUsers,
-  initialImportData,
-  onDraftChange,
-  onBusyChange,
-  hasUnsavedImportDraft = false,
-}) => {
+export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({ onImportUsers, initialImportData, onDraftChange, onBusyChange, hasUnsavedImportDraft = false }) => {
   // 応募者一覧の表示・削除と、後続工程の失効処理に必要な共有状態を取得する。
-  const {
-    applicants,
-    casts,
-    matchingSettings,
-    currentSessionTimestamp,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-  } = useAppContext();
+  const { applicants, casts, applicantDisplayColumns, selectedApplicantDisplayColumnIds, selectedApplicantDisplayColumns, setSelectedApplicantDisplayColumnIds, matchingSettings, currentSessionTimestamp, isLotteryInputReadOnly, hasSavedSessionResult } = useAppContext();
   const isSessionReadOnly = isLotteryInputReadOnly || hasSavedSessionResult;
 
   // 一覧の絞り込み、選択対象、各ダイアログの表示状態を保持する。
@@ -412,26 +388,14 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
   const [selectedUser, setSelectedUser] = useState<UserBean | null>(null);
   const [showImportForm, setShowImportForm] = useState(false);
   const [confirmCloseImportForm, setConfirmCloseImportForm] = useState(false);
+  const [displayColumnDialogOpen, setDisplayColumnDialogOpen] = useState(false);
+  const [displayColumnAlertMessage, setDisplayColumnAlertMessage] = useState<string | null>(null);
   const [xProfileAlertMessage, setXProfileAlertMessage] = useState<string | null>(null);
   const [pendingXProfile, setPendingXProfile] = useState<PendingXProfile | null>(null);
   const [isImportReading, setIsImportReading] = useState(false);
   const isXProfileOpeningRef = useRef(false);
 
-  const {
-    alertMessage,
-    removeTarget,
-    showClearConfirm,
-    isPreferenceSaving,
-    isMutatingApplicants,
-    saveApplicantPreferences,
-    handleRemoveClick,
-    handleOpenClearConfirm,
-    handleConfirmRemove,
-    handleConfirmClearAll,
-    handleDismissAlert,
-    handleCancelRemove,
-    handleCancelClearAll,
-  } = useApplicantMutations({ selectedUser, setSelectedUser, setShowImportForm });
+  const { alertMessage, removeTarget, showClearConfirm, isPreferenceSaving, isMutatingApplicants, saveApplicantPreferences, handleRemoveClick, handleOpenClearConfirm, handleConfirmRemove, handleConfirmClearAll, handleDismissAlert, handleCancelRemove, handleCancelClearAll } = useApplicantMutations({ selectedUser, setSelectedUser, setShowImportForm });
 
   // TSV読込とDB更新のどちらかが続く間、親画面の遷移ロックを維持する。
   const isBusy = isImportReading || isMutatingApplicants;
@@ -445,39 +409,15 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
     setSelectedUser(null);
     setFilterMode('all');
     setPendingXProfile(null);
+    setDisplayColumnDialogOpen(false);
   }, [currentSessionTimestamp]);
 
   // 応募者一覧の警告・絞り込み・希望列構造を純粋モデルから取得する。
-  const {
-    rowDataMap,
-    cautionCount,
-    castIssueCount,
-    filteredUsers,
-    isFlatList,
-    flatCastColumnIndexes,
-  } = useMemo(
-    () => buildApplicantListViewModel(
-      applicants,
-      casts,
-      filterMode,
-      matchingSettings.caution.cautionUsers,
-      matchingSettings.caution.candidateThreshold,
-    ),
-    [
-      applicants,
-      casts,
-      filterMode,
-      matchingSettings.caution.cautionUsers,
-      matchingSettings.caution.candidateThreshold,
-    ],
-  );
+  const { rowDataMap, cautionCount, castIssueCount, filteredUsers, isFlatList, flatCastColumnIndexes } = useMemo(() => buildApplicantListViewModel(applicants, casts, filterMode, matchingSettings.caution.cautionUsers, matchingSettings.caution.candidateThreshold), [applicants, casts, filterMode, matchingSettings.caution.cautionUsers, matchingSettings.caution.candidateThreshold]);
   const flatCastGridStyle = getCastGridStyle(flatCastColumnIndexes.length);
   // 行コンポーネントへ渡す選択操作の参照を安定させる。
   const handleSelect = useCallback((user: UserBean) => setSelectedUser(user), []);
-  const handleXProfileOpenError = useCallback(
-    () => setXProfileAlertMessage(getMsg('ApplicantDataPage.openXProfileFailed')),
-    [],
-  );
+  const handleXProfileOpenError = useCallback(() => setXProfileAlertMessage(getMsg('ApplicantDataPage.openXProfileFailed')), []);
   const handleRequestXProfileOpen = useCallback((target: PendingXProfile) => {
     if (!isXProfileOpeningRef.current) setPendingXProfile(target);
   }, []);
@@ -486,8 +426,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
     const { url } = pendingXProfile;
     isXProfileOpeningRef.current = true;
     setPendingXProfile(null);
-    void openExternalUrl(url)
-      .catch(handleXProfileOpenError)
+    void openExternalUrl(url).catch(handleXProfileOpenError)
       .finally(() => { isXProfileOpeningRef.current = false; });
   };
   const handleCancelXProfileOpen = () => {
@@ -504,9 +443,7 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
           {isSessionReadOnly ? (
             <p>{getMsg('ApplicantDataPage.savedResultReadOnly')}</p>
           ) : (
-            <fieldset className={styles.applicantImportFieldset}>
-              <ImportPage onImportUsers={onImportUsers} initialData={initialImportData} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} />
-            </fieldset>
+            <fieldset className={styles.applicantImportFieldset}><ImportPage onImportUsers={onImportUsers} initialData={initialImportData} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} /></fieldset>
           )}
         </section>
       </div>
@@ -543,9 +480,21 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
   };
   const handleCancelCloseImportForm = () => setConfirmCloseImportForm(false);
   const handleCloseDetail = () => setSelectedUser(null);
+  const handleOpenDisplayColumns = () => setDisplayColumnDialogOpen(true);
+  const handleCloseDisplayColumns = () => setDisplayColumnDialogOpen(false);
+  const handleApplyDisplayColumns = (columnIds: readonly string[]) => {
+    const saved = setSelectedApplicantDisplayColumnIds(columnIds);
+    setDisplayColumnDialogOpen(false);
+    if (!saved) setDisplayColumnAlertMessage(getMsg('ApplicantDisplayColumns.saveFailed'));
+  };
   const importFormButtonLabel = showImportForm
     ? getMsg('ApplicantDataPage.closeImport')
     : getMsg('ApplicantDataPage.reimport');
+  const displayColumnButtonLabel = selectedApplicantDisplayColumns.length === 0
+    ? getMsg('ApplicantDisplayColumns.addButton')
+    : getMsg('ApplicantDisplayColumns.changeButton');
+  const applicantTableBaseWidth = isFlatList ? 1006 : 1126;
+  const applicantTableMinWidth = applicantTableBaseWidth + selectedApplicantDisplayColumns.length * 240;
 
   // 選択中の応募者だけ、詳細ダイアログ用の追加項目を展開する。
   return (
@@ -572,6 +521,10 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
         </div>
 
         <div className={styles.applicantListHeader__actions}>
+          <div className={styles.applicantListDisplayColumnControl}>
+            <button type="button" className={`${shared.btnSecondary} ${styles.applicantListHeader__actionButton}`} aria-haspopup="dialog" onClick={handleOpenDisplayColumns}>{displayColumnButtonLabel}</button>
+            <span className={styles.applicantListDisplayColumnSummary} aria-live="polite">{getMsg('ApplicantDisplayColumns.selectedCount', { count: selectedApplicantDisplayColumns.length })}</span>
+          </div>
           {!isSessionReadOnly && (
             <button type="button" className={`${shared.btnSecondary} ${styles.applicantListHeader__actionButton}`} aria-expanded={showImportForm} aria-controls="applicant-reimport-form" onClick={handleToggleImportForm}>{importFormButtonLabel}</button>
           )}
@@ -581,140 +534,90 @@ export const ApplicantDataPage: React.FC<ApplicantDataPageProps> = ({
 
       {showImportForm && (
         <section id="applicant-reimport-form" className={`${shared.sectionBlock} ${styles.applicantReimportSection}`} aria-label={getMsg('ApplicantDataPage.reimportSectionAriaLabel')}>
-          <fieldset className={styles.applicantImportFieldset}>
-            <ImportPage onImportUsers={onImportUsers} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} />
-          </fieldset>
+          <fieldset className={styles.applicantImportFieldset}><ImportPage onImportUsers={onImportUsers} onDraftChange={onDraftChange} onBusyChange={setIsImportReading} /></fieldset>
         </section>
       )}
 
       {confirmCloseImportForm && (
-        <ConfirmDialog
-          title={getMsg('DataManagementPage.discardImportDraftTitle')}
-          message={getMsg('DataManagementPage.discardImportDraftMessage')}
-          confirmLabel={getMsg('DataManagementPage.discardImportDraftConfirm')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={handleConfirmCloseImportForm}
-          onCancel={handleCancelCloseImportForm}
-        />
+        <ConfirmDialog title={getMsg('DataManagementPage.discardImportDraftTitle')} message={getMsg('DataManagementPage.discardImportDraftMessage')} confirmLabel={getMsg('DataManagementPage.discardImportDraftConfirm')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={handleConfirmCloseImportForm} onCancel={handleCancelCloseImportForm} />
       )}
 
       <div className={`${shared.tableContainer} ${shared.customScrollbar} ${styles.applicantListTableContainer}`}>
-        <table className={styles.applicantListTable}>
+        <table className={styles.applicantListTable} style={{ minWidth: applicantTableMinWidth }}>
+          <colgroup>
+            <col className={styles.applicantListNameColumn} />
+            <col className={styles.applicantListIdColumn} />
+            {isFlatList ? (
+              <col className={styles.applicantListFlatCastColumn} />
+            ) : (
+              [0, 1, 2].map((index) => <col key={index} className={styles.applicantListCastColumn} />)
+            )}
+            <col className={styles.applicantListNgColumn} />
+            {selectedApplicantDisplayColumns.map((column) => (<col key={column.id} className={styles.applicantListOptionalColumn} />))}
+            <col className={styles.applicantListActionColumn} />
+          </colgroup>
           <thead>
             <tr>
-              <th className={styles.applicantListNameCell}>{getMsg('ApplicantDataPage.userNameHeader')}</th>
-              <th className={styles.applicantListIdCell}>{getMsg('ApplicantDataPage.xIdLabel')}</th>
+              <th scope="col" className={styles.applicantListNameCell}>{getMsg('ApplicantDataPage.userNameHeader')}</th>
+              <th scope="col" className={styles.applicantListIdCell}>{getMsg('ApplicantDataPage.xIdLabel')}</th>
               {isFlatList ? (
                 /* 一覧形式の希望キャスト見出しを表示 */
-                <th className={styles.applicantListFlatCastCell}>{getMsg('ApplicantDataPage.preferredCasts')}</th>
+                <th scope="col" className={styles.applicantListFlatCastCell}>{getMsg('ApplicantDataPage.preferredCasts')}</th>
               ) : (
                 /* 順位別の希望キャスト見出しを表示 */
                 <>
-                  <th className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 1 })}</th>
-                  <th className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 2 })}</th>
-                  <th className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 3 })}</th>
+                  <th scope="col" className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 1 })}</th>
+                  <th scope="col" className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 2 })}</th>
+                  <th scope="col" className={styles.applicantListCastCell}>{getMsg('ApplicantDataPage.preferredCastColumn', { rank: 3 })}</th>
                 </>
               )}
-              <th className={styles.applicantListNgCell}>{getMsg('ApplicantDataPage.ngCasts')}</th>
-              <th aria-label={getMsg('ApplicantDataPage.actionsAriaLabel')}></th>
+              <th scope="col" className={styles.applicantListNgCell}>{getMsg('ApplicantDataPage.ngCasts')}</th>
+              {selectedApplicantDisplayColumns.map((column) => (
+                <th key={column.id} scope="col" className={styles.applicantListOptionalHeader}>{column.label}</th>
+              ))}
+              <th scope="col" className={styles.applicantListActionCell} aria-label={getMsg('ApplicantDataPage.actionsAriaLabel')}></th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 && (
-              <tr><td colSpan={isFlatList ? 5 : 7} className={styles.applicantEmptyCell}>{getMsg('ApplicantDataPage.noMatchingData')}</td></tr>
+              <tr><td colSpan={(isFlatList ? 5 : 7) + selectedApplicantDisplayColumns.length} className={styles.applicantEmptyCell}>{getMsg('ApplicantDataPage.noMatchingData')}</td></tr>
             )}
             {filteredUsers.map((user, index) => {
               const rd = rowDataMap.get(user) ?? EMPTY_APPLICANT_ROW_DATA;
               return (
-                <ApplicantRow
-                  key={user.id ?? `${user.x_id}-${index}`}
-                  user={user}
-                  isCaution={rd.isCaution}
-                  hasIdentityIssue={rd.hasIdentityIssue}
-                  ngCastNames={rd.ngCastNames}
-                  unavailablePreferenceIndexes={rd.unavailablePreferenceIndexes}
-                  isFlatList={isFlatList}
-                  flatCastColumnIndexes={flatCastColumnIndexes}
-                  flatCastGridStyle={flatCastGridStyle}
-                  readOnly={isSessionReadOnly}
-                  onSelect={handleSelect}
-                  onRemove={handleRemoveClick}
-                  onRequestXProfileOpen={handleRequestXProfileOpen}
-                />
+                <ApplicantRow key={user.id ?? `${user.x_id}-${index}`} user={user} isCaution={rd.isCaution} hasIdentityIssue={rd.hasIdentityIssue} ngCastNames={rd.ngCastNames} unavailablePreferenceIndexes={rd.unavailablePreferenceIndexes} isFlatList={isFlatList} flatCastColumnIndexes={flatCastColumnIndexes} flatCastGridStyle={flatCastGridStyle} displayColumns={selectedApplicantDisplayColumns} readOnly={isSessionReadOnly} onSelect={handleSelect} onRemove={handleRemoveClick} onRequestXProfileOpen={handleRequestXProfileOpen} />
               );
             })}
           </tbody>
         </table>
       </div>
 
+      {displayColumnDialogOpen && (
+        <ApplicantDisplayColumnDialog columns={applicantDisplayColumns} selectedColumnIds={selectedApplicantDisplayColumnIds} onApply={handleApplyDisplayColumns} onClose={handleCloseDisplayColumns} />
+      )}
+
       {selectedUser && selectedRowData && (
-        <ApplicantDetailModal
-          key={selectedUser.id ?? selectedUser.x_id}
-          user={selectedUser}
-          isCaution={selectedRowData.isCaution}
-          ngCastNames={selectedRowData.ngCastNames}
-          unavailablePreferenceIndexes={selectedRowData.unavailablePreferenceIndexes}
-          casts={casts}
-          extraFields={selectedUser.raw_extra}
-          isSaving={isPreferenceSaving}
-          readOnly={isSessionReadOnly}
-          onSave={saveApplicantPreferences}
-          onRequestXProfileOpen={handleRequestXProfileOpen}
-          onClose={handleCloseDetail}
-        />
+        <ApplicantDetailModal key={selectedUser.id ?? selectedUser.x_id} user={selectedUser} isCaution={selectedRowData.isCaution} ngCastNames={selectedRowData.ngCastNames} unavailablePreferenceIndexes={selectedRowData.unavailablePreferenceIndexes} casts={casts} extraFields={selectedUser.raw_extra} isSaving={isPreferenceSaving} readOnly={isSessionReadOnly} onSave={saveApplicantPreferences} onRequestXProfileOpen={handleRequestXProfileOpen} onClose={handleCloseDetail} />
       )}
 
       {pendingXProfile && (
-        <ConfirmDialog
-          title={getMsg('ApplicantDataPage.openXProfileDialogTitle')}
-          message={getMsg('ApplicantDataPage.openXProfileConfirmMessage', { id: pendingXProfile.label })}
-          confirmLabel={getMsg('common.openLink')}
-          cancelLabel={getMsg('common.cancel')}
-          onConfirm={handleConfirmXProfileOpen}
-          onCancel={handleCancelXProfileOpen}
-        />
+        <ConfirmDialog title={getMsg('ApplicantDataPage.openXProfileDialogTitle')} message={getMsg('ApplicantDataPage.openXProfileConfirmMessage', { id: pendingXProfile.label })} confirmLabel={getMsg('common.openLink')} cancelLabel={getMsg('common.cancel')} onConfirm={handleConfirmXProfileOpen} onCancel={handleCancelXProfileOpen} />
       )}
 
       {alertMessage && (
-        <NoticeDialog
-          title={getMsg('ApplicantDataPage.pageTitle')}
-          message={alertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleDismissAlert}
-        />
+        <NoticeDialog title={getMsg('ApplicantDataPage.pageTitle')} message={alertMessage} closeLabel={getMsg('common.close')} onClose={handleDismissAlert} />
       )}
       {xProfileAlertMessage && (
-        <NoticeDialog
-          title={getMsg('ApplicantDataPage.xIdLabel')}
-          message={xProfileAlertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={() => setXProfileAlertMessage(null)}
-        />
+        <NoticeDialog title={getMsg('ApplicantDataPage.xIdLabel')} message={xProfileAlertMessage} closeLabel={getMsg('common.close')} onClose={() => setXProfileAlertMessage(null)} />
+      )}
+      {displayColumnAlertMessage && (
+        <NoticeDialog title={getMsg('ApplicantDisplayColumns.saveFailedTitle')} message={displayColumnAlertMessage} closeLabel={getMsg('common.close')} onClose={() => setDisplayColumnAlertMessage(null)} />
       )}
       {removeTarget !== null && (
-        <ConfirmDialog
-          title={getMsg('ApplicantDataPage.deleteDialogTitle')}
-          message={getMsg('ApplicantDataPage.deleteDialogMessage', {
-            label: removeTarget.name || formatXAccountIdForDisplay(removeTarget.x_id),
-          })}
-          confirmLabel={getMsg('common.delete')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={handleConfirmRemove}
-          onCancel={handleCancelRemove}
-        />
+        <ConfirmDialog title={getMsg('ApplicantDataPage.deleteDialogTitle')} message={getMsg('ApplicantDataPage.deleteDialogMessage', { label: removeTarget.name || formatXAccountIdForDisplay(removeTarget.x_id) })} confirmLabel={getMsg('common.delete')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={handleConfirmRemove} onCancel={handleCancelRemove} />
       )}
       {showClearConfirm && (
-        <ConfirmDialog
-          title={getMsg('ApplicantDataPage.deleteAllDialogTitle')}
-          message={getMsg('ApplicantDataPage.deleteAllDialogMessage', { count: applicants.length })}
-          confirmLabel={getMsg('ApplicantDataPage.deleteAll')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={handleConfirmClearAll}
-          onCancel={handleCancelClearAll}
-        />
+        <ConfirmDialog title={getMsg('ApplicantDataPage.deleteAllDialogTitle')} message={getMsg('ApplicantDataPage.deleteAllDialogMessage', { count: applicants.length })} confirmLabel={getMsg('ApplicantDataPage.deleteAll')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={handleConfirmClearAll} onCancel={handleCancelClearAll} />
       )}
     </div>
   );

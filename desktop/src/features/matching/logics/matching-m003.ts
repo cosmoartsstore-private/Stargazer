@@ -1,12 +1,7 @@
 import type { CastBean, UserBean } from '@/common/types/entities';
 import type { MatchedCast, MatchingResult, TableSlot } from './matching-io';
 import { getNGReasonForCast, isUserNGForCast } from './ng-judgment';
-import {
-  assignWithHungarian,
-  buildRotation,
-  getPreferenceRank,
-  getPreferenceScore,
-} from './matching-hungarian-engine';
+import { assignWithHungarian, buildRotation, getPreferenceRank, getPreferenceScore } from './matching-hungarian-engine';
 
 interface MultipleMatchingParams {
   usersPerTable: number;
@@ -21,9 +16,7 @@ function buildCastUnits(activeCasts: CastBean[], castsPerRotation: number): Cast
     return [];
   }
 
-  return Array.from({ length: activeCasts.length / castsPerRotation }, (_, index) =>
-    activeCasts.slice(index * castsPerRotation, (index + 1) * castsPerRotation),
-  );
+  return Array.from({ length: activeCasts.length / castsPerRotation }, (_, index) => activeCasts.slice(index * castsPerRotation, (index + 1) * castsPerRotation));
 }
 
 /** 当選順を維持して応募者を1テーブルあたりの人数に分ける。 */
@@ -32,17 +25,11 @@ function buildGuestGroups(winners: UserBean[], usersPerTable: number): UserBean[
     return winners.map((winner) => [winner]);
   }
 
-  return Array.from({ length: Math.ceil(winners.length / usersPerTable) }, (_, index) =>
-    winners.slice(index * usersPerTable, (index + 1) * usersPerTable),
-  );
+  return Array.from({ length: Math.ceil(winners.length / usersPerTable) }, (_, index) => winners.slice(index * usersPerTable, (index + 1) * usersPerTable));
 }
 
 /** 登録順で作ったキャスト組を各テーブルへ巡回させ、M003の割り当てを構築する。 */
-function runGroupRotation(
-  winners: UserBean[],
-  activeCasts: CastBean[],
-  params: Required<Pick<MultipleMatchingParams, 'usersPerTable' | 'castsPerRotation' | 'rotationCount'>> & Pick<MultipleMatchingParams, 'totalTables'>,
-): MatchingResult {
+function runGroupRotation(winners: UserBean[], activeCasts: CastBean[], params: Required<Pick<MultipleMatchingParams, 'usersPerTable' | 'castsPerRotation' | 'rotationCount'>> & Pick<MultipleMatchingParams, 'totalTables'>): MatchingResult {
   const userMap = new Map<string, MatchedCast[]>();
   const allCastUnits = buildCastUnits(activeCasts, params.castsPerRotation);
   const activeCastIds = new Set(activeCasts.map((cast) => cast.id));
@@ -99,10 +86,7 @@ function runGroupRotation(
   guestGroups.forEach((group, groupIndex) => {
     const slotIndex = assignment[groupIndex];
     const tableIndex = slotIndex + 1;
-    const roundCastGroups = rotation.map((round, roundIndex) => ({
-      roundIndex,
-      casts: round[slotIndex],
-    }));
+    const roundCastGroups = rotation.map((round, roundIndex) => ({ roundIndex, casts: round[slotIndex] }));
 
     group.forEach((winner) => {
       const matches = roundCastGroups.flatMap(({ roundIndex, casts }) =>
@@ -119,28 +103,11 @@ function runGroupRotation(
         }),
       );
       userMap.set(winner.x_id, matches);
-      tableSlots.push({
-        user: winner,
-        matches,
-        tableIndex,
-      });
+      tableSlots.push({ user: winner, matches, tableIndex });
     });
 
     for (let seatIndex = group.length; seatIndex < params.usersPerTable; seatIndex += 1) {
-      tableSlots.push({
-        user: null,
-        matches: roundCastGroups.flatMap(({ roundIndex, casts }) =>
-          casts.map((cast) => ({
-            cast,
-            rank: 0,
-            rotationIndex: roundIndex,
-            score: 0,
-            isNGWarning: false,
-            ngReason: null,
-          })),
-        ),
-        tableIndex,
-      });
+      tableSlots.push({ user: null, matches: roundCastGroups.flatMap(({ roundIndex, casts }) => casts.map((cast) => ({ cast, rank: 0, rotationIndex: roundIndex, score: 0, isNGWarning: false, ngReason: null }))), tableIndex });
     }
   });
 
@@ -150,20 +117,7 @@ function runGroupRotation(
 
     const tableIndex = slotIndex + 1;
     for (let seatIndex = 0; seatIndex < params.usersPerTable; seatIndex += 1) {
-      tableSlots.push({
-        user: null,
-        matches: rotation.flatMap((round, roundIndex) =>
-          round[slotIndex].map((cast) => ({
-            cast,
-            rank: 0,
-            rotationIndex: roundIndex,
-            score: 0,
-            isNGWarning: false,
-            ngReason: null,
-          })),
-        ),
-        tableIndex,
-      });
+      tableSlots.push({ user: null, matches: rotation.flatMap((round, roundIndex) => round[slotIndex].map((cast) => ({ cast, rank: 0, rotationIndex: roundIndex, score: 0, isNGWarning: false, ngReason: null }))), tableIndex });
     }
   }
 
@@ -173,22 +127,13 @@ function runGroupRotation(
 }
 
 /** M003のグループ制マッチングを、重複のない決定的なローテーションで実行する。 */
-export function runMultipleMatching(
-  winners: UserBean[],
-  allCasts: CastBean[],
-  params: MultipleMatchingParams,
-): MatchingResult {
+export function runMultipleMatching(winners: UserBean[], allCasts: CastBean[], params: MultipleMatchingParams): MatchingResult {
   const activeCasts = allCasts.filter((cast) => cast.is_present);
   const userMap = new Map<string, MatchedCast[]>();
   if (winners.length === 0 || activeCasts.length === 0) {
     return { userMap };
   }
 
-  const normalizedParams = {
-    usersPerTable: Math.max(1, params.usersPerTable),
-    castsPerRotation: Math.max(1, params.castsPerRotation),
-    rotationCount: Math.max(1, params.rotationCount),
-    totalTables: params.totalTables,
-  };
+  const normalizedParams = { usersPerTable: Math.max(1, params.usersPerTable), castsPerRotation: Math.max(1, params.castsPerRotation), rotationCount: Math.max(1, params.rotationCount), totalTables: params.totalTables };
   return runGroupRotation(winners, activeCasts, normalizedParams);
 }

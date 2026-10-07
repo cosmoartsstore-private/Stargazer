@@ -2,30 +2,17 @@ import React, { useMemo, useRef, useState } from 'react';
 import type { CastBean, UserBean } from '@/common/types/entities';
 import { downloadTsv } from '@/common/downloadTsv';
 import { NoticeDialog } from '@/components/ConfirmModal';
-import type {
-  MatchedCast,
-  MatchingScoreSummary,
-  TableSlot,
-} from '@/features/matching/logics/matching-io';
+import type { MatchedCast, MatchingScoreSummary, TableSlot } from '@/features/matching/logics/matching-io';
 import { CastAssignmentList } from '@/features/matching/components/MatchingResultCells';
 import { MatchingTableRows } from '@/features/matching/components/MatchingTableRows';
-import {
-  buildCastMatchingTsvRows,
-  exportElementAsPng,
-} from '@/features/matching/presenters/matching-result-export';
-import {
-  buildCastResultRows,
-  buildResultRows,
-  getAssignmentsForColumn,
-  getCastResultColumnKeys,
-  getCastResultColumnLabel,
-  groupTableSlots,
-} from '@/features/matching/presenters/matching-result-view';
+import { buildCastMatchingTsvRows, exportElementAsPng } from '@/features/matching/presenters/matching-result-export';
+import { buildCastResultRows, buildResultRows, getAssignmentsForColumn, getCastResultColumnKeys, getCastResultColumnLabel, groupTableSlots } from '@/features/matching/presenters/matching-result-view';
 import { getMsg } from '@/messages/getMsg';
 import styles from '../MatchingPage.module.css';
 import shared from '@/styles/shared.module.css';
 
 const DEFAULT_BACKUP_FILE_NAME = getMsg('MatchingPage.defaultBackupFileName');
+const EXPORT_FILE_NAME_MAX_LENGTH = 200;
 const CAST_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.castResultImageFileName');
 const TABLE_RESULT_IMAGE_FILE_NAME = getMsg('MatchingPage.tableResultImageFileName');
 
@@ -46,14 +33,7 @@ interface MatchingResultsViewProps {
 }
 
 /** 現行結果と保存済み履歴で共通の、キャスト別・テーブル別結果を表示する。 */
-export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
-  winners,
-  casts,
-  result,
-  tableSlots,
-  scoreSummary,
-  showExportActions,
-}) => {
+export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({ winners, casts, result, tableSlots, scoreSummary, showExportActions }) => {
   const castResultTableRef = useRef<HTMLDivElement>(null);
   const tableResultTableRef = useRef<HTMLDivElement>(null);
   // 再描画前の連続クリックと、二つの結果表の同時出力を同じロックで抑止する。
@@ -61,18 +41,9 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
   const [pngExportTarget, setPngExportTarget] = useState<PngExportTarget | null>(null);
   const [exportError, setExportError] = useState<ExportError | null>(null);
   const [backupFileName, setBackupFileName] = useState(DEFAULT_BACKUP_FILE_NAME);
-  const resultRows = useMemo(
-    () => buildResultRows(winners, result),
-    [result, winners],
-  );
-  const castResultRows = useMemo(
-    () => buildCastResultRows(resultRows, casts),
-    [casts, resultRows],
-  );
-  const castResultColumnKeys = useMemo(
-    () => getCastResultColumnKeys(resultRows),
-    [resultRows],
-  );
+  const resultRows = useMemo(() => buildResultRows(winners, result), [result, winners]);
+  const castResultRows = useMemo(() => buildCastResultRows(resultRows, casts), [casts, resultRows]);
+  const castResultColumnKeys = useMemo(() => getCastResultColumnKeys(resultRows), [resultRows]);
   const groupedTables = useMemo(() => groupTableSlots(tableSlots), [tableSlots]);
   const castResultTableMinWidth = Math.max(760, 220 + castResultColumnKeys.length * 260);
   const totalAssignmentCount = scoreSummary
@@ -83,17 +54,10 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
       + scoreSummary.unpreferredCount
     : 0;
 
-  const exportPng = async (
-    target: PngExportTarget,
-    node: HTMLElement | null,
-    filename: string,
-  ) => {
+  const exportPng = async (target: PngExportTarget, node: HTMLElement | null, filename: string) => {
     if (pngExportInProgressRef.current) return;
     if (!node) {
-      setExportError({
-        title: getMsg('MatchingPage.pngExportFailedTitle'),
-        message: getMsg('MatchingPage.pngExportFailed'),
-      });
+      setExportError({ title: getMsg('MatchingPage.pngExportFailedTitle'), message: getMsg('MatchingPage.pngExportFailed') });
       return;
     }
 
@@ -102,10 +66,7 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
     try {
       await exportElementAsPng(node, filename);
     } catch {
-      setExportError({
-        title: getMsg('MatchingPage.pngExportFailedTitle'),
-        message: getMsg('MatchingPage.pngExportFailed'),
-      });
+      setExportError({ title: getMsg('MatchingPage.pngExportFailedTitle'), message: getMsg('MatchingPage.pngExportFailed') });
     } finally {
       pngExportInProgressRef.current = false;
       setPngExportTarget(null);
@@ -122,15 +83,9 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
 
   const handleExportCastResultsAsTsv = () => {
     try {
-      downloadTsv(
-        buildCastMatchingTsvRows(castResultRows, castResultColumnKeys),
-        backupFileName || DEFAULT_BACKUP_FILE_NAME,
-      );
+      downloadTsv(buildCastMatchingTsvRows(castResultRows, castResultColumnKeys), backupFileName || DEFAULT_BACKUP_FILE_NAME);
     } catch {
-      setExportError({
-        title: getMsg('MatchingPage.tsvExportFailedTitle'),
-        message: getMsg('MatchingPage.tsvExportFailed'),
-      });
+      setExportError({ title: getMsg('MatchingPage.tsvExportFailedTitle'), message: getMsg('MatchingPage.tsvExportFailed') });
     }
   };
 
@@ -199,9 +154,7 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
                 <tr key={row.cast.id}>
                   <td className={`${shared.tableCell} ${styles.matchingResultTable__cast}`}>{row.cast.name}</td>
                   {castResultColumnKeys.map((columnKey) => (
-                    <td key={columnKey ?? 'none'} className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}>
-                      <CastAssignmentList assignments={getAssignmentsForColumn(row, columnKey)} />
-                    </td>
+                    <td key={columnKey ?? 'none'} className={`${shared.tableCell} ${styles.matchingResultTable__matches}`}><CastAssignmentList assignments={getAssignmentsForColumn(row, columnKey)} /></td>
                   ))}
                 </tr>
               ))}
@@ -213,7 +166,7 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
           <div className={styles.workflowResultToolbar} style={{ marginTop: 24 }}>
             <label className={`${shared.formGroup} ${styles.workflowResultToolbar__filename}`}>
               <span className={shared.formLabel}>{getMsg('MatchingPage.backupFileName')}</span>
-              <input type="text" className={shared.formInput} value={backupFileName} onChange={(event) => setBackupFileName(event.target.value)} placeholder={DEFAULT_BACKUP_FILE_NAME} />
+              <input type="text" className={shared.formInput} value={backupFileName} maxLength={EXPORT_FILE_NAME_MAX_LENGTH} onChange={(event) => setBackupFileName(event.target.value)} placeholder={DEFAULT_BACKUP_FILE_NAME} />
             </label>
             <button type="button" className={shared.btnExportPrimary} onClick={handleExportCastResultsAsTsv}>{getMsg('MatchingPage.saveTsv')}</button>
           </div>
@@ -252,12 +205,7 @@ export const MatchingResultsView: React.FC<MatchingResultsViewProps> = ({
       </section>
 
       {exportError && (
-        <NoticeDialog
-          title={exportError.title}
-          message={exportError.message}
-          closeLabel={getMsg('common.close')}
-          onClose={() => setExportError(null)}
-        />
+        <NoticeDialog title={exportError.title} message={exportError.message} closeLabel={getMsg('common.close')} onClose={() => setExportError(null)} />
       )}
     </>
   );

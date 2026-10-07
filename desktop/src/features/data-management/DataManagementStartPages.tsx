@@ -2,17 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, ArrowRight, FileInput, History, ListChecks } from 'lucide-react';
 import { NoticeDialog } from '@/components/ConfirmModal';
 import { MatchingResultsView } from '@/features/matching/components/MatchingResultsView';
-import {
-  getEventSavedMatchingResult,
-  listEventSavedMatchingResults,
-  restoreMatchingResultSnapshot,
-  type EventSavedMatchingResultDetail,
-  type EventSavedMatchingResultSummary,
-} from '@/db/repositories/matchingRepository';
-import {
-  listEventSavedLotteryResults,
-  type EventSavedLotteryResultSummary,
-} from '@/db/repositories/lotteryRepository';
+import { getEventSavedMatchingResult, listEventSavedMatchingResults, restoreMatchingResultSnapshot, type EventSavedMatchingResultDetail, type EventSavedMatchingResultSummary } from '@/db/repositories/matchingRepository';
+import { listEventSavedLotteryResults, type EventSavedLotteryResultSummary } from '@/db/repositories/lotteryRepository';
 import { useAppContext } from '@/stores/AppContext';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
@@ -24,38 +15,11 @@ interface DataManagementLandingProps {
   onOpenMatchingHistory: () => void;
 }
 
-const START_CARDS = [
-  {
-    id: 'new',
-    icon: FileInput,
-    titleKey: 'DataManagementStart.newImportTitle',
-    descriptionKey: 'DataManagementStart.newImportDescription',
-  },
-  {
-    id: 'lottery',
-    icon: Archive,
-    titleKey: 'DataManagementStart.savedLotteryTitle',
-    descriptionKey: 'DataManagementStart.savedLotteryDescription',
-  },
-  {
-    id: 'history',
-    icon: History,
-    titleKey: 'DataManagementStart.matchingHistoryTitle',
-    descriptionKey: 'DataManagementStart.matchingHistoryDescription',
-  },
-] as const;
+const START_CARDS = [{ id: 'new', icon: FileInput, titleKey: 'DataManagementStart.newImportTitle', descriptionKey: 'DataManagementStart.newImportDescription' }, { id: 'lottery', icon: Archive, titleKey: 'DataManagementStart.savedLotteryTitle', descriptionKey: 'DataManagementStart.savedLotteryDescription' }, { id: 'history', icon: History, titleKey: 'DataManagementStart.matchingHistoryTitle', descriptionKey: 'DataManagementStart.matchingHistoryDescription' }] as const;
 
 /** 新規取込と保存結果を、同じ階層の操作カードとして表示する。 */
-export const DataManagementLanding: React.FC<DataManagementLandingProps> = ({
-  onStartNewImport,
-  onOpenSavedLottery,
-  onOpenMatchingHistory,
-}) => {
-  const actions = {
-    new: onStartNewImport,
-    lottery: onOpenSavedLottery,
-    history: onOpenMatchingHistory,
-  };
+export const DataManagementLanding: React.FC<DataManagementLandingProps> = ({ onStartNewImport, onOpenSavedLottery, onOpenMatchingHistory }) => {
+  const actions = { new: onStartNewImport, lottery: onOpenSavedLottery, history: onOpenMatchingHistory };
   return (
     <div className={styles.startPage}>
       <header className={`${shared.pageHeader} ${shared.pageHeaderTight}`}>
@@ -82,11 +46,7 @@ interface SavedLotteryStartPageProps {
   onBackToStart: () => void;
 }
 
-export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
-  onOpened,
-  onOpeningChange,
-  onBackToStart,
-}) => {
+export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({ onOpened, onOpeningChange, onBackToStart }) => {
   const { currentEventName, activateSavedLotteryResult } = useAppContext();
   const [results, setResults] = useState<EventSavedLotteryResultSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,7 +128,7 @@ export const SavedLotteryStartPage: React.FC<SavedLotteryStartPageProps> = ({
                     <strong id={labelId}>{result.label}</strong>
                     <span id={metaId}>{getMsg('DataManagementStart.savedLotteryMeta', { count: result.winnerCount, date: result.createdAt })}</span>
                   </div>
-                  <button type="button" className={shared.btnPrimary} aria-labelledby={`${labelId} ${metaId} ${actionId}`} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
+                  <button type="button" className={shared.btnSecondary} aria-labelledby={`${labelId} ${metaId} ${actionId}`} disabled={openingSavedResultId !== null} onClick={() => { void handleOpen(result); }}>
                     <span id={actionId}>{getMsg(openingSavedResultId === result.savedResultId ? 'common.loading' : 'DataManagementStart.startMatching')}</span>
                   </button>
                 </li>
@@ -276,14 +236,7 @@ export const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ onBack
             <button type="button" className={shared.btnSecondary} onClick={handleBackToList}>{getMsg('MatchingHistory.backToList')}</button>
           </div>
         </header>
-        <MatchingResultsView
-          winners={restored.winners}
-          casts={restored.casts}
-          result={restored.result}
-          tableSlots={restored.tableSlots}
-          scoreSummary={restored.scoreSummary}
-          showExportActions
-        />
+        <MatchingResultsView winners={restored.winners} casts={restored.casts} result={restored.result} tableSlots={restored.tableSlots} scoreSummary={restored.scoreSummary} showExportActions />
       </div>
     );
   }
@@ -316,17 +269,10 @@ export const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ onBack
                     <strong id={labelId}>{result.label}</strong>
                     <span id={metaId}>{getMsg('MatchingHistory.listMeta', { count: result.winnerCount, date: result.createdAt })}</span>
                   </div>
-                  <button
-                    ref={(button) => {
+                  <button ref={(button) => {
                       if (button) resultButtonRefs.current.set(result.savedResultId, button);
                       else resultButtonRefs.current.delete(result.savedResultId);
-                    }}
-                    type="button"
-                    className={shared.btnSecondary}
-                    aria-labelledby={`${labelId} ${metaId} ${actionId}`}
-                    disabled={openingResultId !== null}
-                    onClick={() => { void handleOpen(result); }}
-                  >
+                    }} type="button" className={shared.btnSecondary} aria-labelledby={`${labelId} ${metaId} ${actionId}`} disabled={openingResultId !== null} onClick={() => { void handleOpen(result); }}>
                     <ListChecks size={16} aria-hidden="true" /><span id={actionId}>{getMsg(openingResultId === result.savedResultId ? 'common.loading' : 'MatchingHistory.open')}</span>
                   </button>
                 </li>

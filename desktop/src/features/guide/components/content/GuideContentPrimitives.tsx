@@ -74,9 +74,7 @@ export const Section: React.FC<{ title: string; children: React.ReactNode }> = (
         <div style={{ padding: '8px 14px', background: headerBackground, borderBottom: `1px solid ${sectionColor}` }}>
           <h3 id={headingId} style={{ fontSize: 11, fontWeight: headingWeight, color: headingColor, margin: 0, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</h3>
         </div>
-        <div className={styles.guideContentSectionBody} style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>
-          {children}
-        </div>
+        <div className={styles.guideContentSectionBody} style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-default)', lineHeight: 1.8, background: 'var(--surface-panel-muted)' }}>{children}</div>
       </div>
     </section>
   );

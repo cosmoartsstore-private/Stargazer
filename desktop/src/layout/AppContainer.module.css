@@ -98,8 +98,8 @@
   --border-tab: var(--border-default);
   --button-primary-bg: var(--theme-check-accent, #2d8fd3);
   --button-primary-hover-bg: var(--theme-check-accent-hover, #247cc0);
-  --button-secondary-bg: hsl(var(--theme-check-hue, 204) 75% 92%);
-  --button-secondary-hover-bg: hsl(var(--theme-check-hue, 204) 72% 87%);
+  --button-secondary-bg: #ffffff;
+  --button-secondary-hover-bg: #ffffff;
   --button-success-bg: var(--semantic-success-solid);
   --button-success-hover-bg: var(--semantic-active-green);
   --status-success-bg: var(--semantic-success-solid);

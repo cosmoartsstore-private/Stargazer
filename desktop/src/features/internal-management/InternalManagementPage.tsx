@@ -14,12 +14,7 @@ import shared from '@/styles/shared.module.css';
 type InternalTab = 'cast' | 'ngManagement' | 'tweet' | 'attendance';
 
 // 内部管理で表示するタブ定義。
-const INTERNAL_TABS: { id: InternalTab; label: string }[] = [
-  { id: 'cast', label: getMsg('InternalManagementPage.castTab') },
-  { id: 'ngManagement', label: getMsg('InternalManagementPage.ngManagementTab') },
-  { id: 'tweet', label: getMsg('InternalManagementPage.tweetTab') },
-  { id: 'attendance', label: getMsg('InternalManagementPage.attendanceTab') },
-];
+const INTERNAL_TABS: { id: InternalTab; label: string }[] = [{ id: 'cast', label: getMsg('InternalManagementPage.castTab') }, { id: 'ngManagement', label: getMsg('InternalManagementPage.ngManagementTab') }, { id: 'tweet', label: getMsg('InternalManagementPage.tweetTab') }, { id: 'attendance', label: getMsg('InternalManagementPage.attendanceTab') }];
 
 function toInternalTab(page: PageType): InternalTab {
   if (page === 'ngManagement' || page === 'tweet' || page === 'attendance') return page;
@@ -62,12 +57,7 @@ interface InternalManagementPageProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-export const InternalManagementPage: React.FC<InternalManagementPageProps> = ({
-  initialSelectedCastId,
-  initialNgTab,
-  previewMode = false,
-  onBusyChange,
-}) => {
+export const InternalManagementPage: React.FC<InternalManagementPageProps> = ({ initialSelectedCastId, initialNgTab, previewMode = false, onBusyChange }) => {
   // アプリ全体のページ状態を、内部管理の4タブへ正規化する。
   const { activePage, setActivePage } = useAppContext();
   const activeTab = toInternalTab(activePage);
@@ -131,11 +121,7 @@ export const InternalManagementPage: React.FC<InternalManagementPageProps> = ({
 
   return (
     <div className={shared.pageWrapper}>
-      <div className={shared.pageTabs} role="tablist" aria-label={getMsg('InternalManagementPage.tabListLabel')}>
-        {INTERNAL_TABS.map((tab) => (
-          <InternalTabButton key={tab.id} id={tab.id} label={tab.label} selected={activeTab === tab.id} disabled={isChildBusy} onSelect={handleTabSelect} onKeyDown={handleTabKeyDown} />
-        ))}
-      </div>
+      <div className={shared.pageTabs} role="tablist" aria-label={getMsg('InternalManagementPage.tabListLabel')}>{INTERNAL_TABS.map((tab) => (<InternalTabButton key={tab.id} id={tab.id} label={tab.label} selected={activeTab === tab.id} disabled={isChildBusy} onSelect={handleTabSelect} onKeyDown={handleTabKeyDown} />))}</div>
       <div id="internal-tabpanel" className={shared.pageTabContent} role="tabpanel" aria-labelledby={`internal-tab-${activeTab}`} tabIndex={0}>{renderContent()}</div>
     </div>
   );

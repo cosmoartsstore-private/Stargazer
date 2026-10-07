@@ -16,12 +16,7 @@ export interface MatchingSettingsState {
 
 /** DB読込前の空のイベント設定を返す。 */
 export function getInitialMatchingSettings(): MatchingSettingsState {
-  return {
-    caution: {
-      candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
-      cautionUsers: [],
-    },
-  };
+  return { caution: { candidateThreshold: DEFAULT_CAUTION_THRESHOLD, cautionUsers: [] } };
 }
 
 /** 現在のイベント共有DBから要注意候補の閾値を取得する。 */

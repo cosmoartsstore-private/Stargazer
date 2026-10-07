@@ -2,6 +2,7 @@ import type { ThemeId } from './themes';
 
 // 背景グラデーションの編集UIで許可する色数。
 export const CUSTOM_THEME_MAX_COLORS = 5;
+export const HEX_COLOR_INPUT_MAX_LENGTH = 7;
 const CUSTOM_THEME_MIN_COLORS = 1;
 
 export interface DefaultThemeCustomization {
@@ -27,17 +28,7 @@ interface RgbColor {
 }
 
 // 各テーマの初期表示と、保存値が不正な場合の復元先。
-export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomizationState = {
-  dark: {
-    accent: '#5865F2',
-    colors: ['#1A0A1A', '#05121B'],
-    direction: 135,
-    intensity: 70,
-  },
-  skyblue: {
-    hue: 204,
-  },
-};
+export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomizationState = { dark: { accent: '#5865F2', colors: ['#1A0A1A', '#05121B'], direction: 135, intensity: 70 }, skyblue: { hue: 204 } };
 
 // darkテーマの強度計算と、accentから導出する状態色の配合規則。
 const DARK_THEME_RECIPE = {
@@ -120,24 +111,12 @@ export function normalizeThemeCustomization(value: unknown): ThemeCustomizationS
   ) {
     return DEFAULT_THEME_CUSTOMIZATION;
   }
-  return {
-    dark: {
-      accent: normalizeHexColor(value.dark.accent, value.dark.accent),
-      colors: value.dark.colors.map((color) => normalizeHexColor(color, color)),
-      direction: value.dark.direction,
-      intensity: value.dark.intensity,
-    },
-    skyblue: { hue: value.skyblue.hue },
-  };
+  return { dark: { accent: normalizeHexColor(value.dark.accent, value.dark.accent), colors: value.dark.colors.map((color) => normalizeHexColor(color, color)), direction: value.dark.direction, intensity: value.dark.intensity }, skyblue: { hue: value.skyblue.hue } };
 }
 
 function parseHexColor(hex: string): RgbColor {
   const normalized = normalizeHexColor(hex, '#000000').slice(1);
-  return {
-    r: parseInt(normalized.slice(0, 2), 16),
-    g: parseInt(normalized.slice(2, 4), 16),
-    b: parseInt(normalized.slice(4, 6), 16),
-  };
+  return { r: parseInt(normalized.slice(0, 2), 16), g: parseInt(normalized.slice(2, 4), 16), b: parseInt(normalized.slice(4, 6), 16) };
 }
 
 function rgbToHex({ r, g, b }: RgbColor): string {
@@ -150,11 +129,7 @@ function rgba(color: RgbColor, alpha: number): string {
 
 function mixRgb(base: RgbColor, overlay: RgbColor, ratio: number): RgbColor {
   const clampedRatio = clamp(ratio, 0, 1);
-  return {
-    r: base.r + (overlay.r - base.r) * clampedRatio,
-    g: base.g + (overlay.g - base.g) * clampedRatio,
-    b: base.b + (overlay.b - base.b) * clampedRatio,
-  };
+  return { r: base.r + (overlay.r - base.r) * clampedRatio, g: base.g + (overlay.g - base.g) * clampedRatio, b: base.b + (overlay.b - base.b) * clampedRatio };
 }
 
 function shadeHex(hex: string, ratio: number): string {
@@ -185,11 +160,7 @@ function hslToRgb(hue: number, saturation: number, lightness: number): RgbColor 
     return p;
   };
 
-  return {
-    r: convert(h + 1 / 3) * 255,
-    g: convert(h) * 255,
-    b: convert(h - 1 / 3) * 255,
-  };
+  return { r: convert(h + 1 / 3) * 255, g: convert(h) * 255, b: convert(h - 1 / 3) * 255 };
 }
 
 function hslToHex(hue: number, saturation: number, lightness: number): string {
@@ -235,24 +206,14 @@ function buildCheckVariables(customization: CheckThemeCustomization): Record<str
     '--theme-check-accent': accent,
     '--theme-check-accent-hover': hslToHex(hue, CHECK_THEME_RECIPE.accentSaturation, CHECK_THEME_RECIPE.accentHoverLightness),
     '--theme-check-deep-text': hslToHex(hue, CHECK_THEME_RECIPE.deepTextSaturation, CHECK_THEME_RECIPE.deepTextLightness),
-    '--theme-check-muted-text': rgba(
-      hslToRgb(
-        hue,
-        CHECK_THEME_RECIPE.mutedTextSaturation,
-        CHECK_THEME_RECIPE.mutedTextLightness,
-      ),
-      CHECK_THEME_RECIPE.mutedTextAlpha,
-    ),
+    '--theme-check-muted-text': rgba(hslToRgb(hue, CHECK_THEME_RECIPE.mutedTextSaturation, CHECK_THEME_RECIPE.mutedTextLightness), CHECK_THEME_RECIPE.mutedTextAlpha),
     '--theme-check-link': hslToHex(hue, CHECK_THEME_RECIPE.linkSaturation, CHECK_THEME_RECIPE.linkLightness),
     '--theme-accent-rgb': rgbTriplet(accentRgb),
   };
 }
 
 /** 選択中テーマへ適用する CSS カスタムプロパティを返す。 */
-export function buildThemeCssVariables(
-  themeId: ThemeId,
-  customization: ThemeCustomizationState,
-): Record<string, string> {
+export function buildThemeCssVariables(themeId: ThemeId, customization: ThemeCustomizationState): Record<string, string> {
   return themeId === 'skyblue'
     ? buildCheckVariables(customization.skyblue)
     : buildDarkVariables(customization.dark);

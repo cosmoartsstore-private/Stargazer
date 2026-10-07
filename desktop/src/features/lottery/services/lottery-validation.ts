@@ -26,21 +26,7 @@ export interface LotteryValidationResult {
 }
 
 /** 抽選とマッチング条件の組み合わせを検証し、画面に表示するメッセージへ変換する。 */
-export function validateLotteryConditions({
-  matchingTypeCode,
-  totalWinners,
-  lotteryCount,
-  guaranteedCount = 0,
-  availableLotteryCandidateCount,
-  rotationCount,
-  totalTables,
-  activeCastCount,
-  castsPerRotation,
-  usersPerTable,
-  reserveSameDaySlots,
-  sameDaySlotCount = 0,
-  sameDaySlotUnit = 'table',
-}: LotteryValidationParams): LotteryValidationResult {
+export function validateLotteryConditions({ matchingTypeCode, totalWinners, lotteryCount, guaranteedCount = 0, availableLotteryCandidateCount, rotationCount, totalTables, activeCastCount, castsPerRotation, usersPerTable, reserveSameDaySlots, sameDaySlotCount = 0, sameDaySlotUnit = 'table' }: LotteryValidationParams): LotteryValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const info: string[] = [];
@@ -53,155 +39,75 @@ export function validateLotteryConditions({
     availableLotteryCandidateCount !== undefined
     && displayedLotteryCount > availableLotteryCandidateCount
   ) {
-    errors.push(getMsg('lotteryValidation.insufficientCandidates', {
-      lotteryCount: displayedLotteryCount,
-      candidateCount: availableLotteryCandidateCount,
-    }));
+    errors.push(getMsg('lotteryValidation.insufficientCandidates', { lotteryCount: displayedLotteryCount, candidateCount: availableLotteryCandidateCount }));
   }
 
   if (matchingTypeCode === 'M000') {
     info.push(getMsg('lotteryValidation.lotteryOnlyInfo'));
   } else if (matchingTypeCode === 'M003') {
-    const {
-      completeCastUnitCount,
-      physicalSeatCount,
-      reservedSeatCount,
-      lotterySeatCount,
-      unreservedEmptySeatCount,
-      hasUnreservedEmptySeats,
-      hasUnreservedEmptyTables,
-      hasIncompleteCastUnit,
-      staffedTableCount,
-      expectedCapacity,
-    } = selectM003Capacity({
-      totalTables,
-      usersPerTable,
-      totalWinners,
-      activeCastCount,
-      castsPerRotation,
-      reservedSameDaySlotCount: normalizedSameDaySlotCount,
-      sameDaySlotUnit,
-    });
+    const { completeCastUnitCount, physicalSeatCount, reservedSeatCount, lotterySeatCount, unreservedEmptySeatCount, hasUnreservedEmptySeats, hasUnreservedEmptyTables, hasIncompleteCastUnit, staffedTableCount, expectedCapacity } = selectM003Capacity({ totalTables, usersPerTable, totalWinners, activeCastCount, castsPerRotation, reservedSameDaySlotCount: normalizedSameDaySlotCount, sameDaySlotUnit });
 
     info.push(getMsg(sameDaySlotUnit === 'table'
       ? 'lotteryValidation.groupSeatSummaryByTable'
-      : 'lotteryValidation.groupSeatSummaryByPerson', {
-      totalTables,
-      physicalSeatCount,
-      sameDaySlotCount: normalizedSameDaySlotCount,
-      reservedSeatCount,
-      lotterySeatCount,
-    }));
+      : 'lotteryValidation.groupSeatSummaryByPerson', { totalTables, physicalSeatCount, sameDaySlotCount: normalizedSameDaySlotCount, reservedSeatCount, lotterySeatCount }));
 
     if (reservedSeatCount > physicalSeatCount) {
-      errors.push(getMsg('lotteryValidation.sameDaySlotsExceedCapacity', {
-        reservedSeatCount,
-        physicalSeatCount,
-      }));
+      errors.push(getMsg('lotteryValidation.sameDaySlotsExceedCapacity', { reservedSeatCount, physicalSeatCount }));
     }
 
     if (totalWinners > lotterySeatCount) {
-      errors.push(getMsg('lotteryValidation.insufficientGroupSeats', {
-        lotterySeatCount,
-        totalWinners,
-      }));
+      errors.push(getMsg('lotteryValidation.insufficientGroupSeats', { lotterySeatCount, totalWinners }));
     }
 
     if (!reserveSameDaySlots && hasUnreservedEmptySeats) {
-      errors.push(getMsg('lotteryValidation.emptySeatsDisallowed', {
-        emptySeatCount: unreservedEmptySeatCount,
-      }));
+      errors.push(getMsg('lotteryValidation.emptySeatsDisallowed', { emptySeatCount: unreservedEmptySeatCount }));
     }
     if (hasUnreservedEmptyTables && !reserveSameDaySlots) {
-      errors.push(getMsg('lotteryValidation.emptyTablesDisallowed', {
-        totalTables,
-        winnerTableCount: Math.ceil(totalWinners / usersPerTable),
-      }));
+      errors.push(getMsg('lotteryValidation.emptyTablesDisallowed', { totalTables, winnerTableCount: Math.ceil(totalWinners / usersPerTable) }));
     }
 
     if (hasIncompleteCastUnit) {
-      errors.push(getMsg('lotteryValidation.castUnitMismatch', {
-        activeCastCount,
-        castsPerRotation,
-      }));
+      errors.push(getMsg('lotteryValidation.castUnitMismatch', { activeCastCount, castsPerRotation }));
     }
 
     if (rotationCount > completeCastUnitCount) {
-      errors.push(getMsg('lotteryValidation.rotationCountExceedsCastUnits', {
-        rotationCount,
-        completeCastUnitCount,
-      }));
+      errors.push(getMsg('lotteryValidation.rotationCountExceedsCastUnits', { rotationCount, completeCastUnitCount }));
     }
 
     if (reserveSameDaySlots && unreservedEmptySeatCount > 0) {
-      warnings.push(getMsg('lotteryValidation.extraSeats', {
-        extraSeatCount: unreservedEmptySeatCount,
-      }));
+      warnings.push(getMsg('lotteryValidation.extraSeats', { extraSeatCount: unreservedEmptySeatCount }));
     }
 
     if (totalWinners > expectedCapacity) {
-      errors.push(getMsg('lotteryValidation.groupCapacityExceeded', {
-        totalWinners,
-        staffedTableCount,
-        reservedSeatCount,
-        expectedCapacity,
-      }));
+      errors.push(getMsg('lotteryValidation.groupCapacityExceeded', { totalWinners, staffedTableCount, reservedSeatCount, expectedCapacity }));
     } else if (totalWinners < expectedCapacity) {
-      warnings.push(getMsg('lotteryValidation.groupCapacityShortfall', {
-        totalWinners,
-        staffedTableCount,
-        reservedSeatCount,
-        expectedCapacity,
-      }));
+      warnings.push(getMsg('lotteryValidation.groupCapacityShortfall', { totalWinners, staffedTableCount, reservedSeatCount, expectedCapacity }));
     }
   } else {
     const reservedTableCount = normalizedSameDaySlotCount;
     const lotteryTableCount = Math.max(0, totalTables - reservedTableCount);
     const requiredCastCount = totalWinners + reservedTableCount;
-    info.push(getMsg('lotteryValidation.tableSeatSummary', {
-      totalTables,
-      reservedTableCount,
-      lotteryTableCount,
-    }));
+    info.push(getMsg('lotteryValidation.tableSeatSummary', { totalTables, reservedTableCount, lotteryTableCount }));
 
     if (reservedTableCount > totalTables) {
-      errors.push(getMsg('lotteryValidation.sameDayTablesExceedCapacity', {
-        reservedTableCount,
-        totalTables,
-      }));
+      errors.push(getMsg('lotteryValidation.sameDayTablesExceedCapacity', { reservedTableCount, totalTables }));
     }
 
     if (isTableBasedMatching(matchingTypeCode) && lotteryTableCount < totalWinners) {
-      errors.push(getMsg('lotteryValidation.insufficientTables', {
-        lotteryTableCount,
-        totalWinners,
-      }));
+      errors.push(getMsg('lotteryValidation.insufficientTables', { lotteryTableCount, totalWinners }));
     }
 
     if (requiredCastCount > activeCastCount) {
-      errors.push(getMsg('lotteryValidation.moreRequiredTablesThanCasts', {
-        requiredCastCount,
-        activeCastCount,
-      }));
+      errors.push(getMsg('lotteryValidation.moreRequiredTablesThanCasts', { requiredCastCount, activeCastCount }));
     } else if (requiredCastCount < activeCastCount) {
-      warnings.push(getMsg('lotteryValidation.moreCastsThanWinners', {
-        activeCastCount,
-        requiredCastCount,
-      }));
+      warnings.push(getMsg('lotteryValidation.moreCastsThanWinners', { activeCastCount, requiredCastCount }));
     }
 
     if (rotationCount > activeCastCount) {
-      errors.push(getMsg('lotteryValidation.rotationCountExceedsCasts', {
-        rotationCount,
-        activeCastCount,
-      }));
+      errors.push(getMsg('lotteryValidation.rotationCountExceedsCasts', { rotationCount, activeCastCount }));
     }
   }
-  info.push(getMsg('lotteryValidation.totalWinnerSummary', {
-    lotteryCount: displayedLotteryCount,
-    guaranteedCount,
-    totalWinners,
-  }));
+  info.push(getMsg('lotteryValidation.totalWinnerSummary', { lotteryCount: displayedLotteryCount, guaranteedCount, totalWinners }));
 
   return { errors, warnings, info };
 }

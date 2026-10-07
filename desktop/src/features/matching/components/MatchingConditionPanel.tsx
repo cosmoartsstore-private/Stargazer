@@ -12,26 +12,10 @@ interface MatchingConditionPanelProps {
   disabled?: boolean;
 }
 
-export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
-  disabled = false,
-}) => {
+export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({ disabled = false }) => {
   // 条件要約に必要な共有状態を取得する。
-  const {
-    setActivePage,
-    casts,
-    currentWinners,
-    sessionWorkflow,
-  } = useAppContext();
-  const {
-    matchingTypeCode,
-    rotationCount,
-    totalTables,
-    usersPerTable,
-    castsPerRotation,
-    reserveSameDaySlots,
-    sameDaySlotCount,
-    sameDaySlotUnit,
-  } = sessionWorkflow;
+  const { setActivePage, casts, currentWinners, sessionWorkflow } = useAppContext();
+  const { matchingTypeCode, rotationCount, totalTables, usersPerTable, castsPerRotation, reserveSameDaySlots, sameDaySlotCount, sameDaySlotUnit } = sessionWorkflow;
 
   // 現在の方式と参加データから、実行条件の要約行を組み立てる。
   const isGroupMode = matchingTypeCode === 'M003';
@@ -51,22 +35,10 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
   const reservedTableCount = reserveSameDaySlots ? sameDaySlotCount : 0;
   const lotteryTableCount = Math.max(0, totalTables - reservedTableCount);
   const conditionItems = [
-    {
-      label: getMsg('MatchingConditionPanel.matchingType'),
-      value: MATCHING_TYPE_SUMMARY_LABELS[matchingTypeCode],
-    },
-    {
-      label: getMsg('MatchingConditionPanel.winnerCount'),
-      value: getMsg('MatchingConditionPanel.peopleCount', { count: currentWinners.length }),
-    },
-    {
-      label: getMsg('MatchingConditionPanel.attendingCasts'),
-      value: getMsg('MatchingConditionPanel.peopleCount', { count: activeCastCount }),
-    },
-    {
-      label: getMsg('MatchingConditionPanel.rotationCount'),
-      value: String(rotationCount),
-    },
+    { label: getMsg('MatchingConditionPanel.matchingType'), value: MATCHING_TYPE_SUMMARY_LABELS[matchingTypeCode] },
+    { label: getMsg('MatchingConditionPanel.winnerCount'), value: getMsg('MatchingConditionPanel.peopleCount', { count: currentWinners.length }) },
+    { label: getMsg('MatchingConditionPanel.attendingCasts'), value: getMsg('MatchingConditionPanel.peopleCount', { count: activeCastCount }) },
+    { label: getMsg('MatchingConditionPanel.rotationCount'), value: String(rotationCount) },
     {
       label: isGroupMode
         ? getMsg('MatchingConditionPanel.lotterySeatCount')
@@ -77,18 +49,9 @@ export const MatchingConditionPanel: React.FC<MatchingConditionPanelProps> = ({
     },
     // M003 では、共通条件にグループ制固有の席・キャスト条件を追加する。
     ...(isGroupMode ? [
-      {
-        label: getMsg('MatchingConditionPanel.totalTableCount'),
-        value: String(totalTables),
-      },
-      {
-        label: getMsg('MatchingConditionPanel.guestsPerTable'),
-        value: String(usersPerTable),
-      },
-      {
-        label: getMsg('MatchingConditionPanel.castsPerRotation'),
-        value: String(castsPerRotation),
-      },
+      { label: getMsg('MatchingConditionPanel.totalTableCount'), value: String(totalTables) },
+      { label: getMsg('MatchingConditionPanel.guestsPerTable'), value: String(usersPerTable) },
+      { label: getMsg('MatchingConditionPanel.castsPerRotation'), value: String(castsPerRotation) },
       {
         label: getMsg('MatchingConditionPanel.sameDaySlots'),
         value: reserveSameDaySlots

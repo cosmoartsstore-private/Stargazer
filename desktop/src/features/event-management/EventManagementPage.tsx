@@ -1,30 +1,19 @@
 // イベントの作成・選択・名称変更・削除と基本情報の編集を管理するページ。
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArchiveRestore, Download, Upload } from 'lucide-react';
 import { ConfirmDialog, NoticeDialog } from '@/components/ConfirmModal';
 import { getMsg } from '@/messages/getMsg';
-import {
-  flushPendingPageCommits,
-  registerPendingPageCommit,
-} from '@/common/pageCommitRegistry';
+import { flushPendingPageCommits, registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { readFileAsDataUrl } from '@/common/fileReading';
 import { createSharedBusyTracker } from '@/common/sharedBusyTracker';
 import { useAppContext } from '@/stores/AppContext';
-import {
-  createEvent,
-  getEventMeta,
-  getEventMetaReadOnly,
-  listEvents,
-  setEventMeta,
-} from '@/db/repositories/eventRepository';
-import {
-  getOpenEventContext,
-  isCurrentEventContext,
-  waitForEventWritesToSettle,
-  type EventCommandContext,
-} from '@/db/repositories/commandContext';
+import { applyRestoredDeviceSettings, getDataBackupDeviceSettings, selectDataBackupDestination, selectDataBackupSource } from '@/tauri';
+import { createEvent, getEventMeta, getEventMetaReadOnly, listEvents, setEventMeta } from '@/db/repositories/eventRepository';
+import { getOpenEventContext, isCurrentEventContext, waitForEventWritesToSettle, type EventCommandContext } from '@/db/repositories/commandContext';
 import { EventDetailPanel, type EventMetaLoadStatus } from './components/EventDetailPanel';
 import { EventListPanel } from './components/EventListPanel';
+import { createBackupWithClosedEvent, restoreBackupWithClosedEvent } from './dataBackup';
 import { EVENT_NAME_MAX_LENGTH, getEventNameFormatError } from './eventNameValidation';
 import styles from './EventManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
@@ -38,11 +27,11 @@ function getEventPhotoMutationKey(context: EventCommandContext): string {
   return `${context.eventName}\u0000${context.generation}`;
 }
 
-function getEventNameError(
-  name: string,
-  events: string[],
-  currentName?: string,
-): string | null {
+function getOperationErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getEventNameError(name: string, events: string[], currentName?: string): string | null {
   const formatError = getEventNameFormatError(name);
   if (formatError === 'tooLong') return getMsg('EventManagementPage.eventNameTooLong', { maxLength: EVENT_NAME_MAX_LENGTH });
   if (formatError === 'windowsReserved') return getMsg('EventManagementPage.windowsReservedEventName');
@@ -57,26 +46,13 @@ function getEventNameError(
 }
 
 export interface EventManagementPageProps {
-  onRequestEventBoundaryChange?: (
-    kind: 'switch' | 'rename',
-    action: () => Promise<boolean>,
-  ) => Promise<boolean>;
+  onRequestEventBoundaryChange?: (kind: 'switch' | 'rename', action: () => Promise<boolean>) => Promise<boolean>;
   onBusyChange?: (busy: boolean) => void;
 }
 
-export const EventManagementPage: React.FC<EventManagementPageProps> = ({
-  onRequestEventBoundaryChange,
-  onBusyChange,
-}) => {
+export const EventManagementPage: React.FC<EventManagementPageProps> = ({ onRequestEventBoundaryChange, onBusyChange }) => {
   // イベント一覧と、切替・削除・改名のアプリ共通操作を取得する。
-  const {
-    events,
-    setEvents,
-    currentEventName,
-    switchEvent,
-    deleteManagedEvent,
-    renameManagedEvent,
-  } = useAppContext();
+  const { events, setEvents, currentEventName, currentSessionTimestamp, switchEvent, deleteManagedEvent, renameManagedEvent } = useAppContext();
 
   // 一覧選択、編集値、確認ダイアログの状態を保持する。
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -93,8 +69,12 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPhotoSaving, setIsPhotoSaving] = useState(false);
   const [isNotesSaving, setIsNotesSaving] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [switchTarget, setSwitchTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [restoreSourcePath, setRestoreSourcePath] = useState<string | null>(null);
+  const [restoreCompleteMessage, setRestoreCompleteMessage] = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // イベント操作の多重実行と、選択切替後に古い処理を反映する競合を防ぐ。
@@ -109,14 +89,14 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
   const deleteInFlightRef = useRef(false);
   const isPhotoSavingRef = useRef(false);
   const notesSaveInFlightRef = useRef(false);
+  const backupInFlightRef = useRef(false);
+  const restoreInFlightRef = useRef(false);
   const notesCommitPromiseRef = useRef<Promise<boolean> | null>(null);
   const activePhotoMutationTokensRef = useRef(new Set<symbol>());
   const photoMutationGenerationRef = useRef(0);
   const notesMutationGenerationRef = useRef(0);
   const persistedNotesRef = useRef('');
-  const pendingEditorCommitRef = useRef<() => Promise<boolean>>(
-    () => Promise.resolve(true),
-  );
+  const pendingEditorCommitRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
   selectedNameRef.current = selectedName;
   onBusyChangeRef.current = onBusyChange;
 
@@ -131,10 +111,7 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
     };
   }, []);
 
-  useEffect(
-    () => registerPendingPageCommit(() => pendingEditorCommitRef.current()),
-    [],
-  );
+  useEffect(() => registerPendingPageCommit(() => pendingEditorCommitRef.current()), []);
 
   const beginEventManagementBusy = (busyToken: symbol) => {
     eventManagementBusyTracker.begin(busyToken, onBusyChangeRef.current);
@@ -163,10 +140,7 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
   };
 
   // 未保存作業の確認が不要な利用元では、イベント境界の操作を直ちに開始する。
-  const requestEventBoundaryChange = (
-    kind: 'switch' | 'rename',
-    action: () => Promise<boolean>,
-  ): Promise<boolean> => {
+  const requestEventBoundaryChange = (kind: 'switch' | 'rename', action: () => Promise<boolean>): Promise<boolean> => {
     if (onRequestEventBoundaryChange) {
       return onRequestEventBoundaryChange(kind, action);
     }
@@ -174,9 +148,7 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
   };
 
   // 一覧取得の完了順が前後しても、最後に開始した要求だけを画面へ反映する。
-  const requestEventList = useCallback(async (
-    applySelection?: (eventNames: string[]) => void,
-  ): Promise<boolean> => {
+  const requestEventList = useCallback(async (applySelection?: (eventNames: string[]) => void): Promise<boolean> => {
     const requestGeneration = eventListRequestGenerationRef.current + 1;
     eventListRequestGenerationRef.current = requestGeneration;
     try {
@@ -301,6 +273,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       || renameInFlightRef.current
       || switchInFlightRef.current
       || deleteInFlightRef.current
+      || backupInFlightRef.current
+      || restoreInFlightRef.current
     ) return;
     const name = addName.trim();
     if (!name) return;
@@ -340,6 +314,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
             || renameInFlightRef.current
             || switchInFlightRef.current
             || deleteInFlightRef.current
+            || backupInFlightRef.current
+            || restoreInFlightRef.current
           ) return false;
           const switchBusyToken = Symbol();
           switchInFlightRef.current = true;
@@ -381,6 +357,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       || renameInFlightRef.current
       || switchInFlightRef.current
       || deleteInFlightRef.current
+      || backupInFlightRef.current
+      || restoreInFlightRef.current
     ) return Promise.resolve(false);
     const validationError = getEventNameError(name, events, selectedName);
     if (validationError) {
@@ -456,6 +434,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       || renameInFlightRef.current
       || switchInFlightRef.current
       || deleteInFlightRef.current
+      || backupInFlightRef.current
+      || restoreInFlightRef.current
     ) return;
     const context = getOpenEventContext(currentEventName);
     if (context === null) return;
@@ -600,6 +580,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       || renameInFlightRef.current
       || switchInFlightRef.current
       || deleteInFlightRef.current
+      || backupInFlightRef.current
+      || restoreInFlightRef.current
       || !switchTarget
     ) return;
     const target = switchTarget;
@@ -611,6 +593,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
         || renameInFlightRef.current
         || switchInFlightRef.current
         || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
       ) return false;
       const busyToken = Symbol();
       switchInFlightRef.current = true;
@@ -640,6 +624,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       || renameInFlightRef.current
       || switchInFlightRef.current
       || deleteInFlightRef.current
+      || backupInFlightRef.current
+      || restoreInFlightRef.current
       || !deleteTarget
     ) return;
     const target = deleteTarget;
@@ -687,6 +673,128 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
     }
   };
 
+  // 作業セッションを履歴化しない既存契約を保ち、永続Dataだけをバックアップ・復元する。
+  const ensureDataTransferAvailable = (): boolean => {
+    if (currentSessionTimestamp !== null) {
+      setAlertMessage(getMsg('EventManagementPage.dataTransferSessionOpen'));
+      return false;
+    }
+    return true;
+  };
+
+  const handleCreateBackup = () => {
+    void (async () => {
+      if (!ensureDataTransferAvailable() || !await flushPendingPageCommits()) return;
+      if (
+        isPhotoSavingRef.current
+        || notesSaveInFlightRef.current
+        || createInFlightRef.current
+        || renameInFlightRef.current
+        || switchInFlightRef.current
+        || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
+      ) return;
+
+      const busyToken = Symbol();
+      backupInFlightRef.current = true;
+      beginEventManagementBusy(busyToken);
+      if (isMountedRef.current) setIsBackingUp(true);
+      try {
+        const destinationPath = await selectDataBackupDestination();
+        if (destinationPath === null) return;
+        await createBackupWithClosedEvent(currentEventName, destinationPath, getDataBackupDeviceSettings());
+        if (isMountedRef.current) {
+          setAlertMessage(getMsg('EventManagementPage.backupComplete'));
+        }
+      } catch (error) {
+        if (isMountedRef.current) {
+          setAlertMessage(getMsg('EventManagementPage.backupFailed', { detail: getOperationErrorMessage(error) }));
+        }
+      } finally {
+        backupInFlightRef.current = false;
+        if (isMountedRef.current) setIsBackingUp(false);
+        finishEventManagementBusy(busyToken);
+      }
+    })();
+  };
+
+  const handleSelectRestoreSource = () => {
+    void (async () => {
+      if (!ensureDataTransferAvailable() || !await flushPendingPageCommits()) return;
+      if (
+        isPhotoSavingRef.current
+        || notesSaveInFlightRef.current
+        || createInFlightRef.current
+        || renameInFlightRef.current
+        || switchInFlightRef.current
+        || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
+      ) return;
+
+      const busyToken = Symbol();
+      restoreInFlightRef.current = true;
+      beginEventManagementBusy(busyToken);
+      if (isMountedRef.current) setIsRestoring(true);
+      try {
+        const sourcePath = await selectDataBackupSource();
+        if (sourcePath !== null && isMountedRef.current) setRestoreSourcePath(sourcePath);
+      } catch (error) {
+        if (isMountedRef.current) {
+          setAlertMessage(getMsg('EventManagementPage.restoreSelectionFailed', { detail: getOperationErrorMessage(error) }));
+        }
+      } finally {
+        restoreInFlightRef.current = false;
+        if (isMountedRef.current) setIsRestoring(false);
+        finishEventManagementBusy(busyToken);
+      }
+    })();
+  };
+
+  const handleRestore = () => {
+    void (async () => {
+      if (
+        restoreSourcePath === null
+        || !ensureDataTransferAvailable()
+        || !await flushPendingPageCommits()
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
+      ) return;
+      const sourcePath = restoreSourcePath;
+      const busyToken = Symbol();
+      let dataWasReplaced = false;
+      restoreInFlightRef.current = true;
+      beginEventManagementBusy(busyToken);
+      if (isMountedRef.current) setIsRestoring(true);
+      try {
+        const result = await restoreBackupWithClosedEvent(currentEventName, sourcePath);
+        dataWasReplaced = true;
+        applyRestoredDeviceSettings(result.settings);
+        if (isMountedRef.current) {
+          setRestoreSourcePath(null);
+          setAlertMessage(null);
+          setRestoreCompleteMessage(result.cleanup_warning === null
+            ? getMsg('EventManagementPage.restoreCompleteMessage')
+            : getMsg('EventManagementPage.restoreCompleteWithWarning', { detail: result.cleanup_warning }));
+        }
+      } catch (error) {
+        if (!isMountedRef.current) return;
+        setRestoreSourcePath(null);
+        if (dataWasReplaced) {
+          setAlertMessage(null);
+          setRestoreCompleteMessage(getMsg('EventManagementPage.restoreSettingsFailed', { detail: getOperationErrorMessage(error) }));
+        } else {
+          setAlertMessage(getMsg('EventManagementPage.restoreFailed', { detail: getOperationErrorMessage(error) }));
+        }
+      } finally {
+        restoreInFlightRef.current = false;
+        if (isMountedRef.current) setIsRestoring(false);
+        finishEventManagementBusy(busyToken);
+      }
+    })();
+  };
+
   // 選択イベントとDB接続中イベントが一致する場合だけ共有メタ情報を編集する。
   const isCurrent = selectedName !== null && selectedName === currentEventName;
   const isMetaEditable = isCurrent && metaLoadStatus === 'ready';
@@ -695,7 +803,9 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
     || isSwitching
     || isDeleting
     || isPhotoSaving
-    || isNotesSaving;
+    || isNotesSaving
+    || isBackingUp
+    || isRestoring;
 
   // 表示コンポーネントから受け取った対象を、Page内の状態とI/Oへ接続する。
   const handleSelectEvent = (eventName: string) => {
@@ -709,6 +819,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
         || renameInFlightRef.current
         || switchInFlightRef.current
         || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
       ) return;
       setSelectedName(
         eventName === selectionAtRequest
@@ -729,6 +841,10 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
   const handleCancelDelete = () => {
     if (!deleteInFlightRef.current) setDeleteTarget(null);
   };
+  const handleCancelRestore = () => {
+    if (!restoreInFlightRef.current) setRestoreSourcePath(null);
+  };
+  const handleReloadAfterRestore = () => window.location.reload();
   const handleAddNameChange = (value: string) => setAddName(value);
   const handleEditNameChange = (value: string) => setEditName(value);
   const handleEditNotesChange = (value: string) => setEditNotes(value);
@@ -742,6 +858,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
         || renameInFlightRef.current
         || switchInFlightRef.current
         || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
       ) return;
       setSwitchTarget(selectedNameRef.current ?? eventName);
     })();
@@ -756,6 +874,8 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
         || renameInFlightRef.current
         || switchInFlightRef.current
         || deleteInFlightRef.current
+        || backupInFlightRef.current
+        || restoreInFlightRef.current
       ) return;
       setDeleteTarget(selectedNameRef.current ?? eventName);
     })();
@@ -774,68 +894,39 @@ export const EventManagementPage: React.FC<EventManagementPageProps> = ({
       </header>
 
       {alertMessage && (
-        <NoticeDialog
-          title={getMsg('EventManagementPage.pageTitle')}
-          message={alertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleDismissAlert}
-        />
+        <NoticeDialog title={getMsg('EventManagementPage.pageTitle')} message={alertMessage} closeLabel={getMsg('common.close')} onClose={handleDismissAlert} />
       )}
       {switchTarget && (
-        <ConfirmDialog
-          title={getMsg('EventManagementPage.switchDialogTitle')}
-          message={getMsg('EventManagementPage.switchDialogMessage', { eventName: switchTarget })}
-          confirmLabel={getMsg('EventManagementPage.switchConfirm')}
-          cancelLabel={getMsg('common.cancel')}
-          confirmDisabled={isMutating}
-          onConfirm={handleSwitch}
-          onCancel={handleCancelSwitch}
-        />
+        <ConfirmDialog title={getMsg('EventManagementPage.switchDialogTitle')} message={getMsg('EventManagementPage.switchDialogMessage', { eventName: switchTarget })} confirmLabel={getMsg('EventManagementPage.switchConfirm')} cancelLabel={getMsg('common.cancel')} confirmDisabled={isMutating} onConfirm={handleSwitch} onCancel={handleCancelSwitch} />
       )}
       {deleteTarget && (
-        <ConfirmDialog
-          title={getMsg('EventManagementPage.deleteDialogTitle')}
-          message={getMsg('EventManagementPage.deleteDialogMessage', { eventName: deleteTarget })}
-          confirmLabel={getMsg('EventManagementPage.deleteConfirm')}
-          cancelLabel={getMsg('common.cancel')}
-          confirmDisabled={isMutating}
-          intent="danger"
-          onConfirm={handleDelete}
-          onCancel={handleCancelDelete}
-        />
+        <ConfirmDialog title={getMsg('EventManagementPage.deleteDialogTitle')} message={getMsg('EventManagementPage.deleteDialogMessage', { eventName: deleteTarget })} confirmLabel={getMsg('EventManagementPage.deleteConfirm')} cancelLabel={getMsg('common.cancel')} confirmDisabled={isMutating} intent="danger" onConfirm={handleDelete} onCancel={handleCancelDelete} />
+      )}
+      {restoreSourcePath && (
+        <ConfirmDialog title={getMsg('EventManagementPage.restoreDialogTitle')} message={getMsg('EventManagementPage.restoreDialogMessage')} confirmLabel={getMsg('EventManagementPage.restoreConfirm')} cancelLabel={getMsg('common.cancel')} confirmDisabled={isMutating} intent="danger" onConfirm={handleRestore} onCancel={handleCancelRestore} />
+      )}
+      {restoreCompleteMessage && (
+        <NoticeDialog title={getMsg('EventManagementPage.restoreCompleteTitle')} message={restoreCompleteMessage} closeLabel={getMsg('EventManagementPage.reloadAfterRestore')} onClose={handleReloadAfterRestore} />
       )}
 
-      <div className={`${shared.managementDetailLayout} ${styles.eventDetailLayout}`}>
-        <EventListPanel
-          events={events}
-          selectedName={selectedName}
-          currentEventName={currentEventName}
-          isLoading={isLoading}
-          isMutating={isMutating}
-          addName={addName}
-          onSelect={handleSelectEvent}
-          onAddNameChange={handleAddNameChange}
-          onCreate={handleAdd}
-        />
+      <section className={styles.dataBackupPanel} aria-labelledby="event-data-backup-title">
+        <div className={styles.dataBackupDescription}>
+          <ArchiveRestore size={22} className={styles.dataBackupIcon} aria-hidden="true" />
+          <div>
+            <h2 id="event-data-backup-title" className={styles.dataBackupTitle}>{getMsg('EventManagementPage.dataBackupTitle')}</h2>
+            <p className={styles.dataBackupText}>{getMsg('EventManagementPage.dataBackupDescription')}</p>
+          </div>
+        </div>
+        <div className={styles.dataBackupActions}>
+          <button type="button" className={shared.btnSecondary} disabled={isMutating} onClick={handleCreateBackup}><Download size={15} aria-hidden="true" />{getMsg('EventManagementPage.backupAction')}</button>
+          <button type="button" className={shared.btnSecondary} disabled={isMutating} onClick={handleSelectRestoreSource}><Upload size={15} aria-hidden="true" />{getMsg('EventManagementPage.restoreAction')}</button>
+        </div>
+      </section>
 
-        <EventDetailPanel
-          selectedName={selectedName}
-          editName={editName}
-          photoDataUrl={photoDataUrl}
-          editNotes={editNotes}
-          editingNotes={editingNotes}
-          isCurrent={isCurrent}
-          isMutating={isMutating}
-          metaLoadStatus={metaLoadStatus}
-          onEditNameChange={handleEditNameChange}
-          onCommitName={handleNameBlur}
-          onPhotoChange={handlePhotoChange}
-          onStartNotesEditing={handleStartNotesEditing}
-          onEditNotesChange={handleEditNotesChange}
-          onCommitNotes={handleNotesBlur}
-          onRequestSwitch={handleOpenSwitchConfirm}
-          onRequestDelete={handleOpenDeleteConfirm}
-        />
+      <div className={`${shared.managementDetailLayout} ${styles.eventDetailLayout}`}>
+        <EventListPanel events={events} selectedName={selectedName} currentEventName={currentEventName} isLoading={isLoading} isMutating={isMutating} addName={addName} onSelect={handleSelectEvent} onAddNameChange={handleAddNameChange} onCreate={handleAdd} />
+
+        <EventDetailPanel selectedName={selectedName} editName={editName} photoDataUrl={photoDataUrl} editNotes={editNotes} editingNotes={editingNotes} isCurrent={isCurrent} isMutating={isMutating} metaLoadStatus={metaLoadStatus} onEditNameChange={handleEditNameChange} onCommitName={handleNameBlur} onPhotoChange={handlePhotoChange} onStartNotesEditing={handleStartNotesEditing} onEditNotesChange={handleEditNotesChange} onCommitNotes={handleNotesBlur} onRequestSwitch={handleOpenSwitchConfirm} onRequestDelete={handleOpenDeleteConfirm} />
       </div>
     </div>
   );

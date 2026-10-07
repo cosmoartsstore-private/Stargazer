@@ -5,9 +5,7 @@ import { AppContainer } from '@/layout/AppContainer';
 
 function App() {
   return (
-    <AppProvider>
-      <AppContainer />
-    </AppProvider>
+    <AppProvider><AppContainer /></AppProvider>
   );
 }
 

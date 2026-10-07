@@ -1,16 +1,6 @@
-import {
-  useCallback,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { UserBean } from '@/common/types/entities';
-import {
-  DEFAULT_SESSION_WORKFLOW_STATE,
-  type SessionWorkflowSnapshot,
-  type SessionWorkflowState,
-} from '@/common/types/sessionWorkflow';
+import { DEFAULT_SESSION_WORKFLOW_STATE, type SessionWorkflowSnapshot, type SessionWorkflowState } from '@/common/types/sessionWorkflow';
 import { persistSessionWorkflowState } from '@/db/repositories/sessionWorkflowRepository';
 
 export interface UseSessionWorkflowStateOptions {
@@ -22,9 +12,7 @@ export interface UseSessionWorkflowStateOptions {
 export interface SessionWorkflowContextState {
   sessionWorkflow: SessionWorkflowState;
   updateSessionWorkflow: (patch: Partial<SessionWorkflowState>) => Promise<void>;
-  hydrateSessionWorkflow: (
-    snapshot: Pick<SessionWorkflowSnapshot, 'state' | 'isLotteryResultCurrent'>
-  ) => void;
+  hydrateSessionWorkflow: (snapshot: Pick<SessionWorkflowSnapshot, 'state' | 'isLotteryResultCurrent'>) => void;
   clearSessionWorkflowState: () => void;
   beginSessionUiMutation: () => number;
   getSessionUiMutationGeneration: () => number;
@@ -32,14 +20,8 @@ export interface SessionWorkflowContextState {
 }
 
 /** セッション条件の楽観更新・永続化・復元と、画面操作世代の照合を管理する。 */
-export function useSessionWorkflowState({
-  setCurrentWinners,
-  setIsLotteryResultCurrent,
-  resetMatching,
-}: UseSessionWorkflowStateOptions): SessionWorkflowContextState {
-  const [sessionWorkflow, setSessionWorkflow] = useState<SessionWorkflowState>(
-    () => ({ ...DEFAULT_SESSION_WORKFLOW_STATE }),
-  );
+export function useSessionWorkflowState({ setCurrentWinners, setIsLotteryResultCurrent, resetMatching }: UseSessionWorkflowStateOptions): SessionWorkflowContextState {
+  const [sessionWorkflow, setSessionWorkflow] = useState<SessionWorkflowState>(() => ({ ...DEFAULT_SESSION_WORKFLOW_STATE }));
   // 画面値と最後の保存成功値を分け、workflow世代と更新順序で古い非同期完了を排除する。
   const sessionWorkflowRef = useRef<SessionWorkflowState>({ ...DEFAULT_SESSION_WORKFLOW_STATE });
   const persistedSessionWorkflowRef = useRef<SessionWorkflowState>({ ...DEFAULT_SESSION_WORKFLOW_STATE });
@@ -53,15 +35,9 @@ export function useSessionWorkflowState({
     return sessionUiMutationGenerationRef.current;
   }, []);
 
-  const getSessionUiMutationGeneration = useCallback(
-    (): number => sessionUiMutationGenerationRef.current,
-    [],
-  );
+  const getSessionUiMutationGeneration = useCallback((): number => sessionUiMutationGenerationRef.current, []);
 
-  const isCurrentSessionUiMutation = useCallback(
-    (generation: number): boolean => sessionUiMutationGenerationRef.current === generation,
-    [],
-  );
+  const isCurrentSessionUiMutation = useCallback((generation: number): boolean => sessionUiMutationGenerationRef.current === generation, []);
 
   /**
    * 画面状態はDB完了前に更新し、同じworkflow世代に属する最新操作だけを失敗時に戻す。
@@ -69,8 +45,7 @@ export function useSessionWorkflowState({
    */
   const updateSessionWorkflow = (patch: Partial<SessionWorkflowState>): Promise<void> => {
     const current = sessionWorkflowRef.current;
-    const changed = (Object.keys(patch) as Array<keyof SessionWorkflowState>)
-      .some((key) => current[key] !== patch[key]);
+    const changed = (Object.keys(patch) as Array<keyof SessionWorkflowState>).some((key) => current[key] !== patch[key]);
     if (!changed) return Promise.resolve();
 
     const generation = workflowGenerationRef.current;

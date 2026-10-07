@@ -1,10 +1,12 @@
 use rusqlite::OptionalExtension;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use serde::{ Deserialize, Serialize };
+use std::collections::{ HashMap, HashSet };
+use std::fs::{ File, OpenOptions };
+use std::io::{ Read, Write };
+use std::path::{ Path, PathBuf };
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::atomic::{ AtomicU64, Ordering };
+use std::sync::{ Mutex, MutexGuard, OnceLock };
 use std::time::Duration;
 use tauri::Manager;
 
@@ -14,10 +16,17 @@ const WEBVIEW_DATA_DIR: &str = "EBWebView";
 const IN_PROGRESS_SESSION_MARKER: &str = ".stargazer-in-progress";
 const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_STAGING_DIRECTORY_ATTEMPTS: usize = 64;
+const DATA_BACKUP_FORMAT: &str = "com.cosmoartsstore.stargazer-data-backup";
+const DATA_BACKUP_FORMAT_VERSION: u32 = 2;
+const DATA_BACKUP_MANIFEST_ENTRY: &str = "stargazer-backup.json";
+const MAX_DATA_BACKUP_MANIFEST_BYTES: u64 = 1024 * 1024;
+const MAX_DATA_BACKUP_ARCHIVE_ENTRIES: usize = 100_001;
+const MAX_DATA_BACKUP_UNCOMPRESSED_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 // SQL schemaのCHECK制約と同じ方式だけをcommand境界で受け付ける。
 const SUPPORTED_MATCHING_TYPE_CODES: [&str; 4] = ["M000", "M001", "M002", "M003"];
 static STAGING_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static WORK_SESSION_LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
+static PENDING_DATA_RESTORE: Mutex<Option<PendingDataRestore>> = Mutex::new(None);
 static STARTUP_SESSION_CLEANUP_ERROR: OnceLock<Option<String>> = OnceLock::new();
 
 fn resolve_app_root() -> PathBuf {
@@ -30,9 +39,7 @@ fn resolve_app_root() -> PathBuf {
         }
     }
     let local = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\ProgramData".to_string());
-    PathBuf::from(local)
-        .join("CosmoArtsStore")
-        .join("Stargazer")
+    PathBuf::from(local).join("CosmoArtsStore").join("Stargazer")
 }
 
 fn resolve_data_root() -> PathBuf {
@@ -45,20 +52,212 @@ fn resolve_webview_data_root() -> PathBuf {
 
 fn get_install_location() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let key = hkcu
-        .open_subkey(r"Software\CosmoArtsStore\Stargazer")
-        .ok()?;
+    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\Stargazer").ok()?;
     key.get_value::<String, _>("InstallLocation").ok()
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct DataBackupDeviceSettings {
+    stargazer_theme_id: Option<String>,
+    stargazer_theme_customization: Option<String>,
+    stargazer_import_column_mappings: Option<String>,
+    stargazer_applicant_display_columns: Option<String>,
+    #[serde(rename = "stargazer:lastLocation")]
+    stargazer_last_location: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DataBackupManifest {
+    format: String,
+    format_version: u32,
+    created_at: String,
+    application_version: String,
+    events: Vec<String>,
+    settings: DataBackupDeviceSettings,
+}
+
+#[derive(Serialize)]
+struct PreparedDataRestoreOutput {
+    restore_token: String,
+}
+
+#[derive(Serialize)]
+struct DataRestoreOutput {
+    settings: DataBackupDeviceSettings,
+    cleanup_warning: Option<String>,
+}
+
+struct PendingDataRestore {
+    restore_token: String,
+    staging_data_root: PathBuf,
+    events: Vec<String>,
+    settings: DataBackupDeviceSettings,
+}
+
+fn has_exact_json_keys(value: &serde_json::Value, expected: &[&str]) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    object.len() == expected.len() && expected.iter().all(|key| object.contains_key(*key))
+}
+
+fn is_json_integer_in_range(value: &serde_json::Value, min: i64, max: i64) -> bool {
+    value.as_i64().is_some_and(|number| number >= min && number <= max)
+}
+
+fn is_hex_color(value: &str) -> bool {
+    let hex = value.trim().strip_prefix('#').unwrap_or(value.trim());
+    matches!(hex.len(), 3 | 6) && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn parse_setting_json(raw: &str, setting_name: &str) -> Result<serde_json::Value, String> {
+    serde_json::from_str(raw).map_err(|_| format!("バックアップ内の端末設定 '{setting_name}' が不正です"))
+}
+
+fn validate_theme_customization_setting(raw: &str) -> Result<(), String> {
+    let value = parse_setting_json(raw, "stargazer_theme_customization")?;
+    if !has_exact_json_keys(&value, &["dark", "skyblue"]) {
+        return Err("バックアップ内のテーマカラー設定が現行形式ではありません".to_string());
+    }
+    let dark = &value["dark"];
+    let skyblue = &value["skyblue"];
+    if !has_exact_json_keys(dark, &["accent", "colors", "direction", "intensity"])
+        || !dark["accent"].as_str().is_some_and(is_hex_color)
+        || !dark["colors"].as_array().is_some_and(|colors| { (1..=5).contains(&colors.len()) && colors.iter().all(|color| color.as_str().is_some_and(is_hex_color)) })
+        || !is_json_integer_in_range(&dark["direction"], 0, 360)
+        || !is_json_integer_in_range(&dark["intensity"], 0, 100)
+        || !has_exact_json_keys(skyblue, &["hue"])
+        || !is_json_integer_in_range(&skyblue["hue"], 0, 360)
+    {
+        return Err("バックアップ内のテーマカラー設定が現行形式ではありません".to_string());
+    }
+    Ok(())
+}
+
+fn validate_import_mapping_setting(raw: &str) -> Result<(), String> {
+    let value = parse_setting_json(raw, "stargazer_import_column_mappings")?;
+    if !has_exact_json_keys(&value, &["version", "entries"]) || value["version"].as_i64() != Some(1) {
+        return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+    }
+    let Some(entries) = value["entries"].as_array() else {
+        return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+    };
+    for entry in entries {
+        if !has_exact_json_keys(entry, &["headers", "mapping"]) {
+            return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+        }
+        let Some(headers) = entry["headers"].as_array() else {
+            return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+        };
+        if !headers.iter().all(|header| header.is_string()) {
+            return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+        }
+        let mapping = &entry["mapping"];
+        if !has_exact_json_keys(mapping, &["name", "x_id", "vrc_url", "cast1", "cast2", "cast3", "castInputType",],) || !matches!(mapping["castInputType"].as_str(), Some("single" | "multiple")) {
+            return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+        }
+        for key in ["name", "x_id", "vrc_url", "cast1", "cast2", "cast3"] {
+            let Some(index) = mapping[key].as_i64() else {
+                return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+            };
+            if index < -1 || index >= headers.len() as i64 {
+                return Err("バックアップ内の取込列設定が現行形式ではありません".to_string());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_applicant_display_column_setting(raw: &str) -> Result<(), String> {
+    let value = parse_setting_json(raw, "stargazer_applicant_display_columns")?;
+    if !has_exact_json_keys(&value, &["version", "entries"]) || value["version"].as_i64() != Some(1) {
+        return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string());
+    }
+    let Some(entries) = value["entries"].as_array() else {
+        return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string());
+    };
+    let mut stored_schemas = HashSet::new();
+    for entry in entries {
+        if !has_exact_json_keys(entry, &["schema", "selectedColumnIds"]) {
+            return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+        }
+        let Some(schema) = entry["schema"].as_array() else {
+            return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+        };
+        if !schema.iter().all(|header| header.is_string()) {
+            return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+        }
+        let schema_key = serde_json::to_string(schema).map_err(|_| { "バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string() })?;
+        if !stored_schemas.insert(schema_key) {
+            return Err("バックアップ内の応募データ表示項目設定が重複しています".to_string());
+        }
+        let Some(selected_column_ids) = entry["selectedColumnIds"].as_array() else {
+            return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+        };
+        let mut stored_column_ids = HashSet::new();
+        for value in selected_column_ids {
+            let Some(column_id) = value.as_str() else {
+                return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+            };
+            if !stored_column_ids.insert(column_id) {
+                return Err("バックアップ内の応募データ表示項目設定が重複しています".to_string());
+            }
+            if column_id == "vrc_url" {
+                continue;
+            }
+            let Some(index_text) = column_id.strip_prefix("raw_extra:") else {
+                return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+            };
+            let Ok(index) = index_text.parse::<usize>() else {
+                return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+            };
+            if column_id != format!("raw_extra:{index}") || index >= schema.len() {
+                return Err("バックアップ内の応募データ表示項目設定が現行形式ではありません".to_string(),);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_device_settings(settings: &DataBackupDeviceSettings, event_names: &[String],) -> Result<(), String> {
+    if let Some(theme_id) = &settings.stargazer_theme_id {
+        if !matches!(theme_id.as_str(), "dark" | "skyblue") {
+            return Err("バックアップ内のテーマ設定が現行形式ではありません".to_string());
+        }
+    }
+    if let Some(customization) = &settings.stargazer_theme_customization {
+        validate_theme_customization_setting(customization)?;
+    }
+    if let Some(mapping) = &settings.stargazer_import_column_mappings {
+        validate_import_mapping_setting(mapping)?;
+    }
+    if let Some(display_columns) = &settings.stargazer_applicant_display_columns {
+        validate_applicant_display_column_setting(display_columns)?;
+    }
+    if let Some(last_location) = &settings.stargazer_last_location {
+        let value = parse_setting_json(last_location, "stargazer:lastLocation")?;
+        if !has_exact_json_keys(&value, &["eventName"]) {
+            return Err("バックアップ内の最終使用イベント設定が現行形式ではありません".to_string());
+        }
+        let Some(event_name) = value["eventName"].as_str() else {
+            return Err("バックアップ内の最終使用イベント設定が現行形式ではありません".to_string());
+        };
+        validate_event_name(event_name).map_err(|_| { "バックアップ内の最終使用イベント設定が現行形式ではありません".to_string() })?;
+        if !event_names.iter().any(|name| name == event_name) {
+            return Err("バックアップ内の最終使用イベントがイベントデータに存在しません".to_string(),);
+        }
+    }
+    Ok(())
 }
 
 // StellaRecord が所有する外部連携schema。登録処理だけで利用し、Stargazer内のDB設計とは共有しない。
 const APPS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS apps (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
     description     TEXT NOT NULL DEFAULT '',
-    path            TEXT NOT NULL,
-    category        TEXT NOT NULL DEFAULT 'thirdparty' CHECK(category IN ('fastparty', 'thirdparty')),
+    path            TEXT NOT NULL UNIQUE,
     icon            BLOB,
     registered_at   DATETIME DEFAULT (datetime('now', 'localtime'))
 );
@@ -167,18 +366,7 @@ CREATE INDEX idx_saved_results_type_created_at
   ON saved_results(result_type, created_at DESC, id DESC);
 "#;
 
-const SHARED_REQUIRED_TABLES: &[&str] = &[
-    "meta",
-    "casts",
-    "cast_urls",
-    "cast_ng_entries",
-    "caution_users",
-    "cast_attendance",
-    "attendance_record_dates",
-    "cast_aliases",
-    "settings",
-    "saved_results",
-];
+const SHARED_REQUIRED_TABLES: &[&str] = &["meta", "casts", "cast_urls", "cast_ng_entries", "caution_users", "cast_attendance", "attendance_record_dates", "cast_aliases", "settings", "saved_results",];
 
 const SHARED_SCHEMA_QUERIES: &[&str] = &[
     "SELECT key, value FROM meta LIMIT 0",
@@ -258,13 +446,7 @@ CREATE TABLE session_workflow_state (
 INSERT INTO session_workflow_state (id) VALUES (1);
 "#;
 
-const SESSION_REQUIRED_TABLES: &[&str] = &[
-    "applicants",
-    "applicant_casts",
-    "applicant_extra",
-    "lottery_results",
-    "session_workflow_state",
-];
+const SESSION_REQUIRED_TABLES: &[&str] = &["applicants", "applicant_casts", "applicant_extra", "lottery_results", "session_workflow_state",];
 
 const SESSION_SCHEMA_QUERIES: &[&str] = &[
     "SELECT id, x_id, name, vrc_url, preference_mode, is_guaranteed, created_at FROM applicants LIMIT 0",
@@ -276,13 +458,7 @@ const SESSION_SCHEMA_QUERIES: &[&str] = &[
 
 fn is_windows_reserved_event_name(name: &str) -> bool {
     let normalized = name.to_ascii_uppercase();
-    matches!(normalized.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || normalized
-            .strip_prefix("COM")
-            .or_else(|| normalized.strip_prefix("LPT"))
-            .is_some_and(|number| {
-                matches!(number, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
-            })
+    matches!(normalized.as_str(), "CON" | "PRN" | "AUX" | "NUL") || normalized.strip_prefix("COM").or_else(|| normalized.strip_prefix("LPT")).is_some_and(|number| { matches!(number, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9") })
 }
 
 /** Frontendと同じ規則で、イベント名をWindowsのパス構成要素として制限する。 */
@@ -290,13 +466,8 @@ fn validate_event_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("イベント名が空です".to_string());
     }
-    if !name
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
-    {
-        return Err(
-            "イベント名には半角英数字・ハイフン・アンダースコアだけを使用できます".to_string(),
-        );
+    if !name.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') {
+        return Err("イベント名には半角英数字・ハイフン・アンダースコアだけを使用できます".to_string(),);
     }
     if name.chars().count() > 64 {
         return Err("イベント名は64文字以下にしてください".to_string());
@@ -312,7 +483,7 @@ fn is_event_directory_name(name: &str) -> bool {
 }
 
 // timestampはパスの一部になるため、std::fsへ渡す前に14桁ASCII数字だけへ制限する。
-// ".."や区切り文字を含む入力をここで拒否し、ディレクトリトラバーサルを防ぐ。
+// ".."や区切り文字を含む入力をここで拒否し、directoryトラバーサルを防ぐ。
 fn validate_timestamp(ts: &str) -> Result<(), String> {
     if ts.len() != 14 {
         return Err("タイムスタンプは14桁である必要があります".to_string());
@@ -327,67 +498,31 @@ fn configure_connection(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
 }
 
-fn validate_required_tables(
-    conn: &rusqlite::Connection,
-    database_name: &str,
-    required_tables: &[&str],
-) -> rusqlite::Result<()> {
+fn validate_required_tables(conn: &rusqlite::Connection, database_name: &str, required_tables: &[&str],) -> rusqlite::Result<()> {
     for table in required_tables {
-        let exists = conn
-            .query_row(
-                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?1",
-                [table],
-                |_| Ok(()),
-            )
-            .optional()?
-            .is_some();
+        let exists = conn.query_row("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?1", [table], |_| Ok(()),).optional()?.is_some();
         if !exists {
-            return Err(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_SCHEMA),
-                Some(format!(
-                    "{database_name}DBに必要なテーブル '{table}' がありません"
-                )),
-            ));
+            return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_SCHEMA), Some(format!("{database_name}DBに必要なテーブル '{table}' がありません")),));
         }
     }
     Ok(())
 }
 
-fn validate_schema_queries(
-    conn: &rusqlite::Connection,
-    database_name: &str,
-    queries: &[&str],
-) -> rusqlite::Result<()> {
+fn validate_schema_queries(conn: &rusqlite::Connection, database_name: &str, queries: &[&str],) -> rusqlite::Result<()> {
     for query in queries {
         if let Err(error) = conn.prepare(query) {
-            return Err(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_SCHEMA),
-                Some(format!(
-                    "{database_name}DBが現行schemaに一致しません: {error}"
-                )),
-            ));
+            return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_SCHEMA), Some(format!("{database_name}DBが現行schemaに一致しません: {error}")),));
         }
     }
     Ok(())
 }
 
-fn validate_current_schema(
-    conn: &rusqlite::Connection,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-) -> rusqlite::Result<()> {
+fn validate_current_schema(conn: &rusqlite::Connection, database_name: &str, required_tables: &[&str], schema_queries: &[&str],) -> rusqlite::Result<()> {
     validate_required_tables(conn, database_name, required_tables)?;
     validate_schema_queries(conn, database_name, schema_queries)
 }
 
-fn initialize_schema(
-    conn: &mut rusqlite::Connection,
-    schema: &str,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-) -> rusqlite::Result<()> {
+fn initialize_schema(conn: &mut rusqlite::Connection, schema: &str, database_name: &str, required_tables: &[&str], schema_queries: &[&str],) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     tx.execute_batch(schema)?;
     tx.commit()?;
@@ -411,19 +546,13 @@ fn session_dir(event_name: &str, timestamp: &str) -> PathBuf {
 }
 
 fn session_db_path(event_name: &str, timestamp: &str) -> PathBuf {
-    session_dir(event_name, timestamp)
-        .join("db")
-        .join("stargazer.db")
+    session_dir(event_name, timestamp).join("db").join("stargazer.db")
 }
 
 #[cfg(target_os = "windows")]
 fn sqlite_open_path(db_path: &Path) -> PathBuf {
     // SQLiteのWindows VFSへ260文字超の絶対パスを渡せるよう、既存の親だけを拡張長表記へ変換する。
-    db_path
-        .parent()
-        .and_then(|parent| std::fs::canonicalize(parent).ok())
-        .and_then(|parent| db_path.file_name().map(|file_name| parent.join(file_name)))
-        .unwrap_or_else(|| db_path.to_path_buf())
+    db_path.parent().and_then(|parent| std::fs::canonicalize(parent).ok()).and_then(|parent| db_path.file_name().map(|file_name| parent.join(file_name))).unwrap_or_else(|| db_path.to_path_buf())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -431,78 +560,41 @@ fn sqlite_open_path(db_path: &Path) -> PathBuf {
     db_path.to_path_buf()
 }
 
-fn open_connection(
-    db_path: &Path,
-    flags: rusqlite::OpenFlags,
-) -> Result<rusqlite::Connection, String> {
+fn open_connection(db_path: &Path, flags: rusqlite::OpenFlags,) -> Result<rusqlite::Connection, String> {
     let sqlite_path = sqlite_open_path(db_path);
-    let conn = rusqlite::Connection::open_with_flags(&sqlite_path, flags)
-        .map_err(|e| format!("DBを開けませんでした: {e}"))?;
-    conn.busy_timeout(SQLITE_BUSY_TIMEOUT)
-        .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
+    let conn = rusqlite::Connection::open_with_flags(&sqlite_path, flags).map_err(|e| format!("DBを開けませんでした: {e}"))?;
+    conn.busy_timeout(SQLITE_BUSY_TIMEOUT).map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
     configure_connection(&conn).map_err(|e| format!("DB接続を設定できませんでした: {e}"))?;
     Ok(conn)
 }
 
-fn create_schema_connection(
-    db_path: &Path,
-    schema: &str,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-) -> Result<rusqlite::Connection, String> {
+fn create_schema_connection(db_path: &Path, schema: &str, database_name: &str, required_tables: &[&str], schema_queries: &[&str],) -> Result<rusqlite::Connection, String> {
     if db_path.exists() {
         return Err(format!("DBは既に存在します: {}", db_path.display()));
     }
-    let db_dir = db_path
-        .parent()
-        .ok_or_else(|| "DBパスが不正です".to_string())?;
+    let db_dir = db_path.parent().ok_or_else(|| "DBパスが不正です".to_string())?;
     std::fs::create_dir_all(db_dir).map_err(|e| format!("ディレクトリ作成に失敗しました: {e}"))?;
-    let mut conn = open_connection(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
-    )?;
-    initialize_schema(
-        &mut conn,
-        schema,
-        database_name,
-        required_tables,
-        schema_queries,
-    )
-    .map_err(|e| format!("{database_name}DBを初期化できませんでした: {e}"))?;
+    let mut conn = open_connection(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,)?;
+    initialize_schema(&mut conn, schema, database_name, required_tables, schema_queries,).map_err(|e| format!("{database_name}DBを初期化できませんでした: {e}"))?;
     Ok(conn)
 }
 
 fn create_staging_directory(final_dir: &Path) -> Result<PathBuf, String> {
-    if final_dir
-        .try_exists()
-        .map_err(|e| format!("作成先を確認できませんでした: {e}"))?
-    {
+    if final_dir.try_exists().map_err(|e| format!("作成先を確認できませんでした: {e}"))? {
         return Err(format!("作成先は既に存在します: {}", final_dir.display()));
     }
-    let parent = final_dir
-        .parent()
-        .ok_or_else(|| "作成先の親ディレクトリがありません".to_string())?;
-    std::fs::create_dir_all(parent)
-        .map_err(|e| format!("作成先の親ディレクトリを作成できませんでした: {e}"))?;
-    let directory_name = final_dir
-        .file_name()
-        .ok_or_else(|| "作成先のディレクトリ名がありません".to_string())?
-        .to_string_lossy();
+    let parent = final_dir.parent().ok_or_else(|| "作成先の親ディレクトリがありません".to_string())?;
+    std::fs::create_dir_all(parent).map_err(|e| format!("作成先の親ディレクトリを作成できませんでした: {e}"))?;
+    let directory_name = final_dir.file_name().ok_or_else(|| "作成先のディレクトリ名がありません".to_string())?.to_string_lossy();
 
     for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
         let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let staging_dir = parent.join(format!(
-            ".{directory_name}.creating-{}-{sequence}",
-            std::process::id()
-        ));
+        let staging_dir = parent.join(format!(".{directory_name}.creating-{}-{sequence}", std::process::id()));
         match std::fs::create_dir(&staging_dir) {
             Ok(()) => return Ok(staging_dir),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
-                return Err(format!(
-                    "作成用の一時ディレクトリを作成できませんでした: {error}"
-                ));
+                return Err(format!("作成用の一時ディレクトリを作成できませんでした: {error}"));
             }
         }
     }
@@ -511,47 +603,28 @@ fn create_staging_directory(final_dir: &Path) -> Result<PathBuf, String> {
 }
 
 /**
- * 新しいDBを一時ディレクトリ内で最後まで初期化し、完成したディレクトリだけを公開する。
+ * 新しいDBを一時directory内で最後まで初期化し、完成したdirectoryだけを公開する。
  *
  * WHY: 最終パスへ直接作成すると、schemaや追加初期化の失敗後に一覧へ現れる不完全な
- * イベント・セッションが残り、同名で再作成できなくなる。一時ディレクトリだけを失敗時の
+ * イベント・セッションが残り、同名で再作成できなくなる。一時directoryだけを失敗時の
  * 削除対象にすることで、既存データを巻き込まずに作成処理を原子的に扱える。
  */
-fn create_initialized_directory_atomically<F>(
-    final_dir: &Path,
-    relative_db_path: &Path,
-    schema: &str,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-    initialize: F,
-) -> Result<PathBuf, String>
+fn create_initialized_directory_atomically<F>(final_dir: &Path, relative_db_path: &Path, schema: &str, database_name: &str, required_tables: &[&str], schema_queries: &[&str], initialize: F,) -> Result<PathBuf, String>
 where
     F: FnOnce(&mut rusqlite::Connection) -> Result<(), String>,
 {
     let staging_dir = create_staging_directory(final_dir)?;
     let creation_result = (|| {
         let staging_db_path = staging_dir.join(relative_db_path);
-        let mut conn = create_schema_connection(
-            &staging_db_path,
-            schema,
-            database_name,
-            required_tables,
-            schema_queries,
-        )?;
+        let mut conn = create_schema_connection(&staging_db_path, schema, database_name, required_tables, schema_queries,)?;
         initialize(&mut conn)?;
-        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-            .map_err(|e| format!("DBの確定処理に失敗しました: {e}"))?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").map_err(|e| format!("DBの確定処理に失敗しました: {e}"))?;
         drop(conn);
 
-        if final_dir
-            .try_exists()
-            .map_err(|e| format!("作成先を確認できませんでした: {e}"))?
-        {
+        if final_dir.try_exists().map_err(|e| format!("作成先を確認できませんでした: {e}"))? {
             return Err(format!("作成先は既に存在します: {}", final_dir.display()));
         }
-        std::fs::rename(&staging_dir, final_dir)
-            .map_err(|e| format!("完成したデータを配置できませんでした: {e}"))?;
+        std::fs::rename(&staging_dir, final_dir).map_err(|e| format!("完成したデータを配置できませんでした: {e}"))?;
         Ok(final_dir.join(relative_db_path))
     })();
 
@@ -559,130 +632,63 @@ where
         Ok(db_path) => Ok(db_path),
         Err(error) => match std::fs::remove_dir_all(&staging_dir) {
             Ok(()) => Err(error),
-            Err(cleanup_error) if cleanup_error.kind() == std::io::ErrorKind::NotFound => {
-                Err(error)
-            }
-            Err(cleanup_error) => Err(format!(
-                "{error} 一時ディレクトリの削除にも失敗しました: {cleanup_error}"
-            )),
+            Err(cleanup_error) if cleanup_error.kind() == std::io::ErrorKind::NotFound => { Err(error) }
+            Err(cleanup_error) => Err(format!("{error} 一時ディレクトリの削除にも失敗しました: {cleanup_error}")),
         },
     }
 }
 
-fn open_existing_schema_connection(
-    db_path: &Path,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-) -> Result<rusqlite::Connection, String> {
+fn open_existing_schema_connection(db_path: &Path, database_name: &str, required_tables: &[&str], schema_queries: &[&str],) -> Result<rusqlite::Connection, String> {
     if !db_path.is_file() {
         return Err(format!("DBが存在しません: {}", db_path.display()));
     }
     // READ_WRITEだけで開き、存在確認後に削除された場合も空DBを再作成しない。
     let conn = open_connection(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
-    validate_current_schema(&conn, database_name, required_tables, schema_queries)
-        .map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
+    validate_current_schema(&conn, database_name, required_tables, schema_queries).map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
     Ok(conn)
 }
 
-fn open_existing_schema_read_only_connection(
-    db_path: &Path,
-    database_name: &str,
-    required_tables: &[&str],
-    schema_queries: &[&str],
-) -> Result<rusqlite::Connection, String> {
+fn open_existing_schema_read_only_connection(db_path: &Path, database_name: &str, required_tables: &[&str], schema_queries: &[&str],) -> Result<rusqlite::Connection, String> {
     if !db_path.is_file() {
         return Err(format!("DBが存在しません: {}", db_path.display()));
     }
-    let conn = rusqlite::Connection::open_with_flags(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| format!("DBを読み取り専用で開けませんでした: {e}"))?;
-    conn.busy_timeout(SQLITE_BUSY_TIMEOUT)
-        .map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
-    validate_current_schema(&conn, database_name, required_tables, schema_queries)
-        .map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
+    let conn = rusqlite::Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,).map_err(|e| format!("DBを読み取り専用で開けませんでした: {e}"))?;
+    conn.busy_timeout(SQLITE_BUSY_TIMEOUT).map_err(|e| format!("DB待機設定に失敗しました: {e}"))?;
+    validate_current_schema(&conn, database_name, required_tables, schema_queries).map_err(|e| format!("{database_name}DBを開けませんでした: {e}"))?;
     Ok(conn)
 }
 
 fn create_event_shared_db(event_name: &str) -> Result<(), String> {
     let relative_db_path = Path::new(SHARED_DIR).join("db").join("stargazer.db");
-    create_initialized_directory_atomically(
-        &event_dir(event_name),
-        &relative_db_path,
-        SHARED_SCHEMA,
-        "イベント共有",
-        SHARED_REQUIRED_TABLES,
-        SHARED_SCHEMA_QUERIES,
-        |_| Ok(()),
-    )
-    .map(|_| ())
+    create_initialized_directory_atomically(&event_dir(event_name), &relative_db_path, SHARED_SCHEMA, "イベント共有", SHARED_REQUIRED_TABLES, SHARED_SCHEMA_QUERIES, |_| Ok(()),).map(|_| ())
 }
 
 fn open_event_shared_db(event_name: &str) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = event_shared_db_path(event_name);
-    let conn = open_existing_schema_connection(
-        &db_path,
-        "イベント共有",
-        SHARED_REQUIRED_TABLES,
-        SHARED_SCHEMA_QUERIES,
-    )?;
+    let conn = open_existing_schema_connection(&db_path, "イベント共有", SHARED_REQUIRED_TABLES, SHARED_SCHEMA_QUERIES,)?;
     Ok((db_path, conn))
 }
 
-fn open_event_shared_read_only_db(
-    event_name: &str,
-) -> Result<(PathBuf, rusqlite::Connection), String> {
+fn open_event_shared_read_only_db(event_name: &str,) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = event_shared_db_path(event_name);
-    let conn = open_existing_schema_read_only_connection(
-        &db_path,
-        "イベント共有",
-        SHARED_REQUIRED_TABLES,
-        SHARED_SCHEMA_QUERIES,
-    )?;
+    let conn = open_existing_schema_read_only_connection(&db_path, "イベント共有", SHARED_REQUIRED_TABLES, SHARED_SCHEMA_QUERIES,)?;
     Ok((db_path, conn))
 }
 
 fn write_session_in_progress_marker(conn: &rusqlite::Connection) -> Result<(), String> {
-    let staging_dir = conn
-        .path()
-        .and_then(|db_path| Path::new(db_path).parent())
-        .and_then(Path::parent)
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "操作中セッションの一時保存先が不正です".to_string())?;
-    std::fs::write(
-        staging_dir.join(IN_PROGRESS_SESSION_MARKER),
-        b"Stargazer import session in progress\n",
-    )
-    .map_err(|e| format!("操作中セッションの状態を保存できませんでした: {e}"))
+    let staging_dir = conn.path().and_then(|db_path| Path::new(db_path).parent()).and_then(Path::parent).map(Path::to_path_buf).ok_or_else(|| "操作中セッションの一時保存先が不正です".to_string())?;
+    std::fs::write(staging_dir.join(IN_PROGRESS_SESSION_MARKER), b"Stargazer import session in progress\n",).map_err(|e| format!("操作中セッションの状態を保存できませんでした: {e}"))
 }
 
-fn open_session_db(
-    event_name: &str,
-    timestamp: &str,
-) -> Result<(PathBuf, rusqlite::Connection), String> {
+fn open_session_db(event_name: &str, timestamp: &str,) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = session_db_path(event_name, timestamp);
-    let conn = open_existing_schema_connection(
-        &db_path,
-        "取込セッション",
-        SESSION_REQUIRED_TABLES,
-        SESSION_SCHEMA_QUERIES,
-    )?;
+    let conn = open_existing_schema_connection(&db_path, "取込セッション", SESSION_REQUIRED_TABLES, SESSION_SCHEMA_QUERIES,)?;
     Ok((db_path, conn))
 }
 
-fn open_session_read_only_db(
-    event_name: &str,
-    timestamp: &str,
-) -> Result<(PathBuf, rusqlite::Connection), String> {
+fn open_session_read_only_db(event_name: &str, timestamp: &str,) -> Result<(PathBuf, rusqlite::Connection), String> {
     let db_path = session_db_path(event_name, timestamp);
-    let conn = open_existing_schema_read_only_connection(
-        &db_path,
-        "取込セッション",
-        SESSION_REQUIRED_TABLES,
-        SESSION_SCHEMA_QUERIES,
-    )?;
+    let conn = open_existing_schema_read_only_connection(&db_path, "取込セッション", SESSION_REQUIRED_TABLES, SESSION_SCHEMA_QUERIES,)?;
     Ok((db_path, conn))
 }
 
@@ -691,17 +697,10 @@ fn session_in_progress_marker_path(event_name: &str, timestamp: &str) -> PathBuf
 }
 
 fn read_session_token(conn: &rusqlite::Connection) -> rusqlite::Result<String> {
-    conn.query_row(
-        "SELECT session_token FROM session_workflow_state WHERE id = 1",
-        [],
-        |row| row.get(0),
-    )
+    conn.query_row("SELECT session_token FROM session_workflow_state WHERE id = 1", [], |row| row.get(0),)
 }
 
-fn session_has_saved_result(
-    shared_conn: &rusqlite::Connection,
-    session_token: &str,
-) -> rusqlite::Result<bool> {
+fn session_has_saved_result(shared_conn: &rusqlite::Connection, session_token: &str,) -> rusqlite::Result<bool> {
     shared_conn
         .query_row(
             "SELECT EXISTS(
@@ -714,16 +713,10 @@ fn session_has_saved_result(
 }
 
 /** 一つの作業セッションから保存できる業務結果を、抽選またはマッチングの一件に制限する。 */
-fn reject_session_with_saved_result(
-    event_name: &str,
-    session_conn: &rusqlite::Connection,
-) -> Result<(), String> {
-    let session_token = read_session_token(session_conn)
-        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+fn reject_session_with_saved_result(event_name: &str, session_conn: &rusqlite::Connection,) -> Result<(), String> {
+    let session_token = read_session_token(session_conn).map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
     let (_, shared_conn) = open_event_shared_db(event_name)?;
-    if session_has_saved_result(&shared_conn, &session_token)
-        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
-    {
+    if session_has_saved_result(&shared_conn, &session_token).map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))? {
         return Err("この作業セッションでは既に結果を保存しています".to_string());
     }
     Ok(())
@@ -981,56 +974,33 @@ fn open_shared_write_connection(event_name: &str) -> Result<rusqlite::Connection
 }
 
 /** 取込セッション DB を、foreign key を有効化した書き込み用 connection として開く。 */
-fn open_session_write_connection(
-    event_name: &str,
-    timestamp: &str,
-) -> Result<rusqlite::Connection, String> {
+fn open_session_write_connection(event_name: &str, timestamp: &str,) -> Result<rusqlite::Connection, String> {
     validate_event_name(event_name)?;
     validate_timestamp(timestamp)?;
     open_session_db(event_name, timestamp).map(|(_, conn)| conn)
 }
 
 /** キャスト本体、別名義、連絡先 URL、NG エントリを同じ transaction に挿入する。 */
-fn insert_cast_in_transaction(
-    tx: &rusqlite::Transaction<'_>,
-    cast: &CastInput,
-) -> rusqlite::Result<i64> {
+fn insert_cast_in_transaction(tx: &rusqlite::Transaction<'_>, cast: &CastInput,) -> rusqlite::Result<i64> {
     tx.execute(
         "INSERT INTO casts (name, group_name, is_attend, photo_data_url, memo)
          VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![
-            &cast.name,
-            cast.group_name.as_deref(),
-            if cast.is_present { 1 } else { 0 },
-            cast.photo_data_url.as_deref(),
-            cast.memo.as_deref()
-        ],
+        rusqlite::params![&cast.name, cast.group_name.as_deref(), if cast.is_present { 1 } else { 0 }, cast.photo_data_url.as_deref(), cast.memo.as_deref()],
     )?;
     let cast_id = tx.last_insert_rowid();
     for url in &cast.contact_urls {
-        tx.execute(
-            "INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)",
-            rusqlite::params![cast_id, url],
-        )?;
+        tx.execute("INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)", rusqlite::params![cast_id, url],)?;
     }
     for ng in &cast.ng_entries {
         let account_id = canonicalize_optional_x_id(ng.account_id.as_deref(), "キャストNG")?;
         tx.execute(
             "INSERT INTO cast_ng_entries (cast_id, username, userid, notes)
              VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![
-                cast_id,
-                ng.username.as_deref(),
-                account_id.as_deref(),
-                ng.notes.as_deref()
-            ],
+            rusqlite::params![cast_id, ng.username.as_deref(), account_id.as_deref(), ng.notes.as_deref()],
         )?;
     }
     for alias in &cast.aliases {
-        tx.execute(
-            "INSERT INTO cast_aliases (cast_id, alias) VALUES (?1, ?2)",
-            rusqlite::params![cast_id, alias],
-        )?;
+        tx.execute("INSERT INTO cast_aliases (cast_id, alias) VALUES (?1, ?2)", rusqlite::params![cast_id, alias],)?;
     }
     Ok(cast_id)
 }
@@ -1039,13 +1009,7 @@ fn validate_session_workflow_state(state: &SessionWorkflowStateInput) -> Result<
     if !SUPPORTED_MATCHING_TYPE_CODES.contains(&state.matching_type_code.as_str()) {
         return Err("対応していないマッチング方式です".to_string());
     }
-    if state.lottery_count < 1
-        || state.rotation_count < 1
-        || state.total_tables < 1
-        || state.users_per_table < 1
-        || state.casts_per_rotation < 1
-        || state.same_day_slot_count < 0
-    {
+    if state.lottery_count < 1 || state.rotation_count < 1 || state.total_tables < 1 || state.users_per_table < 1 || state.casts_per_rotation < 1 || state.same_day_slot_count < 0 {
         return Err("抽選・マッチング条件の数値が範囲外です".to_string());
     }
     if !matches!(state.same_day_slot_unit.as_str(), "person" | "table") {
@@ -1060,10 +1024,7 @@ fn validate_session_workflow_state(state: &SessionWorkflowStateInput) -> Result<
  * WHY: 抽選結果そのものと条件を二重保存して比較する代わりに、結果確定時の revision を保持する。
  * これにより条件変更後の抽選結果を、再起動後も確実に「古い結果」と判定できる。
  */
-fn persist_session_workflow_state_in_connection(
-    conn: &mut rusqlite::Connection,
-    state: &SessionWorkflowStateInput,
-) -> rusqlite::Result<()> {
+fn persist_session_workflow_state_in_connection(conn: &mut rusqlite::Connection, state: &SessionWorkflowStateInput,) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     validate_session_workflow_write_access(&tx, state)?;
     tx.execute(
@@ -1108,12 +1069,7 @@ fn persist_session_workflow_state_in_connection(
 fn parse_x_username(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     let username = trimmed.strip_prefix('@').unwrap_or(trimmed);
-    if username.is_empty()
-        || username.len() > 15
-        || !username
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-    {
+    if username.is_empty() || username.len() > 15 || !username.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_') {
         return None;
     }
     Some(username)
@@ -1125,41 +1081,25 @@ fn canonicalize_x_id_for_storage(value: &str) -> String {
 }
 
 /** 任意入力のX IDを@なしへ整え、指定された形式不正値は保存前に拒否する。 */
-fn canonicalize_optional_x_id(
-    value: Option<&str>,
-    context: &str,
-) -> rusqlite::Result<Option<String>> {
+fn canonicalize_optional_x_id(value: Option<&str>, context: &str,) -> rusqlite::Result<Option<String>> {
     let Some(value) = value else {
         return Ok(None);
     };
-    let username = parse_x_username(value).ok_or_else(|| {
-        rusqlite::Error::InvalidParameterName(format!("{context}のX ID '{value}' は形式が不正です"))
-    })?;
+    let username = parse_x_username(value).ok_or_else(|| { rusqlite::Error::InvalidParameterName(format!("{context}のX ID '{value}' は形式が不正です")) })?;
     Ok(Some(username.to_string()))
 }
 
-fn validate_unique_x_ids<'a>(
-    x_ids: impl IntoIterator<Item = &'a str>,
-    context: &str,
-) -> rusqlite::Result<()> {
+fn validate_unique_x_ids<'a>(x_ids: impl IntoIterator<Item = &'a str>, context: &str,) -> rusqlite::Result<()> {
     let mut seen_x_ids = HashSet::new();
     for x_id in x_ids {
         let trimmed = x_id.trim();
         if trimmed.is_empty() {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "{context}にX IDが空のデータがあります"
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("{context}にX IDが空のデータがあります")));
         }
-        let username = parse_x_username(trimmed).ok_or_else(|| {
-            rusqlite::Error::InvalidParameterName(format!(
-                "{context}に形式が不正なX ID '{x_id}' があります"
-            ))
-        })?;
+        let username = parse_x_username(trimmed).ok_or_else(|| { rusqlite::Error::InvalidParameterName(format!("{context}に形式が不正なX ID '{x_id}' があります")) })?;
         let normalized = username.to_ascii_lowercase();
         if !seen_x_ids.insert(normalized) {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "{context}に重複するX ID '{x_id}' があります"
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("{context}に重複するX ID '{x_id}' があります")));
         }
     }
     Ok(())
@@ -1168,27 +1108,13 @@ fn validate_unique_x_ids<'a>(
 fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
     for user in users {
         if user.casts.len() != user.cast_ids.len() {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "応募者 '{}' の希望キャスト名とIDの件数が一致しません",
-                user.x_id
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("応募者 '{}' の希望キャスト名とIDの件数が一致しません", user.x_id)));
         }
-        if user
-            .casts
-            .iter()
-            .zip(&user.cast_ids)
-            .any(|(cast_name, cast_id)| cast_name.is_empty() && cast_id.is_some())
-        {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "応募者 '{}' の空の希望キャストにIDが指定されています",
-                user.x_id
-            )));
+        if user.casts.iter().zip(&user.cast_ids).any(|(cast_name, cast_id)| cast_name.is_empty() && cast_id.is_some()) {
+            return Err(rusqlite::Error::InvalidParameterName(format!("応募者 '{}' の空の希望キャストにIDが指定されています", user.x_id)));
         }
         if !matches!(user.preference_mode.as_str(), "flat" | "ranked") {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "応募者 '{}' の希望方式が不正です",
-                user.x_id
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("応募者 '{}' の希望方式が不正です", user.x_id)));
         }
     }
     Ok(())
@@ -1196,45 +1122,29 @@ fn validate_applicant_inputs(users: &[ApplicantInput]) -> rusqlite::Result<()> {
 
 /** 保存済み抽選から復元したセッションでは、応募者と抽選条件を変更させない。 */
 fn reject_lottery_input_session_write(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-    let is_read_only = conn.query_row(
-        "SELECT is_lottery_read_only FROM session_workflow_state WHERE id = 1",
-        [],
-        |row| row.get::<_, i64>(0),
-    )?;
+    let is_read_only = conn.query_row("SELECT is_lottery_read_only FROM session_workflow_state WHERE id = 1", [], |row| row.get::<_, i64>(0),)?;
     if is_read_only == 1 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存済み抽選から復元した応募データと抽選条件は変更できません".to_string(),
-        ));
+        return Err(rusqlite::Error::InvalidParameterName("保存済み抽選から復元した応募データと抽選条件は変更できません".to_string(),));
     }
     Ok(())
 }
 
 /** 復元済み抽選の方式と人数を固定し、後続マッチング専用の条件だけを変更可能にする。 */
-fn validate_session_workflow_write_access(
-    conn: &rusqlite::Connection,
-    state: &SessionWorkflowStateInput,
-) -> rusqlite::Result<()> {
+fn validate_session_workflow_write_access(conn: &rusqlite::Connection, state: &SessionWorkflowStateInput,) -> rusqlite::Result<()> {
     let (is_read_only, matching_type_code, lottery_count): (i64, String, i64) = conn.query_row(
         "SELECT is_lottery_read_only, matching_type_code, lottery_count
          FROM session_workflow_state WHERE id = 1",
         [],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
-    if is_read_only == 1
-        && (matching_type_code != state.matching_type_code || lottery_count != state.lottery_count)
-    {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "保存済み抽選の方式と抽選人数は変更できません".to_string(),
-        ));
+    if is_read_only == 1 && (matching_type_code != state.matching_type_code || lottery_count != state.lottery_count) {
+        return Err(rusqlite::Error::InvalidParameterName("保存済み抽選の方式と抽選人数は変更できません".to_string(),));
     }
     Ok(())
 }
 
 /** 選び直した希望IDを現在の名簿へ照合し、保存する正式名を確定する。 */
-fn resolve_applicant_cast_preferences(
-    shared_conn: &rusqlite::Connection,
-    input: &ApplicantCastPreferencesInput,
-) -> rusqlite::Result<Vec<Option<(i64, String)>>> {
+fn resolve_applicant_cast_preferences(shared_conn: &rusqlite::Connection, input: &ApplicantCastPreferencesInput,) -> rusqlite::Result<Vec<Option<(i64, String)>>> {
     input
         .cast_ids
         .iter()
@@ -1243,25 +1153,16 @@ fn resolve_applicant_cast_preferences(
                 return Ok(None);
             };
             let cast_name = shared_conn
-                .query_row("SELECT name FROM casts WHERE id = ?1", [cast_id], |row| {
-                    row.get::<_, String>(0)
-                })
+                .query_row("SELECT name FROM casts WHERE id = ?1", [cast_id], |row| { row.get::<_, String>(0) })
                 .optional()?
-                .ok_or_else(|| {
-                    rusqlite::Error::InvalidParameterName(format!(
-                        "希望キャストID '{cast_id}' は現在の名簿に存在しません"
-                    ))
-                })?;
+                .ok_or_else(|| { rusqlite::Error::InvalidParameterName(format!("希望キャストID '{cast_id}' は現在の名簿に存在しません")) })?;
             Ok(Some((*cast_id, cast_name)))
         })
         .collect()
 }
 
 /** 編集可能な取込セッションの応募者一覧と現行抽選結果を、単一 transaction で全置換する。 */
-fn persist_applicants_in_connection(
-    conn: &mut rusqlite::Connection,
-    users: &[ApplicantInput],
-) -> rusqlite::Result<()> {
+fn persist_applicants_in_connection(conn: &mut rusqlite::Connection, users: &[ApplicantInput],) -> rusqlite::Result<()> {
     // 入力全体を先に検証し、不正なpayloadで既存データの置換を開始しない。
     validate_applicant_inputs(users)?;
     let tx = conn.transaction()?;
@@ -1281,17 +1182,10 @@ fn persist_applicants_in_connection(
         tx.execute(
             "INSERT INTO applicants (x_id, name, vrc_url, preference_mode, is_guaranteed)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![
-                &stored_x_id,
-                user.name.as_deref(),
-                user.vrc_url.as_deref(),
-                &user.preference_mode,
-                if user.is_guaranteed { 1 } else { 0 }
-            ],
+            rusqlite::params![&stored_x_id, user.name.as_deref(), user.vrc_url.as_deref(), &user.preference_mode, if user.is_guaranteed { 1 } else { 0 }],
         )?;
         let applicant_id = tx.last_insert_rowid();
-        for (index, (cast_name, cast_id)) in user.casts.iter().zip(user.cast_ids.iter()).enumerate()
-        {
+        for (index, (cast_name, cast_id)) in user.casts.iter().zip(user.cast_ids.iter()).enumerate() {
             if cast_name.is_empty() {
                 continue;
             }
@@ -1315,22 +1209,11 @@ fn persist_applicants_in_connection(
 }
 
 /** 応募者1件の希望だけを更新し、抽選結果と応募者IDは維持する。 */
-fn update_applicant_cast_preferences_in_connection(
-    conn: &mut rusqlite::Connection,
-    applicant_id: i64,
-    preferences: &[Option<(i64, String)>],
-) -> rusqlite::Result<()> {
+fn update_applicant_cast_preferences_in_connection(conn: &mut rusqlite::Connection, applicant_id: i64, preferences: &[Option<(i64, String)>],) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     reject_lottery_input_session_write(&tx)?;
-    tx.query_row(
-        "SELECT 1 FROM applicants WHERE id = ?1",
-        [applicant_id],
-        |row| row.get::<_, i64>(0),
-    )?;
-    tx.execute(
-        "DELETE FROM applicant_casts WHERE applicant_id = ?1",
-        [applicant_id],
-    )?;
+    tx.query_row("SELECT 1 FROM applicants WHERE id = ?1", [applicant_id], |row| row.get::<_, i64>(0),)?;
+    tx.execute("DELETE FROM applicant_casts WHERE applicant_id = ?1", [applicant_id],)?;
     for (preference_order, preference) in preferences.iter().enumerate() {
         let Some((cast_id, cast_name)) = preference else {
             continue;
@@ -1346,17 +1229,10 @@ fn update_applicant_cast_preferences_in_connection(
 }
 
 /** 応募者1件を削除し、応募者集合に依存する抽選状態も同じtransactionで無効化する。 */
-fn delete_applicant_in_connection(
-    conn: &mut rusqlite::Connection,
-    applicant_id: i64,
-) -> rusqlite::Result<()> {
+fn delete_applicant_in_connection(conn: &mut rusqlite::Connection, applicant_id: i64,) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     reject_lottery_input_session_write(&tx)?;
-    tx.query_row(
-        "SELECT 1 FROM applicants WHERE id = ?1",
-        [applicant_id],
-        |row| row.get::<_, i64>(0),
-    )?;
+    tx.query_row("SELECT 1 FROM applicants WHERE id = ?1", [applicant_id], |row| row.get::<_, i64>(0),)?;
     tx.execute("DELETE FROM lottery_results", [])?;
     tx.execute("DELETE FROM applicants WHERE id = ?1", [applicant_id])?;
     tx.execute(
@@ -1373,30 +1249,15 @@ fn delete_applicant_in_connection(
  * 抽選前に選択した確定当選者を応募者行へ保存し、条件revisionを更新する。
  * lottery_results.is_guaranteed は抽選実行時の結果スナップショットとして別に保持する。
  */
-fn apply_applicant_guarantee_diff(
-    tx: &rusqlite::Transaction<'_>,
-    guaranteed_x_ids: &[String],
-) -> rusqlite::Result<()> {
-    validate_unique_x_ids(
-        guaranteed_x_ids.iter().map(String::as_str),
-        "確定当選者一覧",
-    )?;
-    let requested = guaranteed_x_ids
-        .iter()
-        .map(|x_id| {
-            parse_x_username(x_id)
-                .unwrap_or(x_id.as_str())
-                .to_ascii_lowercase()
-        })
-        .collect::<HashSet<_>>();
+fn apply_applicant_guarantee_diff(tx: &rusqlite::Transaction<'_>, guaranteed_x_ids: &[String],) -> rusqlite::Result<()> {
+    validate_unique_x_ids(guaranteed_x_ids.iter().map(String::as_str), "確定当選者一覧",)?;
+    let requested = guaranteed_x_ids.iter().map(|x_id| { parse_x_username(x_id).unwrap_or(x_id.as_str()).to_ascii_lowercase() }).collect::<HashSet<_>>();
     let current = {
         let mut stmt = tx.prepare("SELECT x_id FROM applicants WHERE is_guaranteed = 1")?;
         let values = stmt
             .query_map([], |row| {
                 let x_id = row.get::<_, String>(0)?;
-                Ok(parse_x_username(&x_id)
-                    .unwrap_or(x_id.as_str())
-                    .to_ascii_lowercase())
+                Ok(parse_x_username(&x_id).unwrap_or(x_id.as_str()).to_ascii_lowercase())
             })?
             .collect::<rusqlite::Result<HashSet<_>>>()?;
         values
@@ -1426,10 +1287,7 @@ fn apply_applicant_guarantee_diff(
     Ok(())
 }
 
-fn replace_applicant_guarantees_in_connection(
-    conn: &mut rusqlite::Connection,
-    guaranteed_x_ids: &[String],
-) -> rusqlite::Result<()> {
+fn replace_applicant_guarantees_in_connection(conn: &mut rusqlite::Connection, guaranteed_x_ids: &[String],) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     reject_lottery_input_session_write(&tx)?;
     // 重複X IDを含むセッションでは対象行を一意に決められないため、抽選条件を更新しない。
@@ -1439,10 +1297,7 @@ fn replace_applicant_guarantees_in_connection(
 }
 
 /** キャスト1件と関連 URL/NG エントリを単一 transaction で追加し、安定 ID を返す。 */
-fn insert_cast_in_connection(
-    conn: &mut rusqlite::Connection,
-    cast: &CastInput,
-) -> rusqlite::Result<i64> {
+fn insert_cast_in_connection(conn: &mut rusqlite::Connection, cast: &CastInput,) -> rusqlite::Result<i64> {
     let tx = conn.transaction()?;
     let cast_id = insert_cast_in_transaction(&tx, cast)?;
     tx.commit()?;
@@ -1450,48 +1305,27 @@ fn insert_cast_in_connection(
 }
 
 /** キャストの部分更新を、関連 URL/NG エントリの全置換と同じ transaction にまとめる。 */
-fn update_cast_fields_in_connection(
-    conn: &mut rusqlite::Connection,
-    cast_id: i64,
-    patch: &CastPatchInput,
-) -> rusqlite::Result<()> {
+fn update_cast_fields_in_connection(conn: &mut rusqlite::Connection, cast_id: i64, patch: &CastPatchInput,) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
-    tx.query_row("SELECT 1 FROM casts WHERE id = ?1", [cast_id], |row| {
-        row.get::<_, i64>(0)
-    })?;
+    tx.query_row("SELECT 1 FROM casts WHERE id = ?1", [cast_id], |row| { row.get::<_, i64>(0) })?;
 
     if patch.update_is_present {
-        tx.execute(
-            "UPDATE casts SET is_attend = ?1 WHERE id = ?2",
-            rusqlite::params![if patch.is_present { 1 } else { 0 }, cast_id],
-        )?;
+        tx.execute("UPDATE casts SET is_attend = ?1 WHERE id = ?2", rusqlite::params![if patch.is_present { 1 } else { 0 }, cast_id],)?;
     }
     if patch.update_group_name {
-        tx.execute(
-            "UPDATE casts SET group_name = ?1 WHERE id = ?2",
-            rusqlite::params![patch.group_name.as_deref(), cast_id],
-        )?;
+        tx.execute("UPDATE casts SET group_name = ?1 WHERE id = ?2", rusqlite::params![patch.group_name.as_deref(), cast_id],)?;
     }
     if patch.update_photo_data_url {
-        tx.execute(
-            "UPDATE casts SET photo_data_url = ?1 WHERE id = ?2",
-            rusqlite::params![patch.photo_data_url.as_deref(), cast_id],
-        )?;
+        tx.execute("UPDATE casts SET photo_data_url = ?1 WHERE id = ?2", rusqlite::params![patch.photo_data_url.as_deref(), cast_id],)?;
     }
     if patch.update_memo {
-        tx.execute(
-            "UPDATE casts SET memo = ?1 WHERE id = ?2",
-            rusqlite::params![patch.memo.as_deref(), cast_id],
-        )?;
+        tx.execute("UPDATE casts SET memo = ?1 WHERE id = ?2", rusqlite::params![patch.memo.as_deref(), cast_id],)?;
     }
 
     if patch.update_contact_urls {
         tx.execute("DELETE FROM cast_urls WHERE cast_id = ?1", [cast_id])?;
         for url in &patch.contact_urls {
-            tx.execute(
-                "INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)",
-                rusqlite::params![cast_id, url],
-            )?;
+            tx.execute("INSERT INTO cast_urls (cast_id, url) VALUES (?1, ?2)", rusqlite::params![cast_id, url],)?;
         }
     }
     if patch.update_ng_entries {
@@ -1501,37 +1335,22 @@ fn update_cast_fields_in_connection(
             tx.execute(
                 "INSERT INTO cast_ng_entries (cast_id, username, userid, notes)
                  VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![
-                    cast_id,
-                    ng.username.as_deref(),
-                    account_id.as_deref(),
-                    ng.notes.as_deref()
-                ],
+                rusqlite::params![cast_id, ng.username.as_deref(), account_id.as_deref(), ng.notes.as_deref()],
             )?;
         }
     }
     if patch.update_aliases {
         tx.execute("DELETE FROM cast_aliases WHERE cast_id = ?1", [cast_id])?;
         for alias in &patch.aliases {
-            tx.execute(
-                "INSERT INTO cast_aliases (cast_id, alias) VALUES (?1, ?2)",
-                rusqlite::params![cast_id, alias],
-            )?;
+            tx.execute("INSERT INTO cast_aliases (cast_id, alias) VALUES (?1, ?2)", rusqlite::params![cast_id, alias],)?;
         }
     }
     tx.commit()
 }
 
 /** キャスト名だけを更新し、関連データが参照する安定 ID を維持する。 */
-fn rename_cast_in_connection(
-    conn: &mut rusqlite::Connection,
-    cast_id: i64,
-    new_name: &str,
-) -> rusqlite::Result<()> {
-    let updated = conn.execute(
-        "UPDATE casts SET name = ?1 WHERE id = ?2",
-        rusqlite::params![new_name, cast_id],
-    )?;
+fn rename_cast_in_connection(conn: &mut rusqlite::Connection, cast_id: i64, new_name: &str,) -> rusqlite::Result<()> {
+    let updated = conn.execute("UPDATE casts SET name = ?1 WHERE id = ?2", rusqlite::params![new_name, cast_id],)?;
     if updated != 1 {
         return Err(rusqlite::Error::QueryReturnedNoRows);
     }
@@ -1539,10 +1358,7 @@ fn rename_cast_in_connection(
 }
 
 /** キャストを削除し、関連行は foreign key の ON DELETE CASCADE に委ねる。 */
-fn delete_cast_in_connection(
-    conn: &mut rusqlite::Connection,
-    cast_id: i64,
-) -> rusqlite::Result<()> {
+fn delete_cast_in_connection(conn: &mut rusqlite::Connection, cast_id: i64,) -> rusqlite::Result<()> {
     let deleted = conn.execute("DELETE FROM casts WHERE id = ?1", [cast_id])?;
     if deleted != 1 {
         return Err(rusqlite::Error::QueryReturnedNoRows);
@@ -1577,26 +1393,12 @@ fn is_valid_calendar_date(value: &str) -> bool {
 }
 
 /** 指定日のキャスト出席記録を、既存行削除と新規挿入を含めて単一 transaction で保存する。 */
-fn record_cast_attendance_in_connection(
-    conn: &mut rusqlite::Connection,
-    present_cast_ids: &[i64],
-    recorded_at: &str,
-) -> rusqlite::Result<()> {
+fn record_cast_attendance_in_connection(conn: &mut rusqlite::Connection, present_cast_ids: &[i64], recorded_at: &str,) -> rusqlite::Result<()> {
     if !is_valid_calendar_date(recorded_at) {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "出席記録日は実在する YYYY-MM-DD 形式の日付で指定してください".to_string(),
-        ));
+        return Err(rusqlite::Error::InvalidParameterName("出席記録日は実在する YYYY-MM-DD 形式の日付で指定してください".to_string(),));
     }
-    if present_cast_ids
-        .iter()
-        .copied()
-        .collect::<HashSet<_>>()
-        .len()
-        != present_cast_ids.len()
-    {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "出席者一覧に同じキャストが重複しています".to_string(),
-        ));
+    if present_cast_ids.iter().copied().collect::<HashSet<_>>().len() != present_cast_ids.len() {
+        return Err(rusqlite::Error::InvalidParameterName("出席者一覧に同じキャストが重複しています".to_string(),));
     }
     let tx = conn.transaction()?;
     {
@@ -1611,13 +1413,9 @@ fn record_cast_attendance_in_connection(
          ON CONFLICT(recorded_at) DO NOTHING",
         [recorded_at],
     )?;
-    tx.execute(
-        "DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?1)",
-        [recorded_at],
-    )?;
+    tx.execute("DELETE FROM cast_attendance WHERE DATE(recorded_at) = DATE(?1)", [recorded_at],)?;
     {
-        let mut stmt =
-            tx.prepare("INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?1, ?2)")?;
+        let mut stmt = tx.prepare("INSERT INTO cast_attendance (cast_id, recorded_at) VALUES (?1, ?2)")?;
         for cast_id in present_cast_ids {
             stmt.execute(rusqlite::params![cast_id, recorded_at])?;
         }
@@ -1625,15 +1423,8 @@ fn record_cast_attendance_in_connection(
     tx.commit()
 }
 
-fn validate_expected_condition_revision(
-    tx: &rusqlite::Transaction<'_>,
-    expected_condition_revision: i64,
-) -> rusqlite::Result<()> {
-    let condition_revision: i64 = tx.query_row(
-        "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
-        [],
-        |row| row.get(0),
-    )?;
+fn validate_expected_condition_revision(tx: &rusqlite::Transaction<'_>, expected_condition_revision: i64,) -> rusqlite::Result<()> {
+    let condition_revision: i64 = tx.query_row("SELECT condition_revision FROM session_workflow_state WHERE id = 1", [], |row| row.get(0),)?;
     if condition_revision != expected_condition_revision {
         return Err(rusqlite::Error::InvalidQuery);
     }
@@ -1651,41 +1442,27 @@ struct ValidatedLotteryResultCounts {
 }
 
 /** 現在の応募者区分と抽選人数を正として、現行抽選結果の件数と保証区分を検証する。 */
-fn validate_lottery_result_rows_against_workflow(
-    conn: &rusqlite::Connection,
-    rows: &[LotteryResultInput],
-) -> rusqlite::Result<ValidatedLotteryResultCounts> {
+fn validate_lottery_result_rows_against_workflow(conn: &rusqlite::Connection, rows: &[LotteryResultInput],) -> rusqlite::Result<ValidatedLotteryResultCounts> {
     validate_lottery_result_inputs(rows)?;
     validate_stored_applicant_x_ids(conn)?;
 
-    let lottery_count: i64 = conn.query_row(
-        "SELECT lottery_count FROM session_workflow_state WHERE id = 1",
-        [],
-        |row| row.get(0),
-    )?;
-    let (candidate_count, guaranteed_count, invalid_guarantee_count): (i64, i64, i64) = conn
-        .query_row(
-            "SELECT COALESCE(SUM(CASE WHEN is_guaranteed = 0 THEN 1 ELSE 0 END), 0),
+    let lottery_count: i64 = conn.query_row("SELECT lottery_count FROM session_workflow_state WHERE id = 1", [], |row| row.get(0),)?;
+    let (candidate_count, guaranteed_count, invalid_guarantee_count): (i64, i64, i64) = conn.query_row(
+        "SELECT COALESCE(SUM(CASE WHEN is_guaranteed = 0 THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN is_guaranteed = 1 THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN is_guaranteed NOT IN (0, 1) THEN 1 ELSE 0 END), 0)
              FROM applicants",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
     if lottery_count < 1 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "抽選条件の抽選人数が不正です".to_string(),
-        ));
+        return Err(rusqlite::Error::InvalidParameterName("抽選条件の抽選人数が不正です".to_string(),));
     }
     if invalid_guarantee_count != 0 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "応募者の確定当選区分が不正です".to_string(),
-        ));
+        return Err(rusqlite::Error::InvalidParameterName("応募者の確定当選区分が不正です".to_string(),));
     }
     if lottery_count > candidate_count {
-        return Err(rusqlite::Error::InvalidParameterName(format!(
-            "抽選人数（{lottery_count}名）が抽選候補数（{candidate_count}名）を超えています"
-        )));
+        return Err(rusqlite::Error::InvalidParameterName(format!("抽選人数（{lottery_count}名）が抽選候補数（{candidate_count}名）を超えています")));
     }
 
     let mut drawn_result_count = 0_i64;
@@ -1697,26 +1474,12 @@ fn validate_lottery_result_rows_against_workflow(
         )?;
         for row in rows {
             let Some(username) = parse_x_username(&row.x_id) else {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "当選者 '{}' のX IDは形式が不正です",
-                    row.x_id
-                )));
+                return Err(rusqlite::Error::InvalidParameterName(format!("当選者 '{}' のX IDは形式が不正です", row.x_id)));
             };
-            let applicant_is_guaranteed = stmt
-                .query_row([username], |result| result.get::<_, i64>(0))
-                .optional()?
-                .ok_or_else(|| {
-                    rusqlite::Error::InvalidParameterName(format!(
-                        "当選者 '{}' は現在の取込セッションに存在しません",
-                        row.x_id
-                    ))
-                })?
-                == 1;
+            let applicant_is_guaranteed =
+                stmt.query_row([username], |result| result.get::<_, i64>(0)).optional()?.ok_or_else(|| { rusqlite::Error::InvalidParameterName(format!("当選者 '{}' は現在の取込セッションに存在しません", row.x_id)) })? == 1;
             if applicant_is_guaranteed != row.is_guaranteed {
-                return Err(rusqlite::Error::InvalidParameterName(format!(
-                    "当選者 '{}' の確定当選区分が応募者データと一致しません",
-                    row.x_id
-                )));
+                return Err(rusqlite::Error::InvalidParameterName(format!("当選者 '{}' の確定当選区分が応募者データと一致しません", row.x_id)));
             }
             if row.is_guaranteed {
                 guaranteed_result_count += 1;
@@ -1727,31 +1490,17 @@ fn validate_lottery_result_rows_against_workflow(
     }
 
     if drawn_result_count != lottery_count {
-        return Err(rusqlite::Error::InvalidParameterName(format!(
-            "抽選結果の抽選当選者数（{drawn_result_count}名）が設定された抽選人数（{lottery_count}名）と一致しません"
-        )));
+        return Err(rusqlite::Error::InvalidParameterName(format!("抽選結果の抽選当選者数（{drawn_result_count}名）が設定された抽選人数（{lottery_count}名）と一致しません")));
     }
     if guaranteed_result_count != guaranteed_count {
-        return Err(rusqlite::Error::InvalidParameterName(format!(
-            "抽選結果の確定当選者数（{guaranteed_result_count}名）が応募者データの確定当選者数（{guaranteed_count}名）と一致しません"
-        )));
+        return Err(rusqlite::Error::InvalidParameterName(format!("抽選結果の確定当選者数（{guaranteed_result_count}名）が応募者データの確定当選者数（{guaranteed_count}名）と一致しません")));
     }
 
-    let winner_count = i64::try_from(rows.len()).map_err(|_| {
-        rusqlite::Error::InvalidParameterName(
-            "抽選結果の件数が保存可能な範囲を超えています".to_string(),
-        )
-    })?;
-    Ok(ValidatedLotteryResultCounts {
-        lottery_count,
-        guaranteed_count,
-        winner_count,
-    })
+    let winner_count = i64::try_from(rows.len()).map_err(|_| { rusqlite::Error::InvalidParameterName("抽選結果の件数が保存可能な範囲を超えています".to_string(),) })?;
+    Ok(ValidatedLotteryResultCounts { lottery_count, guaranteed_count, winner_count, })
 }
 
-fn read_current_lottery_result_rows(
-    conn: &rusqlite::Connection,
-) -> rusqlite::Result<Vec<LotteryResultInput>> {
+fn read_current_lottery_result_rows(conn: &rusqlite::Connection,) -> rusqlite::Result<Vec<LotteryResultInput>> {
     let mut stmt = conn.prepare(
         "SELECT a.x_id, r.is_guaranteed
          FROM lottery_results r
@@ -1760,21 +1509,12 @@ fn read_current_lottery_result_rows(
     )?;
     let rows = stmt
         .query_map([], |row| {
-            let x_id = row.get::<_, Option<String>>(0)?.ok_or_else(|| {
-                rusqlite::Error::InvalidParameterName(
-                    "抽選結果が存在しない応募者を参照しています".to_string(),
-                )
-            })?;
+            let x_id = row.get::<_, Option<String>>(0)?.ok_or_else(|| { rusqlite::Error::InvalidParameterName("抽選結果が存在しない応募者を参照しています".to_string(),) })?;
             let is_guaranteed = row.get::<_, i64>(1)?;
             if !matches!(is_guaranteed, 0 | 1) {
-                return Err(rusqlite::Error::InvalidParameterName(
-                    "抽選結果の確定当選区分が不正です".to_string(),
-                ));
+                return Err(rusqlite::Error::InvalidParameterName("抽選結果の確定当選区分が不正です".to_string(),));
             }
-            Ok(LotteryResultInput {
-                x_id,
-                is_guaranteed: is_guaranteed == 1,
-            })
+            Ok(LotteryResultInput { x_id, is_guaranteed: is_guaranteed == 1, })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -1783,27 +1523,19 @@ fn read_current_lottery_result_rows(
 fn validate_stored_applicant_x_ids(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     let x_ids = {
         let mut stmt = conn.prepare("SELECT x_id FROM applicants ORDER BY id")?;
-        let values = stmt
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let values = stmt.query_map([], |row| row.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
         values
     };
     validate_unique_x_ids(x_ids.iter().map(String::as_str), "応募者一覧")
 }
 
-fn replace_lottery_rows_in_transaction(
-    tx: &rusqlite::Transaction<'_>,
-    rows: &[LotteryResultInput],
-) -> rusqlite::Result<()> {
+fn replace_lottery_rows_in_transaction(tx: &rusqlite::Transaction<'_>, rows: &[LotteryResultInput],) -> rusqlite::Result<()> {
     // UIを迂回した呼出しでも、不正なX IDを解消するまで抽選を確定させない。
     validate_stored_applicant_x_ids(tx)?;
     tx.execute("DELETE FROM lottery_results", [])?;
     for row in rows {
         let Some(username) = parse_x_username(&row.x_id) else {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "当選者 '{}' のX IDは形式が不正です",
-                row.x_id
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("当選者 '{}' のX IDは形式が不正です", row.x_id)));
         };
         let inserted = tx.execute(
             "INSERT INTO lottery_results (applicant_id, is_guaranteed)
@@ -1812,10 +1544,7 @@ fn replace_lottery_rows_in_transaction(
             rusqlite::params![username, if row.is_guaranteed { 1 } else { 0 }],
         )?;
         if inserted != 1 {
-            return Err(rusqlite::Error::InvalidParameterName(format!(
-                "当選者 '{}' は現在の取込セッションに存在しません",
-                row.x_id
-            )));
+            return Err(rusqlite::Error::InvalidParameterName(format!("当選者 '{}' は現在の取込セッションに存在しません", row.x_id)));
         }
     }
     tx.execute(
@@ -1828,11 +1557,7 @@ fn replace_lottery_rows_in_transaction(
 }
 
 /** 現在セッションの抽選結果を単一 transaction で全置換する。 */
-fn replace_lottery_results_in_connection(
-    conn: &mut rusqlite::Connection,
-    rows: &[LotteryResultInput],
-    expected_condition_revision: i64,
-) -> rusqlite::Result<()> {
+fn replace_lottery_results_in_connection(conn: &mut rusqlite::Connection, rows: &[LotteryResultInput], expected_condition_revision: i64,) -> rusqlite::Result<()> {
     validate_lottery_result_inputs(rows)?;
     let tx = conn.transaction()?;
     reject_lottery_input_session_write(&tx)?;
@@ -1867,25 +1592,14 @@ fn replace_lottery_state_in_connection(
     tx.commit()
 }
 
-fn read_session_applicant_snapshot(
-    conn: &rusqlite::Connection,
-) -> rusqlite::Result<Vec<ApplicantInput>> {
+fn read_session_applicant_snapshot(conn: &rusqlite::Connection,) -> rusqlite::Result<Vec<ApplicantInput>> {
     let applicants = {
         let mut stmt = conn.prepare(
             "SELECT id, name, x_id, vrc_url, preference_mode, is_guaranteed
              FROM applicants ORDER BY id",
         )?;
         let values = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, i64>(5)?,
-                ))
-            })?
+            .query_map([], |row| { Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, String>(4)?, row.get::<_, i64>(5)?,)) })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         values
     };
@@ -1893,9 +1607,7 @@ fn read_session_applicant_snapshot(
     let mut result = Vec::with_capacity(applicants.len());
     for (applicant_id, name, x_id, vrc_url, preference_mode, is_guaranteed) in applicants {
         if !matches!(is_guaranteed, 0 | 1) {
-            return Err(rusqlite::Error::InvalidParameterName(
-                "応募者の確定当選区分が不正です".to_string(),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName("応募者の確定当選区分が不正です".to_string(),));
         }
         let preferences = {
             let mut stmt = conn.prepare(
@@ -1904,89 +1616,43 @@ fn read_session_applicant_snapshot(
                  WHERE applicant_id = ?1
                  ORDER BY preference_order, id",
             )?;
-            let values = stmt
-                .query_map([applicant_id], |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, Option<i64>>(2)?,
-                    ))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let values = stmt.query_map([applicant_id], |row| { Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?,)) })?.collect::<rusqlite::Result<Vec<_>>>()?;
             values
         };
-        let preference_length = preferences
-            .iter()
-            .map(|(order, _, _)| usize::try_from(*order).unwrap_or(usize::MAX))
-            .max()
-            .map_or(0, |order| order.saturating_add(1));
+        let preference_length = preferences.iter().map(|(order, _, _)| usize::try_from(*order).unwrap_or(usize::MAX)).max().map_or(0, |order| order.saturating_add(1));
         if preference_length == usize::MAX {
-            return Err(rusqlite::Error::InvalidParameterName(
-                "希望キャストの順序が不正です".to_string(),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName("希望キャストの順序が不正です".to_string(),));
         }
         let mut casts = vec![String::new(); preference_length];
         let mut cast_ids = vec![None; preference_length];
         for (order, cast_name, cast_id) in preferences {
-            let index = usize::try_from(order).map_err(|_| {
-                rusqlite::Error::InvalidParameterName("希望キャストの順序が不正です".to_string())
-            })?;
+            let index = usize::try_from(order).map_err(|_| { rusqlite::Error::InvalidParameterName("希望キャストの順序が不正です".to_string()) })?;
             if casts[index].is_empty() {
                 casts[index] = cast_name;
                 cast_ids[index] = cast_id;
             } else {
-                return Err(rusqlite::Error::InvalidParameterName(
-                    "希望キャストの順序が重複しています".to_string(),
-                ));
+                return Err(rusqlite::Error::InvalidParameterName("希望キャストの順序が重複しています".to_string(),));
             }
         }
         if preference_mode == "flat" {
-            let active_indexes = casts
-                .iter()
-                .enumerate()
-                .filter_map(|(index, name)| (!name.is_empty()).then_some(index))
-                .collect::<Vec<_>>();
-            casts = active_indexes
-                .iter()
-                .map(|index| casts[*index].clone())
-                .collect();
-            cast_ids = active_indexes
-                .iter()
-                .map(|index| cast_ids[*index])
-                .collect();
+            let active_indexes = casts.iter().enumerate().filter_map(|(index, name)| (!name.is_empty()).then_some(index)).collect::<Vec<_>>();
+            casts = active_indexes.iter().map(|index| casts[*index].clone()).collect();
+            cast_ids = active_indexes.iter().map(|index| cast_ids[*index]).collect();
         }
         let raw_extra = {
             let mut stmt = conn.prepare(
                 "SELECT field_key, field_value
                  FROM applicant_extra WHERE applicant_id = ?1 ORDER BY id",
             )?;
-            let values = stmt
-                .query_map([applicant_id], |row| {
-                    Ok(RawExtraInput {
-                        key: row.get(0)?,
-                        value: row.get(1)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let values = stmt.query_map([applicant_id], |row| { Ok(RawExtraInput { key: row.get(0)?, value: row.get(1)?, }) })?.collect::<rusqlite::Result<Vec<_>>>()?;
             values
         };
-        result.push(ApplicantInput {
-            name,
-            x_id,
-            vrc_url,
-            casts,
-            cast_ids,
-            preference_mode,
-            is_guaranteed: is_guaranteed == 1,
-            raw_extra,
-        });
+        result.push(ApplicantInput { name, x_id, vrc_url, casts, cast_ids, preference_mode, is_guaranteed: is_guaranteed == 1, raw_extra, });
     }
     Ok(result)
 }
 
-fn read_session_workflow_input(
-    conn: &rusqlite::Connection,
-) -> rusqlite::Result<SessionWorkflowStateInput> {
+fn read_session_workflow_input(conn: &rusqlite::Connection,) -> rusqlite::Result<SessionWorkflowStateInput> {
     conn.query_row(
         "SELECT matching_type_code, lottery_count, rotation_count, total_tables,
                 users_per_table, casts_per_rotation, reserve_same_day_slots,
@@ -2009,53 +1675,21 @@ fn read_session_workflow_input(
     )
 }
 
-fn validate_saved_lottery_snapshot(
-    snapshot: &SavedLotterySnapshot,
-    matching_type_code: &str,
-    lottery_count: i64,
-    guaranteed_count: i64,
-    winner_count: i64,
-) -> Result<(), String> {
-    validate_applicant_inputs(&snapshot.applicants)
-        .map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
-    validate_unique_x_ids(
-        snapshot
-            .applicants
-            .iter()
-            .map(|applicant| applicant.x_id.as_str()),
-        "保存済み抽選の応募者一覧",
-    )
-    .map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
+fn validate_saved_lottery_snapshot(snapshot: &SavedLotterySnapshot, matching_type_code: &str, lottery_count: i64, guaranteed_count: i64, winner_count: i64,) -> Result<(), String> {
+    validate_applicant_inputs(&snapshot.applicants).map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
+    validate_unique_x_ids(snapshot.applicants.iter().map(|applicant| applicant.x_id.as_str()), "保存済み抽選の応募者一覧",).map_err(|e| sqlite_error("保存済み抽選の応募データが不正です", e))?;
     validate_session_workflow_state(&snapshot.workflow)?;
-    validate_lottery_result_inputs(&snapshot.winners)
-        .map_err(|e| sqlite_error("保存済み抽選の当選者データが不正です", e))?;
+    validate_lottery_result_inputs(&snapshot.winners).map_err(|e| sqlite_error("保存済み抽選の当選者データが不正です", e))?;
 
-    if snapshot.workflow.matching_type_code != matching_type_code
-        || snapshot.workflow.lottery_count != lottery_count
-    {
+    if snapshot.workflow.matching_type_code != matching_type_code || snapshot.workflow.lottery_count != lottery_count {
         return Err("保存済み抽選の見出しと条件が一致しません".to_string());
     }
-    let applicants_by_x_id = snapshot
-        .applicants
-        .iter()
-        .map(|applicant| {
-            (
-                parse_x_username(&applicant.x_id)
-                    .unwrap_or(applicant.x_id.as_str())
-                    .to_ascii_lowercase(),
-                applicant.is_guaranteed,
-            )
-        })
-        .collect::<HashMap<_, _>>();
+    let applicants_by_x_id = snapshot.applicants.iter().map(|applicant| { (parse_x_username(&applicant.x_id).unwrap_or(applicant.x_id.as_str()).to_ascii_lowercase(), applicant.is_guaranteed,) }).collect::<HashMap<_, _>>();
     let mut restored_guaranteed_count = 0_i64;
     let mut restored_lottery_count = 0_i64;
     for winner in &snapshot.winners {
-        let normalized_x_id = parse_x_username(&winner.x_id)
-            .ok_or_else(|| "保存済み抽選の当選者X IDが不正です".to_string())?
-            .to_ascii_lowercase();
-        let applicant_is_guaranteed = applicants_by_x_id
-            .get(&normalized_x_id)
-            .ok_or_else(|| "保存済み抽選の当選者が応募者一覧に存在しません".to_string())?;
+        let normalized_x_id = parse_x_username(&winner.x_id).ok_or_else(|| "保存済み抽選の当選者X IDが不正です".to_string())?.to_ascii_lowercase();
+        let applicant_is_guaranteed = applicants_by_x_id.get(&normalized_x_id).ok_or_else(|| "保存済み抽選の当選者が応募者一覧に存在しません".to_string())?;
         if *applicant_is_guaranteed != winner.is_guaranteed {
             return Err("保存済み抽選の確定当選区分が応募者データと一致しません".to_string());
         }
@@ -2065,25 +1699,14 @@ fn validate_saved_lottery_snapshot(
             restored_lottery_count += 1;
         }
     }
-    let applicant_guaranteed_count = snapshot
-        .applicants
-        .iter()
-        .filter(|applicant| applicant.is_guaranteed)
-        .count() as i64;
-    if restored_lottery_count != lottery_count
-        || restored_guaranteed_count != guaranteed_count
-        || applicant_guaranteed_count != guaranteed_count
-        || snapshot.winners.len() as i64 != winner_count
-    {
+    let applicant_guaranteed_count = snapshot.applicants.iter().filter(|applicant| applicant.is_guaranteed).count() as i64;
+    if restored_lottery_count != lottery_count || restored_guaranteed_count != guaranteed_count || applicant_guaranteed_count != guaranteed_count || snapshot.winners.len() as i64 != winner_count {
         return Err("保存済み抽選の見出しと当選者データが一致しません".to_string());
     }
     Ok(())
 }
 
-fn read_validated_saved_lottery_result(
-    conn: &rusqlite::Connection,
-    saved_result_id: i64,
-) -> Result<(SavedLotterySnapshot, EventSavedLotteryResultSummary), String> {
+fn read_validated_saved_lottery_result(conn: &rusqlite::Connection, saved_result_id: i64,) -> Result<(SavedLotterySnapshot, EventSavedLotteryResultSummary), String> {
     if saved_result_id <= 0 {
         return Err("保存済み抽選結果を特定できません".to_string());
     }
@@ -2094,62 +1717,29 @@ fn read_validated_saved_lottery_result(
              FROM saved_results
              WHERE id = ?1 AND result_type = 'lottery'",
             [saved_result_id],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                ))
-            },
+            |row| { Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, i64>(4)?, row.get::<_, String>(5)?, row.get::<_, String>(6)?,)) },
         )
         .optional()
         .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?
         .ok_or_else(|| "保存済み抽選結果が見つかりません".to_string())?;
-    let snapshot = serde_json::from_str::<SavedLotterySnapshot>(&row.5)
-        .map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
-    validate_saved_lottery_snapshot(&snapshot, &row.1, row.2, row.3, row.4)
-        .map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
-    Ok((
-        snapshot,
-        EventSavedLotteryResultSummary {
-            saved_result_id,
-            label: row.0,
-            matching_type_code: row.1,
-            lottery_count: row.2,
-            guaranteed_count: row.3,
-            winner_count: row.4,
-            created_at: row.6,
-        },
-    ))
+    let snapshot = serde_json::from_str::<SavedLotterySnapshot>(&row.5).map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
+    validate_saved_lottery_snapshot(&snapshot, &row.1, row.2, row.3, row.4).map_err(|_| "保存済み抽選結果の表示データが壊れています".to_string())?;
+    Ok((snapshot, EventSavedLotteryResultSummary { saved_result_id, label: row.0, matching_type_code: row.1, lottery_count: row.2, guaranteed_count: row.3, winner_count: row.4, created_at: row.6, },))
 }
 
 /** 現在の抽選状態を、作業セッションから独立した一件の結果としてイベント共有DBへ保存する。 */
-fn save_lottery_result_in_connections(
-    session_conn: &mut rusqlite::Connection,
-    shared_conn: &mut rusqlite::Connection,
-    label: &str,
-) -> Result<i64, String> {
+fn save_lottery_result_in_connections(session_conn: &mut rusqlite::Connection, shared_conn: &mut rusqlite::Connection, label: &str,) -> Result<i64, String> {
     let trimmed_label = label.trim();
     if trimmed_label.is_empty() || trimmed_label.chars().count() > 200 {
         return Err("抽選結果の保存名が不正です".to_string());
     }
-    reject_lottery_input_session_write(session_conn)
-        .map_err(|e| sqlite_error("抽選結果を保存できませんでした", e))?;
-    let session_token = read_session_token(session_conn)
-        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
-    if session_has_saved_result(shared_conn, &session_token)
-        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
-    {
+    reject_lottery_input_session_write(session_conn).map_err(|e| sqlite_error("抽選結果を保存できませんでした", e))?;
+    let session_token = read_session_token(session_conn).map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+    if session_has_saved_result(shared_conn, &session_token).map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))? {
         return Err("この作業セッションでは既に結果を保存しています".to_string());
     }
 
-    let session_tx = session_conn
-        .transaction()
-        .map_err(|e| sqlite_error("抽選結果の保存準備を開始できませんでした", e))?;
+    let session_tx = session_conn.transaction().map_err(|e| sqlite_error("抽選結果の保存準備を開始できませんでした", e))?;
     let (condition_revision, result_revision): (i64, Option<i64>) = session_tx
         .query_row(
             "SELECT condition_revision, lottery_result_revision
@@ -2161,57 +1751,32 @@ fn save_lottery_result_in_connections(
     if result_revision != Some(condition_revision) {
         return Err("現在の条件で確定した抽選結果がないため保存できません".to_string());
     }
-    let winners = read_current_lottery_result_rows(&session_tx)
-        .map_err(|e| sqlite_error("抽選結果を読み込めませんでした", e))?;
+    let winners = read_current_lottery_result_rows(&session_tx).map_err(|e| sqlite_error("抽選結果を読み込めませんでした", e))?;
     if winners.is_empty() {
         return Err("保存できる抽選結果がありません".to_string());
     }
-    let counts = validate_lottery_result_rows_against_workflow(&session_tx, &winners)
-        .map_err(|e| sqlite_error("抽選結果を確認できませんでした", e))?;
+    let counts = validate_lottery_result_rows_against_workflow(&session_tx, &winners).map_err(|e| sqlite_error("抽選結果を確認できませんでした", e))?;
     let snapshot = SavedLotterySnapshot {
-        applicants: read_session_applicant_snapshot(&session_tx)
-            .map_err(|e| sqlite_error("応募データを保存形式へ変換できませんでした", e))?,
-        workflow: read_session_workflow_input(&session_tx)
-            .map_err(|e| sqlite_error("抽選条件を保存形式へ変換できませんでした", e))?,
+        applicants: read_session_applicant_snapshot(&session_tx).map_err(|e| sqlite_error("応募データを保存形式へ変換できませんでした", e))?,
+        workflow: read_session_workflow_input(&session_tx).map_err(|e| sqlite_error("抽選条件を保存形式へ変換できませんでした", e))?,
         winners,
     };
-    validate_saved_lottery_snapshot(
-        &snapshot,
-        &snapshot.workflow.matching_type_code,
-        counts.lottery_count,
-        counts.guaranteed_count,
-        counts.winner_count,
-    )?;
-    let snapshot_json = serde_json::to_string(&snapshot)
-        .map_err(|e| format!("抽選結果を保存形式へ変換できませんでした: {e}"))?;
-    session_tx
-        .commit()
-        .map_err(|e| sqlite_error("抽選結果の保存準備を確定できませんでした", e))?;
+    validate_saved_lottery_snapshot(&snapshot, &snapshot.workflow.matching_type_code, counts.lottery_count, counts.guaranteed_count, counts.winner_count,)?;
+    let snapshot_json = serde_json::to_string(&snapshot).map_err(|e| format!("抽選結果を保存形式へ変換できませんでした: {e}"))?;
+    session_tx.commit().map_err(|e| sqlite_error("抽選結果の保存準備を確定できませんでした", e))?;
 
-    let shared_tx = shared_conn
-        .transaction()
-        .map_err(|e| sqlite_error("抽選結果の保存を開始できませんでした", e))?;
+    let shared_tx = shared_conn.transaction().map_err(|e| sqlite_error("抽選結果の保存を開始できませんでした", e))?;
     shared_tx
         .execute(
             "INSERT INTO saved_results
                (source_session_token, result_type, label, matching_type_code,
                 lottery_count, guaranteed_count, winner_count, snapshot_json)
              VALUES (?1, 'lottery', ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![
-                session_token,
-                trimmed_label,
-                &snapshot.workflow.matching_type_code,
-                counts.lottery_count,
-                counts.guaranteed_count,
-                counts.winner_count,
-                snapshot_json,
-            ],
+            rusqlite::params![session_token, trimmed_label, &snapshot.workflow.matching_type_code, counts.lottery_count, counts.guaranteed_count, counts.winner_count, snapshot_json,],
         )
         .map_err(|e| sqlite_error("抽選結果を保存できませんでした", e))?;
     let saved_result_id = shared_tx.last_insert_rowid();
-    shared_tx
-        .commit()
-        .map_err(|e| sqlite_error("抽選結果の保存を確定できませんでした", e))?;
+    shared_tx.commit().map_err(|e| sqlite_error("抽選結果の保存を確定できませんでした", e))?;
     Ok(saved_result_id)
 }
 
@@ -2219,17 +1784,10 @@ fn invalid_matching_snapshot(reason: &str) -> String {
     format!("マッチング結果の保存データが不正です: {reason}")
 }
 
-fn validate_matching_snapshot_assignment(
-    assignment: &MatchingSnapshotAssignmentInput,
-    casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>,
-) -> Result<(), String> {
-    let cast = casts_by_id
-        .get(&assignment.cast_id)
-        .ok_or_else(|| invalid_matching_snapshot("存在しないキャストを参照しています"))?;
+fn validate_matching_snapshot_assignment(assignment: &MatchingSnapshotAssignmentInput, casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>,) -> Result<(), String> {
+    let cast = casts_by_id.get(&assignment.cast_id).ok_or_else(|| invalid_matching_snapshot("存在しないキャストを参照しています"))?;
     if !cast.is_present {
-        return Err(invalid_matching_snapshot(
-            "欠席扱いのキャストを割り当てています",
-        ));
+        return Err(invalid_matching_snapshot("欠席扱いのキャストを割り当てています",));
     }
     if !(0..=3).contains(&assignment.rank) {
         return Err(invalid_matching_snapshot("希望順位が不正です"));
@@ -2240,27 +1798,19 @@ fn validate_matching_snapshot_assignment(
     if !assignment.score.is_finite() || assignment.score < 0.0 {
         return Err(invalid_matching_snapshot("評価点が不正です"));
     }
-    if assignment.is_ng_warning
-        && !matches!(assignment.ng_reason.as_deref(), Some(reason) if !reason.trim().is_empty())
-    {
+    if assignment.is_ng_warning && !matches!(assignment.ng_reason.as_deref(), Some(reason) if !reason.trim().is_empty()) {
         return Err(invalid_matching_snapshot("NG判定の理由がありません"));
     }
     Ok(())
 }
 
 /** 割り当ての基本形式と、M003で要求するラウンド間のキャスト非重複を確認する。 */
-fn validate_matching_snapshot_assignments(
-    assignments: &[MatchingSnapshotAssignmentInput],
-    casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>,
-    require_unique_casts: bool,
-) -> Result<(), String> {
+fn validate_matching_snapshot_assignments(assignments: &[MatchingSnapshotAssignmentInput], casts_by_id: &HashMap<i64, &MatchingSnapshotCastInput>, require_unique_casts: bool,) -> Result<(), String> {
     let mut assigned_cast_ids = HashSet::new();
     for assignment in assignments {
         validate_matching_snapshot_assignment(assignment, casts_by_id)?;
         if require_unique_casts && !assigned_cast_ids.insert(assignment.cast_id) {
-            return Err(invalid_matching_snapshot(
-                "同じキャストが複数のラウンドへ割り当てられています",
-            ));
+            return Err(invalid_matching_snapshot("同じキャストが複数のラウンドへ割り当てられています",));
         }
     }
     Ok(())
@@ -2273,55 +1823,28 @@ fn matching_score_is_close(left: f64, right: f64) -> bool {
 
 /** NG判定と同じ規則で、割り当てを禁止するX IDだけを順序非依存の集合へ正規化する。 */
 fn matching_ng_account_ids(entries: &[MatchingSnapshotNgEntryInput]) -> Vec<String> {
-    let mut account_ids = entries
-        .iter()
-        .filter_map(|entry| entry.account_id.as_deref())
-        .filter_map(parse_x_username)
-        .map(str::to_ascii_lowercase)
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
+    let mut account_ids = entries.iter().filter_map(|entry| entry.account_id.as_deref()).filter_map(parse_x_username).map(str::to_ascii_lowercase).collect::<HashSet<_>>().into_iter().collect::<Vec<_>>();
     account_ids.sort();
     account_ids
 }
 
 /** 保存時点の表示名・出席状態と、割り当てへ影響するNG条件だけを比較する。 */
-fn matching_snapshot_cast_is_current(
-    snapshot: &MatchingSnapshotCastInput,
-    current: &MatchingSnapshotCastInput,
-) -> bool {
-    snapshot.id == current.id
-        && snapshot.name == current.name
-        && snapshot.is_present == current.is_present
-        && matching_ng_account_ids(&snapshot.ng_entries)
-            == matching_ng_account_ids(&current.ng_entries)
+fn matching_snapshot_cast_is_current(snapshot: &MatchingSnapshotCastInput, current: &MatchingSnapshotCastInput,) -> bool {
+    snapshot.id == current.id && snapshot.name == current.name && snapshot.is_present == current.is_present && matching_ng_account_ids(&snapshot.ng_entries) == matching_ng_account_ids(&current.ng_entries)
 }
 
 /** JSONの形だけでなく、応募者・割当・集計値が一つの結果として整合することを確認する。 */
-fn validate_matching_snapshot_structure(
-    snapshot: &serde_json::Value,
-    matching_type_code: &str,
-    winner_count: i64,
-) -> Result<MatchingResultSnapshotInput, String> {
-    if matching_type_code == "M000" || !SUPPORTED_MATCHING_TYPE_CODES.contains(&matching_type_code)
-    {
+fn validate_matching_snapshot_structure(snapshot: &serde_json::Value, matching_type_code: &str, winner_count: i64,) -> Result<MatchingResultSnapshotInput, String> {
+    if matching_type_code == "M000" || !SUPPORTED_MATCHING_TYPE_CODES.contains(&matching_type_code) {
         return Err("保存できないマッチング方式です".to_string());
     }
-    let expected_winner_count = usize::try_from(winner_count)
-        .ok()
-        .filter(|count| *count > 0)
-        .ok_or_else(|| "保存できるマッチング結果がありません".to_string())?;
-    let parsed = serde_json::from_value::<MatchingResultSnapshotInput>(snapshot.clone())
-        .map_err(|_| invalid_matching_snapshot("形式が現在のアプリに対応していません"))?;
+    let expected_winner_count = usize::try_from(winner_count).ok().filter(|count| *count > 0).ok_or_else(|| "保存できるマッチング結果がありません".to_string())?;
+    let parsed = serde_json::from_value::<MatchingResultSnapshotInput>(snapshot.clone()).map_err(|_| invalid_matching_snapshot("形式が現在のアプリに対応していません"))?;
     if parsed.applicants.len() != expected_winner_count {
-        return Err(invalid_matching_snapshot(
-            "当選者数と応募者データの件数が一致しません",
-        ));
+        return Err(invalid_matching_snapshot("当選者数と応募者データの件数が一致しません",));
     }
     if parsed.casts.is_empty() || parsed.table_slots.is_empty() {
-        return Err(invalid_matching_snapshot(
-            "キャストまたはテーブルのデータがありません",
-        ));
+        return Err(invalid_matching_snapshot("キャストまたはテーブルのデータがありません",));
     }
 
     let mut casts_by_id = HashMap::new();
@@ -2329,12 +1852,7 @@ fn validate_matching_snapshot_structure(
         if cast.id <= 0 || cast.name.trim().is_empty() {
             return Err(invalid_matching_snapshot("キャスト情報が不正です"));
         }
-        if cast.ng_entries.iter().any(|entry| {
-            entry
-                .account_id
-                .as_deref()
-                .is_some_and(|account_id| parse_x_username(account_id).is_none())
-        }) {
+        if cast.ng_entries.iter().any(|entry| { entry.account_id.as_deref().is_some_and(|account_id| parse_x_username(account_id).is_none()) }) {
             return Err(invalid_matching_snapshot("キャストNGのX IDが不正です"));
         }
         if casts_by_id.insert(cast.id, cast).is_some() {
@@ -2353,25 +1871,14 @@ fn validate_matching_snapshot_structure(
     let mut unpreferred_count = 0_i64;
     let mut ng_warning_count = 0_i64;
     for applicant in &parsed.applicants {
-        let normalized_x_id = parse_x_username(&applicant.user.x_id)
-            .ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?
-            .to_ascii_lowercase();
+        let normalized_x_id = parse_x_username(&applicant.user.x_id).ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?.to_ascii_lowercase();
         if applicant.matches.is_empty() {
-            return Err(invalid_matching_snapshot(
-                "割り当てがない応募者が含まれています",
-            ));
+            return Err(invalid_matching_snapshot("割り当てがない応募者が含まれています",));
         }
-        if applicants_by_x_id
-            .insert(normalized_x_id, applicant)
-            .is_some()
-        {
+        if applicants_by_x_id.insert(normalized_x_id, applicant).is_some() {
             return Err(invalid_matching_snapshot("応募者のX IDが重複しています"));
         }
-        validate_matching_snapshot_assignments(
-            &applicant.matches,
-            &casts_by_id,
-            require_unique_casts,
-        )?;
+        validate_matching_snapshot_assignments(&applicant.matches, &casts_by_id, require_unique_casts,)?;
         for assignment in &applicant.matches {
             let score = assignment.score;
             total_score += score;
@@ -2394,46 +1901,25 @@ fn validate_matching_snapshot_structure(
         if table_slot.table_index <= 0 {
             return Err(invalid_matching_snapshot("テーブル番号が不正です"));
         }
-        validate_matching_snapshot_assignments(
-            &table_slot.matches,
-            &casts_by_id,
-            require_unique_casts,
-        )?;
+        validate_matching_snapshot_assignments(&table_slot.matches, &casts_by_id, require_unique_casts,)?;
         let Some(table_user) = &table_slot.user else {
             continue;
         };
-        let normalized_x_id = parse_x_username(&table_user.x_id)
-            .ok_or_else(|| invalid_matching_snapshot("テーブルの応募者X IDが不正です"))?
-            .to_ascii_lowercase();
-        let applicant = applicants_by_x_id
-            .get(&normalized_x_id)
-            .ok_or_else(|| invalid_matching_snapshot("テーブルに当選者以外が含まれています"))?;
+        let normalized_x_id = parse_x_username(&table_user.x_id).ok_or_else(|| invalid_matching_snapshot("テーブルの応募者X IDが不正です"))?.to_ascii_lowercase();
+        let applicant = applicants_by_x_id.get(&normalized_x_id).ok_or_else(|| invalid_matching_snapshot("テーブルに当選者以外が含まれています"))?;
         if &applicant.user != table_user || applicant.matches != table_slot.matches {
-            return Err(invalid_matching_snapshot(
-                "応募者とテーブルの割り当てが一致しません",
-            ));
+            return Err(invalid_matching_snapshot("応募者とテーブルの割り当てが一致しません",));
         }
         if !table_user_x_ids.insert(normalized_x_id) {
-            return Err(invalid_matching_snapshot(
-                "同じ応募者が複数のテーブルに割り当てられています",
-            ));
+            return Err(invalid_matching_snapshot("同じ応募者が複数のテーブルに割り当てられています",));
         }
     }
     if table_user_x_ids.len() != applicants_by_x_id.len() {
-        return Err(invalid_matching_snapshot(
-            "テーブルに割り当てられていない応募者がいます",
-        ));
+        return Err(invalid_matching_snapshot("テーブルに割り当てられていない応募者がいます",));
     }
 
     let summary = &parsed.score_summary;
-    let counts = [
-        summary.first_choice_count,
-        summary.second_choice_count,
-        summary.third_choice_count,
-        summary.flat_preference_count,
-        summary.unpreferred_count,
-        summary.ng_warning_count,
-    ];
+    let counts = [summary.first_choice_count, summary.second_choice_count, summary.third_choice_count, summary.flat_preference_count, summary.unpreferred_count, summary.ng_warning_count,];
     let average_score = total_score / match_count as f64;
     if !summary.total_score.is_finite()
         || !summary.average_score.is_finite()
@@ -2447,45 +1933,31 @@ fn validate_matching_snapshot_structure(
         || summary.unpreferred_count != unpreferred_count
         || summary.ng_warning_count != ng_warning_count
     {
-        return Err(invalid_matching_snapshot(
-            "割り当てと評価集計が一致しません",
-        ));
+        return Err(invalid_matching_snapshot("割り当てと評価集計が一致しません",));
     }
 
     Ok(parsed)
 }
 
 /** 保存時点の当選者を正として、別の応募者のマッチング結果が混入していないことを確認する。 */
-fn validate_matching_snapshot_against_current_lottery(
-    conn: &rusqlite::Connection,
-    snapshot: &MatchingResultSnapshotInput,
-) -> Result<(), String> {
-    validate_stored_applicant_x_ids(conn)
-        .map_err(|e| sqlite_error("応募データを確認できませんでした", e))?;
-    let current_rows = read_current_lottery_result_rows(conn)
-        .map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
+fn validate_matching_snapshot_against_current_lottery(conn: &rusqlite::Connection, snapshot: &MatchingResultSnapshotInput,) -> Result<(), String> {
+    validate_stored_applicant_x_ids(conn).map_err(|e| sqlite_error("応募データを確認できませんでした", e))?;
+    let current_rows = read_current_lottery_result_rows(conn).map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
     if current_rows.len() != snapshot.applicants.len() {
         return Err(invalid_matching_snapshot("現在の当選者数と一致しません"));
     }
     for (current, saved) in current_rows.iter().zip(&snapshot.applicants) {
-        let current_x_id = parse_x_username(&current.x_id)
-            .ok_or_else(|| invalid_matching_snapshot("現在の当選者X IDが不正です"))?;
-        let saved_x_id = parse_x_username(&saved.user.x_id)
-            .ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?;
+        let current_x_id = parse_x_username(&current.x_id).ok_or_else(|| invalid_matching_snapshot("現在の当選者X IDが不正です"))?;
+        let saved_x_id = parse_x_username(&saved.user.x_id).ok_or_else(|| invalid_matching_snapshot("応募者のX IDが不正です"))?;
         if !current_x_id.eq_ignore_ascii_case(saved_x_id) {
-            return Err(invalid_matching_snapshot(
-                "現在の当選者と応募者データが一致しません",
-            ));
+            return Err(invalid_matching_snapshot("現在の当選者と応募者データが一致しません",));
         }
     }
     Ok(())
 }
 
 /** 保存直前のキャスト名簿・出席・NG条件が、結果を計算した時点から変わっていないことを確認する。 */
-fn validate_matching_snapshot_against_current_casts(
-    conn: &rusqlite::Connection,
-    snapshot: &MatchingResultSnapshotInput,
-) -> Result<(), String> {
+fn validate_matching_snapshot_against_current_casts(conn: &rusqlite::Connection, snapshot: &MatchingResultSnapshotInput,) -> Result<(), String> {
     let mut ng_entries_by_cast = HashMap::<i64, Vec<MatchingSnapshotNgEntryInput>>::new();
     {
         let mut stmt = conn
@@ -2494,37 +1966,19 @@ fn validate_matching_snapshot_against_current_casts(
                  FROM cast_ng_entries ORDER BY cast_id, id",
             )
             .map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    MatchingSnapshotNgEntryInput {
-                        username: row.get(1)?,
-                        account_id: row.get(2)?,
-                    },
-                ))
-            })
-            .map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
+        let rows = stmt.query_map([], |row| { Ok((row.get::<_, i64>(0)?, MatchingSnapshotNgEntryInput { username: row.get(1)?, account_id: row.get(2)?, },)) }).map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
         for row in rows {
-            let (cast_id, entry) =
-                row.map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
+            let (cast_id, entry) = row.map_err(|e| sqlite_error("現在のキャストNG条件を確認できませんでした", e))?;
             ng_entries_by_cast.entry(cast_id).or_default().push(entry);
         }
     }
 
     let current_casts = {
-        let mut stmt = conn
-            .prepare("SELECT id, name, is_attend FROM casts WHERE is_attend = 1 ORDER BY id")
-            .map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?;
+        let mut stmt = conn.prepare("SELECT id, name, is_attend FROM casts WHERE is_attend = 1 ORDER BY id").map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?;
         let values = stmt
             .query_map([], |row| {
                 let id = row.get::<_, i64>(0)?;
-                Ok(MatchingSnapshotCastInput {
-                    id,
-                    name: row.get(1)?,
-                    is_present: row.get::<_, i64>(2)? == 1,
-                    ng_entries: ng_entries_by_cast.remove(&id).unwrap_or_default(),
-                })
+                Ok(MatchingSnapshotCastInput { id, name: row.get(1)?, is_present: row.get::<_, i64>(2)? == 1, ng_entries: ng_entries_by_cast.remove(&id).unwrap_or_default(), })
             })
             .map_err(|e| sqlite_error("現在のキャスト条件を確認できませんでした", e))?
             .collect::<rusqlite::Result<Vec<_>>>()
@@ -2532,62 +1986,33 @@ fn validate_matching_snapshot_against_current_casts(
         values
     };
 
-    if current_casts.len() != snapshot.casts.len()
-        || snapshot
-            .casts
-            .iter()
-            .zip(&current_casts)
-            .any(|(saved, current)| !matching_snapshot_cast_is_current(saved, current))
-    {
-        return Err(
-            "マッチング実行後にキャスト名簿・出席・NG条件が変更されたため保存できません"
-                .to_string(),
-        );
+    if current_casts.len() != snapshot.casts.len() || snapshot.casts.iter().zip(&current_casts).any(|(saved, current)| !matching_snapshot_cast_is_current(saved, current)) {
+        return Err("マッチング実行後にキャスト名簿・出席・NG条件が変更されたため保存できません".to_string(),);
     }
     Ok(())
 }
 
-fn read_validated_matching_snapshot(
-    matching_type_code: &str,
-    winner_count: i64,
-    snapshot_json: &str,
-) -> Result<serde_json::Value, String> {
-    let snapshot = serde_json::from_str::<serde_json::Value>(snapshot_json)
-        .map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
-    let parsed = validate_matching_snapshot_structure(&snapshot, matching_type_code, winner_count)
-        .map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
+fn read_validated_matching_snapshot(matching_type_code: &str, winner_count: i64, snapshot_json: &str,) -> Result<serde_json::Value, String> {
+    let snapshot = serde_json::from_str::<serde_json::Value>(snapshot_json).map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
+    let parsed = validate_matching_snapshot_structure(&snapshot, matching_type_code, winner_count).map_err(|_| "保存済みマッチング結果の表示データが壊れています".to_string())?;
     drop(parsed);
     Ok(snapshot)
 }
 
 /** 現在の抽選結果と一致するマッチング表示を、イベント共有DBへ固定結果として保存する。 */
-fn save_matching_result_in_connections(
-    session_conn: &mut rusqlite::Connection,
-    shared_conn: &mut rusqlite::Connection,
-    label: &str,
-    matching_type_code: &str,
-    winner_count: i64,
-    snapshot: &serde_json::Value,
-) -> Result<i64, String> {
+fn save_matching_result_in_connections(session_conn: &mut rusqlite::Connection, shared_conn: &mut rusqlite::Connection, label: &str, matching_type_code: &str, winner_count: i64, snapshot: &serde_json::Value,) -> Result<i64, String> {
     let trimmed_label = label.trim();
     if trimmed_label.is_empty() || trimmed_label.chars().count() > 200 {
         return Err("マッチング結果の保存名が不正です".to_string());
     }
-    let parsed_snapshot =
-        validate_matching_snapshot_structure(snapshot, matching_type_code, winner_count)?;
-    let snapshot_json = serde_json::to_string(snapshot)
-        .map_err(|e| format!("マッチング結果を保存形式へ変換できませんでした: {e}"))?;
-    let session_token = read_session_token(session_conn)
-        .map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
-    if session_has_saved_result(shared_conn, &session_token)
-        .map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))?
-    {
+    let parsed_snapshot = validate_matching_snapshot_structure(snapshot, matching_type_code, winner_count)?;
+    let snapshot_json = serde_json::to_string(snapshot).map_err(|e| format!("マッチング結果を保存形式へ変換できませんでした: {e}"))?;
+    let session_token = read_session_token(session_conn).map_err(|e| sqlite_error("作業セッションを確認できませんでした", e))?;
+    if session_has_saved_result(shared_conn, &session_token).map_err(|e| sqlite_error("保存済み結果を確認できませんでした", e))? {
         return Err("この作業セッションでは既に結果を保存しています".to_string());
     }
 
-    let session_tx = session_conn
-        .transaction()
-        .map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
+    let session_tx = session_conn.transaction().map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
     let (stored_type, condition_revision, result_revision): (String, i64, Option<i64>) = session_tx
         .query_row(
             "SELECT matching_type_code, condition_revision, lottery_result_revision
@@ -2599,22 +2024,15 @@ fn save_matching_result_in_connections(
     if stored_type != matching_type_code || result_revision != Some(condition_revision) {
         return Err("現在の抽選結果と一致しないため、マッチング結果を保存できません".to_string());
     }
-    let current_rows = read_current_lottery_result_rows(&session_tx)
-        .map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
-    let validated_counts =
-        validate_lottery_result_rows_against_workflow(&session_tx, &current_rows)
-            .map_err(|e| sqlite_error("現在の抽選結果を確認できませんでした", e))?;
+    let current_rows = read_current_lottery_result_rows(&session_tx).map_err(|e| sqlite_error("当選者を確認できませんでした", e))?;
+    let validated_counts = validate_lottery_result_rows_against_workflow(&session_tx, &current_rows).map_err(|e| sqlite_error("現在の抽選結果を確認できませんでした", e))?;
     if validated_counts.winner_count != winner_count {
         return Err("現在の当選者と一致しないため、マッチング結果を保存できません".to_string());
     }
     validate_matching_snapshot_against_current_lottery(&session_tx, &parsed_snapshot)?;
-    session_tx
-        .commit()
-        .map_err(|e| sqlite_error("マッチング結果の保存準備を確定できませんでした", e))?;
+    session_tx.commit().map_err(|e| sqlite_error("マッチング結果の保存準備を確定できませんでした", e))?;
 
-    let shared_tx = shared_conn
-        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-        .map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
+    let shared_tx = shared_conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| sqlite_error("マッチング結果の保存を開始できませんでした", e))?;
     validate_matching_snapshot_against_current_casts(&shared_tx, &parsed_snapshot)?;
     shared_tx
         .execute(
@@ -2622,26 +2040,17 @@ fn save_matching_result_in_connections(
            (source_session_token, result_type, label, matching_type_code,
             lottery_count, guaranteed_count, winner_count, snapshot_json)
          VALUES (?1, 'matching', ?2, ?3, NULL, NULL, ?4, ?5)",
-            rusqlite::params![
-                session_token,
-                trimmed_label,
-                matching_type_code,
-                winner_count,
-                snapshot_json
-            ],
+            rusqlite::params![session_token, trimmed_label, matching_type_code, winner_count, snapshot_json],
         )
         .map_err(|e| sqlite_error("マッチング結果を保存できませんでした", e))?;
     let saved_result_id = shared_tx.last_insert_rowid();
-    shared_tx
-        .commit()
-        .map_err(|e| sqlite_error("マッチング結果の保存を確定できませんでした", e))?;
+    shared_tx.commit().map_err(|e| sqlite_error("マッチング結果の保存を確定できませんでした", e))?;
     Ok(saved_result_id)
 }
 
 #[tauri::command]
 fn list_events() -> Result<Vec<String>, String> {
-    list_event_names_at(&resolve_data_root())
-        .map_err(|e| format!("イベント一覧を読み込めませんでした: {e}"))
+    list_event_names_at(&resolve_data_root()).map_err(|e| format!("イベント一覧を読み込めませんでした: {e}"))
 }
 
 fn list_event_names_at(root: &Path) -> std::io::Result<Vec<String>> {
@@ -2660,12 +2069,7 @@ fn list_event_names_at(root: &Path) -> std::io::Result<Vec<String>> {
         let Ok(name) = entry.file_name().into_string() else {
             continue;
         };
-        let has_shared_db = entry
-            .path()
-            .join(SHARED_DIR)
-            .join("db")
-            .join("stargazer.db")
-            .is_file();
+        let has_shared_db = entry.path().join(SHARED_DIR).join("db").join("stargazer.db").is_file();
         if is_event_directory_name(&name) && has_shared_db {
             names.push(name);
         }
@@ -2675,16 +2079,402 @@ fn list_event_names_at(root: &Path) -> std::io::Result<Vec<String>> {
     Ok(names)
 }
 
-fn ensure_event_name_is_unique_ignoring_ascii_case(
-    root: &Path,
-    event_name: &str,
-) -> Result<(), String> {
-    let event_names = list_event_names_at(root)
-        .map_err(|e| format!("イベント名の重複を確認できませんでした: {e}"))?;
-    if event_names
-        .iter()
-        .any(|existing_name| existing_name.eq_ignore_ascii_case(event_name))
+#[cfg(target_os = "windows")]
+fn path_is_within(candidate: &Path, root: &Path) -> bool {
+    let candidate = candidate.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    let root = root.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    candidate == root || candidate.strip_prefix(&root).is_some_and(|suffix| suffix.starts_with('\\') || suffix.starts_with('/'))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn path_is_within(candidate: &Path, root: &Path) -> bool {
+    candidate.starts_with(root)
+}
+
+fn canonical_data_root_for_boundary_check() -> Result<PathBuf, String> {
+    let data_root = resolve_data_root();
+    if data_root.try_exists().map_err(|error| format!("Dataフォルダーを確認できませんでした: {error}"))? {
+        return std::fs::canonicalize(&data_root).map_err(|error| format!("Dataフォルダーを確認できませんでした: {error}"));
+    }
+    let app_root = std::fs::canonicalize(resolve_app_root()).map_err(|error| format!("アプリの保存先を確認できませんでした: {error}"))?;
+    Ok(app_root.join("Data"))
+}
+
+fn resolve_user_backup_path(raw_path: &str, must_exist: bool) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw_path);
+    if raw_path.trim().is_empty() || !path.is_absolute() {
+        return Err("バックアップファイルのパスが不正です".to_string());
+    }
+    if !path.extension().and_then(|extension| extension.to_str()).is_some_and(|extension| extension.eq_ignore_ascii_case("zip")) {
+        return Err("StargazerのバックアップはZIPファイルを指定してください".to_string());
+    }
+
+    let resolved = if must_exist {
+        if !path.is_file() {
+            return Err("指定したバックアップファイルが存在しません".to_string());
+        }
+        std::fs::canonicalize(&path).map_err(|error| format!("バックアップファイルを確認できませんでした: {error}"))?
+    } else {
+        let file_name = path.file_name().ok_or_else(|| "バックアップファイル名がありません".to_string())?;
+        let parent = path.parent().ok_or_else(|| "バックアップの保存先がありません".to_string())?;
+        let parent = std::fs::canonicalize(parent).map_err(|error| format!("バックアップの保存先を確認できませんでした: {error}"))?;
+        parent.join(file_name)
+    };
+
+    let data_root = canonical_data_root_for_boundary_check()?;
+    if path_is_within(&resolved, &data_root) {
+        return Err("Dataフォルダー内にはバックアップファイルを保存・配置できません".to_string());
+    }
+    Ok(resolved)
+}
+
+fn create_unique_internal_file(parent: &Path) -> Result<(PathBuf, File), String> {
+    for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
+        let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let path = parent.join(format!(".stargazer-backup-writing-{}-{sequence}.tmp", std::process::id()));
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => return Ok((path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!("バックアップの一時ファイルを作成できませんでした: {error}"));
+            }
+        }
+    }
+    Err("バックアップの一時ファイル名を確保できませんでした".to_string())
+}
+
+fn unique_uncreated_path(parent: &Path, prefix: &str) -> Result<PathBuf, String> {
+    for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
+        let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let path = parent.join(format!("{prefix}-{}-{sequence}", std::process::id()));
+        if !path.try_exists().map_err(|error| format!("一時保存先を確認できませんでした: {error}"))? {
+            return Ok(path);
+        }
+    }
+    Err("重複しない一時保存先を確保できませんでした".to_string())
+}
+
+fn publish_backup_archive(temporary_path: &Path, destination_path: &Path) -> Result<(), String> {
+    let destination_exists = destination_path.try_exists().map_err(|error| format!("バックアップの保存先を確認できませんでした: {error}"))?;
+    if !destination_exists {
+        return std::fs::rename(temporary_path, destination_path).map_err(|error| format!("バックアップを保存できませんでした: {error}"));
+    }
+
+    let metadata = std::fs::symlink_metadata(destination_path).map_err(|error| format!("既存のバックアップを確認できませんでした: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("選択した保存先は通常のファイルではありません".to_string());
+    }
+    let parent = destination_path.parent().ok_or_else(|| "バックアップの保存先がありません".to_string())?;
+    let previous_path = unique_uncreated_path(parent, ".stargazer-backup-replaced")?;
+    std::fs::rename(destination_path, &previous_path).map_err(|error| { format!("既存のバックアップを安全な位置へ移動できませんでした: {error}") })?;
+    if let Err(error) = std::fs::rename(temporary_path, destination_path) {
+        return match std::fs::rename(&previous_path, destination_path) {
+            Ok(()) => Err(format!("新しいバックアップを保存できませんでした: {error}")),
+            Err(rollback_error) => Err(format!("新しいバックアップを保存できず、既存ファイルも元の位置へ戻せませんでした。退避先: {}。詳細: {error}; {rollback_error}", previous_path.display())),
+        };
+    }
+    std::fs::remove_file(&previous_path).map_err(|error| { format!("バックアップは保存されましたが、置換前のファイルを削除できませんでした。退避先: {}。詳細: {error}", previous_path.display()) })
+}
+
+fn validate_database_integrity(conn: &rusqlite::Connection, database_name: &str,) -> Result<(), String> {
+    let result = conn.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0)).map_err(|error| format!("{database_name}DBの整合性を確認できませんでした: {error}"))?;
+    if result != "ok" {
+        return Err(format!("{database_name}DBが破損しています: {result}"));
+    }
+    Ok(())
+}
+
+fn checkpoint_event_database_for_backup(event_name: &str) -> Result<PathBuf, String> {
+    let (db_path, conn) = open_event_shared_db(event_name)?;
+    validate_database_integrity(&conn, "イベント共有")?;
+    let checkpoint_busy = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| { row.get::<_, i64>(0) }).map_err(|error| format!("イベント '{event_name}' のDBを確定できませんでした: {error}"))?;
+    if checkpoint_busy != 0 {
+        return Err(format!("イベント '{event_name}' のDBが使用中のため、バックアップ用に確定できませんでした"));
+    }
+    drop(conn);
+    Ok(db_path)
+}
+
+fn validate_manifest_bytes(bytes: &[u8]) -> Result<DataBackupManifest, String> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| "バックアップのmanifestを読み取れませんでした".to_string())?;
+    if !has_exact_json_keys(&value, &["format", "format_version", "created_at", "application_version", "events", "settings",],)
+        || !has_exact_json_keys(&value["settings"], &["stargazer_theme_id", "stargazer_theme_customization", "stargazer_import_column_mappings", "stargazer_applicant_display_columns", "stargazer:lastLocation",],)
     {
+        return Err("Stargazerの現行バックアップ形式ではありません".to_string());
+    }
+    let manifest: DataBackupManifest = serde_json::from_value(value).map_err(|_| "Stargazerの現行バックアップ形式ではありません".to_string())?;
+    if manifest.format != DATA_BACKUP_FORMAT || manifest.format_version != DATA_BACKUP_FORMAT_VERSION {
+        return Err("Stargazerの現行バックアップ形式ではありません".to_string());
+    }
+    if manifest.application_version.trim().is_empty() || chrono::DateTime::parse_from_rfc3339(&manifest.created_at).is_err() {
+        return Err("バックアップの作成情報が不正です".to_string());
+    }
+    if manifest.events.len() + 1 > MAX_DATA_BACKUP_ARCHIVE_ENTRIES {
+        return Err("バックアップに含まれるイベント数が多すぎます".to_string());
+    }
+    let mut normalized_events = manifest.events.clone();
+    for event_name in &normalized_events {
+        validate_event_name(event_name).map_err(|_| "バックアップ内のイベント名が不正です".to_string())?;
+    }
+    normalized_events.sort();
+    let mut case_insensitive_names = HashSet::new();
+    if normalized_events != manifest.events || normalized_events.iter().any(|name| !case_insensitive_names.insert(name.to_ascii_lowercase())) {
+        return Err("バックアップ内のイベント一覧が不正です".to_string());
+    }
+    validate_device_settings(&manifest.settings, &manifest.events)?;
+    Ok(manifest)
+}
+
+fn backup_database_entry_name(event_name: &str) -> String {
+    format!("Data/{event_name}/{SHARED_DIR}/db/stargazer.db")
+}
+
+fn event_name_from_backup_entry(entry_name: &str) -> Option<&str> {
+    let mut parts = entry_name.split('/');
+    match (parts.next(), parts.next(), parts.next(), parts.next(), parts.next(), parts.next(),) {
+        (Some("Data"), Some(event_name), Some(SHARED_DIR), Some("db"), Some("stargazer.db"), None,) => Some(event_name),
+        _ => None,
+    }
+}
+
+fn create_backup_archive_at(destination_path: &Path, settings: DataBackupDeviceSettings,) -> Result<(), String> {
+    let event_names = list_event_names_at(&resolve_data_root()).map_err(|error| format!("イベント一覧を読み込めませんでした: {error}"))?;
+    validate_device_settings(&settings, &event_names)?;
+    if event_names.len() + 1 > MAX_DATA_BACKUP_ARCHIVE_ENTRIES {
+        return Err("バックアップ対象のイベント数が多すぎます".to_string());
+    }
+
+    let manifest = DataBackupManifest {
+        format: DATA_BACKUP_FORMAT.to_string(),
+        format_version: DATA_BACKUP_FORMAT_VERSION,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        application_version: env!("CARGO_PKG_VERSION").to_string(),
+        events: event_names.clone(),
+        settings,
+    };
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest).map_err(|error| format!("バックアップ情報を作成できませんでした: {error}"))?;
+    if manifest_bytes.len() as u64 > MAX_DATA_BACKUP_MANIFEST_BYTES {
+        return Err("端末設定が大きすぎるためバックアップを作成できません".to_string());
+    }
+
+    let parent = destination_path.parent().ok_or_else(|| "バックアップの保存先がありません".to_string())?;
+    let (temporary_path, temporary_file) = create_unique_internal_file(parent)?;
+    let archive_result = (|| {
+        let mut archive = zip::ZipWriter::new(temporary_file);
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated).unix_permissions(0o600);
+        archive.start_file(DATA_BACKUP_MANIFEST_ENTRY, options).map_err(|error| format!("バックアップ情報を書き込めませんでした: {error}"))?;
+        archive.write_all(&manifest_bytes).map_err(|error| format!("バックアップ情報を書き込めませんでした: {error}"))?;
+
+        let mut total_size = manifest_bytes.len() as u64;
+        for event_name in &event_names {
+            let db_path = checkpoint_event_database_for_backup(event_name)?;
+            let db_size = std::fs::metadata(&db_path).map_err(|error| { format!("イベント '{event_name}' のDBを確認できませんでした: {error}") })?.len();
+            total_size = total_size.checked_add(db_size).ok_or_else(|| "バックアップ対象の容量を計算できませんでした".to_string())?;
+            if total_size > MAX_DATA_BACKUP_UNCOMPRESSED_BYTES {
+                return Err("バックアップ対象のDataが64 GiBを超えています".to_string());
+            }
+            archive.start_file(backup_database_entry_name(event_name), options).map_err(|error| { format!("イベント '{event_name}' をZIPへ追加できませんでした: {error}") })?;
+            let mut db_file = File::open(&db_path).map_err(|error| { format!("イベント '{event_name}' のDBを読み込めませんでした: {error}") })?;
+            std::io::copy(&mut db_file, &mut archive).map_err(|error| { format!("イベント '{event_name}' のDBを書き込めませんでした: {error}") })?;
+        }
+        let output = archive.finish().map_err(|error| format!("バックアップZIPを確定できませんでした: {error}"))?;
+        output.sync_all().map_err(|error| { format!("バックアップファイルをディスクへ確定できませんでした: {error}") })?;
+        Ok(())
+    })();
+
+    if let Err(error) = archive_result {
+        let _ = std::fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+    match publish_backup_archive(&temporary_path, destination_path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if temporary_path.exists() {
+                let _ = std::fs::remove_file(&temporary_path);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn create_restore_staging_data_root() -> Result<(String, PathBuf), String> {
+    let app_root = resolve_app_root();
+    std::fs::create_dir_all(&app_root).map_err(|error| format!("復元用の保存先を作成できませんでした: {error}"))?;
+    for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
+        let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let restore_token = format!("{}-{sequence}", std::process::id());
+        let staging_root = app_root.join(format!(".Data.restoring-{restore_token}"));
+        match std::fs::create_dir(&staging_root) {
+            Ok(()) => return Ok((restore_token, staging_root)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!("復元用の一時Dataを作成できませんでした: {error}"));
+            }
+        }
+    }
+    Err("復元用の一時Data名を確保できませんでした".to_string())
+}
+
+fn validate_restored_shared_database(db_path: &Path, event_name: &str) -> Result<(), String> {
+    let conn = rusqlite::Connection::open_with_flags(sqlite_open_path(db_path), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,)
+        .map_err(|error| format!("イベント '{event_name}' のDBを読み取れませんでした: {error}"))?;
+    conn.busy_timeout(SQLITE_BUSY_TIMEOUT).map_err(|error| format!("イベント '{event_name}' のDB待機設定に失敗しました: {error}"))?;
+    validate_current_schema(&conn, "イベント共有", SHARED_REQUIRED_TABLES, SHARED_SCHEMA_QUERIES,).map_err(|error| { format!("イベント '{event_name}' はStargazerの現行schemaではありません: {error}") })?;
+    validate_database_integrity(&conn, "イベント共有").map_err(|error| format!("イベント '{event_name}' を復元できません: {error}"))
+}
+
+fn inspect_backup_archive(source_path: &Path,) -> Result<(DataBackupManifest, HashMap<String, usize>), String> {
+    let source_file = File::open(source_path).map_err(|error| format!("バックアップファイルを開けませんでした: {error}"))?;
+    let mut archive = zip::ZipArchive::new(source_file).map_err(|_| { "指定したファイルは有効なStargazerバックアップZIPではありません".to_string() })?;
+    if archive.is_empty() || archive.len() > MAX_DATA_BACKUP_ARCHIVE_ENTRIES {
+        return Err("バックアップZIPのファイル構成が不正です".to_string());
+    }
+
+    let mut manifest_index = None;
+    let mut event_entries = HashMap::new();
+    let mut entry_names = HashSet::new();
+    let mut case_insensitive_event_names = HashSet::new();
+    let mut total_size = 0_u64;
+    for index in 0..archive.len() {
+        let entry = archive.by_index(index).map_err(|error| format!("バックアップZIPを読み取れませんでした: {error}"))?;
+        if entry.is_dir() || entry.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
+            return Err("バックアップZIPに許可されていない項目があります".to_string());
+        }
+        let entry_name = std::str::from_utf8(entry.name_raw()).map_err(|_| "バックアップZIPに不正なファイル名があります".to_string())?.to_string();
+        if !entry_names.insert(entry_name.clone()) {
+            return Err("バックアップZIPに同じファイルが重複しています".to_string());
+        }
+        total_size = total_size.checked_add(entry.size()).ok_or_else(|| "バックアップZIPの容量を計算できませんでした".to_string())?;
+        if total_size > MAX_DATA_BACKUP_UNCOMPRESSED_BYTES {
+            return Err("バックアップZIPの展開後容量が64 GiBを超えています".to_string());
+        }
+        if entry_name == DATA_BACKUP_MANIFEST_ENTRY {
+            if entry.size() > MAX_DATA_BACKUP_MANIFEST_BYTES {
+                return Err("バックアップのmanifestが大きすぎます".to_string());
+            }
+            manifest_index = Some(index);
+            continue;
+        }
+        let event_name = event_name_from_backup_entry(&entry_name).ok_or_else(|| "バックアップZIPにStargazer管理外のパスがあります".to_string())?;
+        validate_event_name(event_name).map_err(|_| "バックアップZIPに不正なイベント名があります".to_string())?;
+        if !case_insensitive_event_names.insert(event_name.to_ascii_lowercase()) {
+            return Err("バックアップZIPに重複するイベント名があります".to_string());
+        }
+        event_entries.insert(event_name.to_string(), index);
+    }
+
+    let manifest_index = manifest_index.ok_or_else(|| "Stargazerバックアップのmanifestがありません".to_string())?;
+    let manifest = {
+        let entry = archive.by_index(manifest_index).map_err(|error| format!("バックアップのmanifestを開けませんでした: {error}"))?;
+        let declared_size = entry.size();
+        let mut limited_entry = entry.take(MAX_DATA_BACKUP_MANIFEST_BYTES + 1);
+        let mut bytes = Vec::with_capacity(declared_size as usize);
+        limited_entry.read_to_end(&mut bytes).map_err(|error| format!("バックアップのmanifestを読み取れませんでした: {error}"))?;
+        if bytes.len() as u64 != declared_size {
+            return Err("バックアップのmanifest容量が一致しません".to_string());
+        }
+        validate_manifest_bytes(&bytes)?
+    };
+    let mut archive_event_names = event_entries.keys().cloned().collect::<Vec<_>>();
+    archive_event_names.sort();
+    if archive_event_names != manifest.events {
+        return Err("バックアップのイベント一覧とDataの内容が一致しません".to_string());
+    }
+    Ok((manifest, event_entries))
+}
+
+fn extract_backup_to_staging(source_path: &Path, staging_data_root: &Path,) -> Result<DataBackupManifest, String> {
+    let (manifest, event_entries) = inspect_backup_archive(source_path)?;
+    let source_file = File::open(source_path).map_err(|error| format!("バックアップファイルを開けませんでした: {error}"))?;
+    let mut archive = zip::ZipArchive::new(source_file).map_err(|_| { "指定したファイルは有効なStargazerバックアップZIPではありません".to_string() })?;
+    for event_name in &manifest.events {
+        let index = *event_entries.get(event_name).ok_or_else(|| "バックアップのイベントDataが不足しています".to_string())?;
+        let entry = archive.by_index(index).map_err(|error| format!("イベント '{event_name}' を読み取れませんでした: {error}"))?;
+        let declared_size = entry.size();
+        let db_path = staging_data_root.join(event_name).join(SHARED_DIR).join("db").join("stargazer.db");
+        let db_parent = db_path.parent().ok_or_else(|| "復元先のDBパスが不正です".to_string())?;
+        std::fs::create_dir_all(db_parent).map_err(|error| { format!("イベント '{event_name}' の復元先を作成できませんでした: {error}") })?;
+        let mut output = OpenOptions::new().write(true).create_new(true).open(&db_path).map_err(|error| { format!("イベント '{event_name}' の復元DBを作成できませんでした: {error}") })?;
+        let copied = std::io::copy(&mut entry.take(declared_size.saturating_add(1)), &mut output,).map_err(|error| format!("イベント '{event_name}' を展開できませんでした: {error}"))?;
+        if copied != declared_size {
+            return Err(format!("イベント '{event_name}' の展開後容量が一致しません"));
+        }
+        output.sync_all().map_err(|error| { format!("イベント '{event_name}' の復元DBを確定できませんでした: {error}") })?;
+        drop(output);
+        validate_restored_shared_database(&db_path, event_name)?;
+    }
+    Ok(manifest)
+}
+
+fn lock_pending_data_restore() -> Result<MutexGuard<'static, Option<PendingDataRestore>>, String> {
+    PENDING_DATA_RESTORE.lock().map_err(|_| "復元処理の状態を確認できませんでした".to_string())
+}
+
+fn validate_staged_restore(pending: &PendingDataRestore) -> Result<(), String> {
+    let staging_metadata = std::fs::symlink_metadata(&pending.staging_data_root).map_err(|error| format!("復元用Dataを確認できませんでした: {error}"))?;
+    if staging_metadata.file_type().is_symlink() || !staging_metadata.is_dir() {
+        return Err("検証済みの復元用Dataが通常のフォルダーではありません".to_string());
+    }
+    let event_names = list_event_names_at(&pending.staging_data_root).map_err(|error| format!("復元用Dataを確認できませんでした: {error}"))?;
+    if event_names != pending.events {
+        return Err("検証済みの復元用Dataが変更されています".to_string());
+    }
+    validate_device_settings(&pending.settings, &pending.events)?;
+    for event_name in &pending.events {
+        let db_path = pending.staging_data_root.join(event_name).join(SHARED_DIR).join("db").join("stargazer.db");
+        for directory in [pending.staging_data_root.join(event_name), pending.staging_data_root.join(event_name).join(SHARED_DIR), pending.staging_data_root.join(event_name).join(SHARED_DIR).join("db"),] {
+            let metadata = std::fs::symlink_metadata(&directory).map_err(|error| { format!("イベント '{event_name}' の復元先を確認できませんでした: {error}") })?;
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(format!("イベント '{event_name}' の復元先が通常のフォルダーではありません"));
+            }
+        }
+        let db_metadata = std::fs::symlink_metadata(&db_path).map_err(|error| { format!("イベント '{event_name}' の復元DBを確認できませんでした: {error}") })?;
+        if db_metadata.file_type().is_symlink() || !db_metadata.is_file() {
+            return Err(format!("イベント '{event_name}' の復元DBが通常のファイルではありません"));
+        }
+        validate_restored_shared_database(&db_path, event_name)?;
+    }
+    Ok(())
+}
+
+fn replace_data_root_safely(staging_data_root: &Path) -> Result<Option<String>, String> {
+    let data_root = resolve_data_root();
+    let app_root = data_root.parent().ok_or_else(|| "Dataフォルダーの親ディレクトリがありません".to_string())?;
+    let staging_parent = staging_data_root.parent().ok_or_else(|| "復元用Dataの親ディレクトリがありません".to_string())?;
+    if staging_parent != app_root || !staging_data_root.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with(".Data.restoring-")) {
+        return Err("復元用Dataの保存先が不正です".to_string());
+    }
+
+    let data_exists = data_root.try_exists().map_err(|error| format!("現在のDataフォルダーを確認できませんでした: {error}"))?;
+    let previous_data_root = if data_exists {
+        let metadata = std::fs::symlink_metadata(&data_root).map_err(|error| format!("現在のDataフォルダーを確認できませんでした: {error}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err("現在のData保存先が通常のフォルダーではありません".to_string());
+        }
+        let previous = unique_uncreated_path(app_root, ".Data.before-restore")?;
+        std::fs::rename(&data_root, &previous).map_err(|error| format!("現在のDataを安全な位置へ退避できませんでした: {error}"))?;
+        Some(previous)
+    } else {
+        None
+    };
+
+    if let Err(error) = std::fs::rename(staging_data_root, &data_root) {
+        return match previous_data_root {
+            Some(previous) => match std::fs::rename(&previous, &data_root) {
+                Ok(()) => Err(format!("復元したDataを配置できませんでした: {error}")),
+                Err(rollback_error) => Err(format!("復元したDataを配置できず、元のDataも戻せませんでした。退避先: {}。詳細: {error}; {rollback_error}", previous.display())),
+            },
+            None => Err(format!("復元したDataを配置できませんでした: {error}")),
+        };
+    }
+
+    let cleanup_warning = previous_data_root.and_then(|previous| { std::fs::remove_dir_all(&previous).err().map(|error| { format!("復元前のDataを削除できませんでした。退避先: {}。詳細: {error}", previous.display()) }) });
+    Ok(cleanup_warning)
+}
+
+fn ensure_event_name_is_unique_ignoring_ascii_case(root: &Path, event_name: &str,) -> Result<(), String> {
+    let event_names = list_event_names_at(root).map_err(|e| format!("イベント名の重複を確認できませんでした: {e}"))?;
+    if event_names.iter().any(|existing_name| existing_name.eq_ignore_ascii_case(event_name)) {
         return Err(format!("イベント '{event_name}' は既に存在します"));
     }
     Ok(())
@@ -2704,9 +2494,7 @@ fn get_event_shared_db_uri(event_name: String) -> Result<String, String> {
 
 /** イベント共有DBから、内部整合を確認できた保存済み抽選結果を取得する。 */
 #[tauri::command]
-fn list_event_saved_lottery_results(
-    event_name: String,
-) -> Result<Vec<EventSavedLotteryResultSummary>, String> {
+fn list_event_saved_lottery_results(event_name: String,) -> Result<Vec<EventSavedLotteryResultSummary>, String> {
     validate_event_name(&event_name)?;
     let (_, conn) = open_event_shared_db(&event_name)?;
     let result_ids = {
@@ -2724,19 +2512,12 @@ fn list_event_saved_lottery_results(
             .map_err(|e| sqlite_error("保存済み抽選結果を読み込めませんでした", e))?;
         values
     };
-    result_ids
-        .into_iter()
-        .map(|saved_result_id| {
-            read_validated_saved_lottery_result(&conn, saved_result_id).map(|(_, summary)| summary)
-        })
-        .collect()
+    result_ids.into_iter().map(|saved_result_id| { read_validated_saved_lottery_result(&conn, saved_result_id).map(|(_, summary)| summary) }).collect()
 }
 
 /** イベント共有DBから、内部整合を確認できた保存済みマッチング結果を取得する。 */
 #[tauri::command]
-fn list_event_saved_matching_results(
-    event_name: String,
-) -> Result<Vec<EventSavedMatchingResultSummary>, String> {
+fn list_event_saved_matching_results(event_name: String,) -> Result<Vec<EventSavedMatchingResultSummary>, String> {
     validate_event_name(&event_name)?;
     let (_, conn) = open_event_shared_db(&event_name)?;
     let rows = {
@@ -2749,41 +2530,18 @@ fn list_event_saved_matching_results(
             )
             .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?;
         let values = stmt
-            .query_map([], |row| {
-                Ok((
-                    EventSavedMatchingResultSummary {
-                        saved_result_id: row.get(0)?,
-                        label: row.get(1)?,
-                        matching_type_code: row.get(2)?,
-                        winner_count: row.get(3)?,
-                        created_at: row.get(4)?,
-                    },
-                    row.get::<_, String>(5)?,
-                ))
-            })
+            .query_map([], |row| { Ok((EventSavedMatchingResultSummary { saved_result_id: row.get(0)?, label: row.get(1)?, matching_type_code: row.get(2)?, winner_count: row.get(3)?, created_at: row.get(4)?, }, row.get::<_, String>(5)?,)) })
             .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?;
         values
     };
-    rows.into_iter()
-        .map(|(summary, snapshot_json)| {
-            read_validated_matching_snapshot(
-                &summary.matching_type_code,
-                summary.winner_count,
-                &snapshot_json,
-            )
-            .map(|_| summary)
-        })
-        .collect()
+    rows.into_iter().map(|(summary, snapshot_json)| { read_validated_matching_snapshot(&summary.matching_type_code, summary.winner_count, &snapshot_json,).map(|_| summary) }).collect()
 }
 
 /** 保存済みマッチング結果1件を、現在の作業セッションから独立して取得する。 */
 #[tauri::command]
-fn get_event_saved_matching_result(
-    event_name: String,
-    saved_result_id: i64,
-) -> Result<EventSavedMatchingResultDetail, String> {
+fn get_event_saved_matching_result(event_name: String, saved_result_id: i64,) -> Result<EventSavedMatchingResultDetail, String> {
     validate_event_name(&event_name)?;
     if saved_result_id <= 0 {
         return Err("保存済みマッチング結果を特定できません".to_string());
@@ -2795,28 +2553,13 @@ fn get_event_saved_matching_result(
              FROM saved_results
              WHERE id = ?1 AND result_type = 'matching'",
             [saved_result_id],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                ))
-            },
+            |row| { Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?,)) },
         )
         .optional()
         .map_err(|e| sqlite_error("保存済みマッチング結果を読み込めませんでした", e))?
         .ok_or_else(|| "保存済みマッチング結果が見つかりません".to_string())?;
     let snapshot = read_validated_matching_snapshot(&row.1, row.2, &row.3)?;
-    Ok(EventSavedMatchingResultDetail {
-        saved_result_id,
-        label: row.0,
-        matching_type_code: row.1,
-        winner_count: row.2,
-        created_at: row.4,
-        snapshot,
-    })
+    Ok(EventSavedMatchingResultDetail { saved_result_id, label: row.0, matching_type_code: row.1, winner_count: row.2, created_at: row.4, snapshot, })
 }
 
 fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
@@ -2846,6 +2589,18 @@ fn list_session_names_at(dir: &Path) -> std::io::Result<Vec<String>> {
     Ok(sessions)
 }
 
+fn ensure_no_work_sessions_for_data_transfer() -> Result<(), String> {
+    let data_root = resolve_data_root();
+    let event_names = list_event_names_at(&data_root).map_err(|error| format!("作業セッションを確認できませんでした: {error}"))?;
+    for event_name in event_names {
+        let sessions = list_session_names_at(&data_root.join(&event_name)).map_err(|error| { format!("イベント '{event_name}' の作業セッションを確認できませんでした: {error}") })?;
+        if !sessions.is_empty() {
+            return Err("作業中の応募データがあります。応募管理の開始画面へ戻って現在の作業を終了してから、バックアップまたは復元を実行してください".to_string(),);
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 fn list_sessions_at(dir: &Path) -> Vec<String> {
     list_session_names_at(dir).unwrap_or_default()
@@ -2866,9 +2621,7 @@ fn list_in_progress_session_directories_at(dir: &Path) -> std::io::Result<Vec<(S
         let Ok(timestamp) = entry.file_name().into_string() else {
             continue;
         };
-        if validate_timestamp(&timestamp).is_ok()
-            && entry.path().join(IN_PROGRESS_SESSION_MARKER).is_file()
-        {
+        if validate_timestamp(&timestamp).is_ok() && entry.path().join(IN_PROGRESS_SESSION_MARKER).is_file() {
             sessions.push((timestamp, entry.path()));
         }
     }
@@ -2910,22 +2663,15 @@ fn list_quarantined_session_directories_at(dir: &Path) -> std::io::Result<Vec<(S
 }
 
 fn quarantine_in_progress_session(directory: &Path, timestamp: &str) -> Result<PathBuf, String> {
-    let parent = directory
-        .parent()
-        .ok_or_else(|| "操作中セッションの保存先が不正です".to_string())?;
+    let parent = directory.parent().ok_or_else(|| "操作中セッションの保存先が不正です".to_string())?;
     for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
         let sequence = STAGING_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let quarantine_dir = parent.join(format!(
-            ".{timestamp}.discarding-{}-{sequence}",
-            std::process::id()
-        ));
+        let quarantine_dir = parent.join(format!(".{timestamp}.discarding-{}-{sequence}", std::process::id()));
         match std::fs::rename(directory, &quarantine_dir) {
             Ok(()) => return Ok(quarantine_dir),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
-                return Err(format!(
-                    "操作中セッションを破棄対象へ移動できませんでした: {error}"
-                ));
+                return Err(format!("操作中セッションを破棄対象へ移動できませんでした: {error}"));
             }
         }
     }
@@ -2936,17 +2682,12 @@ fn remove_quarantined_session_directory(directory: &Path) -> Result<(), String> 
     match std::fs::remove_dir_all(directory) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "破棄対象へ移動済みですが、物理削除を完了できませんでした: {error}"
-        )),
+        Err(error) => Err(format!("破棄対象へ移動済みですが、物理削除を完了できませんでした: {error}")),
     }
 }
 
 fn discard_session_directory(directory: &Path, timestamp: &str) -> Result<(), String> {
-    if !directory
-        .try_exists()
-        .map_err(|e| format!("作業セッションの保存先を確認できませんでした: {e}"))?
-    {
+    if !directory.try_exists().map_err(|e| format!("作業セッションの保存先を確認できませんでした: {e}"))? {
         return Ok(());
     }
     let quarantine_dir = quarantine_in_progress_session(directory, timestamp)?;
@@ -2955,15 +2696,12 @@ fn discard_session_directory(directory: &Path, timestamp: &str) -> Result<(), St
 
 /** 作業セッションの作成・破棄・イベント移動を同時実行させない。 */
 fn lock_work_session_lifecycle() -> Result<MutexGuard<'static, ()>, String> {
-    WORK_SESSION_LIFECYCLE_LOCK
-        .lock()
-        .map_err(|_| "作業セッションの排他状態を取得できませんでした".to_string())
+    WORK_SESSION_LIFECYCLE_LOCK.lock().map_err(|_| "作業セッションの排他状態を取得できませんでした".to_string())
 }
 
 /** 指定したDataルートで、強制終了により残った作業セッションだけを破棄する。 */
 fn cleanup_in_progress_sessions_at(root: &Path) -> Result<(), String> {
-    let event_names = list_event_names_at(root)
-        .map_err(|e| format!("操作中セッションのイベント一覧を確認できませんでした: {e}"))?;
+    let event_names = list_event_names_at(root).map_err(|e| format!("操作中セッションのイベント一覧を確認できませんでした: {e}"))?;
     let mut failures = Vec::new();
     for event_name in event_names {
         let event_path = root.join(&event_name);
@@ -2975,9 +2713,7 @@ fn cleanup_in_progress_sessions_at(root: &Path) -> Result<(), String> {
                     }
                 }
             }
-            Err(error) => failures.push(format!(
-                "{event_name}: 破棄未完了セッションを確認できませんでした: {error}"
-            )),
+            Err(error) => failures.push(format!("{event_name}: 破棄未完了セッションを確認できませんでした: {error}")),
         }
         match list_in_progress_session_directories_at(&event_path) {
             Ok(directories) => {
@@ -2987,9 +2723,7 @@ fn cleanup_in_progress_sessions_at(root: &Path) -> Result<(), String> {
                     }
                 }
             }
-            Err(error) => failures.push(format!(
-                "{event_name}: 操作中セッションを確認できませんでした: {error}"
-            )),
+            Err(error) => failures.push(format!("{event_name}: 操作中セッションを確認できませんでした: {error}")),
         }
     }
     if failures.is_empty() {
@@ -3008,14 +2742,7 @@ fn cleanup_in_progress_sessions() -> Result<(), String> {
 /** 起動時に前回の作業セッションを完全削除できなかった場合だけ、再起動案内と原因を返す。 */
 #[tauri::command]
 fn get_startup_session_cleanup_error() -> Option<String> {
-    STARTUP_SESSION_CLEANUP_ERROR
-        .get()
-        .and_then(|error| error.as_ref())
-        .map(|error| {
-            format!(
-                "前回終了時の作業セッションを完全に削除できませんでした。新しい作業を開始できない場合は、アプリを終了してから再度起動してください。\n{error}"
-            )
-        })
+    STARTUP_SESSION_CLEANUP_ERROR.get().and_then(|error| error.as_ref()).map(|error| { format!("前回終了時の作業セッションを完全に削除できませんでした。新しい作業を開始できない場合は、アプリを終了してから再度起動してください。\n{error}") })
 }
 
 /** 接続を閉じた現在の作業セッションだけを、イベント共有結果へ影響させず破棄する。 */
@@ -3039,16 +2766,11 @@ fn discard_session(event_name: String, timestamp: String) -> Result<(), String> 
 /** 全イベントを確認し、同時に扱う作業セッションが一件も残っていないことを保証する。 */
 fn ensure_no_work_session() -> Result<(), String> {
     let root = resolve_data_root();
-    let event_names = list_event_names_at(&root)
-        .map_err(|e| format!("作業セッションのイベント一覧を確認できませんでした: {e}"))?;
+    let event_names = list_event_names_at(&root).map_err(|e| format!("作業セッションのイベント一覧を確認できませんでした: {e}"))?;
     for event_name in event_names {
-        let sessions = list_session_names_at(&event_dir(&event_name)).map_err(|e| {
-            format!("イベント '{event_name}' の作業セッションを確認できませんでした: {e}")
-        })?;
+        let sessions = list_session_names_at(&event_dir(&event_name)).map_err(|e| { format!("イベント '{event_name}' の作業セッションを確認できませんでした: {e}") })?;
         if !sessions.is_empty() {
-            return Err(format!(
-                "イベント '{event_name}' に別の作業セッションが残っています。先に現在の作業を終了してください"
-            ));
+            return Err(format!("イベント '{event_name}' に別の作業セッションが残っています。先に現在の作業を終了してください"));
         }
     }
     Ok(())
@@ -3056,10 +2778,7 @@ fn ensure_no_work_session() -> Result<(), String> {
 
 /** 応募データ保存まで成功した一件だけを、現在の作業セッションとして公開する。 */
 #[tauri::command]
-fn create_import_session_atomic(
-    event_name: String,
-    users: Vec<ApplicantInput>,
-) -> Result<String, String> {
+fn create_import_session_atomic(event_name: String, users: Vec<ApplicantInput>,) -> Result<String, String> {
     validate_event_name(&event_name)?;
     if users.is_empty() {
         return Err("取り込む応募データがありません".to_string());
@@ -3072,28 +2791,16 @@ fn create_import_session_atomic(
     validate_timestamp(&timestamp)?;
     let final_dir = session_dir(&event_name, &timestamp);
     let relative_db_path = Path::new("db").join("stargazer.db");
-    create_initialized_directory_atomically(
-        &final_dir,
-        &relative_db_path,
-        SESSION_SCHEMA,
-        "取込セッション",
-        SESSION_REQUIRED_TABLES,
-        SESSION_SCHEMA_QUERIES,
-        |conn| {
-            persist_applicants_in_connection(conn, &users)
-                .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))?;
-            write_session_in_progress_marker(conn)
-        },
-    )?;
+    create_initialized_directory_atomically(&final_dir, &relative_db_path, SESSION_SCHEMA, "取込セッション", SESSION_REQUIRED_TABLES, SESSION_SCHEMA_QUERIES, |conn| {
+        persist_applicants_in_connection(conn, &users).map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))?;
+        write_session_in_progress_marker(conn)
+    },)?;
     Ok(timestamp)
 }
 
 /** 保存済み抽選の自己完結スナップショットから、後続マッチング用セッションを作成する。 */
 #[tauri::command]
-fn create_session_from_saved_lottery_atomic(
-    event_name: String,
-    saved_result_id: i64,
-) -> Result<String, String> {
+fn create_session_from_saved_lottery_atomic(event_name: String, saved_result_id: i64,) -> Result<String, String> {
     validate_event_name(&event_name)?;
     let (_, shared_conn) = open_event_shared_db(&event_name)?;
     let (snapshot, _) = read_validated_saved_lottery_result(&shared_conn, saved_result_id)?;
@@ -3104,35 +2811,14 @@ fn create_session_from_saved_lottery_atomic(
     validate_timestamp(&timestamp)?;
     let final_dir = session_dir(&event_name, &timestamp);
     let relative_db_path = Path::new("db").join("stargazer.db");
-    create_initialized_directory_atomically(
-        &final_dir,
-        &relative_db_path,
-        SESSION_SCHEMA,
-        "取込セッション",
-        SESSION_REQUIRED_TABLES,
-        SESSION_SCHEMA_QUERIES,
-        |conn| {
-            persist_applicants_in_connection(conn, &snapshot.applicants)
-                .map_err(|e| sqlite_error("保存済み抽選の応募データを復元できませんでした", e))?;
-            persist_session_workflow_state_in_connection(conn, &snapshot.workflow)
-                .map_err(|e| sqlite_error("保存済み抽選の条件を復元できませんでした", e))?;
-            let condition_revision = conn
-                .query_row(
-                    "SELECT condition_revision FROM session_workflow_state WHERE id = 1",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                )
-                .map_err(|e| sqlite_error("復元した抽選条件を確認できませんでした", e))?;
-            replace_lottery_results_in_connection(conn, &snapshot.winners, condition_revision)
-                .map_err(|e| sqlite_error("保存済み抽選の当選者を復元できませんでした", e))?;
-            conn.execute(
-                "UPDATE session_workflow_state SET is_lottery_read_only = 1 WHERE id = 1",
-                [],
-            )
-            .map_err(|e| sqlite_error("復元した抽選状態を固定できませんでした", e))?;
-            write_session_in_progress_marker(conn)
-        },
-    )?;
+    create_initialized_directory_atomically(&final_dir, &relative_db_path, SESSION_SCHEMA, "取込セッション", SESSION_REQUIRED_TABLES, SESSION_SCHEMA_QUERIES, |conn| {
+        persist_applicants_in_connection(conn, &snapshot.applicants).map_err(|e| sqlite_error("保存済み抽選の応募データを復元できませんでした", e))?;
+        persist_session_workflow_state_in_connection(conn, &snapshot.workflow).map_err(|e| sqlite_error("保存済み抽選の条件を復元できませんでした", e))?;
+        let condition_revision = conn.query_row("SELECT condition_revision FROM session_workflow_state WHERE id = 1", [], |row| row.get::<_, i64>(0),).map_err(|e| sqlite_error("復元した抽選条件を確認できませんでした", e))?;
+        replace_lottery_results_in_connection(conn, &snapshot.winners, condition_revision).map_err(|e| sqlite_error("保存済み抽選の当選者を復元できませんでした", e))?;
+        conn.execute("UPDATE session_workflow_state SET is_lottery_read_only = 1 WHERE id = 1", [],).map_err(|e| sqlite_error("復元した抽選状態を固定できませんでした", e))?;
+        write_session_in_progress_marker(conn)
+    },)?;
     Ok(timestamp)
 }
 
@@ -3146,149 +2832,93 @@ fn get_session_db_uri(event_name: String, timestamp: String) -> Result<String, S
 
 /** 応募者一覧の全置換を Rust 側の単一 SQLite transaction で実行する。 */
 #[tauri::command]
-fn persist_applicants_atomic(
-    event_name: String,
-    timestamp: String,
-    users: Vec<ApplicantInput>,
-) -> Result<(), String> {
+fn persist_applicants_atomic(event_name: String, timestamp: String, users: Vec<ApplicantInput>,) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &conn)?;
-    persist_applicants_in_connection(&mut conn, &users)
-        .map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))
+    persist_applicants_in_connection(&mut conn, &users).map_err(|e| sqlite_error("応募者一覧の保存に失敗しました", e))
 }
 
 /** 応募者1件の希望キャストを現在の名簿から選び直して保存する。 */
 #[tauri::command]
-fn update_applicant_cast_preferences_atomic(
-    event_name: String,
-    timestamp: String,
-    applicant_id: i64,
-    preferences: ApplicantCastPreferencesInput,
-) -> Result<(), String> {
+fn update_applicant_cast_preferences_atomic(event_name: String, timestamp: String, applicant_id: i64, preferences: ApplicantCastPreferencesInput,) -> Result<(), String> {
     let shared_conn = open_shared_write_connection(&event_name)?;
-    let resolved_preferences = resolve_applicant_cast_preferences(&shared_conn, &preferences)
-        .map_err(|e| sqlite_error("希望キャストの確認に失敗しました", e))?;
+    let resolved_preferences = resolve_applicant_cast_preferences(&shared_conn, &preferences).map_err(|e| sqlite_error("希望キャストの確認に失敗しました", e))?;
     drop(shared_conn);
 
     let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &session_conn)?;
-    update_applicant_cast_preferences_in_connection(
-        &mut session_conn,
-        applicant_id,
-        &resolved_preferences,
-    )
-    .map_err(|e| sqlite_error("希望キャストの保存に失敗しました", e))
+    update_applicant_cast_preferences_in_connection(&mut session_conn, applicant_id, &resolved_preferences,).map_err(|e| sqlite_error("希望キャストの保存に失敗しました", e))
 }
 
 /** 応募者1件を安定IDで削除し、残りの応募者は置換しない。 */
 #[tauri::command]
-fn delete_applicant_atomic(
-    event_name: String,
-    timestamp: String,
-    applicant_id: i64,
-) -> Result<(), String> {
+fn delete_applicant_atomic(event_name: String, timestamp: String, applicant_id: i64,) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &conn)?;
-    delete_applicant_in_connection(&mut conn, applicant_id)
-        .map_err(|e| sqlite_error("応募者の削除に失敗しました", e))
+    delete_applicant_in_connection(&mut conn, applicant_id).map_err(|e| sqlite_error("応募者の削除に失敗しました", e))
 }
 
 /** 現在セッションの抽選・マッチング条件を保存する。 */
 #[tauri::command]
-fn persist_session_workflow_state_atomic(
-    event_name: String,
-    timestamp: String,
-    state: SessionWorkflowStateInput,
-) -> Result<(), String> {
+fn persist_session_workflow_state_atomic(event_name: String, timestamp: String, state: SessionWorkflowStateInput,) -> Result<(), String> {
     validate_session_workflow_state(&state)?;
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &conn)?;
-    persist_session_workflow_state_in_connection(&mut conn, &state)
-        .map_err(|e| sqlite_error("抽選・マッチング条件の保存に失敗しました", e))
+    persist_session_workflow_state_in_connection(&mut conn, &state).map_err(|e| sqlite_error("抽選・マッチング条件の保存に失敗しました", e))
 }
 
 /** 現在セッションの確定当選者選択を保存する。 */
 #[tauri::command]
-fn replace_applicant_guarantees_atomic(
-    event_name: String,
-    timestamp: String,
-    guaranteed_x_ids: Vec<String>,
-) -> Result<(), String> {
+fn replace_applicant_guarantees_atomic(event_name: String, timestamp: String, guaranteed_x_ids: Vec<String>,) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &conn)?;
-    replace_applicant_guarantees_in_connection(&mut conn, &guaranteed_x_ids)
-        .map_err(|e| sqlite_error("確定当選者の保存に失敗しました", e))
+    replace_applicant_guarantees_in_connection(&mut conn, &guaranteed_x_ids).map_err(|e| sqlite_error("確定当選者の保存に失敗しました", e))
 }
 
 /** キャスト追加を Rust 側の単一 SQLite transaction で実行し、作成 ID を返す。 */
 #[tauri::command]
 fn insert_cast_atomic(event_name: String, cast: CastInput) -> Result<i64, String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    insert_cast_in_connection(&mut conn, &cast)
-        .map_err(|e| sqlite_error("キャスト追加に失敗しました", e))
+    insert_cast_in_connection(&mut conn, &cast).map_err(|e| sqlite_error("キャスト追加に失敗しました", e))
 }
 
 /** キャスト部分更新を Rust 側の単一 SQLite transaction で実行する。 */
 #[tauri::command]
-fn update_cast_fields_atomic(
-    event_name: String,
-    cast_id: i64,
-    patch: CastPatchInput,
-) -> Result<(), String> {
+fn update_cast_fields_atomic(event_name: String, cast_id: i64, patch: CastPatchInput,) -> Result<(), String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    update_cast_fields_in_connection(&mut conn, cast_id, &patch)
-        .map_err(|e| sqlite_error("キャスト更新に失敗しました", e))
+    update_cast_fields_in_connection(&mut conn, cast_id, &patch).map_err(|e| sqlite_error("キャスト更新に失敗しました", e))
 }
 
 /** 全キャストの出席状態を単一SQLで更新する。 */
 #[tauri::command]
 fn set_all_cast_presence_atomic(event_name: String, is_present: bool) -> Result<(), String> {
     let conn = open_shared_write_connection(&event_name)?;
-    conn.execute(
-        "UPDATE casts SET is_attend = ?1",
-        [if is_present { 1 } else { 0 }],
-    )
-    .map(|_| ())
-    .map_err(|e| sqlite_error("キャスト出席状態の一括更新に失敗しました", e))
+    conn.execute("UPDATE casts SET is_attend = ?1", [if is_present { 1 } else { 0 }],).map(|_| ()).map_err(|e| sqlite_error("キャスト出席状態の一括更新に失敗しました", e))
 }
 
 /** キャスト名変更を Rust 側で実行する。 */
 #[tauri::command]
 fn rename_cast_atomic(event_name: String, cast_id: i64, new_name: String) -> Result<(), String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    rename_cast_in_connection(&mut conn, cast_id, &new_name)
-        .map_err(|e| sqlite_error("キャスト名変更に失敗しました", e))
+    rename_cast_in_connection(&mut conn, cast_id, &new_name).map_err(|e| sqlite_error("キャスト名変更に失敗しました", e))
 }
 
 /** キャスト削除を Rust 側の単一 SQLite transaction で実行する。 */
 #[tauri::command]
 fn delete_cast_atomic(event_name: String, cast_id: i64) -> Result<(), String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    delete_cast_in_connection(&mut conn, cast_id)
-        .map_err(|e| sqlite_error("キャスト削除に失敗しました", e))
+    delete_cast_in_connection(&mut conn, cast_id).map_err(|e| sqlite_error("キャスト削除に失敗しました", e))
 }
 
 /** 指定日のキャスト出席記録を Rust 側の単一 SQLite transaction で保存する。 */
 #[tauri::command]
-fn record_cast_attendance_atomic(
-    event_name: String,
-    present_cast_ids: Vec<i64>,
-    recorded_at: String,
-) -> Result<(), String> {
+fn record_cast_attendance_atomic(event_name: String, present_cast_ids: Vec<i64>, recorded_at: String,) -> Result<(), String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    record_cast_attendance_in_connection(&mut conn, &present_cast_ids, &recorded_at)
-        .map_err(|e| sqlite_error("キャスト出席記録の保存に失敗しました", e))
+    record_cast_attendance_in_connection(&mut conn, &present_cast_ids, &recorded_at).map_err(|e| sqlite_error("キャスト出席記録の保存に失敗しました", e))
 }
 
-fn read_event_meta_value(
-    conn: &rusqlite::Connection,
-    key: &str,
-) -> rusqlite::Result<Option<String>> {
-    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
-        row.get::<_, Option<String>>(0)
-    })
-    .optional()
-    .map(Option::flatten)
+fn read_event_meta_value(conn: &rusqlite::Connection, key: &str,) -> rusqlite::Result<Option<String>> {
+    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| { row.get::<_, Option<String>>(0) }).optional().map(Option::flatten)
 }
 
 /** 選択イベントの写真と説明メモを、使用中のDB接続とは分離して読み取る。 */
@@ -3297,10 +2927,8 @@ fn get_event_meta_read_only(event_name: String) -> Result<EventMetaOutput, Strin
     validate_event_name(&event_name)?;
     let (_, conn) = open_event_shared_read_only_db(&event_name)?;
     Ok(EventMetaOutput {
-        notes: read_event_meta_value(&conn, "notes")
-            .map_err(|e| sqlite_error("イベント説明メモを読み込めませんでした", e))?,
-        photo_data_url: read_event_meta_value(&conn, "photo_data_url")
-            .map_err(|e| sqlite_error("イベント写真を読み込めませんでした", e))?,
+        notes: read_event_meta_value(&conn, "notes").map_err(|e| sqlite_error("イベント説明メモを読み込めませんでした", e))?,
+        photo_data_url: read_event_meta_value(&conn, "photo_data_url").map_err(|e| sqlite_error("イベント写真を読み込めませんでした", e))?,
     })
 }
 
@@ -3308,9 +2936,7 @@ fn get_event_meta_read_only(event_name: String) -> Result<EventMetaOutput, Strin
 #[tauri::command]
 fn set_event_meta_atomic(event_name: String, patch: EventMetaPatchInput) -> Result<(), String> {
     let mut conn = open_shared_write_connection(&event_name)?;
-    let tx = conn
-        .transaction()
-        .map_err(|e| sqlite_error("イベント情報の保存を開始できませんでした", e))?;
+    let tx = conn.transaction().map_err(|e| sqlite_error("イベント情報の保存を開始できませんでした", e))?;
     if patch.update_notes {
         tx.execute(
             "INSERT INTO meta (key, value) VALUES ('notes', ?1)
@@ -3327,31 +2953,20 @@ fn set_event_meta_atomic(event_name: String, patch: EventMetaPatchInput) -> Resu
         )
         .map_err(|e| sqlite_error("イベント写真の保存に失敗しました", e))?;
     }
-    tx.commit()
-        .map_err(|e| sqlite_error("イベント情報の保存を確定できませんでした", e))
+    tx.commit().map_err(|e| sqlite_error("イベント情報の保存を確定できませんでした", e))
 }
 
 /** 現在セッションの抽選結果全置換を Rust 側の単一 SQLite transaction で実行する。 */
 #[tauri::command]
-fn replace_lottery_results_atomic(
-    event_name: String,
-    timestamp: String,
-    rows: Vec<LotteryResultInput>,
-    expected_condition_revision: i64,
-) -> Result<(), String> {
+fn replace_lottery_results_atomic(event_name: String, timestamp: String, rows: Vec<LotteryResultInput>, expected_condition_revision: i64,) -> Result<(), String> {
     let mut conn = open_session_write_connection(&event_name, &timestamp)?;
     reject_session_with_saved_result(&event_name, &conn)?;
-    replace_lottery_results_in_connection(&mut conn, &rows, expected_condition_revision)
-        .map_err(|e| sqlite_error("抽選結果の保存に失敗しました", e))
+    replace_lottery_results_in_connection(&mut conn, &rows, expected_condition_revision).map_err(|e| sqlite_error("抽選結果の保存に失敗しました", e))
 }
 
 /** 現在の抽選結果をイベント共有DBへ保存し、保存結果IDを返す。 */
 #[tauri::command]
-fn save_lottery_result_atomic(
-    event_name: String,
-    timestamp: String,
-    label: String,
-) -> Result<i64, String> {
+fn save_lottery_result_atomic(event_name: String, timestamp: String, label: String,) -> Result<i64, String> {
     let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
     let mut shared_conn = open_shared_write_connection(&event_name)?;
     save_lottery_result_in_connections(&mut session_conn, &mut shared_conn, &label)
@@ -3359,29 +2974,89 @@ fn save_lottery_result_atomic(
 
 /** 現在表示しているマッチング結果をイベント共有DBへ固定結果として保存する。 */
 #[tauri::command]
-fn save_matching_result_atomic(
-    event_name: String,
-    timestamp: String,
-    label: String,
-    matching_type_code: String,
-    winner_count: i64,
-    snapshot: serde_json::Value,
-) -> Result<i64, String> {
+fn save_matching_result_atomic(event_name: String, timestamp: String, label: String, matching_type_code: String, winner_count: i64, snapshot: serde_json::Value,) -> Result<i64, String> {
     let mut session_conn = open_session_write_connection(&event_name, &timestamp)?;
     let mut shared_conn = open_shared_write_connection(&event_name)?;
-    save_matching_result_in_connections(
-        &mut session_conn,
-        &mut shared_conn,
-        &label,
-        &matching_type_code,
-        winner_count,
-        &snapshot,
-    )
+    save_matching_result_in_connections(&mut session_conn, &mut shared_conn, &label, &matching_type_code, winner_count, &snapshot,)
+}
+
+/** 現行のイベント共有Dataと端末設定を、利用者が指定したZIPへ保存する。 */
+#[tauri::command]
+fn create_data_backup_archive(destination_path: String, settings: DataBackupDeviceSettings,) -> Result<(), String> {
+    let destination_path = resolve_user_backup_path(&destination_path, false)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    ensure_no_work_sessions_for_data_transfer()?;
+    create_backup_archive_at(&destination_path, settings)
+}
+
+/** ZIPを現在のDataとは別の一時領域へ展開し、置換前に全内容を検証する。 */
+#[tauri::command]
+fn prepare_data_backup_restore(source_path: String) -> Result<PreparedDataRestoreOutput, String> {
+    let source_path = resolve_user_backup_path(&source_path, true)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    ensure_no_work_sessions_for_data_transfer()?;
+    let mut pending_restore = lock_pending_data_restore()?;
+    if pending_restore.is_some() {
+        return Err("別のバックアップが復元準備中です".to_string());
+    }
+
+    let (restore_token, staging_data_root) = create_restore_staging_data_root()?;
+    let manifest = match extract_backup_to_staging(&source_path, &staging_data_root) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return match std::fs::remove_dir_all(&staging_data_root) {
+                Ok(()) => Err(error),
+                Err(cleanup_error) => Err(format!("{error} 復元用の一時Dataも削除できませんでした: {cleanup_error}")),
+            };
+        }
+    };
+    let output = PreparedDataRestoreOutput { restore_token: restore_token.clone(), };
+    *pending_restore = Some(PendingDataRestore { restore_token, staging_data_root, events: manifest.events, settings: manifest.settings, });
+    Ok(output)
+}
+
+/** 復元を確定しなかった場合に、検証済みの一時Dataだけを削除する。 */
+#[tauri::command]
+fn cancel_prepared_data_backup_restore(restore_token: String) -> Result<(), String> {
+    let mut pending_restore = lock_pending_data_restore()?;
+    let Some(pending) = pending_restore.as_ref() else {
+        return Ok(());
+    };
+    if pending.restore_token != restore_token {
+        return Err("復元処理の識別情報が一致しません".to_string());
+    }
+    let pending = pending_restore.take().expect("checked pending restore");
+    std::fs::remove_dir_all(&pending.staging_data_root).map_err(|error| format!("復元用の一時Dataを削除できませんでした: {error}"))
+}
+
+/** DB接続が閉じられた後にだけ、検証済みDataを現在のDataへ安全に置き換える。 */
+#[tauri::command]
+fn commit_prepared_data_backup_restore(restore_token: String) -> Result<DataRestoreOutput, String> {
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
+    ensure_no_work_sessions_for_data_transfer()?;
+    let mut pending_restore = lock_pending_data_restore()?;
+    let Some(pending) = pending_restore.as_ref() else {
+        return Err("検証済みの復元用Dataがありません".to_string());
+    };
+    if pending.restore_token != restore_token {
+        return Err("復元処理の識別情報が一致しません".to_string());
+    }
+    let pending = pending_restore.take().expect("checked pending restore");
+    let restore_result = (|| {
+        validate_staged_restore(&pending)?;
+        let cleanup_warning = replace_data_root_safely(&pending.staging_data_root)?;
+        Ok(DataRestoreOutput { settings: pending.settings.clone(), cleanup_warning, })
+    })();
+    if restore_result.is_err() && pending.staging_data_root.exists() {
+        let _ = std::fs::remove_dir_all(&pending.staging_data_root);
+    }
+    restore_result
 }
 
 #[tauri::command]
 fn create_event(event_name: String) -> Result<(), String> {
     validate_event_name(&event_name)?;
+    let _lifecycle_guard = lock_work_session_lifecycle()?;
     ensure_event_name_is_unique_ignoring_ascii_case(&resolve_data_root(), &event_name)?;
     // イベント作成時は共有DBだけを作る。取込セッションはTSV取込時に明示的に作成する。
     create_event_shared_db(&event_name)
@@ -3420,9 +3095,7 @@ fn rename_event(old_name: String, new_name: String) -> Result<(), String> {
 
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-    let key = hkcu
-        .open_subkey(r"Software\CosmoArtsStore\StellaRecord")
-        .ok()?;
+    let key = hkcu.open_subkey(r"Software\CosmoArtsStore\StellaRecord").ok()?;
     key.get_value::<String, _>("DbPath").ok()
 }
 
@@ -3433,33 +3106,19 @@ fn check_stellarecord_available() -> bool {
 
 #[tauri::command]
 fn register_to_stellarecord(app: tauri::AppHandle) -> Result<(), String> {
-    let db_path = get_stellarecord_db_path()
-        .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
+    let db_path = get_stellarecord_db_path().ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
-    let conn =
-        rusqlite::Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
-    conn.execute_batch(APPS_SCHEMA)
-        .map_err(|e| format!("テーブル作成に失敗しました: {e}"))?;
+    let conn = rusqlite::Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    conn.execute_batch(APPS_SCHEMA).map_err(|e| format!("テーブル作成に失敗しました: {e}"))?;
 
-    let exe_path =
-        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path = std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
 
-    let icon_data: Option<Vec<u8>> = app
-        .path()
-        .resource_dir()
-        .ok()
-        .map(|dir| dir.join("icons").join("128x128.png"))
-        .and_then(|path| std::fs::read(&path).ok());
+    let icon_data: Option<Vec<u8>> = app.path().resource_dir().ok().map(|dir| dir.join("icons").join("128x128.png")).and_then(|path| std::fs::read(&path).ok());
 
     conn.execute(
-        "INSERT OR REPLACE INTO apps (name, description, path, category, icon)
-         VALUES (?1, ?2, ?3, 'fastparty', ?4)",
-        rusqlite::params![
-            "Stargazer",
-            "イベント抽選・キャストマッチング用デスクトップアプリ",
-            exe_path.to_string_lossy().to_string(),
-            icon_data,
-        ],
+        "INSERT OR REPLACE INTO apps (name, description, path, icon)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params!["Stargazer", "イベント抽選・キャストマッチング用デスクトップアプリ", exe_path.to_string_lossy().to_string(), icon_data,],
     )
     .map_err(|e| format!("登録に失敗しました: {e}"))?;
 
@@ -3477,30 +3136,17 @@ fn open_external_url(url: String) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn open_url_with_system(url: &str) -> Result<(), String> {
-    Command::new("rundll32")
-        .arg("url.dll,FileProtocolHandler")
-        .arg(url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
+    Command::new("rundll32").arg("url.dll,FileProtocolHandler").arg(url).spawn().map(|_| ()).map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
 }
 
 #[cfg(target_os = "macos")]
 fn open_url_with_system(url: &str) -> Result<(), String> {
-    Command::new("open")
-        .arg(url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
+    Command::new("open").arg(url).spawn().map(|_| ()).map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn open_url_with_system(url: &str) -> Result<(), String> {
-    Command::new("xdg-open")
-        .arg(url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
+    Command::new("xdg-open").arg(url).spawn().map(|_| ()).map_err(|e| format!("外部ブラウザの起動に失敗しました: {e}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -3508,10 +3154,7 @@ pub fn run() {
     let webview_data_dir = resolve_webview_data_root();
     // 事前作成に失敗してもWebView側の作成可否へ委ね、アプリ起動を継続する。
     let _ = std::fs::create_dir_all(&webview_data_dir);
-    std::env::set_var(
-        "WEBVIEW2_USER_DATA_FOLDER",
-        webview_data_dir.to_string_lossy().to_string(),
-    );
+    std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", webview_data_dir.to_string_lossy().to_string(),);
 
     let mut builder = tauri::Builder::default();
     #[cfg(desktop)]
@@ -3527,6 +3170,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|_| {
             // 主プロセスの確定後にだけ、前回の強制終了で残った未保存セッションを回収する。
@@ -3562,6 +3206,10 @@ pub fn run() {
             replace_lottery_results_atomic,
             save_lottery_result_atomic,
             save_matching_result_atomic,
+            create_data_backup_archive,
+            prepare_data_backup_restore,
+            cancel_prepared_data_backup_restore,
+            commit_prepared_data_backup_restore,
             create_event,
             delete_event,
             rename_event,
@@ -3571,6 +3219,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_, _| {});
 }
+
+#[cfg(test)]
+mod backup_tests;
 
 #[cfg(test)]
 mod tests {

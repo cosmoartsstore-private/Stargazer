@@ -10,33 +10,12 @@ import { flushPendingPageCommits } from '@/common/pageCommitRegistry';
 import { readFileAsDataUrl } from '@/common/fileReading';
 import { createSharedBusyTracker } from '@/common/sharedBusyTracker';
 import { useAppContext } from '@/stores/AppContext';
-import {
-  deleteCast,
-  getAllCasts,
-  insertCast,
-  renameCast as renameCastDb,
-  updateCastFields,
-} from '@/db';
-import {
-  captureEventWriteActivity,
-  getOpenEventContext,
-  isEventWriteActivityUnchanged,
-  isCurrentEventContext,
-  waitForEventWritesToSettle,
-  type EventCommandContext,
-} from '@/db/repositories/commandContext';
+import { deleteCast, getAllCasts, insertCast, renameCast as renameCastDb, updateCastFields } from '@/db';
+import { captureEventWriteActivity, getOpenEventContext, isEventWriteActivityUnchanged, isCurrentEventContext, waitForEventWritesToSettle, type EventCommandContext } from '@/db/repositories/commandContext';
 import { openExternalUrl } from '@/tauri';
 import { CastDetailPanel } from './components/CastDetailPanel';
 import { CastListPanel } from './components/CastListPanel';
-import {
-  COMMON_SHORTCUT_LINKS,
-  getAliasConflictMessage,
-  getEditableContactUrls,
-  getFormalNameConflictMessage,
-  getOpenableContactUrl,
-  type CommonShortcutLink,
-  type EventMutationResult,
-} from './castManagementModel';
+import { COMMON_SHORTCUT_LINKS, getAliasConflictMessage, getEditableContactUrls, getFormalNameConflictMessage, getOpenableContactUrl, type CommonShortcutLink, type EventMutationResult } from './castManagementModel';
 import styles from './CastManagementPage.module.css';
 import shared from '@/styles/shared.module.css';
 
@@ -54,19 +33,9 @@ interface CastManagementPageProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-export const CastManagementPage: React.FC<CastManagementPageProps> = ({
-  initialSelectedCastId,
-  onBusyChange,
-}) => {
+export const CastManagementPage: React.FC<CastManagementPageProps> = ({ initialSelectedCastId, onBusyChange }) => {
   // イベント名簿と、キャスト名変更に追従する画面内データ。
-  const {
-    casts,
-    setCasts,
-    setApplicants,
-    setCurrentWinners,
-    updateMatchingCastName,
-    currentEventName,
-  } = useAppContext();
+  const { casts, setCasts, setApplicants, setCurrentWinners, updateMatchingCastName, currentEventName } = useAppContext();
 
   // 選択・編集・検索・確認ダイアログのUI状態。
   const [selectedCastId, setSelectedCastId] = useState<number | null>(() => initialSelectedCastId ?? null);
@@ -209,10 +178,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
     }
   };
 
-  const handleRenameCast = async (
-    renamedCast: CastBean,
-    nextName: string,
-  ): Promise<EventMutationResult> => {
+  const handleRenameCast = async (renamedCast: CastBean, nextName: string): Promise<EventMutationResult> => {
     const oldName = renamedCast.name;
     const trimmed = nextName.trim();
     if (!trimmed || trimmed === oldName) return trimmed === oldName ? 'saved' : 'failed';
@@ -236,12 +202,8 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
       setCasts((prev) => prev.map((cast) => (
         cast.id === renamedCast.id ? { ...cast, name: trimmed } : cast
       )));
-      setApplicants((current) => (
-        renameCastInPreferences(current, renamedCast, trimmed)
-      ));
-      setCurrentWinners((current) => (
-        renameCastInPreferences(current, renamedCast, trimmed)
-      ));
+      setApplicants((current) => (renameCastInPreferences(current, renamedCast, trimmed)));
+      setCurrentWinners((current) => (renameCastInPreferences(current, renamedCast, trimmed)));
       updateMatchingCastName(renamedCast.id, trimmed);
       return 'saved';
     } catch {
@@ -253,10 +215,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
     }
   };
 
-  const handleFieldChange = async (
-    castId: number,
-    patch: Partial<Omit<CastBean, 'id' | 'name'>>,
-  ): Promise<EventMutationResult> => {
+  const handleFieldChange = async (castId: number, patch: Partial<Omit<CastBean, 'id' | 'name'>>): Promise<EventMutationResult> => {
     const context = getOpenEventContext(currentEventName);
     if (context === null) return 'stale';
     const busyToken = Symbol();
@@ -334,11 +293,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
   };
 
   // 連絡先の楽観更新と、失敗時のDB再読み込みをキャスト単位で調停する。
-  const restoreCastsAfterContactFailure = async (
-    context: EventCommandContext,
-    castId: number,
-    sequence: number,
-  ): Promise<boolean> => {
+  const restoreCastsAfterContactFailure = async (context: EventCommandContext, castId: number, sequence: number): Promise<boolean> => {
     while (
       isCurrentEventContext(context)
       && contactMutationSequenceByCastRef.current.get(castId) === sequence
@@ -422,18 +377,12 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
       return;
     }
     await runAliasMutation(async () => {
-      const result = await handleFieldChange(cast.id, {
-        aliases: [...(cast.aliases ?? []), alias],
-      });
+      const result = await handleFieldChange(cast.id, { aliases: [...(cast.aliases ?? []), alias] });
       if (result === 'saved' && isMountedRef.current) setInputAlias('');
     });
   };
 
-  const handleUpdateAlias = async (
-    cast: CastBean,
-    aliasIndex: number,
-    nextAlias: string,
-  ): Promise<EventMutationResult> => {
+  const handleUpdateAlias = async (cast: CastBean, aliasIndex: number, nextAlias: string): Promise<EventMutationResult> => {
     if (isSavingAliasesRef.current) return 'failed';
     const alias = nextAlias.trim();
     if (!alias) {
@@ -477,10 +426,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
   };
 
   const handleOpenCommonShortcut = async (shortcut: CommonShortcutLink) => {
-    await openExternalUrlWithAlert(
-      shortcut.url,
-      getMsg('CastManagementPage.openShortcutFailed', { shortcut: shortcut.label }),
-    );
+    await openExternalUrlWithAlert(shortcut.url, getMsg('CastManagementPage.openShortcutFailed', { shortcut: shortcut.label }));
   };
 
   // 表示コンポーネントから受け取った型付き引数を、選択中キャストの更新処理へ接続する。
@@ -499,16 +445,11 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
     if (!selectedCast) return Promise.resolve('stale');
     return handleRenameCast(selectedCast, nextName);
   };
-  const handleSelectedGroupNameChange = (
-    groupName: string | undefined,
-  ): Promise<EventMutationResult> => {
+  const handleSelectedGroupNameChange = (groupName: string | undefined): Promise<EventMutationResult> => {
     if (!selectedCast) return Promise.resolve('stale');
     return handleFieldChange(selectedCast.id, { group_name: groupName });
   };
-  const handleUpdateSelectedAlias = (
-    aliasIndex: number,
-    nextAlias: string,
-  ): Promise<EventMutationResult> => {
+  const handleUpdateSelectedAlias = (aliasIndex: number, nextAlias: string): Promise<EventMutationResult> => {
     if (!selectedCast) return Promise.resolve('stale');
     return handleUpdateAlias(selectedCast, aliasIndex, nextAlias);
   };
@@ -516,9 +457,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
     if (selectedCast) void handleDeleteAlias(selectedCast, aliasIndex);
   };
   const handleMemoEditingChange = (editing: boolean) => setMemoEditing(editing);
-  const handleSelectedMemoChange = (
-    memo: string | undefined,
-  ): Promise<EventMutationResult> => {
+  const handleSelectedMemoChange = (memo: string | undefined): Promise<EventMutationResult> => {
     if (!selectedCast) return Promise.resolve('stale');
     return handleFieldChange(selectedCast.id, { memo });
   };
@@ -554,13 +493,7 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
             <span id={shortcutGroupLabelId} className={styles.castShortcutGroupLabel}>{getMsg('CastManagementPage.commonShortcuts')}</span>
             <div className={styles.castShortcutActions}>
               {COMMON_SHORTCUT_LINKS.map((shortcut) => (
-                <button
-                  key={shortcut.key}
-                  type="button"
-                  className={styles.castShortcutButton}
-                  aria-label={getMsg('CastManagementPage.openShortcutAriaLabel', { shortcut: shortcut.label })}
-                  onClick={() => { void handleOpenCommonShortcut(shortcut); }}
-                >
+                <button key={shortcut.key} type="button" className={styles.castShortcutButton} aria-label={getMsg('CastManagementPage.openShortcutAriaLabel', { shortcut: shortcut.label })} onClick={() => { void handleOpenCommonShortcut(shortcut); }}>
                   <span>{shortcut.label}</span>
                   <ExternalLink size={13} aria-hidden="true" />
                 </button>
@@ -575,59 +508,16 @@ export const CastManagementPage: React.FC<CastManagementPageProps> = ({
       </header>
 
       <div className={`${shared.managementDetailLayout} ${styles.castDetailLayout}`}>
-        <CastListPanel
-          casts={casts}
-          selectedCastId={selectedCastId}
-          searchQuery={castSearchQuery}
-          inputCastName={inputCastName}
-          isCreating={isCreating}
-          onSearchQueryChange={setCastSearchQuery}
-          onInputCastNameChange={setInputCastName}
-          onAddCast={handleAddCast}
-          onSelectCast={handleSelectCast}
-        />
+        <CastListPanel casts={casts} selectedCastId={selectedCastId} searchQuery={castSearchQuery} inputCastName={inputCastName} isCreating={isCreating} onSearchQueryChange={setCastSearchQuery} onInputCastNameChange={setInputCastName} onAddCast={handleAddCast} onSelectCast={handleSelectCast} />
 
-        <CastDetailPanel
-          key={selectedCast?.id ?? 'empty'}
-          cast={selectedCast}
-          inputAlias={inputAlias}
-          isSavingAliases={isSavingAliases}
-          memoEditing={memoEditing}
-          onPhotoUpload={handleSelectedPhotoUpload}
-          onDeleteCast={handleDeleteSelectedCast}
-          onRenameCast={handleRenameSelectedCast}
-          onGroupNameChange={handleSelectedGroupNameChange}
-          onAliasInputChange={handleInputAliasChange}
-          onAddAlias={handleAddSelectedAlias}
-          onUpdateAlias={handleUpdateSelectedAlias}
-          onDeleteAlias={handleDeleteSelectedAlias}
-          onMemoEditingChange={handleMemoEditingChange}
-          onMemoChange={handleSelectedMemoChange}
-          onContactChange={handleSelectedContactChange}
-          onAddContact={handleAddSelectedContact}
-          onOpenContact={handleOpenContactUrl}
-          onDeleteContact={handleDeleteSelectedContact}
-        />
+        <CastDetailPanel key={selectedCast?.id ?? 'empty'} cast={selectedCast} inputAlias={inputAlias} isSavingAliases={isSavingAliases} memoEditing={memoEditing} onPhotoUpload={handleSelectedPhotoUpload} onDeleteCast={handleDeleteSelectedCast} onRenameCast={handleRenameSelectedCast} onGroupNameChange={handleSelectedGroupNameChange} onAliasInputChange={handleInputAliasChange} onAddAlias={handleAddSelectedAlias} onUpdateAlias={handleUpdateSelectedAlias} onDeleteAlias={handleDeleteSelectedAlias} onMemoEditingChange={handleMemoEditingChange} onMemoChange={handleSelectedMemoChange} onContactChange={handleSelectedContactChange} onAddContact={handleAddSelectedContact} onOpenContact={handleOpenContactUrl} onDeleteContact={handleDeleteSelectedContact} />
       </div>
 
       {alertMessage && (
-        <NoticeDialog
-          title={getMsg('CastManagementPage.pageTitle')}
-          message={alertMessage}
-          closeLabel={getMsg('common.close')}
-          onClose={handleDismissAlert}
-        />
+        <NoticeDialog title={getMsg('CastManagementPage.pageTitle')} message={alertMessage} closeLabel={getMsg('common.close')} onClose={handleDismissAlert} />
       )}
       {deleteTarget && (
-        <ConfirmDialog
-          title={getMsg('CastManagementPage.deleteConfirmTitle')}
-          message={deleteConfirmMessage}
-          confirmLabel={getMsg('common.delete')}
-          cancelLabel={getMsg('common.cancel')}
-          intent="danger"
-          onConfirm={handleConfirmDeleteClick}
-          onCancel={handleCancelDelete}
-        />
+        <ConfirmDialog title={getMsg('CastManagementPage.deleteConfirmTitle')} message={deleteConfirmMessage} confirmLabel={getMsg('common.delete')} cancelLabel={getMsg('common.cancel')} intent="danger" onConfirm={handleConfirmDeleteClick} onCancel={handleCancelDelete} />
       )}
     </div>
   );

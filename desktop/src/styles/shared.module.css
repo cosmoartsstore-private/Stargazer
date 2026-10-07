@@ -58,7 +58,7 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.15s, opacity 0.15s;
+  transition: background-color 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -101,6 +101,23 @@
   background-color: hsl(var(--theme-check-hue, 204) 30% 86%);
   color: hsl(var(--theme-check-hue, 204) 30% 40%);
   opacity: 1;
+}
+
+/* ライトテーマの副操作を白地の枠付きボタンへ統一する。 */
+:global([data-theme="skyblue"]) .btn-secondary {
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+
+:global([data-theme="skyblue"]) .btn-secondary:hover:not(:disabled) {
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--accent-primary);
+}
+
+:global([data-theme="skyblue"]) .btn-secondary:disabled {
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--border-default);
+  color: var(--text-muted);
 }
 
 .btn-export-secondary {
@@ -151,9 +168,7 @@
   padding: 0 24px;
 }
 
-/* ========================================
-   Page layout
-   ======================================== */
+/* ページの基本配置。 */
 
 .page-wrapper {
   padding: 24px 16px;
@@ -234,9 +249,7 @@
   }
 }
 
-/* ========================================
-   Page tabs
-   ======================================== */
+/* ページ切替のタブ。 */
 
 .page-tabs {
   display: flex;
@@ -433,9 +446,7 @@
   text-align: left;
 }
 
-/* ========================================
-   Status cards
-   ======================================== */
+/* 状態を表示するカード。 */
 
 .status-card {
   background-color: var(--surface-panel-muted);
@@ -474,9 +485,7 @@
   animation: shake 0.38s ease;
 }
 
-/* ========================================
-   Error / validation messages
-   ======================================== */
+/* エラーと入力検証のメッセージ。 */
 
 .import-error-msg {
   color: var(--accent-danger);
@@ -484,9 +493,7 @@
   margin-top: 4px;
 }
 
-/* ========================================
-   Section blocks
-   ======================================== */
+/* セクション単位の表示領域。 */
 
 .section-block {
   background-color: var(--surface-page);
@@ -517,18 +524,14 @@
   color: var(--status-warning-text);
 }
 
-/* ========================================
-   Button modifiers
-   ======================================== */
+/* 用途別のボタン表示。 */
 
 .btn-primary--full {
   width: 100%;
   margin-top: 4px;
 }
 
-/* ========================================
-   Import section label
-   ======================================== */
+/* インポート領域の見出し。 */
 
 .import-section-label,
 .management-detail-label {
@@ -539,9 +542,7 @@
   letter-spacing: 0.05em;
 }
 
-/* ========================================
-   Modal (for Radix Dialog usage)
-   ======================================== */
+/* Radix Dialog によるモーダル表示。 */
 
 .modal-overlay {
   position: fixed;

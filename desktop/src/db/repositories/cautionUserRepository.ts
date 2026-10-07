@@ -33,13 +33,7 @@ const DELETE_CAUTION_USER_SQL =
 
 /** DB 行をマッチング設定で扱う要注意人物レコードへ変換する。 */
 function rowToBean(row: CautionRow): CautionUser {
-  return {
-    username: row.username,
-    accountId: parseXUsername(row.account_id) ?? row.account_id.trim(),
-    ngCastCount: row.ng_cast_count,
-    registeredAt: row.registered_at,
-    notes: row.notes ?? undefined,
-  };
+  return { username: row.username, accountId: parseXUsername(row.account_id) ?? row.account_id.trim(), ngCastCount: row.ng_cast_count, registeredAt: row.registered_at, notes: row.notes ?? undefined };
 }
 
 /** 共有DBへ要注意人物を保存し、同じXユーザー名があれば未指定項目を保って更新する。 */
@@ -52,10 +46,7 @@ export async function upsertCautionUser(user: CautionUser): Promise<void> {
       throw new Error(getMsg('cautionUserRepository.invalidXId'));
     }
 
-    const matches = await db.select<Array<{ account_id: string }>>(
-      SELECT_ACCOUNT_ID_SQL,
-      [accountId],
-    );
+    const matches = await db.select<Array<{ account_id: string }>>(SELECT_ACCOUNT_ID_SQL, [accountId]);
 
     if (matches.length === 1) {
       // 明示されていない補足とNG人数は既存値を維持する。
@@ -70,20 +61,13 @@ export async function upsertCautionUser(user: CautionUser): Promise<void> {
         values.push(user.ngCastCount);
       }
       values.push(matches[0].account_id);
-      await db.execute(
-        `UPDATE caution_users SET ${sets.join(', ')} WHERE account_id = ?`,
+      await db.execute(`UPDATE caution_users SET ${sets.join(', ')} WHERE account_id = ?`,
         values,
       );
       return;
     }
 
-    await db.execute(INSERT_CAUTION_USER_SQL, [
-      user.username,
-      accountId,
-      user.notes ?? null,
-      user.ngCastCount ?? 0,
-      user.registeredAt ?? new Date().toISOString(),
-    ]);
+    await db.execute(INSERT_CAUTION_USER_SQL, [user.username, accountId, user.notes ?? null, user.ngCastCount ?? 0, user.registeredAt ?? new Date().toISOString()]);
   });
 }
 

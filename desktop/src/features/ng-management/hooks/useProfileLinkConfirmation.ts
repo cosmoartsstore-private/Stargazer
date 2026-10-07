@@ -1,8 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  buildXProfileUrl,
-  formatXAccountIdForDisplay,
-} from '@/common/xIdUtils';
+import { buildXProfileUrl, formatXAccountIdForDisplay } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
 import { openExternalUrl } from '@/tauri';
 
@@ -16,9 +13,7 @@ interface UseProfileLinkConfirmationParams {
 }
 
 /** 二つのNG管理パネルで共有する、Xプロフィールの確認と外部起動を管理する。 */
-export function useProfileLinkConfirmation({
-  showAlert,
-}: UseProfileLinkConfirmationParams) {
+export function useProfileLinkConfirmation({ showAlert }: UseProfileLinkConfirmationParams) {
   // 確認ダイアログに表示するアカウント名と、確認後にだけ開くURL。
   const [pendingLink, setPendingLink] = useState<PendingProfileLink | null>(null);
 

@@ -1,27 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_SESSION_WORKFLOW_STATE } from '@/common/types/sessionWorkflow';
-import {
-  captureSessionWriteActivity,
-  getRequiredEventContext,
-  getRequiredSessionContext,
-  isCurrentEventContext,
-  isCurrentSessionContext,
-  isSessionWriteActivityUnchanged,
-  waitForEventWritesToSettle,
-  waitForSessionWritesToSettle,
-} from '@/db/repositories/commandContext';
-import {
-  getAllCasts,
-  getAllCautionUsers,
-  getLotteryResults,
-  getSessionWorkflowSnapshot,
-  loadApplicants,
-} from '@/db';
+import { captureSessionWriteActivity, getRequiredEventContext, getRequiredSessionContext, isCurrentEventContext, isCurrentSessionContext, isSessionWriteActivityUnchanged, waitForEventWritesToSettle, waitForSessionWritesToSettle } from '@/db/repositories/commandContext';
+import { getAllCasts, getAllCautionUsers, getLotteryResults, getSessionWorkflowSnapshot, loadApplicants } from '@/db';
 import { restoreLotteryWinners } from '@/features/lottery/services/lottery-result-persistence';
-import {
-  DEFAULT_CAUTION_THRESHOLD,
-  getEventCautionThreshold,
-} from '@/features/matching/stores/matching-settings-store';
+import { DEFAULT_CAUTION_THRESHOLD, getEventCautionThreshold } from '@/features/matching/stores/matching-settings-store';
 import { useAppContext } from '@/stores/AppContext';
 
 type DataLoadStatus = 'loading' | 'ready' | 'failed';
@@ -36,19 +18,7 @@ export interface AppDataHydrationState {
 
 /** 接続・書込み・画面操作の各世代を検証し、共有DBとセッションDBを画面状態へ反映する。 */
 export function useAppDataHydration(): AppDataHydrationState {
-  const {
-    setCasts,
-    setApplicants,
-    setCurrentWinners,
-    hydrateSessionWorkflow,
-    isDbReady,
-    currentEventName,
-    currentSessionTimestamp,
-    sessionReloadGeneration,
-    setMatchingSettings,
-    getSessionUiMutationGeneration,
-    isCurrentSessionUiMutation,
-  } = useAppContext();
+  const { setCasts, setApplicants, setCurrentWinners, hydrateSessionWorkflow, isDbReady, currentEventName, currentSessionTimestamp, sessionReloadGeneration, setMatchingSettings, getSessionUiMutationGeneration, isCurrentSessionUiMutation } = useAppContext();
   const [sharedDataStatus, setSharedDataStatus] = useState<DataLoadStatus>('loading');
   const [sessionDataStatus, setSessionDataStatus] = useState<DataLoadStatus>('loading');
   const [dataReloadKey, setDataReloadKey] = useState(0);
@@ -62,7 +32,7 @@ export function useAppDataHydration(): AppDataHydrationState {
     setSessionReloadKey((current) => current + 1);
   }, []);
 
-  // イベント共有DBは、先行書込みと接続世代を確認してから表示キャッシュへ反映する。
+  // イベント共有DBは、先行書込みと接続世代を確認してから表示cacheへ反映する。
   useEffect(() => {
     let isCurrent = true;
     const cancel = () => {
@@ -75,13 +45,7 @@ export function useAppDataHydration(): AppDataHydrationState {
     }
     if (currentEventName === null) {
       setCasts([]);
-      setMatchingSettings((prev) => ({
-        ...prev,
-        caution: {
-          candidateThreshold: DEFAULT_CAUTION_THRESHOLD,
-          cautionUsers: [],
-        },
-      }));
+      setMatchingSettings((prev) => ({ ...prev, caution: { candidateThreshold: DEFAULT_CAUTION_THRESHOLD, cautionUsers: [] } }));
       setSharedDataStatus('ready');
       return cancel;
     }
@@ -97,17 +61,10 @@ export function useAppDataHydration(): AppDataHydrationState {
       try {
         await waitForEventWritesToSettle(context);
         if (!isCurrent || !isCurrentEventContext(context)) return;
-        const [loadedCasts, cautionUsers, candidateThreshold] = await Promise.all([
-          getAllCasts(),
-          getAllCautionUsers(),
-          getEventCautionThreshold(),
-        ]);
+        const [loadedCasts, cautionUsers, candidateThreshold] = await Promise.all([getAllCasts(), getAllCautionUsers(), getEventCautionThreshold()]);
         if (!isCurrent || !isCurrentEventContext(context)) return;
         setCasts(loadedCasts);
-        setMatchingSettings((prev) => ({
-          ...prev,
-          caution: { candidateThreshold, cautionUsers },
-        }));
+        setMatchingSettings((prev) => ({ ...prev, caution: { candidateThreshold, cautionUsers } }));
         setSharedDataStatus('ready');
       } catch {
         if (isCurrent && isCurrentEventContext(context)) setSharedDataStatus('failed');
@@ -131,10 +88,7 @@ export function useAppDataHydration(): AppDataHydrationState {
     if (currentSessionTimestamp === null) {
       setApplicants([]);
       setCurrentWinners([]);
-      hydrateSessionWorkflow({
-        state: { ...DEFAULT_SESSION_WORKFLOW_STATE },
-        isLotteryResultCurrent: false,
-      });
+      hydrateSessionWorkflow({ state: { ...DEFAULT_SESSION_WORKFLOW_STATE }, isLotteryResultCurrent: false });
       setSessionDataStatus('ready');
       return cancel;
     }
@@ -150,10 +104,7 @@ export function useAppDataHydration(): AppDataHydrationState {
       try {
         while (isCurrent && isCurrentSessionContext(context)) {
           const uiMutationGeneration = getSessionUiMutationGeneration();
-          await Promise.all([
-            waitForEventWritesToSettle(context),
-            waitForSessionWritesToSettle(context),
-          ]);
+          await Promise.all([waitForEventWritesToSettle(context), waitForSessionWritesToSettle(context)]);
           if (!isCurrent || !isCurrentSessionContext(context)) return;
           if (!isCurrentSessionUiMutation(uiMutationGeneration)) continue;
           const writeActivity = captureSessionWriteActivity(context);
@@ -163,11 +114,7 @@ export function useAppDataHydration(): AppDataHydrationState {
           let lotteryRows;
           let workflowSnapshot;
           try {
-            [loadedApplicants, lotteryRows, workflowSnapshot] = await Promise.all([
-              loadApplicants(),
-              getLotteryResults(),
-              getSessionWorkflowSnapshot(),
-            ]);
+            [loadedApplicants, lotteryRows, workflowSnapshot] = await Promise.all([loadApplicants(), getLotteryResults(), getSessionWorkflowSnapshot()]);
           } catch (error) {
             if (
               isCurrent
@@ -185,11 +132,7 @@ export function useAppDataHydration(): AppDataHydrationState {
           const winners = restoreLotteryWinners(lotteryRows, loadedApplicants);
           setApplicants(loadedApplicants);
           setCurrentWinners(winners);
-          hydrateSessionWorkflow({
-            ...workflowSnapshot,
-            isLotteryResultCurrent:
-              workflowSnapshot.isLotteryResultCurrent && winners.length > 0,
-          });
+          hydrateSessionWorkflow({ ...workflowSnapshot, isLotteryResultCurrent: workflowSnapshot.isLotteryResultCurrent && winners.length > 0 });
           setSessionDataStatus('ready');
           return;
         }

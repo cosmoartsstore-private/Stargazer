@@ -233,7 +233,7 @@ button.attendance-record-button:focus-visible {
   border-left: 1px solid var(--border-default);
 }
 
-/* 左右2カラム */
+/* 左右2column */
 .setup-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;

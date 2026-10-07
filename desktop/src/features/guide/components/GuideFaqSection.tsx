@@ -14,15 +14,9 @@ const FAQ_MARKER_STYLE: React.CSSProperties = {
   marginTop: 1,
 };
 
-const QUESTION_MARKER_STYLE: React.CSSProperties = {
-  ...FAQ_MARKER_STYLE,
-  background: 'var(--accent-primary)',
-};
+const QUESTION_MARKER_STYLE: React.CSSProperties = { ...FAQ_MARKER_STYLE, background: 'var(--accent-primary)' };
 
-const ANSWER_MARKER_STYLE: React.CSSProperties = {
-  ...FAQ_MARKER_STYLE,
-  background: 'var(--guide-accent-output)',
-};
+const ANSWER_MARKER_STYLE: React.CSSProperties = { ...FAQ_MARKER_STYLE, background: 'var(--guide-accent-output)' };
 
 /** 全体フローに関する質問と回答を表示する。 */
 export const GuideFaqSection: React.FC = () => (

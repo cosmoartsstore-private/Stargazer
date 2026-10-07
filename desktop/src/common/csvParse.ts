@@ -1,8 +1,5 @@
 export class DelimitedParseError extends Error {
-  constructor(
-    public readonly line: number,
-    public readonly column: number,
-  ) {
+  constructor(public readonly line: number, public readonly column: number) {
     super(`区切りテキストの${line}行${column}列付近に不正な引用符があります。`);
     this.name = 'DelimitedParseError';
   }

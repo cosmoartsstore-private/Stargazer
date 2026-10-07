@@ -17,10 +17,7 @@ interface AttendanceRecordsViewProps {
 
 function getAttendancePeriodLabel(period: AttendancePeriod): string {
   if (period.startDate && period.endDate) {
-    return getMsg('AttendanceRecordsView.periodRange', {
-      startDate: period.startDate,
-      endDate: period.endDate,
-    });
+    return getMsg('AttendanceRecordsView.periodRange', { startDate: period.startDate, endDate: period.endDate });
   }
   if (period.startDate) {
     return getMsg('AttendanceRecordsView.periodFrom', { startDate: period.startDate });
@@ -31,23 +28,14 @@ function getAttendancePeriodLabel(period: AttendancePeriod): string {
   return getMsg('AttendanceRecordsView.allPeriod');
 }
 
-export function AttendanceRecordsView({
-  attendanceDates,
-  attendanceRows,
-  attendancePeriod,
-  periodDialogOpen,
-  loadStatus,
-  onOpenPeriodDialog,
-}: AttendanceRecordsViewProps) {
+export function AttendanceRecordsView({ attendanceDates, attendanceRows, attendancePeriod, periodDialogOpen, loadStatus, onOpenPeriodDialog }: AttendanceRecordsViewProps) {
   const hasPeriodFilter = Boolean(attendancePeriod.startDate || attendancePeriod.endDate);
   const periodStatus = getMsg(
     hasPeriodFilter
       ? 'AttendanceRecordsView.customPeriod'
       : 'AttendanceRecordsView.allPeriod',
   );
-  const periodButtonLabel = getMsg('AttendanceRecordsView.openPeriodDialog', {
-    period: getAttendancePeriodLabel(attendancePeriod),
-  });
+  const periodButtonLabel = getMsg('AttendanceRecordsView.openPeriodDialog', { period: getAttendancePeriodLabel(attendancePeriod) });
   const periodButtonClassName = `${styles.attendanceMatrixCountButton}${
     hasPeriodFilter ? ` ${styles.attendanceMatrixCountButtonActive}` : ''
   }`;
@@ -91,8 +79,7 @@ export function AttendanceRecordsView({
                   <tr key={row.castName}>
                     <th scope="row" className={styles.attendanceMatrixCastName}>{row.castName}</th>
                     <td className={styles.attendanceMatrixCountCell}><span className={styles.attendanceCountText}>{row.totalCount}</span></td>
-                    {attendanceDates.map((date) => (
-                      <AttendanceMatrixCell key={`${row.castName}-${date}`} castName={row.castName} date={date} isPresent={row.dates.has(date)} />
+                    {attendanceDates.map((date) => (<AttendanceMatrixCell key={`${row.castName}-${date}`} castName={row.castName} date={date} isPresent={row.dates.has(date)} />
                     ))}
                   </tr>
                 ))}
@@ -117,10 +104,7 @@ function AttendanceMatrixCell({ castName, date, isPresent }: AttendanceMatrixCel
     : getMsg('AttendanceRecordsView.absent');
 
   return (
-    <td
-      className={styles.attendanceMatrixCell}
-      aria-label={getMsg('AttendanceRecordsView.cellLabel', { date, castName, status })}
-    >
+    <td className={styles.attendanceMatrixCell} aria-label={getMsg('AttendanceRecordsView.cellLabel', { date, castName, status })}>
       {isPresent ? (
         /* 出席の場合 */
         <span className={styles.attendancePresentMark} aria-hidden="true"><Circle size={24} strokeWidth={3.25} /></span>

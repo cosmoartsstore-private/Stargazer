@@ -49,17 +49,7 @@ export interface EventListPanelProps {
   onCreate: () => void | Promise<void>;
 }
 
-export const EventListPanel = ({
-  events,
-  selectedName,
-  currentEventName,
-  isLoading,
-  isMutating,
-  addName,
-  onSelect,
-  onAddNameChange,
-  onCreate,
-}: EventListPanelProps) => {
+export const EventListPanel = ({ events, selectedName, currentEventName, isLoading, isMutating, addName, onSelect, onAddNameChange, onCreate }: EventListPanelProps) => {
   const isInteractionDisabled = isLoading || isMutating;
   const handleAddNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     onAddNameChange(event.currentTarget.value);
@@ -77,16 +67,7 @@ export const EventListPanel = ({
         ) : events.length === 0 ? (
           <div className={shared.managementListPanel__empty}>{getMsg('EventManagementPage.noEvents')}</div>
         ) : (
-          events.map((eventName) => (
-            <EventListItem
-              key={eventName}
-              eventName={eventName}
-              isSelected={eventName === selectedName}
-              isCurrent={eventName === currentEventName}
-              isDisabled={isInteractionDisabled}
-              onSelect={onSelect}
-            />
-          ))
+          events.map((eventName) => (<EventListItem key={eventName} eventName={eventName} isSelected={eventName === selectedName} isCurrent={eventName === currentEventName} isDisabled={isInteractionDisabled} onSelect={onSelect} />))
         )}
       </div>
       <div className={shared.managementListPanel__add}>

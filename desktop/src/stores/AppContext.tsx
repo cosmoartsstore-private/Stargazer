@@ -1,30 +1,16 @@
 // アプリ全体の画面状態、イベント・セッション状態、マッチング結果を共有するContextを提供する。
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { CastBean, UserBean } from '@/common/types/entities';
+import type { ApplicantDisplayColumn } from '@/common/applicantDisplayColumns';
 import type { PageType } from '@/layout/appNavigation';
-import type {
-  SessionWorkflowSnapshot,
-  SessionWorkflowState,
-} from '@/common/types/sessionWorkflow';
+import type { SessionWorkflowSnapshot, SessionWorkflowState } from '@/common/types/sessionWorkflow';
 import type { MatchingSettingsState } from '@/features/matching/stores/matching-settings-store';
 import type { SavedLotteryResultTarget } from '@/db/repositories/lotteryRepository';
-import {
-  useMatchingContextState,
-  type MatchingResultState,
-} from './hooks/useMatchingContextState';
+import { useMatchingContextState, type MatchingResultState } from './hooks/useMatchingContextState';
 import { useSessionWorkflowState } from './hooks/useSessionWorkflowState';
 import { useEventLifecycleState } from './hooks/useEventLifecycleState';
+import { useApplicantDisplayColumns } from './hooks/useApplicantDisplayColumns';
 import { getMatchingCastConstraintFingerprint } from '@/features/matching/logics/matching-input-integrity';
 
 export type { PageType } from '@/layout/appNavigation';
@@ -36,15 +22,17 @@ export interface AppContextType {
   setCasts: React.Dispatch<React.SetStateAction<CastBean[]>>;
   applicants: UserBean[];
   setApplicants: React.Dispatch<React.SetStateAction<UserBean[]>>;
+  applicantDisplayColumns: ApplicantDisplayColumn[];
+  selectedApplicantDisplayColumnIds: string[];
+  selectedApplicantDisplayColumns: ApplicantDisplayColumn[];
+  setSelectedApplicantDisplayColumnIds: (columnIds: readonly string[]) => boolean;
   currentWinners: UserBean[];
   setCurrentWinners: Dispatch<SetStateAction<UserBean[]>>;
   isLotteryResultCurrent: boolean;
   setIsLotteryResultCurrent: (val: boolean) => void;
   sessionWorkflow: SessionWorkflowState;
   updateSessionWorkflow: (patch: Partial<SessionWorkflowState>) => Promise<void>;
-  hydrateSessionWorkflow: (
-    snapshot: Pick<SessionWorkflowSnapshot, 'state' | 'isLotteryResultCurrent'>
-  ) => void;
+  hydrateSessionWorkflow: (snapshot: Pick<SessionWorkflowSnapshot, 'state' | 'isLotteryResultCurrent'>) => void;
   matchingSettings: MatchingSettingsState;
   setMatchingSettings: (state: MatchingSettingsState | ((prev: MatchingSettingsState) => MatchingSettingsState)) => void;
   matchingResultState: MatchingResultState;
@@ -80,16 +68,17 @@ export interface AppContextType {
   renameManagedEvent: (oldName: string, newName: string) => Promise<void>;
 }
 
-// アプリ全体で共有する表示キャッシュと操作契約を公開するContext。
+// アプリ全体で共有する表示cacheと操作契約を公開するContext。
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // 現在画面と、DBから読み込んだ表示キャッシュ。
+  // 現在画面と、DBから読み込んだ表示cache。
   const [activePage, setActivePage] = useState<PageType>('dataManagement');
   const [casts, setCasts] = useState<CastBean[]>([]);
   const [applicants, setApplicants] = useState<UserBean[]>([]);
   const [currentWinners, setCurrentWinnersState] = useState<UserBean[]>([]);
   const [isLotteryResultCurrent, setIsLotteryResultCurrent] = useState(false);
+  const { applicantDisplayColumns, selectedApplicantDisplayColumnIds, selectedApplicantDisplayColumns, setSelectedApplicantDisplayColumnIds } = useApplicantDisplayColumns(applicants);
 
   // 抽選結果が空になった時点で、結果の現行性も同時に失効させる。
   const setCurrentWinners: Dispatch<SetStateAction<UserBean[]>> = (next) => {
@@ -99,19 +88,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const {
-    matchingSettings,
-    setMatchingSettings,
-    matchingResultState,
-    updateMatchingResult: updateMatchingResultState,
-    updateMatchingCastName: updateMatchingCastNameState,
-    resetMatching: resetMatchingState,
-  } = useMatchingContextState();
+  const { matchingSettings, setMatchingSettings, matchingResultState, updateMatchingResult: updateMatchingResultState, updateMatchingCastName: updateMatchingCastNameState, resetMatching: resetMatchingState } = useMatchingContextState();
   const [matchingResultCasts, setMatchingResultCasts] = useState<CastBean[] | null>(null);
-  const updateMatchingResult = useCallback((
-    patch: Partial<MatchingResultState>,
-    castSnapshot?: CastBean[],
-  ) => {
+  const updateMatchingResult = useCallback((patch: Partial<MatchingResultState>, castSnapshot?: CastBean[]) => {
     if ('result' in patch) {
       setMatchingResultCasts(patch.result === null ? null : (castSnapshot ?? casts));
     }
@@ -124,51 +103,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const matchingCastConstraintFingerprint = getMatchingCastConstraintFingerprint(casts);
   const previousMatchingCastConstraintRef = useRef<string | null>(null);
 
-  const {
-    sessionWorkflow,
-    updateSessionWorkflow,
-    hydrateSessionWorkflow,
-    clearSessionWorkflowState,
-    beginSessionUiMutation,
-    getSessionUiMutationGeneration,
-    isCurrentSessionUiMutation,
-  } = useSessionWorkflowState({
-    setCurrentWinners,
-    setIsLotteryResultCurrent,
-    resetMatching,
-  });
+  const { sessionWorkflow, updateSessionWorkflow, hydrateSessionWorkflow, clearSessionWorkflowState, beginSessionUiMutation, getSessionUiMutationGeneration, isCurrentSessionUiMutation } = useSessionWorkflowState({ setCurrentWinners, setIsLotteryResultCurrent, resetMatching });
 
   useEffect(() => {
     if (currentWinners.length === 0) setIsLotteryResultCurrent(false);
   }, [currentWinners]);
 
-  const {
-    isDbReady,
-    initializationError,
-    currentEventName,
-    currentSessionTimestamp,
-    sessionReloadGeneration,
-    isLotteryInputReadOnly,
-    hasSavedSessionResult,
-    ensureWritableSession,
-    startNewImportSession,
-    discardCurrentSession,
-    closeCurrentEventForExit,
-    discardInProgressWorkAndClose,
-    events,
-    setEvents,
-    switchEvent,
-    activateSavedLotteryResult,
-    markCurrentSessionResultSaved: markCurrentSessionResultSavedState,
-    deleteManagedEvent,
-    renameManagedEvent,
-  } = useEventLifecycleState({
-    setCasts,
-    setApplicants,
-    beginSessionUiMutation,
-    clearSessionWorkflowState,
-    resetMatching,
-  });
+  const { isDbReady, initializationError, currentEventName, currentSessionTimestamp, sessionReloadGeneration, isLotteryInputReadOnly, hasSavedSessionResult, ensureWritableSession, startNewImportSession, discardCurrentSession, closeCurrentEventForExit, discardInProgressWorkAndClose, events, setEvents, switchEvent, activateSavedLotteryResult, markCurrentSessionResultSaved: markCurrentSessionResultSavedState, deleteManagedEvent, renameManagedEvent } = useEventLifecycleState({ setCasts, setApplicants, beginSessionUiMutation, clearSessionWorkflowState, resetMatching });
   const savedResultReadOnlyRef = useRef(false);
   savedResultReadOnlyRef.current = hasSavedSessionResult || matchingResultState.isSaved;
 
@@ -183,13 +124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ) {
       resetMatching();
     }
-  }, [
-    hasSavedSessionResult,
-    matchingCastConstraintFingerprint,
-    matchingResultState.isSaved,
-    matchingResultState.result,
-    resetMatching,
-  ]);
+  }, [hasSavedSessionResult, matchingCastConstraintFingerprint, matchingResultState.isSaved, matchingResultState.result, resetMatching]);
 
   const updateMatchingCastName = useCallback((castId: number, name: string) => {
     if (savedResultReadOnlyRef.current) return;
@@ -212,6 +147,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCasts,
     applicants,
     setApplicants,
+    applicantDisplayColumns,
+    selectedApplicantDisplayColumnIds,
+    selectedApplicantDisplayColumns,
+    setSelectedApplicantDisplayColumnIds,
     currentWinners,
     setCurrentWinners,
     isLotteryResultCurrent,

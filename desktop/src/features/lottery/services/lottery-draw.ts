@@ -3,18 +3,11 @@ import type { UserBean } from '@/common/types/entities';
 import { getMsg } from '@/messages/getMsg';
 
 /** 確定当選者を候補から除外し、抽選枠と結合した当選者一覧を返す。 */
-export function drawLotteryWinners(
-  applicants: readonly UserBean[],
-  guaranteedWinners: readonly UserBean[],
-  lotteryCount: number,
-): UserBean[] {
+export function drawLotteryWinners(applicants: readonly UserBean[], guaranteedWinners: readonly UserBean[], lotteryCount: number): UserBean[] {
   const guaranteedIds = new Set(guaranteedWinners.map((winner) => winner.x_id));
   const candidates = applicants.filter((applicant) => !guaranteedIds.has(applicant.x_id));
   const drawnWinners = shuffleArray(candidates).slice(0, lotteryCount);
-  return [
-    ...guaranteedWinners.map((winner) => ({ ...winner, is_guaranteed: true })),
-    ...drawnWinners.map((winner) => ({ ...winner, is_guaranteed: false })),
-  ];
+  return [...guaranteedWinners.map((winner) => ({ ...winner, is_guaranteed: true })), ...drawnWinners.map((winner) => ({ ...winner, is_guaranteed: false }))];
 }
 
 /** 保存済み抽選結果の一覧に表示する日時付きラベルを生成する。 */

@@ -24,6 +24,7 @@ export default defineConfig(async () => ({
       include: [
         'src/common/csvParse.ts',
         'src/common/arrayUtils.ts',
+        'src/common/applicantDisplayColumns.ts',
         'src/common/browserStorage.ts',
         'src/common/castReferences.ts',
         'src/common/downloadTsv.ts',
@@ -50,6 +51,7 @@ export default defineConfig(async () => ({
         'src/features/data-management/dataManagementNavigation.ts',
         'src/features/data-management/dataManagementViewModel.ts',
         'src/features/event-management/eventNameValidation.ts',
+        'src/features/event-management/dataBackup.ts',
         'src/features/import/importPreviewModel.ts',
         'src/features/import/importMappingCache.ts',
         'src/features/lottery/services/lottery-draw.ts',
@@ -72,6 +74,7 @@ export default defineConfig(async () => ({
         'src/layout/appNavigation.ts',
         'src/messages/getMsg.ts',
         'src/stores/app-storage-store.ts',
+        'src/tauri.ts',
       ],
       thresholds: {
         statements: 80,

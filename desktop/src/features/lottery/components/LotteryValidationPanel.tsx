@@ -16,15 +16,7 @@ interface LotteryValidationPanelProps {
   runDisabled?: boolean;
 }
 
-export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({
-  validation,
-  onRunClick,
-  title,
-  description,
-  readySubtext = getMsg('LotteryValidationPanel.defaultReadySubtext'),
-  runLabel = getMsg('LotteryValidationPanel.defaultRunLabel'),
-  runDisabled = false,
-}) => {
+export const LotteryValidationPanel: React.FC<LotteryValidationPanelProps> = ({ validation, onRunClick, title, description, readySubtext = getMsg('LotteryValidationPanel.defaultReadySubtext'), runLabel = getMsg('LotteryValidationPanel.defaultRunLabel'), runDisabled = false }) => {
   // 検証メッセージの有無から、表示するバッジと実行可否を決定する。
   const hasErrors = validation.errors.length > 0;
   const hasWarnings = validation.warnings.length > 0;

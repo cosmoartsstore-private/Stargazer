@@ -15,20 +15,9 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useAppContext } from '@/stores/AppContext';
 import type { PageType } from './appNavigation';
 import { buildThemeCssVariables } from '@/common/themeCustomization';
-import {
-  getInitialThemeCustomization,
-  getInitialThemeId,
-  persistTheme,
-  persistThemeCustomization,
-} from '@/stores/app-storage-store';
+import { getInitialThemeCustomization, getInitialThemeId, persistTheme, persistThemeCustomization } from '@/stores/app-storage-store';
 import { useImportCommit } from '@/features/import/hooks/useImportCommit';
-import {
-  APPLICATION_PAGES,
-  getDataManagementSidebarTarget,
-  getVisiblePage,
-  isPageActive,
-  isSidebarPageDisabled,
-} from './appNavigation';
+import { APPLICATION_PAGES, getDataManagementSidebarTarget, getVisiblePage, isPageActive, isSidebarPageDisabled } from './appNavigation';
 import { useAppDataHydration } from './hooks/useAppDataHydration';
 import styles from './AppContainer.module.css';
 import { ThemeSelector } from '@/components/ThemeSelector';
@@ -96,16 +85,7 @@ const SidebarButton = ({ item, isActive, disabled, onSelect }: SidebarButtonProp
 
 export const AppContainer: React.FC = () => {
   // 全体レイアウトが調停する画面遷移とイベント選択を取得する。
-  const {
-    activePage,
-    setActivePage,
-    currentEventName,
-    currentSessionTimestamp,
-    initializationError,
-    discardCurrentSession,
-    closeCurrentEventForExit,
-    discardInProgressWorkAndClose,
-  } = useAppContext();
+  const { activePage, setActivePage, currentEventName, currentSessionTimestamp, initializationError, discardCurrentSession, closeCurrentEventForExit, discardInProgressWorkAndClose } = useAppContext();
   // 全体レイアウトと確認ダイアログの状態。
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -122,9 +102,7 @@ export const AppContainer: React.FC = () => {
   const [pendingEventBoundaryRequest, setPendingEventBoundaryRequest] = useState<PendingEventBoundaryRequest | null>(null);
   const [themeDialogRequested, setThemeDialogRequested] = useState(false);
   const [globalDialogOrder, setGlobalDialogOrder] = useState<GlobalDialogKind[]>([]);
-  const [isMobileSidebar, setIsMobileSidebar] = useState(
-    () => window.matchMedia(MOBILE_SIDEBAR_QUERY).matches,
-  );
+  const [isMobileSidebar, setIsMobileSidebar] = useState(() => window.matchMedia(MOBILE_SIDEBAR_QUERY).matches);
   const unsavedWorkRef = useRef(false);
   const closeCheckRunningRef = useRef(false);
   const dataOperationBusyRef = useRef(false);
@@ -141,10 +119,7 @@ export const AppContainer: React.FC = () => {
   // テーマは実際にbodyへ適用するAppContainerが所有する。
   const [themeId, setThemeId] = useState(getInitialThemeId);
   const [themeCustomization, setThemeCustomizationState] = useState(getInitialThemeCustomization);
-  const themeCssVariables = useMemo(
-    () => buildThemeCssVariables(themeId, themeCustomization),
-    [themeId, themeCustomization],
-  );
+  const themeCssVariables = useMemo(() => buildThemeCssVariables(themeId, themeCustomization), [themeId, themeCustomization]);
 
   const setThemeCustomization: typeof setThemeCustomizationState = (stateOrUpdater) => {
     setThemeCustomizationState((prev) => {
@@ -180,9 +155,7 @@ export const AppContainer: React.FC = () => {
     }
     if (isMenuOpen) {
       wasMobileMenuOpenRef.current = true;
-      sidebarRef.current?.querySelector<HTMLElement>(
-        'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-      )?.focus();
+      sidebarRef.current?.querySelector<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')?.focus();
       return;
     }
     if (
@@ -218,24 +191,8 @@ export const AppContainer: React.FC = () => {
     };
   }, [themeId, themeCssVariables]);
 
-  const {
-    isSharedDataLoading,
-    isSessionDataLoading,
-    dataLoadError,
-    retryDataLoad,
-    requestSessionReload,
-  } = useAppDataHydration();
-  const {
-    isMutationLoading,
-    pendingImport,
-    importUsers: handleImportUsers,
-    importNewUsers: handleImportNewUsers,
-    confirmImportOverwrite: handleConfirmImportOverwrite,
-    cancelImportOverwrite: handleCancelImportOverwrite,
-  } = useImportCommit({
-    onAlert: setAlertMessage,
-    requestSessionReload,
-  });
+  const { isSharedDataLoading, isSessionDataLoading, dataLoadError, retryDataLoad, requestSessionReload } = useAppDataHydration();
+  const { isMutationLoading, pendingImport, importUsers: handleImportUsers, importNewUsers: handleImportNewUsers, confirmImportOverwrite: handleConfirmImportOverwrite, cancelImportOverwrite: handleCancelImportOverwrite } = useImportCommit({ onAlert: setAlertMessage, requestSessionReload });
   const isDataLoading = isSharedDataLoading
     || isSessionDataLoading
     || isMutationLoading
@@ -263,12 +220,7 @@ export const AppContainer: React.FC = () => {
 
     setGlobalDialogOrder((current) => {
       const retained = current.filter((kind) => requestedDialogs.includes(kind));
-      const next = [
-        ...retained,
-        ...GLOBAL_DIALOG_KINDS.filter((kind) => (
-          requestedDialogs.includes(kind) && !retained.includes(kind)
-        )),
-      ];
+      const next = [...retained, ...GLOBAL_DIALOG_KINDS.filter((kind) => (requestedDialogs.includes(kind) && !retained.includes(kind)))];
       return next.length === current.length
         && next.every((kind, index) => kind === current[index])
         ? current
@@ -439,10 +391,7 @@ export const AppContainer: React.FC = () => {
   const handleCancelExit = () => {
     if (!exitClosingRef.current) setExitConfirmOpen(false);
   };
-  const handleRequestEventBoundaryChange = (
-    kind: EventBoundaryKind,
-    action: () => Promise<boolean>,
-  ): Promise<boolean> => {
+  const handleRequestEventBoundaryChange = (kind: EventBoundaryKind, action: () => Promise<boolean>): Promise<boolean> => {
     const requiresConfirmation = unsavedWorkRef.current
       || (kind === 'switch' && currentSessionTimestamp !== null);
     if (!requiresConfirmation) {
@@ -468,12 +417,7 @@ export const AppContainer: React.FC = () => {
   };
 
   // サイドバーの表示項目と、イベント状態を反映した実表示ページ。
-  const sidebarButtons: SidebarItem[] = [
-    { text: getMsg('AppContainer.dataManagement'), page: 'dataManagement', icon: <Users size={18} /> },
-    { text: getMsg('AppContainer.internalManagement'), page: 'internalManagement', icon: <Settings size={18} /> },
-    { text: getMsg('AppContainer.eventManagement'), page: 'eventManagement', icon: <CalendarDays size={18} /> },
-    { text: getMsg('AppContainer.guide'), page: 'guide', icon: <HelpCircle size={18} /> },
-  ];
+  const sidebarButtons: SidebarItem[] = [{ text: getMsg('AppContainer.dataManagement'), page: 'dataManagement', icon: <Users size={18} /> }, { text: getMsg('AppContainer.internalManagement'), page: 'internalManagement', icon: <Settings size={18} /> }, { text: getMsg('AppContainer.eventManagement'), page: 'eventManagement', icon: <CalendarDays size={18} /> }, { text: getMsg('AppContainer.guide'), page: 'guide', icon: <HelpCircle size={18} /> }];
   const visiblePage = getVisiblePage(activePage, currentEventName);
   useLayoutEffect(() => {
     const scrollContainer = mainContentScrollRef.current;
@@ -493,10 +437,7 @@ export const AppContainer: React.FC = () => {
         return <InternalManagementPage onBusyChange={setIsInternalManagementBusy} />;
       case 'eventManagement':
         return (
-          <EventManagementPage
-            onRequestEventBoundaryChange={handleRequestEventBoundaryChange}
-            onBusyChange={setIsEventManagementBusy}
-          />
+          <EventManagementPage onRequestEventBoundaryChange={handleRequestEventBoundaryChange} onBusyChange={setIsEventManagementBusy} />
         );
       case 'guide':
         return <GuidePage />;
@@ -524,100 +465,37 @@ export const AppContainer: React.FC = () => {
               })}
             </nav>
             <div className={`${styles.sidebarBlock} ${styles.sidebarBlockPush}`} />
-            <div className={`${styles.sidebarBlock} ${styles.sidebarThemeSlider}`}>
-              <ThemeSelector
-                themeId={themeId}
-                setThemeId={setThemeId}
-                customization={themeCustomization}
-                setCustomization={setThemeCustomization}
-                dialogOpen={themeDialogRequested && activeGlobalDialog === 'theme'}
-                onDialogOpenChange={setThemeDialogRequested}
-              />
-            </div>
+            <div className={`${styles.sidebarBlock} ${styles.sidebarThemeSlider}`}><ThemeSelector themeId={themeId} setThemeId={setThemeId} customization={themeCustomization} setCustomization={setThemeCustomization} dialogOpen={themeDialogRequested && activeGlobalDialog === 'theme'} onDialogOpenChange={setThemeDialogRequested} /></div>
           </div>
         </aside>
         {isMobileSidebar && isMenuOpen && <button type="button" className={styles.overlay} aria-label={getMsg('AppContainer.closeMenu')} onClick={handleCloseMenu} />}
         {activeGlobalDialog === 'dataLoadError' && dataLoadError !== null && (
-          <NoticeDialog
-            title={getMsg('AppContainer.dataManagement')}
-            message={getMsg(dataLoadError === 'session'
+          <NoticeDialog title={getMsg('AppContainer.dataManagement')} message={getMsg(dataLoadError === 'session'
               ? 'AppContainer.sessionLoadFailed'
-              : 'AppContainer.sharedDataLoadFailed')}
-            closeLabel={getMsg('AppContainer.retryDataLoad')}
-            onClose={retryDataLoad}
-          />
+              : 'AppContainer.sharedDataLoadFailed')} closeLabel={getMsg('AppContainer.retryDataLoad')} onClose={retryDataLoad} />
         )}
         {activeGlobalDialog === 'alert' && alertMessage !== null && (
-          <NoticeDialog
-            title={getMsg('AppContainer.dataManagement')}
-            message={alertMessage}
-            closeLabel={getMsg('common.close')}
-            onClose={handleCloseAlert}
-          />
+          <NoticeDialog title={getMsg('AppContainer.dataManagement')} message={alertMessage} closeLabel={getMsg('common.close')} onClose={handleCloseAlert} />
         )}
         {activeGlobalDialog === 'import' && pendingImport !== null && (
-          <ConfirmDialog
-            title={getMsg('AppContainer.importOverwriteTitle')}
-            message={getMsg('AppContainer.importOverwriteMessage')}
-            confirmLabel={getMsg('AppContainer.importOverwriteConfirm')}
-            cancelLabel={getMsg('common.cancel')}
-            onConfirm={handleConfirmImportOverwrite}
-            onCancel={handleCancelImportOverwrite}
-          />
+          <ConfirmDialog title={getMsg('AppContainer.importOverwriteTitle')} message={getMsg('AppContainer.importOverwriteMessage')} confirmLabel={getMsg('AppContainer.importOverwriteConfirm')} cancelLabel={getMsg('common.cancel')} onConfirm={handleConfirmImportOverwrite} onCancel={handleCancelImportOverwrite} />
         )}
         {activeGlobalDialog === 'exit' && exitConfirmOpen && (
-          <ConfirmDialog
-            title={getMsg('AppContainer.exitWarningTitle')}
-            message={getMsg('AppContainer.exitWarningMessage')}
-            confirmLabel={getMsg(isExitClosing ? 'AppContainer.exitClosing' : 'AppContainer.exitWarningConfirm')}
-            cancelLabel={getMsg('AppContainer.exitWarningCancel')}
-            confirmDisabled={isExitClosing}
-            intent="danger"
-            onConfirm={() => { void handleConfirmExit(); }}
-            onCancel={handleCancelExit}
-          />
+          <ConfirmDialog title={getMsg('AppContainer.exitWarningTitle')} message={getMsg('AppContainer.exitWarningMessage')} confirmLabel={getMsg(isExitClosing ? 'AppContainer.exitClosing' : 'AppContainer.exitWarningConfirm')} cancelLabel={getMsg('AppContainer.exitWarningCancel')} confirmDisabled={isExitClosing} intent="danger" onConfirm={() => { void handleConfirmExit(); }} onCancel={handleCancelExit} />
         )}
         {activeGlobalDialog === 'sessionBoundary' && sessionBoundaryRequested && (
-          <ConfirmDialog
-            title={getMsg('AppContainer.sessionCleanupTitle')}
-            message={getMsg('AppContainer.sessionCleanupMessage')}
-            confirmLabel={getMsg(isSessionDiscarding
+          <ConfirmDialog title={getMsg('AppContainer.sessionCleanupTitle')} message={getMsg('AppContainer.sessionCleanupMessage')} confirmLabel={getMsg(isSessionDiscarding
               ? 'AppContainer.sessionCleanupRunning'
-              : 'AppContainer.sessionCleanupConfirm')}
-            cancelLabel={getMsg('common.cancel')}
-            confirmDisabled={isSessionDiscarding}
-            intent="danger"
-            onConfirm={() => { void handleConfirmSessionBoundary(); }}
-            onCancel={handleCancelSessionBoundary}
-          />
+              : 'AppContainer.sessionCleanupConfirm')} cancelLabel={getMsg('common.cancel')} confirmDisabled={isSessionDiscarding} intent="danger" onConfirm={() => { void handleConfirmSessionBoundary(); }} onCancel={handleCancelSessionBoundary} />
         )}
         {activeGlobalDialog === 'eventBoundary' && pendingEventBoundaryRequest !== null && (
-          <ConfirmDialog
-            title={getMsg('AppContainer.eventChangeUnsavedTitle')}
-            message={getMsg('AppContainer.eventChangeUnsavedMessage')}
-            confirmLabel={getMsg('AppContainer.eventChangeUnsavedConfirm')}
-            cancelLabel={getMsg('common.cancel')}
-            confirmDisabled={exitConfirmOpen}
-            intent="danger"
-            onConfirm={handleConfirmEventBoundaryChange}
-            onCancel={handleCancelEventBoundaryChange}
-          />
+          <ConfirmDialog title={getMsg('AppContainer.eventChangeUnsavedTitle')} message={getMsg('AppContainer.eventChangeUnsavedMessage')} confirmLabel={getMsg('AppContainer.eventChangeUnsavedConfirm')} cancelLabel={getMsg('common.cancel')} confirmDisabled={exitConfirmOpen} intent="danger" onConfirm={handleConfirmEventBoundaryChange} onCancel={handleCancelEventBoundaryChange} />
         )}
         <main className={styles.mainContent} inert={isMobileSidebar && isMenuOpen ? true : undefined}>
           {isDataLoading && <LoadingOverlay message={getMsg('AppContainer.dataLoading')} />}
           <div ref={mainContentScrollRef} className={styles.mainContentScroll} inert={isDataBlocked ? true : undefined}>
             {currentEventName !== null && (
-              <div hidden={!isDataManagementVisible}>
-                <DataManagementPage
-                  key={currentEventName}
-                  page={dataManagementPage}
-                  onNavigate={handleDataManagementNavigate}
-                  onImportUsers={handleImportUsers}
-                  onImportNewUsers={handleImportNewUsers}
-                  onUnsavedChange={setHasUnsavedDataManagementWork}
-                  onBusyChange={setIsDataManagementBusy}
-                />
-              </div>
+              <div hidden={!isDataManagementVisible}><DataManagementPage key={currentEventName} page={dataManagementPage} onNavigate={handleDataManagementNavigate} onImportUsers={handleImportUsers} onImportNewUsers={handleImportNewUsers} onUnsavedChange={setHasUnsavedDataManagementWork} onBusyChange={setIsDataManagementBusy} /></div>
             )}
             {!isDataManagementVisible && renderNonDataManagementPage()}
           </div>

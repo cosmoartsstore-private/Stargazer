@@ -1,25 +1,11 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  type ChangeEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { Camera, ExternalLink, Pencil, Plus, User } from 'lucide-react';
 import type { CastBean } from '@/common/types/entities';
 import { registerPendingPageCommit } from '@/common/pageCommitRegistry';
 import { getMsg } from '@/messages/getMsg';
 import shared from '@/styles/shared.module.css';
 import styles from '../CastManagementPage.module.css';
-import {
-  getContactMarker,
-  getEditableContactUrls,
-  getOpenableContactUrl,
-  type ContactMarkerKind,
-  type EventMutationResult,
-} from '../castManagementModel';
+import { CAST_ALIAS_MAX_LENGTH, CAST_CONTACT_MAX_LENGTH, CAST_GROUP_NAME_MAX_LENGTH, CAST_MEMO_MAX_LENGTH, CAST_NAME_MAX_LENGTH, getContactMarker, getEditableContactUrls, getOpenableContactUrl, type ContactMarkerKind, type EventMutationResult } from '../castManagementModel';
 
 interface AliasRowProps {
   castName: string;
@@ -55,10 +41,7 @@ const AliasRow = ({ castName, alias, aliasIndex, disabled, onUpdate, onDelete }:
     return commitPromise;
   }, [alias, aliasIndex, onUpdate]);
 
-  useEffect(
-    () => registerPendingPageCommit(commitValue),
-    [commitValue],
-  );
+  useEffect(() => registerPendingPageCommit(commitValue), [commitValue]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') event.currentTarget.blur();
@@ -69,14 +52,11 @@ const AliasRow = ({ castName, alias, aliasIndex, disabled, onUpdate, onDelete }:
     event.preventDefault();
   };
   const handleDeleteClick = () => onDelete(aliasIndex);
-  const inputAriaLabel = getMsg('CastManagementPage.aliasInputAriaLabel', {
-    castName,
-    index: aliasIndex + 1,
-  });
+  const inputAriaLabel = getMsg('CastManagementPage.aliasInputAriaLabel', { castName, index: aliasIndex + 1 });
 
   return (
     <div className={styles.castAliasItem}>
-      <input ref={inputRef} type="text" className={styles.castAliasInput} defaultValue={alias} disabled={disabled} aria-label={inputAriaLabel} onKeyDown={handleKeyDown} onBlur={handleBlur} />
+      <input ref={inputRef} type="text" className={styles.castAliasInput} defaultValue={alias} maxLength={CAST_ALIAS_MAX_LENGTH} disabled={disabled} aria-label={inputAriaLabel} onKeyDown={handleKeyDown} onBlur={handleBlur} />
       <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={getMsg('CastManagementPage.deleteAliasAriaLabel', { alias })} disabled={disabled} onMouseDown={handleDeleteMouseDown} onClick={handleDeleteClick}>×</button>
     </div>
   );
@@ -108,21 +88,12 @@ const AliasEditor = ({ cast, inputAlias, isSaving, onInputChange, onAdd, onUpdat
       </div>
       {(cast.aliases?.length ?? 0) > 0 && (
         <div className={styles.castAliasList}>
-          {cast.aliases?.map((alias, aliasIndex) => (
-            <AliasRow
-              key={`${cast.id}-${alias}-${aliasIndex}`}
-              castName={cast.name}
-              alias={alias}
-              aliasIndex={aliasIndex}
-              disabled={isSaving}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-            />
+          {cast.aliases?.map((alias, aliasIndex) => (<AliasRow key={`${cast.id}-${alias}-${aliasIndex}`} castName={cast.name} alias={alias} aliasIndex={aliasIndex} disabled={isSaving} onUpdate={onUpdate} onDelete={onDelete} />
           ))}
         </div>
       )}
       <div className={styles.castAliasAddRow}>
-        <input type="text" className={styles.castAliasInput} placeholder={getMsg('CastManagementPage.addAliasPlaceholder')} aria-label={getMsg('CastManagementPage.addAliasPlaceholder')} value={inputAlias} disabled={isSaving} onChange={handleInputChange} onKeyDown={handleAddKeyDown} />
+        <input type="text" className={styles.castAliasInput} placeholder={getMsg('CastManagementPage.addAliasPlaceholder')} aria-label={getMsg('CastManagementPage.addAliasPlaceholder')} value={inputAlias} maxLength={CAST_ALIAS_MAX_LENGTH} disabled={isSaving} onChange={handleInputChange} onKeyDown={handleAddKeyDown} />
         <button type="button" className={styles.castAliasAddBtn} disabled={isSaving || !inputAlias.trim()} onClick={onAdd}><Plus size={13} />{getMsg('common.add')}</button>
       </div>
     </div>
@@ -165,7 +136,7 @@ const ContactRow = ({ url, index, onChange, onOpen, onDelete }: ContactRowProps)
     <div className={styles.castContactItem}>
       <div className={styles.castContactInputWrap}>
         <span className={getContactMarkerClassName(marker.kind)}>{marker.label}</span>
-        <input type="text" className={styles.castContactInput} placeholder={getMsg('CastManagementPage.contactUrlPlaceholder')} aria-label={contactAriaLabel} value={url} onChange={handleChange} />
+        <input type="text" className={styles.castContactInput} placeholder={getMsg('CastManagementPage.contactUrlPlaceholder')} aria-label={contactAriaLabel} value={url} maxLength={CAST_CONTACT_MAX_LENGTH} onChange={handleChange} />
       </div>
       <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnOpen}`} disabled={!canOpen} aria-label={openLinkAriaLabel} onClick={handleOpen}><ExternalLink size={13} /></button>
       <button type="button" className={`${styles.castContactBtn} ${styles.castContactBtnDelete}`} aria-label={deleteAriaLabel} onClick={handleDelete}>×</button>
@@ -188,8 +159,7 @@ const ContactEditor = ({ cast, onChange, onAdd, onOpen, onDelete }: ContactEdito
     <div className={styles.castContactSection} role="group" aria-labelledby={contactHeadingId}>
       <span id={contactHeadingId} className={shared.managementDetailLabel}>{getMsg('CastManagementPage.contactLabel')}</span>
       <div className={styles.castContactList}>
-        {getEditableContactUrls(cast).map((url, index) => (
-          <ContactRow key={`${cast.id}-${index}`} url={url} index={index} onChange={onChange} onOpen={onOpen} onDelete={onDelete} />
+        {getEditableContactUrls(cast).map((url, index) => (<ContactRow key={`${cast.id}-${index}`} url={url} index={index} onChange={onChange} onOpen={onOpen} onDelete={onDelete} />
         ))}
         <button type="button" className={styles.castContactAddBtn} onClick={onAdd}><Plus size={13} />{getMsg('CastManagementPage.addContact')}</button>
       </div>
@@ -218,26 +188,7 @@ export interface CastDetailPanelProps {
   onDeleteContact: (index: number) => void;
 }
 
-export const CastDetailPanel = ({
-  cast,
-  inputAlias,
-  isSavingAliases,
-  memoEditing,
-  onPhotoUpload,
-  onDeleteCast,
-  onRenameCast,
-  onGroupNameChange,
-  onAliasInputChange,
-  onAddAlias,
-  onUpdateAlias,
-  onDeleteAlias,
-  onMemoEditingChange,
-  onMemoChange,
-  onContactChange,
-  onAddContact,
-  onOpenContact,
-  onDeleteContact,
-}: CastDetailPanelProps) => {
+export const CastDetailPanel = ({ cast, inputAlias, isSavingAliases, memoEditing, onPhotoUpload, onDeleteCast, onRenameCast, onGroupNameChange, onAliasInputChange, onAddAlias, onUpdateAlias, onDeleteAlias, onMemoEditingChange, onMemoChange, onContactChange, onAddContact, onOpenContact, onDeleteContact }: CastDetailPanelProps) => {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const groupNameInputRef = useRef<HTMLInputElement>(null);
@@ -330,10 +281,7 @@ export const CastDetailPanel = ({
     return commitMemo();
   }, [commitGroupName, commitMemo, commitName]);
 
-  useEffect(
-    () => registerPendingPageCommit(commitPendingFields),
-    [commitPendingFields],
-  );
+  useEffect(() => registerPendingPageCommit(commitPendingFields), [commitPendingFields]);
 
   if (!cast) {
     return (
@@ -371,10 +319,10 @@ export const CastDetailPanel = ({
         </div>
 
         <div className={styles.castCharInfoCol}>
-          <input ref={nameInputRef} type="text" className={styles.castCharNameInput} defaultValue={cast.name} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} onBlur={handleCastNameBlur} />
+          <input ref={nameInputRef} type="text" className={styles.castCharNameInput} defaultValue={cast.name} maxLength={CAST_NAME_MAX_LENGTH} aria-label={getMsg('CastManagementPage.addCastPlaceholder')} onBlur={handleCastNameBlur} />
           <div className={styles.castGroupSection}>
             <label htmlFor={groupNameInputId} className={shared.managementDetailLabel}>{getMsg('CastManagementPage.groupLabel')}</label>
-            <input ref={groupNameInputRef} id={groupNameInputId} type="text" className={styles.castGroupInput} defaultValue={cast.group_name ?? ''} placeholder={getMsg('CastManagementPage.groupPlaceholder')} onBlur={handleGroupNameBlur} />
+            <input ref={groupNameInputRef} id={groupNameInputId} type="text" className={styles.castGroupInput} defaultValue={cast.group_name ?? ''} maxLength={CAST_GROUP_NAME_MAX_LENGTH} placeholder={getMsg('CastManagementPage.groupPlaceholder')} onBlur={handleGroupNameBlur} />
           </div>
 
           <div className={styles.castCharMemoSection}>
@@ -385,7 +333,7 @@ export const CastDetailPanel = ({
               )}
             </div>
             {memoEditing ? (
-              <textarea ref={memoInputRef} autoFocus className={`${styles.castCharMemo__textarea} ${shared.customScrollbar}`} defaultValue={cast.memo ?? ''} placeholder={getMsg('CastManagementPage.profilePlaceholder')} aria-labelledby={profileLabelId} rows={5} onBlur={handleMemoBlur} />
+              <textarea ref={memoInputRef} autoFocus className={`${styles.castCharMemo__textarea} ${shared.customScrollbar}`} defaultValue={cast.memo ?? ''} maxLength={CAST_MEMO_MAX_LENGTH} placeholder={getMsg('CastManagementPage.profilePlaceholder')} aria-labelledby={profileLabelId} rows={5} onBlur={handleMemoBlur} />
             ) : (
               <button type="button" className={memoTextClassName} onClick={handleMemoEditClick}>{cast.memo ?? getMsg('CastManagementPage.profilePrompt')}</button>
             )}
@@ -393,15 +341,7 @@ export const CastDetailPanel = ({
 
           <div className={styles.castCharDivider} />
 
-          <AliasEditor
-            cast={cast}
-            inputAlias={inputAlias}
-            isSaving={isSavingAliases}
-            onInputChange={onAliasInputChange}
-            onAdd={onAddAlias}
-            onUpdate={onUpdateAlias}
-            onDelete={onDeleteAlias}
-          />
+          <AliasEditor cast={cast} inputAlias={inputAlias} isSaving={isSavingAliases} onInputChange={onAliasInputChange} onAdd={onAddAlias} onUpdate={onUpdateAlias} onDelete={onDeleteAlias} />
 
           <div className={styles.castCharDivider} />
 

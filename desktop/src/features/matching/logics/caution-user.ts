@@ -6,21 +6,12 @@
  */
 
 import type { UserBean, CastBean, CautionUser } from '@/common/types/entities';
-import {
-  formatXAccountIdForDisplay,
-  normalizeXAccountId,
-  parseXUsername,
-} from '@/common/xIdUtils';
+import { formatXAccountIdForDisplay, normalizeXAccountId, parseXUsername } from '@/common/xIdUtils';
 import { isUserNGForCast } from '@/features/matching/logics/ng-judgment';
 
 /** ユーザーをNGにしているキャスト名の一覧を返す（状態列の理由表示用）。 */
-export function getCautionNGCastNames(
-  user: UserBean,
-  casts: CastBean[],
-): string[] {
-  return casts
-    .filter((cast) => isUserNGForCast(user, cast))
-    .map((cast) => cast.name);
+export function getCautionNGCastNames(user: UserBean, casts: CastBean[]): string[] {
+  return casts.filter((cast) => isUserNGForCast(user, cast)).map((cast) => cast.name);
 }
 
 function normalizeName(s: string | undefined): string {
@@ -45,10 +36,7 @@ export interface CautionCandidate {
  * 応募ユーザーが要注意リストの誰かと一致するか。
  * アカウントIDを必須とし、双方にユーザー名がある場合は名前も一致した人だけを要注意と判定する。
  */
-export function isCautionUser(
-  user: UserBean,
-  cautionUsers: CautionUser[],
-): boolean {
+export function isCautionUser(user: UserBean, cautionUsers: CautionUser[]): boolean {
   const nameNorm = normalizeName(user.name);
   const idNorm = normalizeXAccountId(user.x_id);
   if (!idNorm) return false;
@@ -63,20 +51,9 @@ export function isCautionUser(
  * キャストごとのNG登録から、閾値以上の要注意人物候補を集計する。
  * X IDの比較キーで集計し、登録済みのIDは候補から除外する。
  */
-export function computeCautionCandidates(
-  casts: CastBean[],
-  threshold: number,
-  registeredCautionAccountIds: Iterable<string>,
-): CautionCandidate[] {
-  const registeredIds = new Set(
-    Array.from(registeredCautionAccountIds, (accountId) => normalizeXAccountId(accountId))
-      .filter((accountId): accountId is string => accountId !== null),
-  );
-  const candidatesById = new Map<string, {
-    accountId: string;
-    usernames: Set<string>;
-    castNames: Set<string>;
-  }>();
+export function computeCautionCandidates(casts: CastBean[], threshold: number, registeredCautionAccountIds: Iterable<string>): CautionCandidate[] {
+  const registeredIds = new Set(Array.from(registeredCautionAccountIds, (accountId) => normalizeXAccountId(accountId)).filter((accountId): accountId is string => accountId !== null));
+  const candidatesById = new Map<string, { accountId: string; usernames: Set<string>; castNames: Set<string>; }>();
 
   for (const cast of casts) {
     for (const entry of cast.ng_entries ?? []) {
@@ -86,11 +63,7 @@ export function computeCautionCandidates(
 
       let candidate = candidatesById.get(accountIdKey);
       if (!candidate) {
-        candidate = {
-          accountId,
-          usernames: new Set(),
-          castNames: new Set(),
-        };
+        candidate = { accountId, usernames: new Set(), castNames: new Set() };
         candidatesById.set(accountIdKey, candidate);
       }
       if (entry.username) candidate.usernames.add(entry.username);
@@ -98,12 +71,5 @@ export function computeCautionCandidates(
     }
   }
 
-  return Array.from(candidatesById.values())
-    .filter((candidate) => candidate.castNames.size >= threshold)
-    .map((candidate) => ({
-      accountId: candidate.accountId,
-      usernames: Array.from(candidate.usernames),
-      castCount: candidate.castNames.size,
-    }))
-    .sort((a, b) => b.castCount - a.castCount);
+  return Array.from(candidatesById.values()).filter((candidate) => candidate.castNames.size >= threshold).map((candidate) => ({ accountId: candidate.accountId, usernames: Array.from(candidate.usernames), castCount: candidate.castNames.size })).sort((a, b) => b.castCount - a.castCount);
 }

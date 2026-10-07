@@ -1,7 +1,7 @@
 import { useId, useRef, type ChangeEvent, type MouseEvent } from 'react';
 import { Camera, Database, FileText, RefreshCw } from 'lucide-react';
 import { getMsg } from '@/messages/getMsg';
-import { EVENT_NAME_MAX_LENGTH } from '../eventNameValidation';
+import { EVENT_NAME_MAX_LENGTH, EVENT_NOTES_MAX_LENGTH } from '../eventNameValidation';
 import shared from '@/styles/shared.module.css';
 import styles from '../EventManagementPage.module.css';
 
@@ -26,24 +26,7 @@ export interface EventDetailPanelProps {
   onRequestDelete: (eventName: string) => void;
 }
 
-export const EventDetailPanel = ({
-  selectedName,
-  editName,
-  photoDataUrl,
-  editNotes,
-  editingNotes,
-  isCurrent,
-  isMutating,
-  metaLoadStatus,
-  onEditNameChange,
-  onCommitName,
-  onPhotoChange,
-  onStartNotesEditing,
-  onEditNotesChange,
-  onCommitNotes,
-  onRequestSwitch,
-  onRequestDelete,
-}: EventDetailPanelProps) => {
+export const EventDetailPanel = ({ selectedName, editName, photoDataUrl, editNotes, editingNotes, isCurrent, isMutating, metaLoadStatus, onEditNameChange, onCommitName, onPhotoChange, onStartNotesEditing, onEditNotesChange, onCommitNotes, onRequestSwitch, onRequestDelete }: EventDetailPanelProps) => {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const notesLabelId = useId();
   const isMetaEditable = isCurrent && metaLoadStatus === 'ready';
@@ -137,7 +120,7 @@ export const EventDetailPanel = ({
             <span id={notesLabelId} className={shared.managementDetailLabel}><FileText size={11} className={styles.eventNotesIcon} />{getMsg('EventManagementPage.notesLabel')}</span>
           </div>
           {editingNotes && canEditMeta ? (
-            <textarea className={`${styles.eventCharMemoTextarea} ${shared.customScrollbar}`} aria-labelledby={notesLabelId} rows={6} value={editNotes} onChange={handleEditNotesChange} onBlur={handleNotesBlur} autoFocus />
+            <textarea className={`${styles.eventCharMemoTextarea} ${shared.customScrollbar}`} aria-labelledby={notesLabelId} rows={6} value={editNotes} maxLength={EVENT_NOTES_MAX_LENGTH} onChange={handleEditNotesChange} onBlur={handleNotesBlur} autoFocus />
           ) : isMetaEditable ? (
             <button type="button" className={memoTextClassName} disabled={!canEditMeta} aria-labelledby={notesLabelId} onClick={handleNotesClick}>{editNotes || notesPlaceholder}</button>
           ) : (

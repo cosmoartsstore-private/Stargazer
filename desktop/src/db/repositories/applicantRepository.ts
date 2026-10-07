@@ -3,16 +3,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getSessionDb, getSharedDb } from '../database';
 import type { UserBean } from '@/common/types/entities';
-import {
-  formatXAccountIdForDisplay,
-  parseXUsername,
-} from '@/common/xIdUtils';
+import { formatXAccountIdForDisplay, parseXUsername } from '@/common/xIdUtils';
 import { getMsg } from '@/messages/getMsg';
-import {
-  enqueueSessionWrite,
-  waitForSessionWritesToSettle,
-  type SessionCommandContext,
-} from './commandContext';
+import { enqueueSessionWrite, waitForSessionWritesToSettle, type SessionCommandContext } from './commandContext';
 import { groupRowsBy } from './groupRowsBy';
 
 /** 呼出済みの応募者更新が終わるまで待つ。後続の再取込を含む操作順確認に使用する。 */
@@ -53,9 +46,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
   const sharedDb = getSharedDb();
   const [sharedCasts, rows, castPrefs, extras] = await Promise.all([
     sharedDb.select<SharedCastRow[]>('SELECT id, name FROM casts'),
-    sessionDb.select<ApplicantRow[]>(
-      'SELECT id, x_id, name, vrc_url, preference_mode, is_guaranteed FROM applicants ORDER BY id',
-    ),
+    sessionDb.select<ApplicantRow[]>('SELECT id, x_id, name, vrc_url, preference_mode, is_guaranteed FROM applicants ORDER BY id'),
     sessionDb.select<CastPrefRow[]>(
       `SELECT applicant_id, preference_order, cast_name, cast_id
        FROM applicant_casts
@@ -75,10 +66,7 @@ export async function loadApplicants(): Promise<UserBean[]> {
   return rows.map((row) => {
     const applicantCastPrefs = castPrefsByApplicantId.get(row.id) ?? [];
     const applicantExtras = extrasByApplicantId.get(row.id) ?? [];
-    const preferenceLength = applicantCastPrefs.reduce(
-      (length, preference) => Math.max(length, preference.preference_order + 1),
-      0,
-    );
+    const preferenceLength = applicantCastPrefs.reduce((length, preference) => Math.max(length, preference.preference_order + 1), 0);
     const rankedCasts = Array<string>(preferenceLength).fill('');
     const rankedCastIds = Array<number | null>(preferenceLength).fill(null);
     for (const preference of applicantCastPrefs) {
@@ -105,75 +93,31 @@ export async function loadApplicants(): Promise<UserBean[]> {
         ? activePreferenceIndexes.map((index) => rankedCastIds[index])
         : rankedCastIds,
       preference_mode: preferenceMode,
-      raw_extra: applicantExtras.map((extra) => ({
-        key: extra.field_key,
-        value: extra.field_value ?? '',
-      })),
+      raw_extra: applicantExtras.map((extra) => ({ key: extra.field_key, value: extra.field_value ?? '' })),
     };
   });
 }
 
 /** 応募者一覧をセッション DB に全置換する。途中失敗時は既存応募者を残す。 */
-export async function persistApplicants(
-  users: UserBean[],
-  context: SessionCommandContext,
-): Promise<void> {
+export async function persistApplicants(users: UserBean[], context: SessionCommandContext): Promise<void> {
   const userWithoutCastIds = users.find((user) => user.cast_ids === undefined);
   if (userWithoutCastIds) {
-    throw new Error(getMsg('applicantRepository.castIdUnresolved', {
-      xId: formatXAccountIdForDisplay(userWithoutCastIds.x_id),
-    }));
+    throw new Error(getMsg('applicantRepository.castIdUnresolved', { xId: formatXAccountIdForDisplay(userWithoutCastIds.x_id) }));
   }
-  await enqueueSessionWrite(context, () => invoke('persist_applicants_atomic', {
-    eventName: context.eventName,
-    timestamp: context.timestamp,
-    users: users.map((user) => ({
-      name: user.name || null,
-      x_id: user.x_id,
-      vrc_url: user.vrc_url ?? null,
-      casts: user.casts,
-      cast_ids: user.cast_ids,
-      preference_mode: user.preference_mode,
-      is_guaranteed: user.is_guaranteed === true,
-      raw_extra: user.raw_extra,
-    })),
-  }));
+  await enqueueSessionWrite(context, () => invoke('persist_applicants_atomic', { eventName: context.eventName, timestamp: context.timestamp, users: users.map((user) => ({ name: user.name || null, x_id: user.x_id, vrc_url: user.vrc_url ?? null, casts: user.casts, cast_ids: user.cast_ids, preference_mode: user.preference_mode, is_guaranteed: user.is_guaranteed === true, raw_extra: user.raw_extra })) }));
 }
 
 /** 応募者1件の希望キャストだけを更新し、現在および保存済みの抽選結果は維持する。 */
-export async function updateApplicantCastPreferences(
-  applicantId: number,
-  castIds: Array<number | null>,
-  context: SessionCommandContext,
-): Promise<void> {
-  await enqueueSessionWrite(context, () => invoke('update_applicant_cast_preferences_atomic', {
-    eventName: context.eventName,
-    timestamp: context.timestamp,
-    applicantId,
-    preferences: { cast_ids: castIds },
-  }));
+export async function updateApplicantCastPreferences(applicantId: number, castIds: Array<number | null>, context: SessionCommandContext): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('update_applicant_cast_preferences_atomic', { eventName: context.eventName, timestamp: context.timestamp, applicantId, preferences: { cast_ids: castIds } }));
 }
 
 /** 応募者1件を安定IDで削除する。不正なX IDが複数残っていても1件ずつ解消できる。 */
-export async function deleteApplicant(
-  applicantId: number,
-  context: SessionCommandContext,
-): Promise<void> {
-  await enqueueSessionWrite(context, () => invoke('delete_applicant_atomic', {
-    eventName: context.eventName,
-    timestamp: context.timestamp,
-    applicantId,
-  }));
+export async function deleteApplicant(applicantId: number, context: SessionCommandContext): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('delete_applicant_atomic', { eventName: context.eventName, timestamp: context.timestamp, applicantId }));
 }
 
 /** 抽選前に選択した確定当選者を保存し、既存抽選結果を条件不一致として扱う。 */
-export async function replaceApplicantGuarantees(
-  guaranteedXIds: string[],
-  context: SessionCommandContext,
-): Promise<void> {
-  await enqueueSessionWrite(context, () => invoke('replace_applicant_guarantees_atomic', {
-    eventName: context.eventName,
-    timestamp: context.timestamp,
-    guaranteedXIds,
-  }));
+export async function replaceApplicantGuarantees(guaranteedXIds: string[], context: SessionCommandContext): Promise<void> {
+  await enqueueSessionWrite(context, () => invoke('replace_applicant_guarantees_atomic', { eventName: context.eventName, timestamp: context.timestamp, guaranteedXIds }));
 }

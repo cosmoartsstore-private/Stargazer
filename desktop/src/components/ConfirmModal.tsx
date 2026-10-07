@@ -33,67 +33,36 @@ interface ConfirmDialogProps {
 
 function MessageDialog({ title, message, onOpenChange, actions }: MessageDialogProps) {
   return (
-    <AppDialog
-      open
-      onOpenChange={onOpenChange}
-      title={title}
-      description={message}
-      className={styles.messageDialog}
-      descriptionClassName={styles.modalMessage}
-    >
+    <AppDialog open onOpenChange={onOpenChange} title={title} description={message} className={styles.messageDialog} descriptionClassName={styles.modalMessage}>
       <footer className={styles.modalButtons}>{actions}</footer>
     </AppDialog>
   );
 }
 
-export function NoticeDialog({
-  title,
-  message,
-  onClose,
-  closeLabel = getMsg('common.close'),
-}: NoticeDialogProps) {
+export function NoticeDialog({ title, message, onClose, closeLabel = getMsg('common.close') }: NoticeDialogProps) {
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
 
   return (
-    <MessageDialog
-      title={title}
-      message={message}
-      onOpenChange={handleOpenChange}
-      actions={(
+    <MessageDialog title={title} message={message} onOpenChange={handleOpenChange} actions={(
         <button type="button" className={`${shared.btnPrimary} ${styles.modalBtnAction}`} onClick={onClose}>{closeLabel}</button>
-      )}
-    />
+      )} />
   );
 }
 
-export function ConfirmDialog({
-  title,
-  message,
-  onConfirm,
-  onCancel,
-  confirmLabel = getMsg('common.ok'),
-  cancelLabel = getMsg('common.cancel'),
-  confirmDisabled = false,
-  intent = 'default',
-}: ConfirmDialogProps) {
+export function ConfirmDialog({ title, message, onConfirm, onCancel, confirmLabel = getMsg('common.ok'), cancelLabel = getMsg('common.cancel'), confirmDisabled = false, intent = 'default' }: ConfirmDialogProps) {
   const handleOpenChange = (open: boolean) => {
     if (!open) onCancel();
   };
   const confirmClassName = `${intent === 'danger' ? shared.btnDanger : shared.btnPrimary} ${styles.modalBtnAction}`;
 
   return (
-    <MessageDialog
-      title={title}
-      message={message}
-      onOpenChange={handleOpenChange}
-      actions={(
+    <MessageDialog title={title} message={message} onOpenChange={handleOpenChange} actions={(
         <>
           <button type="button" className={styles.modalBtnCancel} onClick={onCancel}>{cancelLabel}</button>
           <button type="button" className={confirmClassName} onClick={onConfirm} disabled={confirmDisabled}>{confirmLabel}</button>
         </>
-      )}
-    />
+      )} />
   );
 }
